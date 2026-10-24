@@ -137,6 +137,29 @@ let handleToolsList = (
   }
 }
 
+let handleSubscriptionsListen = (handler, id, params) => {
+  switch parseParams(
+    params,
+    Types.subscriptionsListenParamsSchema,
+    "Missing params for subscriptions/listen",
+  ) {
+  | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
+  | Ok(_) =>
+    let params: Types.subscriptionsAcknowledgedParams = {
+      _meta: {subscriptionId: id},
+      notifications: {},
+    }
+    let payload =
+      JsonRpc.Notification.make(
+        ~method="notifications/subscriptions/acknowledged",
+        ~params=Some(
+          params->S.decodeOrThrow(~from=Types.subscriptionsAcknowledgedParamsSchema, ~to=S.json),
+        ),
+      )->JsonRpc.Notification.toJson
+    handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
+  }
+}
+
 let handleToolsCall = async (
   handler: mcpHandler<'server>,
   id: JsonRpc.Id.t,
@@ -200,6 +223,7 @@ let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit 
           | "server/discover" => handleDiscover(handler, id, params)
           | "tools/list" => handleToolsList(handler, id, params)
           | "tools/call" => await handleToolsCall(handler, id, params)
+          | "subscriptions/listen" => handleSubscriptionsListen(handler, id, params)
           | _ =>
             sendError(handler, id, Types.ErrorCode.methodNotFound, `Method not found: ${method}`)
           }

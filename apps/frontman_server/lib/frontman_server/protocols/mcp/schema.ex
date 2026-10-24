@@ -20,6 +20,16 @@ defmodule FrontmanServer.Protocols.MCP.Schema do
   @tools_list_result @tools_list_result_path |> File.read!() |> Jason.decode!() |> JSV.build!()
   @call_tool_result @call_tool_result_path |> File.read!() |> Jason.decode!() |> JSV.build!()
 
+  @state_only_input_required JSV.build!(%{
+                               "type" => "object",
+                               "properties" => %{
+                                 "resultType" => %{"const" => "input_required"},
+                                 "requestState" => %{"type" => "string"},
+                                 "_meta" => %{"type" => "object"}
+                               },
+                               "required" => ["resultType", "requestState"]
+                             })
+
   def validate_discover_result(result), do: validate(result, @discover_result)
 
   def validate_tools_list_result(result) do
@@ -41,7 +51,15 @@ defmodule FrontmanServer.Protocols.MCP.Schema do
     end
   end
 
+  def validate_call_tool_result(%{"resultType" => "input_required"} = result)
+      when not is_map_key(result, "inputRequests"),
+      do: validate(result, @state_only_input_required)
+
   def validate_call_tool_result(result), do: validate(result, @call_tool_result)
+
+  def validate_call_tool_result(%{"resultType" => "input_required"} = result, _output_schema)
+      when not is_map_key(result, "inputRequests"),
+      do: validate_call_tool_result(result)
 
   def validate_call_tool_result(%{"isError" => true} = result, output_schema)
       when is_map(output_schema) and not is_map_key(result, "structuredContent"),

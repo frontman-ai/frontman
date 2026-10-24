@@ -1046,6 +1046,97 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
     end
 
+    test "explicitly declines state-only input_required without a final success", %{
+      socket: socket,
+      task_id: task_id,
+      scope: scope
+    } do
+      tool_call = tool_call("call_input_required", "testTool")
+      tool_call_id = tool_call.tool_call_id
+      turn_number = start_turn_fixture(scope, task_id)
+      register_tool_receiver(task_id, tool_call_id)
+      {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
+
+      assert_push("mcp:message", %{
+        "method" => "tools/call",
+        "id" => mcp_request_id,
+        "params" => %{
+          "name" => "testTool",
+          "_meta" => %{"ai.frontman/execution-context" => %{"callId" => ^tool_call_id}}
+        }
+      })
+
+      result = %{"resultType" => "input_required", "requestState" => "opaque-server-state"}
+      push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, result))
+      :sys.get_state(socket.channel_pid)
+
+      assert Process.alive?(socket.channel_pid)
+
+      assert_receive {:tool_result, ^tool_call_id,
+                      [%SwarmAi.Message.ContentPart{type: :text, text: message}], true}
+
+      assert is_binary(message)
+      assert String.trim(message) != ""
+      refute_receive {:tool_result, ^tool_call_id, _, false}
+
+      assert {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+
+      assert [
+               %Interaction.ToolResult{
+                 tool_call_id: ^tool_call_id,
+                 is_error: true,
+                 result:
+                   %{
+                     "isError" => true,
+                     "content" => [%{"type" => "text", "text" => ^message}]
+                   } = persisted_result
+               }
+             ] = Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
+
+      refute Map.has_key?(persisted_result, "resultType")
+      refute Map.has_key?(persisted_result, "requestState")
+
+      assert_push("acp:message", %{
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{
+            "sessionUpdate" => "tool_call_update",
+            "toolCallId" => ^tool_call_id,
+            "status" => "failed",
+            "content" => [%{"type" => "content", "content" => %{"text" => ^message}}]
+          }
+        }
+      })
+
+      refute_push("acp:message", %{
+        "params" => %{"update" => %{"toolCallId" => ^tool_call_id, "status" => "completed"}}
+      })
+
+      refute_push("mcp:message", %{"method" => "tools/call"})
+    end
+
+    test "validates state-only interims without applying the final output schema" do
+      result = %{"resultType" => "input_required", "requestState" => "opaque-state"}
+
+      assert :ok = MCP.Schema.validate_call_tool_result(result)
+      assert :ok = MCP.Schema.validate_call_tool_result(result, @logged_output_schema)
+
+      for invalid <- [
+            Map.delete(result, "requestState"),
+            Map.put(result, "requestState", nil),
+            Map.put(result, "requestState", %{}),
+            Map.put(result, "_meta", "invalid"),
+            Map.put(result, "inputRequests", %{}),
+            Map.put(result, "inputRequests", nil),
+            Map.put(result, "inputRequests", %{"roots" => %{"method" => "roots/list"}}),
+            Map.put(result, "resultType", "unknown")
+          ] do
+        assert :error = MCP.Schema.validate_call_tool_result(invalid)
+        assert :error = MCP.Schema.validate_call_tool_result(invalid, @logged_output_schema)
+      end
+    end
+
     test "validates structured content only when tool errors provide it" do
       result = %{
         "resultType" => "complete",
