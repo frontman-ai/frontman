@@ -45,6 +45,13 @@ let connect = async () => {
 let create = connection =>
   ACP.createSession(connection, ~sessionId, ~onUpdate=(_, _) => (), ~onTitleUpdated=(_, _) => ())
 
+testAsync("connects without sending a client-supplied origin param", async t => {
+  let (_, connection) = await connect()
+  t
+  ->expect(connection.socket->FrontmanBindings.Phoenix.socketParams->Dict.get("origin"))
+  ->Expect.toEqual(None)
+})
+
 [
   JSON.Encode.null,
   JSON.Encode.bool(false),
