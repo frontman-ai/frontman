@@ -199,6 +199,25 @@ $runtime_call = static function ( string $name, array $arguments ) use ( $cookie
 	}
 	return $data;
 };
+$site_info = $runtime_call( 'wp_get_site_info', [] );
+frontman_runtime_assert( ! array_key_exists( 'installation', $site_info ) && $site_info === $runtime_call( 'wp_get_site_info', [ 'include_installation_paths' => false ] ), 'Site info must omit paths unless requested.' );
+$installation_info = $runtime_call( 'wp_get_site_info', [ 'include_installation_paths' => true ] );
+frontman_runtime_assert( [
+	'abspath' => trailingslashit( wp_normalize_path( ABSPATH ) ),
+	'resolved_abspath' => trailingslashit( wp_normalize_path( realpath( ABSPATH ) ) ),
+] === $installation_info['installation'], 'HTTP site info must report the WordPress runtime root.' );
+unset( $installation_info['installation'] );
+frontman_runtime_assert( $site_info === $installation_info, 'Opt-in changed other site information.' );
+$subscriber_cookie = wp_generate_auth_cookie( wp_create_user( 'runtime-subscriber', wp_generate_password(), 'runtime-subscriber@example.test' ), time() + HOUR_IN_SECONDS, 'logged_in' );
+$location_request = [ 'name' => 'wp_get_site_info', 'arguments' => [ 'include_installation_paths' => true ] ];
+foreach ( [ [ '', null, 401 ], [ $subscriber_cookie, null, 403 ], [ $cookie, null, 403 ], [ $cookie, 'invalid', 403 ] ] as [ $visitor_cookie, $visitor_nonce, $expected_status ] ) {
+	$denied = frontman_runtime_tool( $visitor_cookie, $visitor_nonce, $location_request );
+	$error_json = wp_json_encode( json_decode( $denied['body'], true, 512, JSON_THROW_ON_ERROR ), JSON_UNESCAPED_SLASHES );
+	frontman_runtime_assert( $expected_status === $denied['status'] && false === strpos( $error_json, ABSPATH ), 'Installation paths bypassed authentication, administrator access, or nonce validation.' );
+}
+$invalid_location = frontman_runtime_tool( $cookie, $slug_nonce, [ 'name' => 'wp_get_site_info', 'arguments' => [ 'include_installation_paths' => 'true' ] ] );
+frontman_runtime_assert( true === $invalid_location['body']['isError'], 'HTTP path opt-in must reject coerced booleans.' );
+
 $media_image = imagecreatetruecolor( 320, 240 );
 ob_start();
 imagepng( $media_image );
@@ -684,11 +703,7 @@ $wp_meta_keys = $registered;
 frontman_runtime_assert( null === ( new Frontman_Tool_Templates() )->get_site_info( [] )['seo_unavailable_reason'], 'Supported runtime was diagnosed as unavailable.' );
 $runtime_permalink = get_option( 'permalink_structure' );
 $wp_rewrite->set_permalink_structure( '' );
-wp_set_current_user( $admin->ID );
-$_COOKIE[ LOGGED_IN_COOKIE ] = $cookie;
-$nonce = Frontman_Auth::create_nonce();
-unset( $_COOKIE[ LOGGED_IN_COOKIE ] );
-wp_set_current_user( 0 );
+$nonce = $slug_nonce;
 $catalog   = json_decode( frontman_runtime_http( 'GET', '/index.php/frontman/tools', $cookie )['body'], true, 512, JSON_THROW_ON_ERROR );
 $seo_names = array_values( array_filter( array_column( $catalog['tools'], 'name' ), static fn( string $name ): bool => false !== strpos( $name, 'seo' ) || false !== strpos( $name, 'yoast' ) ) );
 frontman_runtime_assert( [ 'wp_read_seo', 'wp_update_seo' ] === $seo_names, 'SEO catalog is not provider-neutral.' );
@@ -710,7 +725,6 @@ $snapshot = static function ( int $id ) use ( $wpdb ): array {
 };
 $target = $fixtures[0]['id']; $unchanged = $snapshot( $target );
 $valid             = [ 'name' => 'wp_update_seo', 'arguments' => [ 'id' => $target, 'title' => 'Blocked' ] ];
-$subscriber_cookie = wp_generate_auth_cookie( wp_create_user( 'runtime-subscriber', wp_generate_password(), 'runtime-subscriber@example.test' ), time() + HOUR_IN_SECONDS, 'logged_in' );
 $invalid = [
 	frontman_runtime_tool( '', null, $valid ),
 	frontman_runtime_tool( $subscriber_cookie, null, $valid ),

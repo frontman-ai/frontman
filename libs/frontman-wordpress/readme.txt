@@ -62,6 +62,16 @@ Frontman then uses WordPress, Elementor, or WooCommerce tools that match the req
 
 Frontman works with WordPress content and structures that its current tools support. Custom themes, custom plugins, hosting controls, and unsupported page builders can require a different workflow.
 
+== Installation Location ==
+
+`wp_get_site_info` omits installation paths by default. For a user-requested location check, `include_installation_paths: true` adds an `installation` object.
+
+`installation.abspath` reports WordPress's configured `ABSPATH`. `installation.resolved_abspath` resolves symbolic links with `realpath`, or returns null if resolution fails. Both paths use forward slashes and a trailing slash. The tool accepts no path input and grants no file-content or directory-listing access.
+
+These paths describe the PHP runtime, not necessarily the host path or public document root. Multisite sites can share a root. Separate containers can report identical paths. These fields do not provide a unique installation identity.
+
+Paths can reveal hosting details or account names. Requested path results can enter the selected AI provider's request context and stored task history.
+
 == Native Post Authors ==
 
 `wp_create_post` and `wp_update_post` accept an optional positive integer `author` account ID. Omission uses the current user on creation and preserves the existing author on update. These tools assign one native WordPress author, not guest authors or coauthors. They do not create accounts or change roles.
