@@ -1067,8 +1067,14 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
 
       result = %{"resultType" => "input_required", "requestState" => "opaque-server-state"}
-      push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, result))
-      :sys.get_state(socket.channel_pid)
+
+      log =
+        capture_log(fn ->
+          push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, result))
+          :sys.get_state(socket.channel_pid)
+        end)
+
+      refute log =~ "opaque-server-state"
 
       assert Process.alive?(socket.channel_pid)
 
@@ -1077,6 +1083,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       assert is_binary(message)
       assert String.trim(message) != ""
+      assert message =~ "declines MRTR retry"
+      refute message =~ "opaque-server-state"
       refute_receive {:tool_result, ^tool_call_id, _, false}
 
       assert {:ok, task} = Tasks.get_task_with_history(scope, task_id)

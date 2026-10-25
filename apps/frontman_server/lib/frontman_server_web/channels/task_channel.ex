@@ -466,8 +466,8 @@ defmodule FrontmanServerWeb.TaskChannel do
       Enum.find(tools, %{output_schema: nil}, &(&1.name == tool_call.tool_name))
 
     result =
-      case MCPSchema.validate_call_tool_result(result, output_schema) do
-        :ok ->
+      case MCPSchema.resolve_call_tool_result(result, output_schema) do
+        {:ok, result} ->
           normalize_tool_call_result(result)
 
         :error ->
@@ -475,12 +475,6 @@ defmodule FrontmanServerWeb.TaskChannel do
       end
 
     {:noreply, persist_tool_call_result(tool_call, result, socket)}
-  end
-
-  defp normalize_tool_call_result(%{"resultType" => "input_required"}) do
-    MCP.tool_result_error(
-      "MCP tool requires additional input; Frontman does not support continuing this request."
-    )
   end
 
   defp normalize_tool_call_result(%{"content" => content} = result) do
