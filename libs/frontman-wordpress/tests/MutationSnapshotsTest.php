@@ -1086,6 +1086,18 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 			'wp_update_option rejects complex widget/sidebar state writes'
 		);
 
+		$GLOBALS['frontman_test_options']['woocommerce_store_address'] = 'Original store address';
+		$options_before = $GLOBALS['frontman_test_options'];
+		$this->assert_error_contains(
+			static function() use ( $option_tool ) {
+				$option_tool->update_option( [ 'name' => 'woocommerce_store_address', 'value' => 'Changed store address' ] );
+			},
+			'Option not allowed: woocommerce_store_address',
+			'wp_update_option rejects arbitrary plugin-private option writes'
+		);
+		$this->assert_same( $options_before, $GLOBALS['frontman_test_options'], 'Rejected plugin-private writes leave option storage unchanged' );
+		unset( $GLOBALS['frontman_test_options']['woocommerce_store_address'] );
+
 		$this->assert_error_contains(
 			static function() use ( $menu_tool ) {
 				$menu_tool->delete_menu_item( [ 'menu_item_id' => 25, 'confirm' => false ] );
