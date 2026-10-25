@@ -11,17 +11,6 @@ module TestPhoenix = FrontmanBindings.Bindings__Test__Phoenix
 @val @scope("JSON")
 external stringifyLogContext: 'a => string = "stringify"
 
-let cancellationLogs: ref<option<ref<string>>> = ref(None)
-
-FrontmanLogs.Logs.addHandler({
-  id: "mcp-cancellation-test",
-  run: (~component as _, ~stacktrace, ~level as _, message, context, error) =>
-    cancellationLogs.contents->Option.forEach(logs => {
-      let entry = (message, context, stacktrace, error->Option.flatMap(JsExn.message))
-      logs := logs.contents ++ stringifyLogContext(entry)
-    }),
-})
-
 let makeServer = async (~tools=[]) => {
   let config = Relay.makeConfig(~baseUrl="http://relay.invalid", ~fetch=async (_, _) =>
     WebAPI.Response.fromString(`{"tools":[],"serverInfo":{"name":"test","version":"1"},"protocolVersion":"2.0"}`)
@@ -31,46 +20,19 @@ let makeServer = async (~tools=[]) => {
   MCPServer.make(MCPServer.makeConfig(~tools), ~relay)
 }
 
-module MockChannel: {
-  type pushCall = {event: string, payload: JSON.t}
-  type t
-  let make: unit => (t, ref<array<pushCall>>)
-  let setOn: (t, (string, JSON.t => unit) => unit, ~allEvents: bool=?) => t
-  let toPhoenix: t => FrontmanClient__Phoenix__Channel.t
-} = {
-  type pushCall = {event: string, payload: JSON.t}
-  type t = TestPhoenix.mockChannel
-
-  let toPhoenix = TestPhoenix.toChannel
-
-  let setOn = (channel: t, on, ~allEvents=false) => {
-    ...channel,
-    on: (event, callback) =>
-      switch (event, allEvents) {
-      | ("mcp:message", _) | (_, true) => on(event, callback)
-      | (_, false) => ()
-      },
-  }
-
-  let rec pushResponse = () => {
-    FrontmanBindings.Phoenix.receive: (~status as _, ~callback as _) => pushResponse(),
-  }
-
-  let make = () => {
-    let calls: ref<array<pushCall>> = ref([])
-    let channel: t = {
-      push: (event, payload) => {
-        calls := Array.concat(calls.contents, [{event, payload}])
-        pushResponse()
-      },
-      on: (_, _) => (),
-      off: () => (),
-    }
-    (channel, calls)
-  }
-}
-
-let serverInfo: Types.info = {name: "test-browser", version: "1.0.0"}
+type pushCall = {event: string, payload: JSON.t}
+@obj
+external pushResponse: (
+  ~receive: (~status: string, ~callback: JSON.t => unit) => FrontmanBindings.Phoenix.pushResponse,
+  ~cancelTimeout: unit => unit,
+  ~cancelRefEvent: unit => unit,
+) => FrontmanBindings.Phoenix.pushResponse = ""
+let rec makePush = () =>
+  pushResponse(
+    ~receive=(~status as _, ~callback as _) => makePush(),
+    ~cancelTimeout=() => (),
+    ~cancelRefEvent=() => (),
+  )
 
 module ThrowingTool = {
   let name = "throwing_tool"
@@ -87,45 +49,33 @@ module ThrowingTool = {
 
 type failure = Discover | List | Tool
 
-let makeInterface = (
+let makeInterface = async (
   ~context: ref<option<(string, string)>>,
   ~failure: option<failure>=?,
-): Types.serverInterface<unit> => {
-  server: (),
-  buildDiscoverResult: _ =>
-    switch failure {
-    | Some(Discover) => JsError.throwWithMessage("discovery exploded")
-    | Some(List) | Some(Tool) | None => {
-        resultType: "complete",
-        supportedVersions: [Types.protocolVersion],
-        capabilities: {
-          tools: {listChanged: false},
-          extensions: {executionContext: {version: 1}, toolMetadata: {version: 1}},
-        },
-        ttlMs: 0,
-        cacheScope: "private",
-        _meta: {serverInfo: serverInfo},
+): Types.serverInterface<MCPServer.t> => {
+  let server = await makeServer(~tools=[module(ThrowingTool)])
+  let serverInterface = MCPServer.toInterface(server)
+  {
+    ...serverInterface,
+    buildDiscoverResult: server =>
+      switch failure {
+      | Some(Discover) => JsError.throwWithMessage("discovery exploded")
+      | _ => serverInterface.buildDiscoverResult(server)
+      },
+    buildToolsListResult: server => {
+      let result = serverInterface.buildToolsListResult(server)
+      {...result, tools: failure == Some(List) ? [JSON.Encode.null] : result.tools}
+    },
+    executeTool: async (_, toolCall) => {
+      switch failure == Some(Tool) {
+      | true => JsError.throwWithMessage("tool exploded")
+      | false => ()
       }
+      context :=
+        Some((Types.AuthorizedToolCall.taskId(toolCall), Types.AuthorizedToolCall.callId(toolCall)))
+      Types.Completed(Types.CallToolResult.makeText("ok"))
     },
-  buildToolsListResult: _ => {
-    resultType: "complete",
-    tools: switch failure {
-    | Some(List) => [JSON.Encode.null]
-    | _ => [JSON.parseOrThrow(`{"name":"test","inputSchema":{"type":"object"}}`)]
-    },
-    ttlMs: 0,
-    cacheScope: "private",
-    _meta: {serverInfo: serverInfo},
-  },
-  executeTool: async (_, toolCall) => {
-    switch failure == Some(Tool) {
-    | true => JsError.throwWithMessage("tool exploded")
-    | false => ()
-    }
-    context :=
-      Some((Types.AuthorizedToolCall.taskId(toolCall), Types.AuthorizedToolCall.callId(toolCall)))
-    Types.Completed(Types.CallToolResult.makeText("ok"))
-  },
+  }
 }
 
 let commonMeta = `"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{"extensions":{"ai.frontman/execution-context":{"version":1}}},"io.modelcontextprotocol/clientInfo":{"name":"frontman-server","version":"1.0.0"}`
@@ -143,460 +93,221 @@ let request = (~id: int, ~method: string, ~params: string) =>
 let requestWithoutParams = (~id: int, ~method: string) =>
   JSON.parseOrThrow(`{"jsonrpc":"2.0","id":${id->Int.toString},"method":"${method}"}`)
 
-let response = (calls: ref<array<MockChannel.pushCall>>) => {
+let response = (calls: ref<array<pushCall>>) => {
   let {payload} = calls.contents->Array.get(0)->Option.getOrThrow
   payload->JSON.Decode.object->Option.getOrThrow
 }
 let resultJson = message => message->Dict.get("result")->Option.getOrThrow
 
-let errorCode = calls =>
-  response(calls)
-  ->Dict.get("error")
-  ->Option.flatMap(JSON.Decode.object)
-  ->Option.flatMap(error => error->Dict.get("code"))
-  ->Option.flatMap(JSON.Decode.float)
-  ->Option.map(Float.toInt)
+module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
+let rpcResponse = (calls: ref<array<pushCall>>) =>
+  (calls.contents->Array.get(0)->Option.getOrThrow).payload->S.parseOrThrow(
+    ~to=JsonRpc.Response.schema,
+  )
+let rpcError = (calls: ref<array<pushCall>>) =>
+  (calls.contents->Array.get(0)->Option.getOrThrow).payload->S.parseOrThrow(
+    ~to=S.object(s => s.field("error", S.option(JsonRpc.RpcError.schema))),
+  )
+let errorCode = calls => rpcError(calls)->Option.map(JsonRpc.RpcError.code)
+let errorData = calls => rpcError(calls)->Option.flatMap(JsonRpc.RpcError.data)
 
-let errorData = calls =>
-  response(calls)
-  ->Dict.get("error")
-  ->Option.flatMap(JSON.Decode.object)
-  ->Option.flatMap(error => error->Dict.get("data"))
-
-let makeHandler = (channel, serverInterface, ~sessionId="task-1") => {
-  MCP.serverInterface,
-  channel: MockChannel.toPhoenix(channel),
-  sessionId,
-  subscriptions: ref([]),
-  toolCalls: ref([]),
-  transportListeners: ref([]),
+let fixture = serverInterface => {
+  let calls = ref([])
+  let listeners = Dict.make()
+  let channel: TestPhoenix.mockChannel = {
+    push: (event, payload) => {
+      calls := Array.concat(calls.contents, [{event, payload}])
+      makePush()
+    },
+    on: (event, callback) => listeners->Dict.set(event, callback),
+    off: () => (),
+  }
+  let handler = MCP.attach(
+    ~channel=TestPhoenix.toChannel(channel),
+    ~sessionId="task-1",
+    ~serverInterface,
+  )
+  TestVitest.onTestFinished(() => MCP.detach(handler))
+  (handler, calls, listeners)
 }
 
-let handler = (channel, context, ~sessionId="task-1", ~failure=?) =>
-  makeHandler(channel, makeInterface(~context, ~failure?), ~sessionId)
+let invoke = async (~context=ref(None), ~failure=?, payload) => {
+  let (handler, calls, _) = fixture(await makeInterface(~context, ~failure?))
+  await MCP.handleMessage(handler, payload)
+  calls
+}
+
+let listen = (handler, id, ~notifications="{}") =>
+  MCP.handleMessage(
+    handler,
+    requestWithId(
+      ~id,
+      ~method="subscriptions/listen",
+      ~params=`${coreMetadata},"notifications":${notifications}`,
+    ),
+  )
+
+let cancel = (handler, params) =>
+  MCP.handleMessage(
+    handler,
+    JsonRpc.Notification.make(
+      ~method="notifications/cancelled",
+      ~params=Some(JSON.parseOrThrow(params)),
+    )->JsonRpc.Notification.toJson,
+  )
 
 describe("MCP 2026-07-28", () => {
-  testAsync("reserves pending and suspended tool IDs without conflating string IDs", async t => {
-    let _ = await [
-      Types.Completed(Types.CallToolResult.makeText("ok")),
-      Types.Suspended,
-      Types.ProtocolError({code: Types.ErrorCode.invalidParams, message: "Invalid tool"}),
-    ]
-    ->Array.map(
-      async outcome => {
-        let (channel, calls) = MockChannel.make()
-        let resolveTool = ref(_ => ())
-        let deferred = Promise.make((resolve, _) => resolveTool := resolve)
-        let serverInterface = {
-          ...makeInterface(~context=ref(None)),
-          executeTool: (_, _) => deferred,
-        }
-        let attached = MCP.attach(
-          ~channel=MockChannel.toPhoenix(channel),
-          ~sessionId="task-1",
-          ~serverInterface,
-        )
-        let pending = MCP.handleMessage(
-          attached,
-          request(~id=1, ~method="tools/call", ~params=toolParams),
-        )
-        let listen = async id =>
-          await MCP.handleMessage(
-            attached,
-            requestWithId(
-              ~id,
-              ~method="subscriptions/listen",
-              ~params=`${coreMetadata},"notifications":{}`,
-            ),
-          )
-        await MCP.handleMessage(
-          attached,
-          JSON.parseOrThrow(`{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":1}}`),
-        )
-        await listen("1")
-        t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.invalidRequest))
-        t->expect(calls.contents->Array.length)->Expect.toBe(1)
-        calls := []
-        await listen(`"1"`)
-        t->expect(calls.contents->Array.length)->Expect.toBe(1)
-        t->expect(errorCode(calls))->Expect.toEqual(None)
-        calls := []
-        resolveTool.contents(outcome)
-        await pending
-        t->expect(calls.contents->Array.length)->Expect.toBe(outcome == Types.Suspended ? 0 : 1)
-        calls := []
-        await listen("1")
-        t
-        ->expect(errorCode(calls))
-        ->Expect.toEqual(outcome == Types.Suspended ? Some(Types.ErrorCode.invalidRequest) : None)
-        t->expect(calls.contents->Array.length)->Expect.toBe(1)
-        MCP.detach(attached)
-      },
-    )
-    ->Promise.all
-  })
-
-  testAsync("does not send late tool responses after detach or transport loss", async t => {
-    let _ = await ["detach", "phx_error", "phx_close"]
-    ->Array.map(
-      async event => {
-        let (channel, calls) = MockChannel.make()
-        let listeners = Dict.make()
-        let channel = MockChannel.setOn(
-          channel,
-          (event, callback) => listeners->Dict.set(event, callback),
-          ~allEvents=true,
-        )
-        let resolveTool = ref(_ => ())
-        let deferred = Promise.make((resolve, _) => resolveTool := resolve)
-        let attached = MCP.attach(
-          ~channel=MockChannel.toPhoenix(channel),
-          ~sessionId="task-1",
-          ~serverInterface={
-            ...makeInterface(~context=ref(None)),
-            executeTool: (_, _) => deferred,
-          },
-        )
-        let pending = MCP.handleMessage(
-          attached,
-          request(~id=1, ~method="tools/call", ~params=toolParams),
-        )
-        switch event {
-        | "detach" => MCP.detach(attached)
-        | _ => (listeners->Dict.get(event)->Option.getOrThrow)(JSON.Encode.null)
-        }
-        resolveTool.contents(Types.Completed(Types.CallToolResult.makeText("ok")))
-        await pending
-        t->expect(calls.contents)->Expect.toEqual([])
-        MCP.detach(attached)
-      },
-    )
-    ->Promise.all
-  })
-
   testAsync(
-    "rejects active subscription ID reuse by other methods and bounds active streams",
+    "acknowledges attached streams and reserves tool IDs until completion or teardown",
     async t => {
-      let (channel, calls) = MockChannel.make()
-      let context = ref(None)
-      let attached = MCP.attach(
-        ~channel=MockChannel.toPhoenix(channel),
-        ~sessionId="task-1",
-        ~serverInterface=makeInterface(~context),
-      )
-      let _ = await Array.make(~length=128, ())
-      ->Array.mapWithIndex(
-        async (_, id) =>
-          await MCP.handleMessage(
-            attached,
-            request(
-              ~id,
-              ~method="subscriptions/listen",
-              ~params=`${coreMetadata},"notifications":{}`,
-            ),
-          ),
-      )
-      ->Promise.all
-      t->expect(calls.contents->Array.length)->Expect.toBe(128)
-      calls := []
-      await MCP.handleMessage(attached, request(~id=0, ~method="tools/call", ~params=toolParams))
-      t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.invalidRequest))
-      t->expect(context.contents)->Expect.toEqual(None)
-      calls := []
-      await MCP.handleMessage(
-        attached,
-        request(
-          ~id=128,
-          ~method="subscriptions/listen",
-          ~params=`${coreMetadata},"notifications":{}`,
-        ),
-      )
-      t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.serverError))
-      MCP.detach(attached)
-    },
-  )
-
-  testAsync(
-    "drops subscription streams on channel error or close without replaying them",
-    async t => {
-      let _ = await ["phx_error", "phx_close"]
-      ->Array.map(
-        async closeEvent => {
-          let (channel, calls) = MockChannel.make()
-          let listeners = Dict.make()
-          let channel = MockChannel.setOn(
-            channel,
-            (event, callback) => listeners->Dict.set(event, callback),
-            ~allEvents=true,
-          )
-          let attached = MCP.attach(
-            ~channel=MockChannel.toPhoenix(channel),
-            ~sessionId="task-1",
-            ~serverInterface=makeInterface(~context=ref(None)),
-          )
-          let listen = request(
-            ~id=1,
-            ~method="subscriptions/listen",
-            ~params=`${coreMetadata},"notifications":{}`,
-          )
-          await MCP.handleMessage(attached, listen)
-          let close = listeners->Dict.get(closeEvent)->Option.getOrThrow
-          close(JSON.Encode.null)
-          MCP.detach(attached)
-          t->expect(calls.contents->Array.length)->Expect.toBe(1)
-        },
-      )
-      ->Promise.all
-    },
-  )
-
-  testAsync("validates subscription filters before acknowledging", async t => {
-    let _ = await [
-      "null",
-      "[]",
-      `{"toolsListChanged":"yes"}`,
-      `{"promptsListChanged":1}`,
-      `{"resourcesListChanged":[]}`,
-      `{"resourceSubscriptions":[1]}`,
-      `{"toolsListChanged":null}`,
-      `{"resourceSubscriptions":null}`,
-    ]
-    ->Array.map(
-      async filter => {
-        let (channel, calls) = MockChannel.make()
-        await MCP.handleMessage(
-          handler(channel, ref(None)),
-          request(
-            ~id=1,
-            ~method="subscriptions/listen",
-            ~params=`${coreMetadata},"notifications":${filter}`,
-          ),
-        )
-        t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.invalidParams))
-        t->expect(calls.contents->Array.length)->Expect.toBe(1)
-      },
-    )
-    ->Promise.all
-  })
-
-  testAsync("keeps distinct subscription IDs active until cancelled or detached", async t => {
-    let (channel, calls) = MockChannel.make()
-    let attached = MCP.attach(
-      ~channel=MockChannel.toPhoenix(channel),
-      ~sessionId="task-1",
-      ~serverInterface=makeInterface(~context=ref(None)),
-    )
-    let listen = async id =>
-      await MCP.handleMessage(
-        attached,
-        requestWithId(
-          ~id,
-          ~method="subscriptions/listen",
-          ~params=`${coreMetadata},"notifications":{"toolsListChanged":true,"promptsListChanged":true,"resourcesListChanged":true,"resourceSubscriptions":["file:///x"]}`,
-        ),
-      )
-    await listen("1")
-    await listen(`"1"`)
-    t->expect(calls.contents->Array.length)->Expect.toBe(2)
-    [(0, "1"), (1, `"1"`)]->Array.forEach(
-      ((index, id)) => {
-        let payload = calls.contents->Array.get(index)->Option.getOrThrow
-        t
-        ->expect(payload.payload)
-        ->Expect.toEqual(
-          JSON.parseOrThrow(
-            `{
-        "jsonrpc":"2.0","method":"notifications/subscriptions/acknowledged",
-        "params":{"notifications":{},"_meta":{"io.modelcontextprotocol/subscriptionId":${id}}}
-      }`,
-          ),
-        )
-      },
-    )
-    await listen("1")
-    let duplicate = calls.contents->Array.get(2)->Option.getOrThrow
-    t
-    ->expect(duplicate.payload->JSON.stringify->String.includes("already active"))
-    ->Expect.toBe(true)
-    await MCP.handleMessage(
-      attached,
-      JSON.parseOrThrow(`{
-      "jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":1}
-    }`),
-    )
-    t->expect(calls.contents->Array.length)->Expect.toBe(3)
-    await listen("1")
-    t->expect(calls.contents->Array.length)->Expect.toBe(4)
-    MCP.detach(attached)
-    let endings = calls.contents->Array.slice(~start=4, ~end=8)->Array.map(call => call.payload)
-    t
-    ->expect(endings)
-    ->Expect.toEqual(
-      [`"1"`, "1"]->Array.flatMap(
-        id => [
-          JSON.parseOrThrow(
-            `{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":${id},"_meta":{"io.modelcontextprotocol/subscriptionId":${id}}}}`,
-          ),
-          JSON.parseOrThrow(
-            `{"jsonrpc":"2.0","id":${id},"result":{"resultType":"complete","_meta":{"io.modelcontextprotocol/subscriptionId":${id}}}}`,
-          ),
-        ],
-      ),
-    )
-    MCP.detach(attached)
-    t->expect(calls.contents->Array.length)->Expect.toBe(8)
-  })
-
-  testAsync(
-    "ignores malformed and unknown cancellation without ending active subscriptions",
-    async t => {
-      let logs = ref("")
-      cancellationLogs := Some(logs)
-      TestVitest.onTestFinished(() => cancellationLogs := None)
-      let (channel, calls) = MockChannel.make()
-      let attached = MCP.attach(
-        ~channel=MockChannel.toPhoenix(channel),
-        ~sessionId="task-1",
-        ~serverInterface=makeInterface(~context=ref(None)),
-      )
-      await MCP.handleMessage(
-        attached,
-        request(
-          ~id=2,
-          ~method="subscriptions/listen",
-          ~params=`${coreMetadata},"notifications":{}`,
-        ),
-      )
+      let server = await makeServer()
+      let complete = Types.Completed(Types.CallToolResult.makeText("ok"))
       let _ = await [
-        `{"requestId":{"private":"REQUEST_ID_SENTINEL"},"reason":"REASON_SENTINEL"}`,
-        `{"requestId":2,"reason":{"private":"REASON_SENTINEL"}}`,
-        `{"requestId":3}`,
+        (complete, None),
+        (Types.Suspended, None),
+        (Types.ProtocolError({code: Types.ErrorCode.invalidParams, message: "Invalid tool"}), None),
+        (complete, Some("detach")),
+        (complete, Some("phx_error")),
+        (complete, Some("phx_close")),
       ]
       ->Array.map(
-        async params => {
-          await MCP.handleMessage(
-            attached,
+        async ((outcome, event)) => {
+          let resolve = ref(_ => ())
+          let deferred = Promise.make((complete, _) => resolve := complete)
+          let (handler, calls, listeners) = fixture({
+            ...MCPServer.toInterface(server),
+            executeTool: (_, _) => deferred,
+          })
+          let pending = MCP.handleMessage(
+            handler,
+            request(~id=1, ~method="tools/call", ~params=toolParams),
+          )
+          let receive = listeners->Dict.get("mcp:message")->Option.getOrThrow
+          receive(
+            requestWithId(
+              ~id=`"1"`,
+              ~method="subscriptions/listen",
+              ~params=`${coreMetadata},"notifications":{}`,
+            ),
+          )
+          await TestVitest.waitFor(() => t->expect(calls.contents->Array.length)->Expect.toBe(1))
+          t
+          ->expect((calls.contents->Array.get(0)->Option.getOrThrow).payload)
+          ->Expect.toEqual(
+            JSON.parseOrThrow(`{"jsonrpc":"2.0","method":"notifications/subscriptions/acknowledged","params":{"notifications":{},"_meta":{"io.modelcontextprotocol/subscriptionId":"1"}}}`),
+          )
+          calls := []
+          await cancel(handler, `{"requestId":1}`)
+          await listen(handler, "1")
+          t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.invalidRequest))
+          calls := []
+          switch event {
+          | None =>
+            resolve.contents(outcome)
+            await pending
+            t->expect(calls.contents->Array.length)->Expect.toBe(outcome == Types.Suspended ? 0 : 1)
+            calls := []
+            await listen(handler, "1")
+            t
+            ->expect(errorCode(calls))
+            ->Expect.toEqual(
+              outcome == Types.Suspended ? Some(Types.ErrorCode.invalidRequest) : None,
+            )
+          | Some(event) =>
+            switch event {
+            | "detach" => MCP.detach(handler)
+            | _ => (listeners->Dict.get(event)->Option.getOrThrow)(JSON.Encode.null)
+            }
+            let sent = calls.contents
+            resolve.contents(outcome)
+            await pending
+            MCP.detach(handler)
+            t->expect(calls.contents)->Expect.toEqual(sent)
+            t->expect(sent->Array.length)->Expect.toBe(event == "detach" ? 2 : 0)
+          }
+        },
+      )
+      ->Promise.all
+    },
+  )
+
+  testAsync(
+    "filters subscriptions, preserves typed IDs, and closes only active streams",
+    async t => {
+      let server = await makeServer()
+      let (handler, calls, _) = fixture(MCPServer.toInterface(server))
+      let requests =
+        [`"1"`, "1", "2147483648"]->Array.map(
+          id =>
+            listen(
+              handler,
+              id,
+              ~notifications=`{"toolsListChanged":true,"promptsListChanged":true,"resourcesListChanged":true,"resourceSubscriptions":["file:///test"]}`,
+            ),
+        )
+      let _ = await Promise.all(requests)
+      t->expect(calls.contents->Array.length)->Expect.toBe(3)
+      calls.contents->Array.forEachWithIndex(
+        (call, index) => {
+          let expectedId = [`"1"`, "1", "2147483648"]->Array.get(index)->Option.getOrThrow
+          t->expect(call.event)->Expect.toBe("mcp:message")
+          t
+          ->expect(call.payload)
+          ->Expect.toEqual(
             JSON.parseOrThrow(
-              `{"jsonrpc":"2.0","method":"notifications/cancelled","params":${params}}`,
+              `{"jsonrpc":"2.0","method":"notifications/subscriptions/acknowledged","params":{"notifications":{},"_meta":{"io.modelcontextprotocol/subscriptionId":${expectedId}}}}`,
             ),
           )
         },
       )
-      ->Promise.all
+      calls := []
+      await MCP.handleMessage(handler, request(~id=1, ~method="tools/call", ~params=toolParams))
+      t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.invalidRequest))
+      let logs = ref("")
+      FrontmanLogs.Logs.addHandler({
+        id: "mcp-cancellation-test",
+        run: (~component as _, ~stacktrace, ~level as _, message, context, error) => {
+          let entry = (message, context, stacktrace, error->Option.flatMap(JsExn.message))
+          logs := logs.contents ++ stringifyLogContext(entry)
+        },
+      })
+      calls := []
+      let malformed = [
+        `{"requestId":{"private":"ID_SENTINEL"},"reason":"REASON_SENTINEL"}`,
+        `{"requestId":1,"reason":{"private":"REASON_SENTINEL"}}`,
+        `{"requestId":3}`,
+      ]
+      for index in 0 to 2 {
+        await cancel(handler, malformed->Array.get(index)->Option.getOrThrow)
+      }
       t
       ->expect(logs.contents->String.includes("Invalid MCP cancellation params"))
       ->Expect.toBe(true)
-      t->expect(logs.contents->String.includes("REQUEST_ID_SENTINEL"))->Expect.toBe(false)
-      t->expect(logs.contents->String.includes("REASON_SENTINEL"))->Expect.toBe(false)
-      t->expect(calls.contents->Array.length)->Expect.toBe(1)
-      MCP.detach(attached)
-      t->expect(calls.contents->Array.length)->Expect.toBe(3)
+      t->expect(logs.contents->String.includes("SENTINEL"))->Expect.toBe(false)
+      t->expect(handler.subscriptions.contents->Array.length)->Expect.toBe(3)
+      for id in 0 to 1 {
+        let id = id == 0 ? "1" : "2147483648"
+        await cancel(handler, `{"requestId":${id}}`)
+      }
+      t->expect(calls.contents)->Expect.toEqual([])
+      MCP.detach(handler)
+      t
+      ->expect(calls.contents->Array.map(call => call.payload))
+      ->Expect.toEqual([
+        JSON.parseOrThrow(`{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":"1","_meta":{"io.modelcontextprotocol/subscriptionId":"1"}}}`),
+        JSON.parseOrThrow(`{"jsonrpc":"2.0","id":"1","result":{"resultType":"complete","_meta":{"io.modelcontextprotocol/subscriptionId":"1"}}}`),
+      ])
+      MCP.detach(handler)
+      t->expect(calls.contents->Array.length)->Expect.toBe(2)
+      for id in 0 to 127 {
+        await listen(handler, Int.toString(id))
+      }
+      calls := []
+      await listen(handler, "128")
+      t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.serverError))
+      MCP.detach(handler)
     },
   )
-
-  testAsync("acknowledges an empty subscription through the attached browser server", async t => {
-    let server = await makeServer()
-    let (channel, calls) = MockChannel.make()
-    let incoming = ref(None)
-    let channel = MockChannel.setOn(
-      channel,
-      (event, callback) => {
-        t->expect(event)->Expect.toBe("mcp:message")
-        incoming := Some(callback)
-      },
-    )
-    let attached = MCP.attach(
-      ~channel=MockChannel.toPhoenix(channel),
-      ~sessionId="task-1",
-      ~serverInterface=MCPServer.toInterface(server),
-    )
-    TestVitest.onTestFinished(() => MCP.detach(attached))
-
-    let receive = incoming.contents->Option.getOrThrow
-    receive(
-      requestWithId(
-        ~id=`"empty-subscription"`,
-        ~method="subscriptions/listen",
-        ~params=`${coreMetadata},"notifications":{}`,
-      ),
-    )
-    await TestVitest.waitFor(() => t->expect(calls.contents->Array.length > 0)->Expect.toBe(true))
-
-    let first = calls.contents->Array.get(0)->Option.getOrThrow
-    t->expect(first.event)->Expect.toBe("mcp:message")
-    t
-    ->expect(first.payload)
-    ->Expect.toEqual(
-      JSON.parseOrThrow(`{
-        "jsonrpc": "2.0",
-        "method": "notifications/subscriptions/acknowledged",
-        "params": {
-          "notifications": {},
-          "_meta": {"io.modelcontextprotocol/subscriptionId": "empty-subscription"}
-        }
-      }`),
-    )
-  })
-
-  testAsync("omits unsupported notification types and preserves each subscription id", async t => {
-    let server = await makeServer()
-    let (channel, calls) = MockChannel.make()
-    let handler = makeHandler(channel, MCPServer.toInterface(server))
-    let requests = [`"subscription-1"`, "2147483648"]->Array.map(
-      async id => {
-        await MCP.handleMessage(
-          handler,
-          requestWithId(
-            ~id,
-            ~method="subscriptions/listen",
-            ~params=`${coreMetadata},"notifications":{"toolsListChanged":true,"promptsListChanged":true,"resourcesListChanged":true,"resourceSubscriptions":["file:///test"]}`,
-          ),
-        )
-      },
-    )
-    let _ = await Promise.all(requests)
-    t->expect(calls.contents->Array.length)->Expect.toBe(2)
-    calls.contents->Array.forEachWithIndex(
-      (call, index) => {
-        let expectedId = index == 0 ? `"subscription-1"` : "2147483648"
-        t->expect(call.event)->Expect.toBe("mcp:message")
-        t
-        ->expect(call.payload)
-        ->Expect.toEqual(
-          JSON.parseOrThrow(
-            `{
-          "jsonrpc":"2.0",
-          "method":"notifications/subscriptions/acknowledged",
-          "params":{"notifications":{},"_meta":{"io.modelcontextprotocol/subscriptionId":${expectedId}}}
-        }`,
-          ),
-        )
-      },
-    )
-  })
-
-  testAsync("rejects malformed subscription filters without acknowledging them", async t => {
-    let requests = [
-      coreMetadata,
-      `${coreMetadata},"notifications":null`,
-      `${coreMetadata},"notifications":[]`,
-      `${coreMetadata},"notifications":{"toolsListChanged":"true"}`,
-      `${coreMetadata},"notifications":{"promptsListChanged":1}`,
-      `${coreMetadata},"notifications":{"resourcesListChanged":null}`,
-      `${coreMetadata},"notifications":{"resourceSubscriptions":[1]}`,
-    ]->Array.map(
-      async params => {
-        let (channel, calls) = MockChannel.make()
-        await MCP.handleMessage(
-          handler(channel, ref(None)),
-          request(~id=24, ~method="subscriptions/listen", ~params),
-        )
-        t->expect(calls.contents->Array.length)->Expect.toBe(1)
-        t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.invalidParams))
-      },
-    )
-    let _ = await Promise.all(requests)
-  })
 
   testAsync("namespaces Frontman tool metadata under _meta", async t => {
     let server = await makeServer(~tools=[module(ThrowingTool)])
@@ -604,60 +315,38 @@ describe("MCP 2026-07-28", () => {
       MCPServer.buildToolsListResult(server).tools
       ->Array.get(0)
       ->Option.getOrThrow
-      ->JSON.Decode.object
-      ->Option.getOrThrow
-    let metadata =
-      tool
-      ->Dict.get("_meta")
-      ->Option.flatMap(JSON.Decode.object)
-      ->Option.flatMap(metadata => metadata->Dict.get("ai.frontman/tool-metadata"))
-      ->Option.flatMap(JSON.Decode.object)
-
-    t->expect(metadata->Option.isSome)->Expect.toBe(true)
-    t->expect(tool->Dict.get("access")->Option.isNone)->Expect.toBe(true)
-    t->expect(tool->Dict.get("visibleToAgent")->Option.isNone)->Expect.toBe(true)
-    t->expect(tool->Dict.get("executionMode")->Option.isNone)->Expect.toBe(true)
+    let metadata = S.object(
+      s => s.field("_meta", S.object(s => s.field("ai.frontman/tool-metadata", S.dict(S.json)))),
+    )
+    tool->S.parseOrThrow(~to=metadata)->ignore
+    let fields = tool->S.parseOrThrow(~to=S.dict(S.json))
+    ["access", "visibleToAgent", "executionMode"]->Array.forEach(
+      key => t->expect(fields->Dict.get(key))->Expect.toEqual(None),
+    )
   })
 
-  testAsync("handles discovery, listing, and tool execution", async t => {
+  testAsync("handles discovery, listing, and tool execution with optional identity", async t => {
     let context = ref(None)
     let call = async (id, method, params) => {
-      let (channel, calls) = MockChannel.make()
-      await MCP.handleMessage(handler(channel, context), request(~id, ~method, ~params))
-      response(calls)
+      let calls = await invoke(~context, requestWithId(~id, ~method, ~params))
+      t
+      ->expect(rpcResponse(calls)->JsonRpc.Response.id)
+      ->Expect.toEqual(Some(JSON.parseOrThrow(id)->S.parseOrThrow(~to=JsonRpc.Id.schema)))
+      resultJson(response(calls))
     }
-
-    resultJson(await call(1, "server/discover", metadata))->ignore
-    let listed = resultJson(await call(2, "tools/list", metadata))->JSON.stringify
-    t->expect(listed->String.includes(`"name":"test"`))->Expect.toBe(true)
-    resultJson(await call(3, "tools/call", toolParams))->ignore
+    for index in 0 to 1 {
+      let params = index == 0 ? metadata : coreMetadata
+      (await call("2147483648", "server/discover", params))->ignore
+      let listed = (await call(`"list"`, "tools/list", params))->JSON.stringify
+      t->expect(listed->String.includes(`"name":"throwing_tool"`))->Expect.toBe(true)
+    }
+    (await call(`"call-1"`, "tools/call", toolParams))->ignore
     t->expect(context.contents)->Expect.toEqual(Some(("task-1", "call-1")))
   })
 
-  testAsync("accepts core requests without optional identity or Frontman capabilities", async t => {
-    let context = ref(None)
-    let call = async (id, method) => {
-      let (channel, calls) = MockChannel.make()
-      await MCP.handleMessage(
-        handler(channel, context),
-        request(~id, ~method, ~params=coreMetadata),
-      )
-      response(calls)
-    }
-
-    t
-    ->expect((await call(17, "server/discover"))->Dict.get("result")->Option.isSome)
-    ->Expect.toBe(true)
-    t->expect((await call(18, "tools/list"))->Dict.get("result")->Option.isSome)->Expect.toBe(true)
-  })
-
   testAsync("rejects malformed and missing params", async t => {
-    let check = async payload => {
-      let (channel, calls) = MockChannel.make()
-      await MCP.handleMessage(handler(channel, ref(None)), payload)
-      errorCode(calls)
-    }
-    let errors = await [
+    let context = ref(None)
+    let requests = [
       request(~id=5, ~method="server/discover", ~params=""),
       requestWithoutParams(~id=6, ~method="server/discover"),
       request(~id=7, ~method="tools/list", ~params=""),
@@ -668,37 +357,54 @@ describe("MCP 2026-07-28", () => {
         ~method="tools/call",
         ~params=toolParams->String.replace(`"taskId":"task-1"`, `"taskId":""`),
       ),
+      request(
+        ~id=11,
+        ~method="tools/call",
+        ~params=toolParams->String.replace("task-1", "other-task"),
+      ),
+      requestWithoutParams(~id=24, ~method="subscriptions/listen"),
+      ...[
+        "",
+        `,"notifications":null`,
+        `,"notifications":[]`,
+        `,"notifications":{"toolsListChanged":"true"}`,
+        `,"notifications":{"promptsListChanged":1}`,
+        `,"notifications":{"resourcesListChanged":null}`,
+        `,"notifications":{"resourcesListChanged":[]}`,
+        `,"notifications":{"toolsListChanged":null}`,
+        `,"notifications":{"resourceSubscriptions":null}`,
+        `,"notifications":{"resourceSubscriptions":[1]}`,
+      ]->Array.map(
+        filter => request(~id=24, ~method="subscriptions/listen", ~params=coreMetadata ++ filter),
+      ),
     ]
-    ->Array.map(check)
+    let errors = await requests
+    ->Array.map(
+      async payload => {
+        let calls = await invoke(~context, payload)
+        t->expect(calls.contents->Array.length)->Expect.toBe(1)
+        errorCode(calls)
+      },
+    )
     ->Promise.all
 
-    t->expect(errors)->Expect.toEqual(Array.make(~length=6, Some(Types.ErrorCode.invalidParams)))
-  })
-
-  testAsync("rejects tool calls for another joined session without executing", async t => {
-    let (channel, calls) = MockChannel.make()
-    let context = ref(None)
-    await MCP.handleMessage(
-      handler(channel, context, ~sessionId="different-task"),
-      request(~id=11, ~method="tools/call", ~params=toolParams),
+    t
+    ->expect(errors)
+    ->Expect.toEqual(
+      Array.make(~length=Array.length(requests), Some(Types.ErrorCode.invalidParams)),
     )
-    t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.invalidParams))
     t->expect(context.contents)->Expect.toEqual(None)
   })
 
   testAsync("returns negotiation errors for unsupported versions and capabilities", async t => {
-    let invoke = async (id, method, params) => {
-      let (channel, calls) = MockChannel.make()
-      await MCP.handleMessage(handler(channel, ref(None)), request(~id, ~method, ~params))
-      calls
-    }
+    let call = (id, method, params) => invoke(request(~id, ~method, ~params))
     let wrongProtocol = metadata->String.replace("2026-07-28", "2025-11-25")
 
     let unsupported = await Promise.all([
-      invoke(12, "server/discover", wrongProtocol),
-      invoke(19, "tools/list", `${wrongProtocol},"cursor":"expired"`),
-      invoke(20, "unknown/method", wrongProtocol),
-      invoke(24, "subscriptions/listen", `${wrongProtocol},"notifications":{}`),
+      call(12, "server/discover", wrongProtocol),
+      call(19, "tools/list", `${wrongProtocol},"cursor":"expired"`),
+      call(20, "unknown/method", wrongProtocol),
+      call(24, "subscriptions/listen", `${wrongProtocol},"notifications":{}`),
     ])
     t
     ->expect(unsupported->Array.map(errorCode))
@@ -710,8 +416,8 @@ describe("MCP 2026-07-28", () => {
     )
 
     let capabilities = await Promise.all([
-      invoke(13, "tools/call", coreToolParams),
-      invoke(21, "tools/call", toolParams->String.replace(`"version":1`, `"version":2`)),
+      call(13, "tools/call", coreToolParams),
+      call(21, "tools/call", toolParams->String.replace(`"version":1`, `"version":2`)),
     ])
     t
     ->expect(capabilities->Array.map(errorCode))
@@ -726,50 +432,22 @@ describe("MCP 2026-07-28", () => {
   })
 
   testAsync("returns serverError for handler failures", async t => {
-    let invoke = async (failure, method, params) => {
-      let (channel, calls) = MockChannel.make()
-      await MCP.handleMessage(
-        handler(channel, ref(None), ~failure),
-        request(~id=14, ~method, ~params),
-      )
-      errorCode(calls)
-    }
+    let call = async (failure, method, params) =>
+      errorCode(await invoke(~failure, request(~id=14, ~method, ~params)))
 
     let codes = await Promise.all([
-      invoke(Discover, "server/discover", metadata),
-      invoke(List, "tools/list", metadata),
-      invoke(Tool, "tools/call", toolParams),
+      call(Discover, "server/discover", metadata),
+      call(List, "tools/list", metadata),
+      call(Tool, "tools/call", toolParams),
     ])
     t->expect(codes)->Expect.toEqual(Array.make(~length=3, Some(-32603)))
   })
 
-  testAsync("echoes string JSON-RPC ids", async t => {
-    let (channel, calls) = MockChannel.make()
-    await MCP.handleMessage(
-      handler(channel, ref(None)),
-      requestWithId(~id=`"call-1"`, ~method="tools/call", ~params=toolParams),
-    )
-    t->expect(response(calls)->Dict.get("id"))->Expect.toEqual(Some(JSON.Encode.string("call-1")))
-  })
-
-  testAsync("echoes numeric JSON-RPC ids above signed 32-bit", async t => {
-    let (channel, calls) = MockChannel.make()
-    await MCP.handleMessage(
-      handler(channel, ref(None)),
-      requestWithId(~id="2147483648", ~method="tools/list", ~params=metadata),
-    )
-
-    t
-    ->expect(response(calls)->Dict.get("id"))
-    ->Expect.toEqual(Some(JSON.parseOrThrow("2147483648")))
-  })
-
   testAsync("returns invalid params for an unknown tool", async t => {
     let server = await makeServer()
-    let (channel, calls) = MockChannel.make()
-
+    let (handler, calls, _) = fixture(MCPServer.toInterface(server))
     await MCP.handleMessage(
-      makeHandler(channel, MCPServer.toInterface(server)),
+      handler,
       request(
         ~id=21,
         ~method="tools/call",
@@ -783,10 +461,9 @@ describe("MCP 2026-07-28", () => {
 
   testAsync("returns thrown tool failures as tool errors", async t => {
     let server = await makeServer(~tools=[module(ThrowingTool)])
-    let (channel, calls) = MockChannel.make()
-
+    let (handler, calls, _) = fixture(MCPServer.toInterface(server))
     await MCP.handleMessage(
-      makeHandler(channel, MCPServer.toInterface(server)),
+      handler,
       request(
         ~id=22,
         ~method="tools/call",
@@ -802,16 +479,13 @@ describe("MCP 2026-07-28", () => {
   })
 
   testAsync("preserves readable ids on invalid requests", async t => {
-    let invoke = async payload => {
-      let (channel, calls) = MockChannel.make()
-      await MCP.handleMessage(handler(channel, ref(None)), JSON.parseOrThrow(payload))
-      response(calls)->S.parseOrThrow(~to=S.object(s => s.field("id", S.option(S.json))))
-    }
+    let call = async payload =>
+      rpcResponse(await invoke(JSON.parseOrThrow(payload)))->JsonRpc.Response.id
     let ids = await Promise.all([
-      invoke(`{"jsonrpc":"2.0","id":23,"method":{},"params":{${metadata}}}`),
-      invoke(`{"jsonrpc":"2.0","id":{},"method":"server/discover","params":{${metadata}}}`),
+      call(`{"jsonrpc":"2.0","id":23,"method":{},"params":{${metadata}}}`),
+      call(`{"jsonrpc":"2.0","id":{},"method":"server/discover","params":{${metadata}}}`),
     ])
-    t->expect(ids)->Expect.toEqual([Some(JSON.Encode.int(23)), None])
+    t->expect(ids)->Expect.toEqual([Some(JsonRpc.Id.fromInt(23)), None])
   })
 
   test("accepts array structuredContent", _ => {

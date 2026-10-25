@@ -38,25 +38,12 @@ Elixir separately requires the browser to advertise both `ai.frontman/execution-
 Browser discovery advertises `tools.listChanged: false`. Discovery and catalogs use `cacheScope: "private"` and `ttlMs: 0`.
 See [shared contracts](src/FrontmanProtocol__MCP.res), [browser dispatch](../frontman-client/src/FrontmanClient__MCP.res), and [Elixir discovery validation](../../apps/frontman_server/lib/frontman_server_web/channels/task_channel/mcp_initializer.ex).
 
-The browser accepts `subscriptions/listen` and validates its notification filter.
-Its acknowledgment accepts `{}` because the browser advertises no change-event support.
-The request remains active until cancellation, attachment teardown, or transport closure.
-Numeric and string request IDs remain distinct.
-Each attachment permits at most 128 active subscriptions and rejects duplicate active subscription IDs.
-
-The Phoenix binding uses `notifications/cancelled` with `requestId` for client cancellation, without a response.
-On browser detach, the server sends `notifications/cancelled` and a graceful completion for each active subscription.
-Both messages carry the subscription ID in `_meta`.
-Channel error and close events clear subscriptions without a response or automatic replay.
-Clients must send a new listen request after reconnection.
-
-Phoenix accepts server notification envelopes separately from responses.
-It logs and ignores unopened subscription notifications without a JSON-RPC reply.
-Phoenix does not open subscriptions by default or expose a subscription API.
-No resource, prompt, or catalog-refresh dynamics are implemented.
-Automatic MRTR retry is not implemented.
-Elixir recognizes valid `input_required` interims and reports a controlled tool failure rather than retrying.
-It rejects input requests for unadvertised capabilities and does not retain opaque state.
+The browser validates `subscriptions/listen` and acknowledges an empty supported filter because it advertises no change events.
+Each attachment permits 128 active subscriptions and reserves typed request IDs, including asynchronous and suspended tool calls.
+`notifications/cancelled` removes a subscription without a response. Intentional teardown sends cancellation and completion before channel leave.
+Transport loss clears streams without replay. Clients must send a new listen request after reconnection.
+Phoenix logs unopened notifications without replying. It opens no subscriptions and exposes no subscription API.
+Elixir validates `input_required` interims and declines MRTR retry with a tool error. It rejects unadvertised input capabilities and retains no opaque state.
 
 ACP retains its independent `initialize` exchange on `acp:message`.
 The framework/WordPress relay uses separate protocol versions `1.0` and `2.0`.

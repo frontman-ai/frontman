@@ -22,19 +22,12 @@ let cancelledParamsSchema = S.object(s => {
 })
 
 let subscriptionMeta = id =>
-  JSON.Encode.object(
-    dict{
-      "io.modelcontextprotocol/subscriptionId": id->S.decodeOrThrow(
-        ~from=JsonRpc.Id.schema,
-        ~to=S.json,
-      ),
-    },
-  )
+  {Types.subscriptionId: id}->S.decodeOrThrow(~from=Types.subscriptionMetaSchema, ~to=S.json)
 
 let sendNotification = (handler, method, params) => {
   let payload =
     JsonRpc.Notification.make(~method, ~params=Some(params))->JsonRpc.Notification.toJson
-  handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
+  handler.channel->Channel.push(~event=#"mcp:message", ~payload)->Channel.cancelPush
 }
 
 @@live
@@ -78,7 +71,7 @@ let parseParams = (params, schema, missingMessage) =>
 
 let sendResponse = (handler: mcpHandler<'server>, id: JsonRpc.Id.t, result: JSON.t): unit => {
   let payload = JsonRpc.Response.makeSuccess(~id, ~result)->JsonRpc.Response.toJson
-  handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
+  handler.channel->Channel.push(~event=#"mcp:message", ~payload)->Channel.cancelPush
 }
 
 let sendError = (
@@ -90,13 +83,13 @@ let sendError = (
 ): unit => {
   let error = JsonRpc.RpcError.make(~code, ~message, ~data)
   let payload = JsonRpc.Response.makeError(~id, ~error)->JsonRpc.Response.toJson
-  handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
+  handler.channel->Channel.push(~event=#"mcp:message", ~payload)->Channel.cancelPush
 }
 
 let sendErrorWithoutId = (handler: mcpHandler<'server>, code: int, message: string): unit => {
   let error = JsonRpc.RpcError.make(~code, ~message, ~data=None)
   let payload = JsonRpc.Response.makeErrorWithoutId(~error)->JsonRpc.Response.toJson
-  handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
+  handler.channel->Channel.push(~event=#"mcp:message", ~payload)->Channel.cancelPush
 }
 
 let sendMetadataError = (handler, id, error: Types.metadataError) =>
@@ -178,14 +171,11 @@ let handleSubscriptionsListen = (handler, id, params) => {
         _meta: {subscriptionId: id},
         notifications: {},
       }
-      let payload =
-        JsonRpc.Notification.make(
-          ~method="notifications/subscriptions/acknowledged",
-          ~params=Some(
-            params->S.decodeOrThrow(~from=Types.subscriptionsAcknowledgedParamsSchema, ~to=S.json),
-          ),
-        )->JsonRpc.Notification.toJson
-      handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
+      sendNotification(
+        handler,
+        "notifications/subscriptions/acknowledged",
+        params->S.decodeOrThrow(~from=Types.subscriptionsAcknowledgedParamsSchema, ~to=S.json),
+      )
     }
   }
 }

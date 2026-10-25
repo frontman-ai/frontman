@@ -1419,74 +1419,54 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:ok, socket: socket, task_id: task_id, scope: scope}
     end
 
-    test "rejects response missing jsonrpc field", %{socket: socket} do
-      log =
-        capture_log(fn ->
-          push(socket, "mcp:message", %{
-            "id" => 999,
-            "result" => %{"_meta" => %{"envApiKey" => "sk-fake-invalid-mcp-marker"}}
-          })
+    test "rejects malformed response and notification envelopes without logging payloads", %{
+      socket: socket
+    } do
+      response =
+        JsonRpc.success_response(999, %{"_meta" => %{"envApiKey" => "sk-fake-invalid-mcp-marker"}})
 
-          :sys.get_state(socket.channel_pid)
+      notification = JsonRpc.notification("notifications/cancelled", %{"requestId" => 1})
 
-          assert_push("mcp:message", %{
-            "jsonrpc" => "2.0",
-            "method" => "error",
-            "params" => %{
-              "message" => "Invalid JSON-RPC response",
-              "reason" => "invalid_message"
-            }
-          })
-        end)
+      invalid_notifications =
+        for {field, value} <- [
+              {"id", nil},
+              {"id", %{}},
+              {"id", 1},
+              {"params", nil},
+              {"params", []},
+              {"method", 1},
+              {"result", %{}},
+              {"error", %{}}
+            ],
+            do: {Map.put(notification, field, value), "invalid_message"}
 
-      assert log =~ "Invalid MCP response"
-      refute log =~ "sk-fake-invalid-mcp-marker"
-      refute log =~ "envApiKey"
-    end
+      for {message, reason} <-
+            [
+              {Map.delete(response, "jsonrpc"), "invalid_message"},
+              {Map.put(response, "jsonrpc", "1.0"), "invalid_version"},
+              {Map.delete(response, "id"), "invalid_message"},
+              {Map.put(response, "error", %{"code" => -32_601, "message" => "Error"}),
+               "invalid_message"},
+              {Map.put(notification, "jsonrpc", "1.0"), "invalid_version"},
+              {%{}, "invalid_message"},
+              {nil, "invalid_message"}
+            ] ++ invalid_notifications do
+        log =
+          capture_log(fn ->
+            push(socket, "mcp:message", message)
+            :sys.get_state(socket.channel_pid)
 
-    test "rejects response with wrong jsonrpc version", %{socket: socket} do
-      log =
-        capture_log(fn ->
-          push(socket, "mcp:message", %{"jsonrpc" => "1.0", "id" => 999, "result" => %{}})
-          :sys.get_state(socket.channel_pid)
+            assert_push("mcp:message", %{
+              "jsonrpc" => "2.0",
+              "method" => "error",
+              "params" => %{"message" => "Invalid JSON-RPC response", "reason" => ^reason}
+            })
+          end)
 
-          assert_push("mcp:message", %{
-            "method" => "error",
-            "params" => %{"reason" => "invalid_version"}
-          })
-        end)
-
-      assert log =~ "Invalid MCP response"
-    end
-
-    test "rejects response missing id", %{socket: socket} do
-      log =
-        capture_log(fn ->
-          push(socket, "mcp:message", %{"jsonrpc" => "2.0", "result" => %{}})
-          :sys.get_state(socket.channel_pid)
-
-          assert_push("mcp:message", %{"method" => "error"})
-        end)
-
-      assert log =~ "Invalid MCP response"
-    end
-
-    test "rejects response with both result and error", %{socket: socket} do
-      log =
-        capture_log(fn ->
-          push(socket, "mcp:message", %{
-            "jsonrpc" => "2.0",
-            "id" => 999,
-            "result" => %{},
-            "error" => %{"code" => -32_601, "message" => "Error"}
-          })
-
-          :sys.get_state(socket.channel_pid)
-
-          assert_push("mcp:message", %{"method" => "error"})
-        end)
-
-      assert log =~ "Invalid MCP response"
+        assert log =~ "Invalid MCP response"
+        refute log =~ "sk-fake-invalid-mcp-marker"
+        refute log =~ "envApiKey"
+      end
     end
 
     test "accepts valid MCP response", %{socket: socket, task_id: task_id, scope: scope} do
@@ -1594,7 +1574,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       )
     end
 
-    test "ignores MCP responses with string IDs instead of crashing", %{socket: socket} do
+    test "ignores uncorrelated MCP responses and unopened notifications", %{socket: socket} do
+      channel_socket = :sys.get_state(socket.channel_pid)
+
       log =
         capture_log(fn ->
           push(socket, "mcp:message", JsonRpc.success_response("unknown-success", %{}))
@@ -1605,10 +1587,27 @@ defmodule FrontmanServerWeb.TaskChannelTest do
             JsonRpc.error_response("unknown-error", -32_000, "Tool failed")
           )
 
+          for id <- [1, "1"],
+              method <- ["notifications/subscriptions/acknowledged", "notifications/cancelled"] do
+            params = %{
+              "_meta" => %{"io.modelcontextprotocol/subscriptionId" => id},
+              "requestId" => id
+            }
+
+            assert {:noreply, ^channel_socket} =
+                     FrontmanServerWeb.TaskChannel.handle_in(
+                       "mcp:message",
+                       JsonRpc.notification(method, params),
+                       channel_socket
+                     )
+          end
+
           :sys.get_state(socket.channel_pid)
         end)
 
       assert Process.alive?(socket.channel_pid)
+      assert log =~ "Ignoring MCP server notification with no active subscription"
+      refute_push("mcp:message", %{"method" => "error"})
       assert log =~ "Received MCP response for unknown request"
       assert log =~ "Received MCP error for unknown request"
       refute log =~ "unknown-success"

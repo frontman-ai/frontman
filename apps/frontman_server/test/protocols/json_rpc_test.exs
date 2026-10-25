@@ -4,53 +4,6 @@ defmodule FrontmanServer.Protocols.JsonRpcTest do
   alias FrontmanServer.Protocols.JsonRpc
   import FrontmanServer.Test.Fixtures.JsonRpc
 
-  describe "parse_server_message/1" do
-    test "demultiplexes notifications without losing subscription correlation" do
-      for id <- [1, "1"] do
-        params = %{
-          "notifications" => %{},
-          "_meta" => %{"io.modelcontextprotocol/subscriptionId" => id}
-        }
-
-        message = JsonRpc.notification("notifications/subscriptions/acknowledged", params)
-
-        assert {:ok, {:notification, "notifications/subscriptions/acknowledged", ^params}} =
-                 JsonRpc.parse_server_message(message)
-      end
-
-      assert {:ok, {:notification, "unknown", %{}}} =
-               JsonRpc.parse_server_message(%{"jsonrpc" => "2.0", "method" => "unknown"})
-    end
-
-    test "rejects malformed notifications and server requests" do
-      notification = JsonRpc.notification("notifications/cancelled", %{"requestId" => 1})
-
-      for message <- [
-            Map.put(notification, "id", nil),
-            Map.put(notification, "id", %{}),
-            Map.put(notification, "id", 1),
-            Map.put(notification, "params", nil),
-            Map.put(notification, "params", []),
-            Map.put(notification, "method", 1),
-            Map.put(notification, "result", %{}),
-            Map.put(notification, "error", %{}),
-            %{},
-            nil
-          ] do
-        assert {:error, :invalid_message} = JsonRpc.parse_server_message(message)
-      end
-
-      assert {:error, :invalid_version} =
-               JsonRpc.parse_server_message(Map.put(notification, "jsonrpc", "1.0"))
-    end
-
-    test "preserves existing response parsing" do
-      for message <- [success_response_message(id: 1), error_response_message(id: "1")] do
-        assert JsonRpc.parse_server_message(message) == JsonRpc.parse_response(message)
-      end
-    end
-  end
-
   describe "parse/1" do
     test "parses valid request with params" do
       message = request_message(id: 1, params: %{"key" => "value"})
@@ -70,12 +23,15 @@ defmodule FrontmanServer.Protocols.JsonRpcTest do
 
       assert {:ok, {:notification, "session/update", %{"sessionId" => "sess_123"}}} =
                JsonRpc.parse(message)
+
+      assert JsonRpc.parse_server_message(message) == JsonRpc.parse(message)
     end
 
     test "parses notification without params" do
       message = notification_message_without_params(method: "ping")
 
       assert {:ok, {:notification, "ping", %{}}} = JsonRpc.parse(message)
+      assert JsonRpc.parse_server_message(message) == JsonRpc.parse(message)
     end
 
     test "returns error for wrong jsonrpc version" do

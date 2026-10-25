@@ -2,15 +2,16 @@ open Vitest
 
 module ACP = FrontmanClient__ACP
 
+type frame = (JSON.t, JSON.t, string, string, JSON.t)
 type transport = {
-  frames: array<JSON.t>,
+  frames: array<frame>,
   requests: array<JSON.t>,
 }
 
 @module("./acpReconnectTransport.mjs")
 external makeTransport: unit => transport = "makeTransport"
 @set external holdSessionNew: (transport, bool) => unit = "holdSessionNew"
-@send external reply: (transport, JSON.t, JSON.t) => unit = "reply"
+@send external reply: (transport, frame, JSON.t) => unit = "reply"
 @send
 external listenerCount: (transport, FrontmanClient__Phoenix__Channel.t, string) => int =
   "listenerCount"
@@ -42,132 +43,36 @@ let connect = async () => {
   (wire, connection)
 }
 
-let create = connection =>
-  ACP.createSession(connection, ~sessionId, ~onUpdate=(_, _) => (), ~onTitleUpdated=(_, _) => ())
-
 @send
 external trigger: (FrontmanClient__Phoenix__Channel.t, string, JSON.t) => unit = "trigger"
-@send external lose: (transport, bool) => unit = "lose"
 @set external setJoinError: (transport, JSON.t) => unit = "joinError"
 
-let mcpInterface: FrontmanClient__MCP__Types.serverInterface<unit> = {
-  server: (),
-  buildDiscoverResult: _ => failwith("Unexpected discovery"),
-  buildToolsListResult: _ => failwith("Unexpected listing"),
-  executeTool: async (_, _) => Suspended,
-}
+let listenRequest = JSON.parseOrThrow(`{"jsonrpc":"2.0","id":"stream","method":"subscriptions/listen","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}},"notifications":{}}}`)
 
-let listenRequest = JSON.parseOrThrow(`{
-  "jsonrpc":"2.0","id":"stream","method":"subscriptions/listen",
-  "params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}},"notifications":{}}
-}`)
-
-[#close, #disconnect, #parseError]->Array.forEach(outcome =>
-  testAsync("session MCP teardown precedes leave and is idempotent", async t => {
-    let (wire, connection) = await connect()
-    let (session, _) =
-      (
-        await ACP.createSession(
-          connection,
-          ~sessionId,
-          ~onUpdate=(_, _) => (),
-          ~onTitleUpdated=(_, _) => (),
-          ~onParseError=_ => (),
-          ~mcpServerInterface=mcpInterface,
-        )
-      )->Result.getOrThrow
-    trigger(session.channel, "mcp:message", listenRequest)
-    switch outcome {
-    | #close => ACP.cleanupSessionChannel(session)
-    | #disconnect => ACP.disconnect(connection)
-    | #parseError =>
-      trigger(
-        session.channel,
-        "acp:message",
-        JSON.parseOrThrow(`{"jsonrpc":"2.0","method":"session/update","params":{}}`),
-      )
-    }
-    let sessionFrames = () =>
-      wire.frames->Array.filter(
-        frame =>
-          frame->S.parseOrThrow(~to=S.array(S.json))->Array.at(2) ==
-            Some(JSON.Encode.string(`task:${sessionId}`)),
-      )
-    let endings =
-      sessionFrames()
-      ->Array.slice(~start=2, ~end=5)
-      ->Array.map(
-        frame => frame->S.parseOrThrow(~to=S.array(S.json))->Array.slice(~start=3, ~end=5),
-      )
-    t
-    ->expect(endings)
-    ->Expect.toEqual([
-      [
-        JSON.Encode.string("mcp:message"),
-        JSON.parseOrThrow(`{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":"stream","_meta":{"io.modelcontextprotocol/subscriptionId":"stream"}}}`),
-      ],
-      [
-        JSON.Encode.string("mcp:message"),
-        JSON.parseOrThrow(`{"jsonrpc":"2.0","id":"stream","result":{"resultType":"complete","_meta":{"io.modelcontextprotocol/subscriptionId":"stream"}}}`),
-      ],
-      [JSON.Encode.string("phx_leave"), JSON.parseOrThrow(`{}`)],
-    ])
-    let count = sessionFrames()->Array.length
-    ACP.cleanupSessionChannel(session)
-    ACP.disconnect(connection)
-    t->expect(sessionFrames()->Array.length)->Expect.toBe(count)
-    t->expect(wire->listenerCount(session.channel, "mcp:message"))->Expect.toBe(0)
-  })
-)
-
-testAsync("failed session joins remove MCP listeners and registered cleanup", async t => {
-  let (wire, connection) = await connect()
-  setJoinError(wire, JSON.parseOrThrow(`{"reason":"rejected"}`))
-  let result = await ACP.createSession(
+let create = connection =>
+  ACP.createSession(
     connection,
     ~sessionId,
     ~onUpdate=(_, _) => (),
     ~onTitleUpdated=(_, _) => (),
-    ~mcpServerInterface=mcpInterface,
+    ~onParseError=_ => (),
+    ~mcpServerInterface={
+      server: (),
+      buildDiscoverResult: _ => failwith("Unexpected discovery"),
+      buildToolsListResult: _ => failwith("Unexpected listing"),
+      executeTool: async (_, _) => Suspended,
+    },
   )
-  t->expect(result->Result.isError)->Expect.toBe(true)
+
+testAsync("failed session joins remove MCP listeners and registered cleanup", async t => {
+  let (wire, connection) = await connect()
+  setJoinError(wire, JSON.parseOrThrow(`{"reason":"rejected"}`))
+  t->expect((await create(connection))->Result.isError)->Expect.toBe(true)
   t->expect(connection.sessionCleanups.contents)->Expect.toEqual([])
   t
   ->expect(connection.socket->FrontmanClient__Phoenix__Socket.channels->Array.length)
   ->Expect.toBe(1)
 })
-
-[false, true]->Array.forEach(transportLoss =>
-  testAsync(
-    `connection loss drops MCP streams without terminal sends (${Bool.toString(transportLoss)})`,
-    async t => {
-      let (wire, connection) = await connect()
-      let (session, _) =
-        (
-          await ACP.createSession(
-            connection,
-            ~sessionId,
-            ~onUpdate=(_, _) => (),
-            ~onTitleUpdated=(_, _) => (),
-            ~mcpServerInterface=mcpInterface,
-          )
-        )->Result.getOrThrow
-      trigger(session.channel, "mcp:message", listenRequest)
-      wire->lose(transportLoss)
-      ACP.cleanupSessionChannel(session)
-      ACP.disconnect(connection)
-      let messages =
-        wire.frames->Array.filter(
-          frame =>
-            frame->S.parseOrThrow(~to=S.array(S.json))->Array.at(3) ==
-              Some(JSON.Encode.string("mcp:message")),
-        )
-      t->expect(messages->Array.length)->Expect.toBe(1)
-      t->expect(connection.sessionCleanups.contents)->Expect.toEqual([])
-      t->expect(wire->listenerCount(session.channel, "mcp:message"))->Expect.toBe(0)
-    },
-  )
-)
 
 testAsync("connects without sending a client-supplied origin param", async t => {
   let (_, connection) = await connect()
@@ -235,20 +140,23 @@ testAsync("stable-ID creation uses ACP params and rejects a changed returned ID"
     Vi.useFakeTimers()->ignore
     let (wire, connection) = await connect()
     let (session, _) = (await create(connection))->Result.getOrThrow
+    trigger(session.channel, "mcp:message", listenRequest)
+    let closed = outcome == #disconnect || outcome == #close
     let counts = () =>
       [session.channel, connection.channel]->Array.flatMap(
         channel =>
           ["phx_close", "phx_error"]->Array.map(event => wire->listenerCount(channel, event)),
       )
-    let before = counts()
+    let before =
+      counts()->Array.mapWithIndex((count, index) => closed && index < 2 ? count - 1 : count)
     let settled = ref(0)
-    let pending = ACP.sendPrompt(session, "once")->Promise.then(
-      result => {
+    let pending = ACP.sendPrompt(session, "once")->Promise.finally(
+      () => {
         settled := settled.contents + 1
-        Promise.resolve(result)
       },
     )
     let frame = wire.frames->Array.at(-1)->Option.getOrThrow
+    let beforeCleanup = wire.frames->Array.length
     switch outcome {
     | #reply => wire->reply(frame, JSON.parseOrThrow(`{}`))
     | #timeout => (await Vi.advanceTimersByTimeAsync(120000))->ignore
@@ -270,6 +178,32 @@ testAsync("stable-ID creation uses ACP params and rejects a changed returned ID"
     wire->reply(frame, JSON.parseOrThrow(`{}`))
     (await Promise.resolve())->ignore
     t->expect(settled.contents)->Expect.toBe(1)
+    switch closed {
+    | false => ()
+    | true =>
+      let frames =
+        wire.frames
+        ->Array.slice(~start=beforeCleanup, ~end=Array.length(wire.frames))
+        ->Array.filter(((_, _, topic, _, _)) => topic == `task:${sessionId}`)
+      t
+      ->expect(frames->Array.map(((_, _, _, event, payload)) => (event, payload)))
+      ->Expect.toEqual([
+        (
+          "mcp:message",
+          JSON.parseOrThrow(`{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":"stream","_meta":{"io.modelcontextprotocol/subscriptionId":"stream"}}}`),
+        ),
+        (
+          "mcp:message",
+          JSON.parseOrThrow(`{"jsonrpc":"2.0","id":"stream","result":{"resultType":"complete","_meta":{"io.modelcontextprotocol/subscriptionId":"stream"}}}`),
+        ),
+        ("phx_leave", JSON.parseOrThrow(`{}`)),
+      ])
+      let sent = wire.frames->Array.length
+      ACP.cleanupSessionChannel(session)
+      t->expect(wire.frames->Array.length)->Expect.toBe(sent)
+      t->expect(connection.sessionCleanups.contents)->Expect.toEqual([])
+      t->expect(wire->listenerCount(session.channel, "mcp:message"))->Expect.toBe(0)
+    }
     ACP.disconnect(connection)
     t->expect(Vi.getTimerCount())->Expect.toBe(0)
   })
