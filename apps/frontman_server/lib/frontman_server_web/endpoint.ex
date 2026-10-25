@@ -22,10 +22,25 @@ defmodule FrontmanServerWeb.Endpoint do
   )
 
   socket("/socket", FrontmanServerWeb.UserSocket,
-    websocket: [check_origin: false, max_frame_size: 8_000_014],
+    websocket: [check_origin: false, connect_info: [:x_headers], max_frame_size: 8_000_014],
     longpoll: false,
     auth_token: true
   )
+
+  def call(%{path_info: ["socket", "websocket"]} = conn, opts) do
+    conn = Plug.Conn.delete_req_header(conn, "x-frontman-socket-origin")
+
+    with [origin] <- Plug.Conn.get_req_header(conn, "origin"),
+         {:ok, origin} <- FrontmanServerWeb.EmbeddedClientOrigin.normalize(origin) do
+      conn
+      |> Plug.Conn.put_req_header("x-frontman-socket-origin", origin)
+      |> super(opts)
+    else
+      _ -> conn |> Plug.Conn.send_resp(403, "") |> Plug.Conn.halt()
+    end
+  end
+
+  def call(conn, opts), do: super(conn, opts)
 
   plug(Plug.Static,
     at: "/",

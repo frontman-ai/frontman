@@ -15,9 +15,11 @@ defmodule FrontmanServerWeb.UserSocket do
   channel "task:*", FrontmanServerWeb.TaskChannel
 
   @impl true
-  def connect(%{"origin" => origin}, socket, %{auth_token: token})
-      when is_binary(origin) and is_binary(token) do
-    with {:ok, normalized_origin} <- EmbeddedClientOrigin.normalize(origin),
+  def connect(_params, socket, %{auth_token: token, x_headers: headers})
+      when is_binary(token) do
+    with [{"x-frontman-socket-origin", origin}] <-
+           Enum.filter(headers, fn {name, _value} -> name == "x-frontman-socket-origin" end),
+         {:ok, normalized_origin} <- EmbeddedClientOrigin.normalize(origin),
          {%Scope{} = scope, token_id} <-
            Accounts.get_scope_by_embedded_client_token(token, normalized_origin) do
       Accounts.touch_embedded_client_token(scope, token_id)
