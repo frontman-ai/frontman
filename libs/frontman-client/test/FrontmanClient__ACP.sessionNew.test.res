@@ -45,6 +45,7 @@ let connect = async () => {
 
 @send
 external trigger: (FrontmanClient__Phoenix__Channel.t, string, JSON.t) => unit = "trigger"
+@send external lose: (transport, bool) => unit = "lose"
 @set external setJoinError: (transport, JSON.t) => unit = "joinError"
 
 let listenRequest = JSON.parseOrThrow(`{"jsonrpc":"2.0","id":"stream","method":"subscriptions/listen","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}},"notifications":{}}}`)
@@ -133,15 +134,15 @@ testAsync("stable-ID creation uses ACP params and rejects a changed returned ID"
   ->Expect.toBe(1)
 })
 
-[#reply, #timeout, #disconnect, #close]->Array.forEach((
-  outcome: [#reply | #timeout | #disconnect | #close],
+[#reply, #timeout, #disconnect, #close, #parse, #error, #lost]->Array.forEach((
+  outcome: [#reply | #timeout | #disconnect | #close | #parse | #error | #lost],
 ) =>
   testAsync(`prompt releases Phoenix timers and listeners on ${(outcome :> string)}`, async t => {
     Vi.useFakeTimers()->ignore
     let (wire, connection) = await connect()
     let (session, _) = (await create(connection))->Result.getOrThrow
     trigger(session.channel, "mcp:message", listenRequest)
-    let closed = outcome == #disconnect || outcome == #close
+    let closed = outcome != #reply && outcome != #timeout
     let counts = () =>
       [session.channel, connection.channel]->Array.flatMap(
         channel =>
@@ -162,6 +163,13 @@ testAsync("stable-ID creation uses ACP params and rejects a changed returned ID"
     | #timeout => (await Vi.advanceTimersByTimeAsync(120000))->ignore
     | #disconnect => ACP.disconnect(connection)
     | #close => ACP.cleanupSessionChannel(session)
+    | #parse =>
+      trigger(
+        session.channel,
+        "acp:message",
+        JSON.parseOrThrow(`{"jsonrpc":"2.0","method":"session/update","params":{}}`),
+      )
+    | #error | #lost => wire->lose(outcome == #lost)
     }
     let result = await pending
     t->expect(result->Result.isOk)->Expect.toBe(outcome == #reply)
@@ -185,9 +193,7 @@ testAsync("stable-ID creation uses ACP params and rejects a changed returned ID"
         wire.frames
         ->Array.slice(~start=beforeCleanup, ~end=Array.length(wire.frames))
         ->Array.filter(((_, _, topic, _, _)) => topic == `task:${sessionId}`)
-      t
-      ->expect(frames->Array.map(((_, _, _, event, payload)) => (event, payload)))
-      ->Expect.toEqual([
+      let endings = [
         (
           "mcp:message",
           JSON.parseOrThrow(`{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":"stream","_meta":{"io.modelcontextprotocol/subscriptionId":"stream"}}}`),
@@ -197,7 +203,16 @@ testAsync("stable-ID creation uses ACP params and rejects a changed returned ID"
           JSON.parseOrThrow(`{"jsonrpc":"2.0","id":"stream","result":{"resultType":"complete","_meta":{"io.modelcontextprotocol/subscriptionId":"stream"}}}`),
         ),
         ("phx_leave", JSON.parseOrThrow(`{}`)),
-      ])
+      ]
+      t
+      ->expect(frames->Array.map(((_, _, _, event, payload)) => (event, payload)))
+      ->Expect.toEqual(
+        switch outcome {
+        | #error => endings->Array.slice(~start=2, ~end=3)
+        | #lost => []
+        | _ => endings
+        },
+      )
       let sent = wire.frames->Array.length
       ACP.cleanupSessionChannel(session)
       t->expect(wire.frames->Array.length)->Expect.toBe(sent)
