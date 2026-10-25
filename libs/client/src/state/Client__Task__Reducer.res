@@ -135,7 +135,7 @@ module Lens = {
   let setPreviewFrame = (
     task: Task.t,
     ~contentDocument: option<WebAPI.DomTypes.document>,
-    ~contentWindow: option<WebAPI.DomTypes.window>,
+    ~contentWindow: option<FrontmanBindings.Bindings__WebAPI.windowHandle>,
   ): Task.t => updatePreviewFrame(task, pf => {...pf, contentDocument, contentWindow})
 
   let setDeviceMode = (task: Task.t, deviceMode: Client__DeviceMode.deviceMode): Task.t =>
@@ -357,10 +357,11 @@ type action =
   | ClearAnnotations
   | UpdateAnnotationComment({id: string, comment: string})
   | SetActivePopupAnnotationId({id: option<string>})
+  | NavigatePreview({url: string})
   | SetPreviewUrl({url: string})
   | SetPreviewFrame({
       contentDocument: option<WebAPI.DomTypes.document>,
-      contentWindow: option<WebAPI.DomTypes.window>,
+      contentWindow: option<FrontmanBindings.Bindings__WebAPI.windowHandle>,
     })
   | SetDeviceMode({deviceMode: Client__DeviceMode.deviceMode})
   | SetOrientation({orientation: Client__DeviceMode.orientation})
@@ -405,7 +406,7 @@ type effect =
       id: string,
       element: WebAPI.DomTypes.element,
       document: option<WebAPI.DomTypes.document>,
-      contentWindow: option<WebAPI.DomTypes.window>,
+      contentWindow: option<FrontmanBindings.Bindings__WebAPI.windowHandle>,
     })
   | SessionCommand(ACP.sessionCommand)
   | ResolveQuestionToolEffect({resolveOk: JSON.t => unit, answerJson: JSON.t})
@@ -434,6 +435,7 @@ let actionToString = (action: action): string =>
   | ClearAnnotations => "ClearAnnotations"
   | UpdateAnnotationComment(_) => "UpdateAnnotationComment"
   | SetActivePopupAnnotationId(_) => "SetActivePopupAnnotationId"
+  | NavigatePreview(_) => "NavigatePreview"
   | SetPreviewUrl(_) => "SetPreviewUrl"
   | SetPreviewFrame(_) => "SetPreviewFrame"
   | SetDeviceMode(_) => "SetDeviceMode"
@@ -579,6 +581,19 @@ let resolveQuestion = (task: Task.t, ~skippedAll: bool, ~cancelled: bool): (
 
 let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   switch (task, action) {
+  | (Task.Unloaded(_), NavigatePreview(_)) => (task, [])
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), NavigatePreview({url})) =>
+    let updated = Lens.updatePreviewFrame(task, pf => {
+      ...pf,
+      url,
+      navigationKey: pf.navigationKey + 1,
+      contentDocument: None,
+      contentWindow: None,
+    })
+    let updated = Lens.setAnnotations(updated, [])
+    let updated = Lens.setActivePopupAnnotationId(updated, None)
+    (updated, [SyncBrowserUrl(url)])
+
   | (Task.Unloaded(_), SetPreviewUrl(_)) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetPreviewUrl({url})) =>
     let currentUrl = Task.getPreviewFrame(task, ~defaultUrl="").url
@@ -597,7 +612,13 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (
       Task.New(_) | Task.Loading(_) | Task.Loaded(_),
       SetPreviewFrame({contentDocument, contentWindow}),
-    ) => (Lens.setPreviewFrame(task, ~contentDocument, ~contentWindow), [])
+    ) =>
+    let previous = Task.getPreviewFrame(task, ~defaultUrl="")
+    let updated = Lens.setPreviewFrame(task, ~contentDocument, ~contentWindow)
+    switch previous.contentDocument === contentDocument {
+    | true => (updated, [])
+    | false => (updated->Lens.setAnnotations([])->Lens.setActivePopupAnnotationId(None), [])
+    }
 
   | (Task.Unloaded(_), SetDeviceMode(_) | SetOrientation(_) | ToggleDeviceMode) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetDeviceMode({deviceMode})) =>
@@ -1119,6 +1140,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         messages: MessageStore.make(),
         previewFrame: {
           url: previewUrl,
+          navigationKey: 0,
           contentDocument: None,
           contentWindow: None,
           deviceMode: Client__DeviceMode.defaultDeviceMode,
@@ -1376,7 +1398,7 @@ let fetchAnnotationDetails = (
   ~id: string,
   ~element: WebAPI.DomTypes.element,
   ~document: option<WebAPI.DomTypes.document>,
-  ~contentWindow: option<WebAPI.DomTypes.window>,
+  ~contentWindow: option<FrontmanBindings.Bindings__WebAPI.windowHandle>,
   ~dispatch: action => unit,
 ) => {
   let inspection = switch document {
@@ -1434,7 +1456,7 @@ let fetchAnnotationDetails = (
 
   let sourceLocationPromise = {
     let sourceLocationWork = switch contentWindow {
-    | Some(window) =>
+    | Some({window}) =>
       Client__SourceDetection.getElementSourceLocation(~element, ~window)
       ->Promise.then(result => {
         let context = result->Option.map(Client__SourceContext.stripFileQueries)

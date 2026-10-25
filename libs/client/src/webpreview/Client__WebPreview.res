@@ -85,30 +85,28 @@ let make = () => {
 
       {
         let defaultUrl = Client__BrowserUrl.getInitialUrl()
+        let taskPreview = task => {
+          let frame = Client__Task__Types.Task.getPreviewFrame(task, ~defaultUrl)
+          (Client__Task__Types.Task.getClientId(task), frame)
+        }
 
         let allTasks = if isNewTask {
           Array.concat(
-            [(currentTaskClientId, previewFrame.url)],
-            persistedTasks->Array.map(task => {
-              let clientId = Client__Task__Types.Task.getClientId(task)
-              let taskPreviewFrame = Client__Task__Types.Task.getPreviewFrame(task, ~defaultUrl)
-              (clientId, taskPreviewFrame.url)
-            }),
+            [(currentTaskClientId, previewFrame)],
+            persistedTasks->Array.map(taskPreview),
           )
         } else {
-          persistedTasks->Array.map(task => {
-            let clientId = Client__Task__Types.Task.getClientId(task)
-            let taskPreviewFrame = Client__Task__Types.Task.getPreviewFrame(task, ~defaultUrl)
-            (clientId, taskPreviewFrame.url)
-          })
+          persistedTasks->Array.map(taskPreview)
         }
 
         allTasks
-        ->Array.map(((clientId, url)) => {
+        ->Array.map(((clientId, frame)) => {
+          let navigationKey = frame.navigationKey
           <Client__WebPreview__Body
-            key={clientId}
+            key={`${clientId}:${Int.toString(navigationKey)}`}
             taskId={clientId}
-            url={url}
+            navigationKey
+            url={frame.url}
             isActive={clientId == currentTaskClientId}
             viewportStyle=?viewportStyle
           />
