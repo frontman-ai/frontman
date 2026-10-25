@@ -7,9 +7,9 @@ const pluginUrl = 'https://wordpress.org/plugins/frontman-agentic-ai-editor/'
 const setupGuideUrl = '/docs/integrations/wordpress/'
 
 const SEO = {
-	title: 'Ship WordPress Updates Faster | Frontman AI Editor',
+	title: 'Frontman — AI WordPress Editor for Existing Sites',
 	description:
-		'Ship updates to your existing WordPress site faster. Describe a change, inspect the page, and refine it with WordPress-native tools beside live preview.'
+		'Edit your existing WordPress site with Frontman AI. Update Gutenberg blocks, Elementor pages, and navigation with WordPress-native tools beside live preview.'
 }
 
 const capabilities = [
@@ -110,9 +110,10 @@ const pageJsonLd = {
 					Rewrite the headline. Rework an Elementor section. Update your navigation. Tell Frontman what you want changed—it makes the edits while you review the result.
 				</p>
 				<div class="wp-actions wp-hero__cta">
-					<Button size="lg" style="white" link={pluginUrl} classes="wp-primary-cta" data-ga-event="click_wordpress_plugin" data-ga-category="conversion" data-ga-label="wordpress_home_hero">Get Frontman for WordPress <span class="wp-cta-arrow" aria-hidden="true">→</span></Button>
+					<Button size="lg" style="white" link={pluginUrl} classes="wp-primary-cta" data-ga-event="click_wordpress_plugin" data-ga-category="engagement" data-ga-label="wordpress_home_hero" data-ga-placement="hero" data-ga-destination="wordpress_org">Get Frontman for WordPress <span class="wp-cta-arrow" aria-hidden="true">→</span></Button>
 				</div>
 				<p class="wp-hero__support">Your existing site. Gutenberg and Elementor. No rebuild.</p>
+				<p class="wp-hero__frameworks">Building with Next.js, Astro, or Vite? <a href="/frameworks/" data-ga-event="click_framework_setup" data-ga-category="engagement" data-ga-label="wordpress_home_hero" data-ga-placement="hero" data-ga-destination="framework_guide">Explore Frontman for frameworks →</a></p>
 			</div>
 			<div id="demo" class="wp-video-wrapper">
 				<iframe
@@ -201,7 +202,7 @@ const pageJsonLd = {
 						<a class="wp-setup-link" href="/pricing/">Pricing</a>
 						<a class="wp-setup-link" href="/docs/api-keys/">Provider connection guide</a>
 					</div>
-					<p>Using Next.js, Astro, or Vite? <a class="wp-setup-link" href="/frameworks/#install" data-ga-event="click_framework_setup" data-ga-category="conversion" data-ga-label="wordpress_home_setup">Framework setup →</a><br />Developers review, test, and deploy source changes.</p>
+					<p>Using Next.js, Astro, or Vite? <a class="wp-setup-link" href="/frameworks/#install" data-ga-event="click_framework_setup" data-ga-category="engagement" data-ga-label="wordpress_home_setup" data-ga-placement="setup" data-ga-destination="framework_guide">Framework setup →</a><br />Developers review, test, and deploy source changes.</p>
 				</div>
 			</div>
 		</div>
@@ -241,7 +242,7 @@ const pageJsonLd = {
 			<h2>Install Frontman for WordPress.</h2>
 			<p>Search for Frontman - AI Website Editor in wp-admin, or open the Plugin Directory page.</p>
 			<div class="wp-actions wp-actions--center">
-				<Button size="lg" style="white" link={pluginUrl} data-ga-event="click_wordpress_plugin" data-ga-category="conversion" data-ga-label="wordpress_home_final">Install from WordPress.org</Button>
+				<Button size="lg" style="white" link={pluginUrl} data-ga-event="click_wordpress_plugin" data-ga-category="engagement" data-ga-label="wordpress_home_final" data-ga-placement="article_end" data-ga-destination="wordpress_org">Install from WordPress.org</Button>
 				<a href="/docs/integrations/wordpress/" class="wp-secondary-link">Setup guide</a>
 			</div>
 		</div>
@@ -270,6 +271,8 @@ const pageJsonLd = {
 	.wp-hero__cta .button { justify-content: center; }
 	.wp-primary-cta { min-width: 268px; }
 	.wp-hero__support { margin-top: 20px; font-size: 14px; line-height: 1.6; }
+	.wp-hero__frameworks { margin-top: 12px; font-size: 14px; line-height: 1.6; }
+	.wp-hero__frameworks a { color: inherit; text-decoration: underline; text-underline-offset: 4px; }
 	.wp-cta-arrow { margin-left: 8px; }
 	.wp-actions--center { justify-content: center; }
 	.wp-secondary-link { @apply font-semibold text-white underline underline-offset-4 hover:text-primary-100; }

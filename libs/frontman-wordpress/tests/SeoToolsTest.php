@@ -13,18 +13,18 @@ $tools = new Frontman_Tools();
 $seo->register( $tools );
 if ( 1 !== $tools->get( 'wp_read_seo' )->input_schema['properties']['id']['minimum']
 	|| isset( $tools->get( 'wp_read_seo' )->input_schema['anyOf'] )
-	|| [ [ 'required' => [ 'title' ] ], [ 'required' => [ 'description' ] ] ] !== $tools->get( 'wp_update_seo' )->input_schema['anyOf'] ) {
+	|| [ [ 'required' => [ 'title' ] ], [ 'required' => [ 'description' ] ], [ 'required' => [ 'focus_keyphrase' ] ] ] !== $tools->get( 'wp_update_seo' )->input_schema['anyOf'] ) {
 	throw new RuntimeException( 'SEO schemas do not match runtime requirements.' );
 }
 foreach ( [ [], [ 'wordpress-seo/wp-seo.php' ], [ 'wordpress-seo/wp-seo.php' ] ] as $case => $active_plugins ) {
 	$expected = 'absent or not loaded';
 	if ( 2 === $case ) {
-		define( 'WPSEO_VERSION', $argv[1] ?? '28.4' );
-		$expected = isset( $argv[1] ) ? 'Unsupported Yoast SEO version 99.9; tested versions: 28.4, 19.9.' : 'runtime methods';
+		define( 'WPSEO_VERSION', $argv[1] ?? '28.6' );
+		$expected = 'runtime methods';
 	}
 	$reason = Frontman_Tool_Seo::unavailable_reason();
 	if ( ! is_string( $reason ) || false === strpos( $reason, $expected ) ) {
-		throw new RuntimeException( 'Missing Yoast, unsupported version or missing runtime API was not diagnosed.' );
+		throw new RuntimeException( 'Missing Yoast or missing runtime API was not diagnosed.' );
 	}
 	foreach ( [ 'read_seo', 'update_seo' ] as $handler ) {
 		try {
@@ -38,14 +38,39 @@ foreach ( [ [], [ 'wordpress-seo/wp-seo.php' ], [ 'wordpress-seo/wp-seo.php' ] ]
 	}
 }
 if ( ! isset( $argv[1] ) ) {
-	passthru( escapeshellarg( PHP_BINARY ) . ' -d auto_prepend_file=' . escapeshellarg( __DIR__ . '/ErrorHandler.php' ) . ' ' . escapeshellarg( __FILE__ ) . ' 99.9', $status );
-	if ( 0 !== $status ) {
-		throw new RuntimeException( 'Unsupported-version check failed.' );
+	foreach ( [ '28.4', '99.9' ] as $version ) {
+		passthru( escapeshellarg( PHP_BINARY ) . ' -d auto_prepend_file=' . escapeshellarg( __DIR__ . '/ErrorHandler.php' ) . ' ' . escapeshellarg( __FILE__ ) . ' ' . escapeshellarg( $version ), $status );
+		if ( 0 !== $status ) {
+			throw new RuntimeException( 'Runtime-capability check failed for Yoast ' . $version );
+		}
 	}
+}
+if ( ! class_exists( 'WPSEO_Meta' ) ) {
+	class WPSEO_Meta {
+		public static function get_value() {}
+		public static function set_value() {}
+		public static function delete() {}
+		public static function sanitize_post_meta() {}
+	}
+}
+function get_registered_meta_keys( string $type ): array {
+	return [
+		'_yoast_wpseo_title' => [ 'sanitize_callback' => [ 'WPSEO_Meta', 'sanitize_post_meta' ] ],
+		'_yoast_wpseo_metadesc' => [ 'sanitize_callback' => [ 'WPSEO_Meta', 'sanitize_post_meta' ] ],
+		'_yoast_wpseo_focuskw' => [ 'sanitize_callback' => [ 'WPSEO_Meta', 'sanitize_post_meta' ] ],
+	];
+}
+function has_filter( string $hook, $callback ) { return 10; }
+if ( null !== Frontman_Tool_Seo::unavailable_reason() ) {
+	throw new RuntimeException( 'A valid runtime was rejected for Yoast ' . WPSEO_VERSION );
 }
 $valid = [ 'id' => 7, 'title' => "  Café %%title%% \\ \"quoted\"  ", 'description' => '' ];
 if ( $valid !== $tools->sanitize_input( 'wp_update_seo', $valid ) ) {
 	throw new RuntimeException( 'Valid raw SEO input changed before the handler.' );
+}
+$focus = [ 'id' => 7, 'focus_keyphrase' => "  Café \\ \"quoted\"  " ];
+if ( $focus !== $tools->sanitize_input( 'wp_update_seo', $focus ) ) {
+	throw new RuntimeException( 'Valid raw focus input changed before the handler.' );
 }
 
 $invalid = [
@@ -53,6 +78,8 @@ $invalid = [
 	[ 'wp_read_seo', [ 'id' => 0 ] ],
 	[ 'wp_update_seo', [ 'id' => 7 ] ],
 	[ 'wp_update_seo', [ 'id' => 7, 'title' => null ] ],
+	[ 'wp_update_seo', [ 'id' => 7, 'focus_keyphrase' => 123 ] ],
+	[ 'wp_update_seo', [ 'id' => 7, 'focus_keyphrase' => "bad\xC3\x28" ] ],
 	[ 'wp_update_seo', [ 'id' => 7, 'title' => "bad\xC3\x28" ] ],
 	[ 'wp_update_seo', [ 'id' => 7, 'title' => 'safe', 'meta_key' => '_danger' ] ],
 ];

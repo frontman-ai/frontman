@@ -17,6 +17,7 @@ case "$WORDPRESS_VERSION" in
 esac
 case "$YOAST_VERSION" in
   "") ;;
+  28.6) YOAST_SHA256="ebb6e2a89d697cabecf2348a06d1efe807fd13ee1faeddcd06e354b98ee2a4d5" ;;
   28.4) YOAST_SHA256="93eba5afc65149967a4bb4906bc8fdebf92f4a65ee02bec97f5c01a7e14e7028" ;;
   19.9) YOAST_SHA256="8494a158e4bb9fcea9bb2198cc4c5908e92f3a5a2ccfffd989db05cf4e016af9" ;;
   *) printf 'Unsupported Yoast runtime test version: %s\n' "$YOAST_VERSION" >&2; exit 1 ;;

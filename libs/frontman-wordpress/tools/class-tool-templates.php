@@ -21,11 +21,17 @@ class Frontman_Tool_Templates {
 	public function register( Frontman_Tools $tools ): void {
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_get_site_info',
-			'Returns comprehensive site information including WordPress version, active theme, active plugins, registered public post types with archive URLs and rewrite settings, and taxonomies. CPT archives are generated routes, not backing pages/posts.',
+			'Returns site information including WordPress version, active theme, active plugins, public post types with archive URLs and rewrite settings, and taxonomies. CPT archives are generated routes, not backing pages/posts. Set include_installation_paths to true only for a user-requested installation-location check. Paths describe the PHP runtime, not a unique site identity or necessarily the public document root.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
-				'properties'           => new \stdClass(),
+				'properties'           => [
+					'include_installation_paths' => [
+						'type'        => 'boolean',
+						'default'     => false,
+						'description' => 'Include configured and resolved WordPress root paths. These private hosting details can enter model context and task history. Omitted by default.',
+					],
+				],
 			],
 			[ $this, 'get_site_info' ]
 		) );
@@ -204,7 +210,7 @@ class Frontman_Tool_Templates {
 			];
 		}
 
-		return [
+		$result = [
 			'site_name'    => get_bloginfo( 'name' ),
 			'site_url'     => get_site_url(),
 			'home_url'     => get_home_url(),
@@ -224,6 +230,16 @@ class Frontman_Tool_Templates {
 			'is_multisite' => is_multisite(),
 			'language'     => get_bloginfo( 'language' ),
 		];
+
+		if ( true === ( $input['include_installation_paths'] ?? false ) ) {
+			$resolved = @realpath( ABSPATH );
+			$result['installation'] = [
+				'abspath'          => trailingslashit( wp_normalize_path( ABSPATH ) ),
+				'resolved_abspath' => false === $resolved ? null : trailingslashit( wp_normalize_path( $resolved ) ),
+			];
+		}
+
+		return $result;
 	}
 
 	/**
