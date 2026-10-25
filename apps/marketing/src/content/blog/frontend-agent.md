@@ -2,7 +2,7 @@
 title: 'Frontend Agent: How Browser-Based AI Is Changing UI Development'
 seoTitle: 'Frontend Agent: Browser-Based AI for UI Development'
 pubDate: 2026-06-12T05:00:00Z
-updatedDate: 2026-10-20T00:00:00Z
+updatedDate: 2026-10-25T00:00:00Z
 description: 'Learn what a frontend agent is, how browser-based AI tools use DOM context and live UI feedback, and where they fit in frontend development workflows.'
 author: 'Danni Friedland'
 articleSection: 'Technical Explainer'
@@ -138,7 +138,13 @@ There will also be more specialization. Generic AI agents are useful, but fronte
 
 ## Next Steps
 
-For teams evaluating frontend agents, the best next step is simple: test one on real UI work. Pick a small issue from an existing codebase, preferably one that involves visual context. Ask the agent to inspect the page, find the source, make the change, and explain the diff. If you want a narrow first task, start with the [first UI edit walkthrough](/blog/getting-started/).
+For teams evaluating frontend agents, test one on a small visual issue in an existing codebase. Ask the agent to inspect the page, find the source, make the change, and explain the diff.
+
+<aside id="frontend-explainer-next-steps" class="my-8 border-l-2 border-violet-500 pl-5">
+  <p>Have project access and a supported development environment? Follow the first-edit walkthrough. A teammate without project access needs developer setup before making a source edit. Developers still review, test, and deploy the changes.</p>
+  <p><a href="/blog/getting-started/" data-ga-event="content_cta_clicked" data-ga-category="engagement" data-ga-label="frontend_explainer_first_edit" data-ga-placement="article_end" data-ga-destination="first_ui_edit" data-ga-task-family="update">Make your first UI edit</a></p>
+  <p><a href="/marketing-teams/#developer-setup" data-ga-event="content_cta_clicked" data-ga-category="engagement" data-ga-label="frontend_explainer_developer_setup" data-ga-placement="article_end" data-ga-destination="developer_setup" data-ga-task-family="update">Get a developer setup brief</a></p>
+</aside>
 
 The team should judge it by practical criteria. Did it understand the selected element? Did it edit the right file? Did it follow framework conventions? Did hot reload prove the change? Did it preserve accessibility and responsive behavior? Did the final code look maintainable? Did the human reviewer stay in control?
 
