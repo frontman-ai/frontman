@@ -1,3 +1,5 @@
+@@live
+
 /// Extend the normal Chromium suite with a real redirect between loopback origins.
 module Http = FrontmanBindings.NodeHttp
 type middleware
