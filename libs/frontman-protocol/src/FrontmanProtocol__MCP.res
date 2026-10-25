@@ -81,6 +81,41 @@ type requestMeta = {
 type discoverParams = {_meta: requestMeta}
 
 @schema
+type notificationFilter = {
+  toolsListChanged?: bool,
+  promptsListChanged?: bool,
+  resourcesListChanged?: bool,
+  resourceSubscriptions?: array<string>,
+}
+
+let notificationFilterWireSchema =
+  S.json
+  ->S.refine(json => json->JSON.Decode.object->Option.isSome, ~error="Expected notification object")
+  ->S.transform(_ => {
+    parser: json => json->S.parseOrThrow(~to=notificationFilterSchema),
+    serializer: filter => filter->S.decodeOrThrow(~from=notificationFilterSchema, ~to=S.json),
+  })
+  ->S.extendJSONSchema(notificationFilterSchema->S.toJSONSchema)
+
+@schema
+type subscriptionsListenParams = {
+  _meta: requestMeta,
+  notifications: @s.matches(notificationFilterWireSchema) notificationFilter,
+}
+
+@schema
+type subscriptionMeta = {
+  @as("io.modelcontextprotocol/subscriptionId")
+  subscriptionId: @s.matches(FrontmanProtocol__JsonRpc.Id.schema) FrontmanProtocol__JsonRpc.Id.t,
+}
+
+@schema
+type subscriptionsAcknowledgedParams = {
+  _meta: subscriptionMeta,
+  notifications: notificationFilter,
+}
+
+@schema
 type toolsCapability = {listChanged: bool}
 
 @schema

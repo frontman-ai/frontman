@@ -15,23 +15,6 @@ type mcpHandler<'server> = {
   transportListeners: ref<array<(Channel.channelEvent, int)>>,
 }
 
-let subscriptionFilterSchema = S.object(s => {
-  s.field("toolsListChanged", S.option(S.bool))->ignore
-  s.field("promptsListChanged", S.option(S.bool))->ignore
-  s.field("resourcesListChanged", S.option(S.bool))->ignore
-  s.field("resourceSubscriptions", S.option(S.array(S.string)))->ignore
-})
-
-let filterSchema = S.json->S.transform(s => {
-  parser: value =>
-    switch value {
-    | Object(_) => value->S.parseOrThrow(~to=subscriptionFilterSchema)
-    | _ => s.fail("Expected notification filter object")
-    },
-  serializer: value => value->S.decodeOrThrow(~from=subscriptionFilterSchema, ~to=S.json),
-})
-
-let listenParamsSchema = S.object(s => s.field("notifications", filterSchema))
 let cancelledParamsSchema = S.object(s => {
   let id = s.field("requestId", JsonRpc.Id.schema)
   s.field("reason", S.option(S.string))->ignore
@@ -179,6 +162,34 @@ let handleToolsList = (
   }
 }
 
+let handleSubscriptionsListen = (handler, id, params) => {
+  switch parseParams(
+    params,
+    Types.subscriptionsListenParamsSchema,
+    "Missing params for subscriptions/listen",
+  ) {
+  | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
+  | Ok(_) =>
+    switch handler.subscriptions.contents->Array.length >= 128 {
+    | true => sendError(handler, id, Types.ErrorCode.serverError, "Subscription limit reached")
+    | false =>
+      handler.subscriptions := Array.concat(handler.subscriptions.contents, [id])
+      let params: Types.subscriptionsAcknowledgedParams = {
+        _meta: {subscriptionId: id},
+        notifications: {},
+      }
+      let payload =
+        JsonRpc.Notification.make(
+          ~method="notifications/subscriptions/acknowledged",
+          ~params=Some(
+            params->S.decodeOrThrow(~from=Types.subscriptionsAcknowledgedParamsSchema, ~to=S.json),
+          ),
+        )->JsonRpc.Notification.toJson
+      handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
+    }
+  }
+}
+
 let handleToolsCall = async (
   handler: mcpHandler<'server>,
   id: JsonRpc.Id.t,
@@ -262,27 +273,7 @@ let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit 
           | "server/discover" => handleDiscover(handler, id, params)
           | "tools/list" => handleToolsList(handler, id, params)
           | "tools/call" => await handleToolsCall(handler, id, params)
-          | "subscriptions/listen" =>
-            switch parseParams(params, listenParamsSchema, "Missing subscription filter") {
-            | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, msg)
-            | Ok(_) =>
-              switch handler.subscriptions.contents->Array.length >= 128 {
-              | true =>
-                sendError(handler, id, Types.ErrorCode.serverError, "Subscription limit reached")
-              | false =>
-                handler.subscriptions := Array.concat(handler.subscriptions.contents, [id])
-                sendNotification(
-                  handler,
-                  "notifications/subscriptions/acknowledged",
-                  JSON.Encode.object(
-                    dict{
-                      "_meta": subscriptionMeta(id),
-                      "notifications": JSON.Encode.object(Dict.make()),
-                    },
-                  ),
-                )
-              }
-            }
+          | "subscriptions/listen" => handleSubscriptionsListen(handler, id, params)
           | _ =>
             sendError(handler, id, Types.ErrorCode.methodNotFound, `Method not found: ${method}`)
           }

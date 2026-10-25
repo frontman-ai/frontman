@@ -183,14 +183,6 @@ let connect = async (
   | (Ok(token), Ok()) =>
     let socketOpts: Socket.socketOptions = {
       authToken: token,
-      params: Dict.fromArray([
-        (
-          "origin",
-          WebAPI.Window.current
-          ->WebAPI.Window.location
-          ->FrontmanBindings.Bindings__WebAPI.locationOrigin,
-        ),
-      ]),
     }
     let socket = Socket.make(~endpoint=config.endpoint, ~opts=socketOpts)
     let channel = socket->Socket.channel(~topic=Constants.tasksTopic)

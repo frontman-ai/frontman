@@ -538,6 +538,66 @@ describe("MCP 2026-07-28", () => {
     )
   })
 
+  testAsync("omits unsupported notification types and preserves each subscription id", async t => {
+    let server = await makeServer()
+    let (channel, calls) = MockChannel.make()
+    let handler = makeHandler(channel, MCPServer.toInterface(server))
+    let requests = [`"subscription-1"`, "2147483648"]->Array.map(
+      async id => {
+        await MCP.handleMessage(
+          handler,
+          requestWithId(
+            ~id,
+            ~method="subscriptions/listen",
+            ~params=`${coreMetadata},"notifications":{"toolsListChanged":true,"promptsListChanged":true,"resourcesListChanged":true,"resourceSubscriptions":["file:///test"]}`,
+          ),
+        )
+      },
+    )
+    let _ = await Promise.all(requests)
+    t->expect(calls.contents->Array.length)->Expect.toBe(2)
+    calls.contents->Array.forEachWithIndex(
+      (call, index) => {
+        let expectedId = index == 0 ? `"subscription-1"` : "2147483648"
+        t->expect(call.event)->Expect.toBe("mcp:message")
+        t
+        ->expect(call.payload)
+        ->Expect.toEqual(
+          JSON.parseOrThrow(
+            `{
+          "jsonrpc":"2.0",
+          "method":"notifications/subscriptions/acknowledged",
+          "params":{"notifications":{},"_meta":{"io.modelcontextprotocol/subscriptionId":${expectedId}}}
+        }`,
+          ),
+        )
+      },
+    )
+  })
+
+  testAsync("rejects malformed subscription filters without acknowledging them", async t => {
+    let requests = [
+      coreMetadata,
+      `${coreMetadata},"notifications":null`,
+      `${coreMetadata},"notifications":[]`,
+      `${coreMetadata},"notifications":{"toolsListChanged":"true"}`,
+      `${coreMetadata},"notifications":{"promptsListChanged":1}`,
+      `${coreMetadata},"notifications":{"resourcesListChanged":null}`,
+      `${coreMetadata},"notifications":{"resourceSubscriptions":[1]}`,
+    ]->Array.map(
+      async params => {
+        let (channel, calls) = MockChannel.make()
+        await MCP.handleMessage(
+          handler(channel, ref(None)),
+          request(~id=24, ~method="subscriptions/listen", ~params),
+        )
+        t->expect(calls.contents->Array.length)->Expect.toBe(1)
+        t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.invalidParams))
+      },
+    )
+    let _ = await Promise.all(requests)
+  })
+
   testAsync("namespaces Frontman tool metadata under _meta", async t => {
     let server = await makeServer(~tools=[module(ThrowingTool)])
     let tool =
@@ -638,10 +698,11 @@ describe("MCP 2026-07-28", () => {
       invoke(12, "server/discover", wrongProtocol),
       invoke(19, "tools/list", `${wrongProtocol},"cursor":"expired"`),
       invoke(20, "unknown/method", wrongProtocol),
+      invoke(24, "subscriptions/listen", `${wrongProtocol},"notifications":{}`),
     ])
     t
     ->expect(unsupported->Array.map(errorCode))
-    ->Expect.toEqual(Array.make(~length=3, Some(-32022)))
+    ->Expect.toEqual(Array.make(~length=4, Some(-32022)))
     t
     ->expect(errorData(unsupported->Array.get(0)->Option.getOrThrow))
     ->Expect.toEqual(

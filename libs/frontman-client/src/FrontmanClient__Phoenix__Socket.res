@@ -1,4 +1,4 @@
-type t
+type t = FrontmanBindings.Phoenix.socket
 
 type channel = FrontmanBindings.Phoenix.channel
 
