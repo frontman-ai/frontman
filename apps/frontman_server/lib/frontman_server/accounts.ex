@@ -14,6 +14,8 @@ defmodule FrontmanServer.Accounts do
     exports: [Scope, User, WorkOS.AuthError]
 
   alias FrontmanServer.Repo
+  alias FrontmanServer.Workers.EnterActivationCampaign
+  alias FrontmanServer.Workers.SyncResendContact
 
   alias FrontmanServer.Accounts.{Scope, User, UserNotifier, UserToken, WorkOS}
 
@@ -50,12 +52,61 @@ defmodule FrontmanServer.Accounts do
 
   @doc "Records the first accepted prompt once, including for a stale scope."
   def record_first_message(%Scope{} = scope) do
-    scope
-    |> scope_user_id()
-    |> User.without_first_message()
-    |> Repo.update_all(set: [first_message_at: DateTime.utc_now(:second)])
+    Repo.transact(fn ->
+      {count, nil} =
+        scope
+        |> scope_user_id()
+        |> User.without_first_message()
+        |> Repo.update_all(set: [first_message_at: DateTime.utc_now(:second)])
 
-    :ok
+      case {count, EnterActivationCampaign.configured?()} do
+        {1, true} ->
+          %{user_id: scope_user_id(scope), activation: true}
+          |> SyncResendContact.new()
+          |> Oban.insert!()
+
+        _ ->
+          :ok
+      end
+
+      {:ok, :ok}
+    end)
+    |> case do
+      {:ok, :ok} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Read-only activation counts at explicit UTC bounds, without personal data.
+  Precedence: historical (before cutoff), unconfirmed at as-of, activated at
+  as-of, eligible. Signups after as-of are omitted. Historical milestones are
+  deliberately not interpreted because the backfill does not prove first use.
+  """
+  def activation_audience_report(
+        %DateTime{time_zone: "Etc/UTC"} = cutoff,
+        %DateTime{time_zone: "Etc/UTC"} = as_of
+      ) do
+    :lt = DateTime.compare(cutoff, as_of)
+    counts = User.activation_audience_counts(cutoff, as_of) |> Repo.one()
+    ages = User.activation_audience_ages(cutoff, as_of) |> Repo.one()
+    Map.put(counts, :eligible_signup_age_days, ages)
+  end
+
+  @doc false
+  def with_contact_sync(user_id, callback) when is_binary(user_id) do
+    Repo.transact(
+      fn ->
+        Repo.query!("SET LOCAL lock_timeout = '5s'")
+        Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [user_id])
+        {:ok, callback.(get_user(user_id))}
+      end,
+      timeout: 60_000
+    )
+    |> case do
+      {:ok, result} -> result
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   @doc """
