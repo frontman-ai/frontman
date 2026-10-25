@@ -41,7 +41,7 @@ defmodule FrontmanServerWeb.UserSocketTest do
     token = Accounts.generate_embedded_client_token(user, "https://customer.example")
 
     assert {:ok, socket} =
-             connect(UserSocket, %{"origin" => "https://customer.example"},
+             connect(UserSocket, %{},
                connect_info: connect_info(token, "https://customer.example")
              )
 
@@ -54,7 +54,7 @@ defmodule FrontmanServerWeb.UserSocketTest do
     assert :error = connect(UserSocket, %{}, connect_info: %{})
 
     assert :error =
-             connect(UserSocket, %{"origin" => "https://customer.example"},
+             connect(UserSocket, %{},
                connect_info: %{
                  x_headers: [{"x-frontman-socket-origin", "https://customer.example"}]
                }
@@ -63,19 +63,17 @@ defmodule FrontmanServerWeb.UserSocketTest do
 
   test "rejects invalid auth token" do
     assert :error =
-             connect(UserSocket, %{"origin" => "https://customer.example"},
+             connect(UserSocket, %{},
                connect_info: connect_info("invalid", "https://customer.example")
              )
   end
 
-  test "rejects wrong origin" do
+  test "rejects a handshake origin not approved by the token" do
     user = user_fixture()
     token = Accounts.generate_embedded_client_token(user, "https://customer.example")
 
     assert :error =
-             connect(UserSocket, %{"origin" => "https://evil.example"},
-               connect_info: connect_info(token, "https://evil.example")
-             )
+             connect(UserSocket, %{}, connect_info: connect_info(token, "https://evil.example"))
   end
 
   test "rejects legacy token params" do
@@ -94,8 +92,29 @@ defmodule FrontmanServerWeb.UserSocketTest do
              )
   end
 
-  test "requires a valid actual origin even with a valid bearer and claim" do
+  test "ignores client-supplied origin params" do
     token = Accounts.generate_embedded_client_token(user_fixture(), "https://customer.example")
+
+    for params <- [
+          %{},
+          %{"origin" => "https://evil.example"},
+          %{"origin" => "null"},
+          %{"origin" => ["https://customer.example"]}
+        ] do
+      assert {:ok, _socket} =
+               connect(UserSocket, params,
+                 connect_info: connect_info(token, "https://customer.example")
+               )
+    end
+  end
+
+  test "requires a valid handshake origin even with a valid bearer and claimed origin" do
+    token = Accounts.generate_embedded_client_token(user_fixture(), "https://customer.example")
+
+    assert :error =
+             connect(UserSocket, %{"origin" => "https://customer.example"},
+               connect_info: %{auth_token: token}
+             )
 
     for headers <- [
           [],
@@ -113,39 +132,40 @@ defmodule FrontmanServerWeb.UserSocketTest do
     end
   end
 
-  test "normalizes matching origins and preserves local development origins" do
-    for {approved, claimed, actual} <- [
-          {"https://customer.example", "https://CUSTOMER.example:443",
-           "https://customer.example"},
-          {"http://localhost:5173", "http://localhost:5173", "http://localhost:5173"}
+  test "normalizes handshake origins and preserves local development origins" do
+    for {approved, actual} <- [
+          {"https://customer.example", "https://CUSTOMER.example:443"},
+          {"http://localhost:5173", "http://localhost:5173"}
         ] do
       token = Accounts.generate_embedded_client_token(user_fixture(), approved)
 
       assert {:ok, _socket} =
-               connect(UserSocket, %{"origin" => claimed},
-                 connect_info: connect_info(token, actual)
-               )
+               connect(UserSocket, %{}, connect_info: connect_info(token, actual))
     end
   end
 
   test "endpoint uses actual Origin and overwrites forged internal headers before dispatch" do
     token = Accounts.generate_embedded_client_token(user_fixture(), "https://customer.example")
 
-    assert handshake(token, "https://customer.example", [
+    assert handshake(token, [
              {"origin", "https://CUSTOMER.example:443"},
              {"x-frontman-socket-origin", "https://evil.example"}
            ]).state == :upgraded
 
-    assert handshake(token, "https://customer.example", [
-             {"origin", "https://evil.example"},
-             {"x-frontman-socket-origin", "https://customer.example"}
-           ]).status == 403
+    assert handshake(
+             token,
+             [
+               {"origin", "https://evil.example"},
+               {"x-frontman-socket-origin", "https://customer.example"}
+             ],
+             %{"origin" => "https://customer.example"}
+           ).status == 403
 
-    assert handshake(token, "https://evil.example", [
+    assert handshake(token, [
              {"origin", "https://evil.example"}
            ]).status == 403
 
-    assert handshake("invalid", "https://customer.example", [
+    assert handshake("invalid", [
              {"origin", "https://customer.example"}
            ]).status == 403
 
@@ -157,7 +177,17 @@ defmodule FrontmanServerWeb.UserSocketTest do
           [{"origin", "https://customer.example, https://evil.example"}],
           [{"origin", "https://customer.example"}, {"origin", "https://customer.example"}]
         ] do
-      assert handshake(token, "https://customer.example", headers).status == 403
+      assert handshake(token, headers, %{"origin" => "https://customer.example"}).status == 403
+    end
+  end
+
+  test "endpoint authenticates without claimed origin and ignores legacy origin params" do
+    for origin <- ["https://customer.example", "http://localhost:5173"] do
+      token = Accounts.generate_embedded_client_token(user_fixture(), origin)
+
+      for params <- [%{}, %{"origin" => "https://evil.example"}, %{"origin" => "null"}] do
+        assert handshake(token, [{"origin", origin}], params).state == :upgraded
+      end
     end
   end
 
@@ -165,15 +195,12 @@ defmodule FrontmanServerWeb.UserSocketTest do
     %{auth_token: token, x_headers: [{"x-frontman-socket-origin", origin}]}
   end
 
-  defp handshake(token, claimed_origin, headers) do
+  defp handshake(token, headers, params \\ %{}) do
     conn =
       Plug.Test.conn(
         :get,
         "/socket/websocket?" <>
-          URI.encode_query(%{
-            "origin" => claimed_origin,
-            "vsn" => "2.0.0"
-          })
+          URI.encode_query(Map.put(params, "vsn", "2.0.0"))
       )
 
     conn = %{

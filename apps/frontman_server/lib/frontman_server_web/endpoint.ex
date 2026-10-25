@@ -27,8 +27,6 @@ defmodule FrontmanServerWeb.Endpoint do
     auth_token: true
   )
 
-  # Socket dispatch precedes endpoint plugs. Replace this internal header before dispatch
-  # so the socket can bind dynamic embedded origins to the browser's actual Origin.
   def call(%{path_info: ["socket", "websocket"]} = conn, opts) do
     conn = Plug.Conn.delete_req_header(conn, "x-frontman-socket-origin")
 
