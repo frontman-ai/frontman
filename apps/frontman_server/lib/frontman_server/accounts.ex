@@ -77,22 +77,6 @@ defmodule FrontmanServer.Accounts do
     end
   end
 
-  @doc """
-  Read-only activation counts at explicit UTC bounds, without personal data.
-  Precedence: historical (before cutoff), unconfirmed at as-of, activated at
-  as-of, eligible. Signups after as-of are omitted. Historical milestones are
-  deliberately not interpreted because the backfill does not prove first use.
-  """
-  def activation_audience_report(
-        %DateTime{time_zone: "Etc/UTC"} = cutoff,
-        %DateTime{time_zone: "Etc/UTC"} = as_of
-      ) do
-    :lt = DateTime.compare(cutoff, as_of)
-    counts = User.activation_audience_counts(cutoff, as_of) |> Repo.one()
-    ages = User.activation_audience_ages(cutoff, as_of) |> Repo.one()
-    Map.put(counts, :eligible_signup_age_days, ages)
-  end
-
   @doc false
   def with_contact_sync(user_id, callback) when is_binary(user_id) do
     Repo.transact(

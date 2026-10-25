@@ -130,8 +130,3 @@ check: lint test
 
 debug-task:
 	$(OP_RUN) mix debug_task $(ARGS)
-
-.PHONY: activation-audience-report
-activation-audience-report:
-	@test -n "$(CUTOFF)" -a -n "$(AS_OF)" || (echo "CUTOFF and AS_OF are required"; exit 1)
-	$(OP_RUN) mix activation_audience_report --cutoff "$(CUTOFF)" --as-of "$(AS_OF)"

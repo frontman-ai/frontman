@@ -1,4 +1,4 @@
-defmodule FrontmanServer.Accounts.ActivationAudienceTest do
+defmodule FrontmanServer.Accounts.ActivationSyncTest do
   use FrontmanServer.DataCase
   use Oban.Testing, repo: FrontmanServer.Repo
 
@@ -7,54 +7,6 @@ defmodule FrontmanServer.Accounts.ActivationAudienceTest do
   alias FrontmanServer.Workers.EnterActivationCampaign
   alias FrontmanServer.Workers.SyncResendContact
   import FrontmanServer.Test.Fixtures.Accounts
-
-  test "report partitions at the cutoff and as-of boundaries without provider calls" do
-    cutoff = ~U[2026-10-10 00:00:00Z]
-    as_of = ~U[2026-10-12 00:00:00Z]
-
-    for attrs <- [
-          [inserted_at: DateTime.add(cutoff, -1), first_message_at: cutoff],
-          [inserted_at: cutoff, confirmed_at: nil],
-          [inserted_at: cutoff, confirmed_at: cutoff, first_message_at: as_of],
-          [inserted_at: as_of, confirmed_at: as_of],
-          [inserted_at: DateTime.add(as_of, 1), confirmed_at: as_of]
-        ] do
-      unconfirmed_user_fixture()
-      |> Ecto.Changeset.change(attrs)
-      |> Repo.update!()
-    end
-
-    assert Accounts.activation_audience_report(cutoff, as_of) == %{
-             historical_unknown: 1,
-             unconfirmed: 1,
-             activated: 1,
-             eligible: 1,
-             total: 4,
-             eligible_signup_age_days: %{
-               under_1: 1,
-               from_1_to_3: 0,
-               from_3_to_7: 0,
-               at_least_7: 0
-             }
-           }
-  end
-
-  test "eligible age bins include each exact lower boundary" do
-    as_of = ~U[2026-10-20 00:00:00Z]
-    cutoff = DateTime.add(as_of, -8 * 86_400)
-
-    for age_days <- [0, 1, 3, 7] do
-      user_fixture()
-      |> Ecto.Changeset.change(
-        inserted_at: DateTime.add(as_of, -age_days * 86_400),
-        confirmed_at: cutoff
-      )
-      |> Repo.update!()
-    end
-
-    assert Accounts.activation_audience_report(cutoff, as_of).eligible_signup_age_days ==
-             %{under_1: 1, from_1_to_3: 1, from_3_to_7: 1, at_least_7: 1}
-  end
 
   test "default-off first prompt records activation without creating a sync backlog" do
     user = user_fixture()
