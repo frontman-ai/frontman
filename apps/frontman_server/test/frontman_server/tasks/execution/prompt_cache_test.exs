@@ -55,6 +55,10 @@ defmodule FrontmanServer.Tasks.Execution.PromptCacheTest do
 
       grant_provider_access(scope, provider, auth)
 
+      Req.Test.stub(:openai_oauth, fn conn ->
+        Req.Test.json(conn, %{"models" => [%{"slug" => model, "visibility" => "list"}]})
+      end)
+
       execution =
         execution_request_fixture(
           model: "#{provider}:#{model}",

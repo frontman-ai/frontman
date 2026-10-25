@@ -163,32 +163,90 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   def handle_info(:config_options_changed, socket) do
     if Billing.can_start_turn?(socket.assigns.scope), do: wake_runner(socket, nil)
+
+    {options, socket} =
+      socket
+      |> FrontmanServerWeb.CatalogRefresh.invalidate()
+      |> FrontmanServerWeb.CatalogRefresh.current()
+
+    push(
+      socket,
+      ACP.event_config_options_updated(),
+      ACP.build_config_options_updated_payload(options)
+    )
+
     {:noreply, socket}
   end
 
-  def handle_info({:execute_next_turn, execution}, socket) do
-    case Tasks.execute_next_turn(socket.assigns.scope, socket.assigns.task_id, execution) do
-      result when result in [:ok, :already_running, :no_accepted_messages] ->
-        :ok
+  def handle_info({:catalog_refresh, token}, socket) do
+    case FrontmanServerWeb.CatalogRefresh.fire(socket, token) do
+      {:ok, options, socket} ->
+        case {socket.assigns.model_catalog.failed, Billing.can_start_turn?(socket.assigns.scope)} do
+          {[], true} -> wake_runner(socket, nil)
+          _not_ready -> :ok
+        end
 
-      {:error, :billing_inactive} ->
-        push_agent_error(
+        push(
           socket,
-          nil,
-          Tasks.billing_inactive_message(socket.assigns.scope),
-          "frontman_billing"
+          ACP.event_config_options_updated(),
+          ACP.build_config_options_updated_payload(options)
         )
 
-      {:error, reason} ->
-        Logger.error("Failed to execute next turn: #{inspect(reason)}")
+        {:noreply, socket}
 
-        push_agent_error(
-          socket,
-          nil,
-          "Could not start this run. Check your AI provider and selected model.",
-          "billing"
-        )
+      :stale ->
+        {:noreply, socket}
     end
+  end
+
+  def handle_info({:execute_next_turn, execution}, socket) do
+    socket =
+      case Tasks.execute_next_turn(socket.assigns.scope, socket.assigns.task_id, execution) do
+        result when result in [:ok, :already_running, :no_accepted_messages] ->
+          socket
+
+        {:error, :billing_inactive} ->
+          push_agent_error(
+            socket,
+            nil,
+            Tasks.billing_inactive_message(socket.assigns.scope),
+            "frontman_billing"
+          )
+
+          socket
+
+        {:error, :invalid_oauth_token} ->
+          push_agent_error(
+            socket,
+            nil,
+            "Your AI provider connection is no longer valid. In Settings, disconnect and reconnect your provider account. Your message is still queued.",
+            "auth"
+          )
+
+          socket
+
+        {:error, :model_discovery_failed} ->
+          push_agent_error(
+            socket,
+            nil,
+            "Could not check model availability with your AI provider. Your message is still queued. Frontman will try again shortly.",
+            "overload"
+          )
+
+          FrontmanServerWeb.CatalogRefresh.schedule(socket)
+
+        {:error, reason} ->
+          Logger.error("Failed to execute next turn: #{inspect(reason)}")
+
+          push_agent_error(
+            socket,
+            nil,
+            "Could not start this run. Check your AI provider and selected model.",
+            "billing"
+          )
+
+          socket
+      end
 
     {:noreply, socket}
   end
@@ -687,6 +745,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         {:ok, history} = TaskHistory.new(task.interaction_rows)
         {:ok, replay} = ACPHistory.build(history, task.id, Agents.list_agents(scope))
         Enum.each(replay.notifications, &push(socket, @acp_message, &1))
+        {config_options, socket} = FrontmanServerWeb.CatalogRefresh.current(socket)
 
         reply(socket_ref(socket), {
           :ok,
@@ -694,11 +753,7 @@ defmodule FrontmanServerWeb.TaskChannel do
             @acp_message =>
               JsonRpc.success_response(
                 id,
-                ACP.build_session_load_result(
-                  scope
-                  |> Providers.available_models()
-                  |> ACP.build_model_config_options()
-                )
+                ACP.build_session_load_result(config_options)
               )
           }
         })

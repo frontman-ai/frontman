@@ -5,6 +5,41 @@ defmodule FrontmanServer.Tasks.ExecutionClassifyErrorTest do
   alias ReqLLM.Error.API.Request
 
   describe "classify_error/1" do
+    test "model discovery outages give retryable guidance" do
+      assert {message, "overload", true} =
+               ErrorClassifier.classify_error(:model_discovery_failed)
+
+      assert message =~ "model availability"
+    end
+
+    test "structured model_not_found failures return safe guidance through stream wrappers" do
+      reason =
+        "The 'gpt-6-astra' model is not supported when using Codex with a ChatGPT account."
+
+      body = %{
+        "code" => "model_not_found",
+        "message" => reason,
+        "type" => "invalid_request_error"
+      }
+
+      for opts <- [
+            [provider_code: "model_not_found", response_body: body, reason: reason],
+            [provider_code: "model_not_found", reason: "private-input"],
+            [response_body: body, reason: "private-input"],
+            [response_body: %{"error" => body}, reason: "private-input"],
+            [response_body: %{"detail" => reason}, reason: "private-input"]
+          ] do
+        request = Request.exception([status: 400] ++ opts)
+        stream = ReqLLM.Error.API.Stream.exception(cause: request, reason: "private-input")
+
+        for failure <- [request, stream, {:llm_error, stream}, {:exception, stream}] do
+          assert ErrorClassifier.classify_error(failure) ==
+                   {"This model is unavailable for your connection. Select another model and send a new message.",
+                    "unknown", false}
+        end
+      end
+    end
+
     test "request failures give safe guidance without exposing provider data" do
       for {status, category, message} <- [
             {400, "unknown", "Bad request — the provider rejected the request."},
@@ -16,6 +51,8 @@ defmodule FrontmanServer.Tasks.ExecutionClassifyErrorTest do
           body <- [
             %{"detail" => "The 'private-input' field is invalid"},
             %{"detail" => ["private-input"]},
+            %{"code" => "invalid_request_error", "message" => "private-input"},
+            %{"error" => %{"code" => "invalid_request_error", "message" => "private-input"}},
             %{"error" => %{"message" => "private-input"}},
             %{"error" => %{"code" => "token_invalidated", "message" => "private-input"}},
             nil

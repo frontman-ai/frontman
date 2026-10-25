@@ -15,6 +15,19 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
   setup do
     user = user_fixture()
     scope = %Scope{user: user}
+
+    Req.Test.stub(:openai_oauth, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/backend-api/codex/models"
+
+      Req.Test.json(conn, %{
+        "models" =>
+          Enum.map(~w(gpt-6.1-sol gpt-6-sol gpt-6-luna gpt-5.3-codex-spark), fn id ->
+            %{"slug" => id, "visibility" => "list", "supported_in_api" => false}
+          end)
+      })
+    end)
+
     {:ok, scope: scope}
   end
 
@@ -199,6 +212,132 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
   end
 
   describe "OAuth availability refresh" do
+    test "revoked Codex credentials require reconnection instead of outage retries", %{
+      scope: scope
+    } do
+      {:ok, _} = upsert_openai_oauth_token(scope, :valid)
+
+      Req.Test.stub(:openai_oauth, fn conn ->
+        conn |> Plug.Conn.put_status(401) |> Req.Test.json(%{"error" => "token_invalidated"})
+      end)
+
+      assert %{groups: [], failed: []} = Providers.available_models(scope)
+
+      assert {:error, :invalid_oauth_token} =
+               Providers.resolve_model_access(scope, "openai_codex:gpt-6-sol")
+    end
+
+    test "Codex picker only advertises account models with supported transports", %{scope: scope} do
+      {:ok, _} = upsert_openai_oauth_token(scope, :valid)
+
+      Req.Test.expect(:openai_oauth, fn conn ->
+        Req.Test.json(conn, %{
+          "models" => [
+            %{"slug" => "gpt-6-sol", "visibility" => "list", "supported_in_api" => false},
+            %{"slug" => "gpt-6-astra", "visibility" => "hide"},
+            %{"slug" => "gpt-6-luna", "visibility" => "none"},
+            %{"slug" => "unconfigured-model", "visibility" => "list"}
+          ]
+        })
+      end)
+
+      assert %{groups: [%{id: "openai_codex", options: options}]} =
+               Providers.available_models(scope)
+
+      assert options == [%{name: "GPT-6 Sol", value: "openai_codex:gpt-6-sol"}]
+    end
+
+    test "rejects stale or forged Codex selections before inference", %{scope: scope} do
+      {:ok, _} = upsert_openai_oauth_token(scope, :valid)
+
+      for id <- ~w(gpt-6-astra gpt-6.1-sol) do
+        Req.Test.expect(:openai_oauth, fn conn ->
+          Req.Test.json(conn, %{
+            "models" => [%{"slug" => "gpt-6-sol", "visibility" => "list"}]
+          })
+        end)
+
+        assert {:error, :unknown_model} =
+                 Providers.resolve_model_access(scope, "openai_codex:#{id}")
+      end
+    end
+
+    test "checks each connected account separately", %{scope: scope} do
+      other_scope = %Scope{user: user_fixture()}
+      {:ok, _} = upsert_openai_oauth_token(scope, :valid)
+
+      {:ok, _} =
+        insert_oauth_token(
+          other_scope,
+          "openai_codex",
+          "other_access",
+          "other_refresh",
+          oauth_expiration(:valid),
+          %{"account_id" => "other-account"}
+        )
+
+      Req.Test.expect(:openai_oauth, 2, fn conn ->
+        id =
+          case Plug.Conn.get_req_header(conn, "chatgpt-account-id") do
+            ["acc-789"] -> "gpt-6-sol"
+            ["other-account"] -> "gpt-6-luna"
+          end
+
+        Req.Test.json(conn, %{"models" => [%{"slug" => id, "visibility" => "list"}]})
+      end)
+
+      assert %{groups: [%{options: [%{value: "openai_codex:gpt-6-sol"}]}]} =
+               Providers.available_models(scope)
+
+      assert %{groups: [%{options: [%{value: "openai_codex:gpt-6-luna"}]}]} =
+               Providers.available_models(other_scope)
+    end
+
+    test "discovery failures never fall back to static Codex models", %{scope: scope} do
+      {:ok, _} = upsert_openai_oauth_token(scope, :valid)
+      :ok = upsert_anthropic_api_key(scope)
+
+      Req.Test.stub(:openai_oauth, fn conn ->
+        conn |> Plug.Conn.put_status(503) |> Req.Test.json(%{"error" => "private-input"})
+      end)
+
+      assert %{groups: [%{id: "anthropic"}]} = Providers.available_models(scope)
+
+      assert {:error, :model_discovery_failed} =
+               Providers.resolve_model_access(scope, "openai_codex:gpt-6-astra")
+    end
+
+    test "an empty account catalog hides the group and rejects selections", %{scope: scope} do
+      {:ok, _} = upsert_openai_oauth_token(scope, :valid)
+      Req.Test.stub(:openai_oauth, &Req.Test.json(&1, %{"models" => []}))
+
+      assert %{groups: []} = Providers.available_models(scope)
+
+      assert {:error, :unknown_model} =
+               Providers.resolve_model_access(scope, "openai_codex:gpt-6-sol")
+    end
+
+    test "an API key alone cannot advertise or execute Codex models", %{scope: scope} do
+      :ok = Providers.upsert_api_key(scope, "openai_codex", "not-a-chatgpt-connection")
+
+      assert %{groups: []} = Providers.available_models(scope)
+
+      assert {:error, :no_api_key} =
+               Providers.resolve_model_access(scope, "openai_codex:gpt-6-sol")
+    end
+
+    test "picker discovery uses refreshed OpenAI credentials", %{scope: scope} do
+      {:ok, _} = upsert_openai_oauth_token(scope, :expired)
+      expect_openai_refresh_success()
+
+      Req.Test.expect(:openai_oauth, fn conn ->
+        assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer fresh_openai_access"]
+        Req.Test.json(conn, %{"models" => [%{"slug" => "gpt-6-sol", "visibility" => "list"}]})
+      end)
+
+      assert %{groups: [%{id: "openai_codex"}]} = Providers.available_models(scope)
+    end
+
     test "model config refreshes expired Anthropic token", %{scope: scope} do
       {:ok, _} = upsert_anthropic_oauth_token(scope, :expired)
       expect_anthropic_refresh_success()

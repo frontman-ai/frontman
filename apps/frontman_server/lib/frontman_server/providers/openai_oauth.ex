@@ -28,6 +28,73 @@ defmodule FrontmanServer.Providers.OpenAIOAuth do
   @token_url "#{@issuer}/oauth/token"
   @req_options Application.compile_env(:frontman_server, [__MODULE__, :req_options], [])
 
+  # Match the catalog protocol in openai/codex rust-v0.164.0, not the Frontman version.
+  @models_client_version "0.164.0"
+
+  @doc """
+  Returns picker-visible model IDs from the connected ChatGPT account's Codex catalog.
+
+  `supported_in_api` applies to API-key authentication, not ChatGPT OAuth.
+  Discovery errors never fall back to the static catalog.
+  """
+  def available_model_ids(access_token, account_id)
+      when is_binary(access_token) and is_binary(account_id) and account_id != "" do
+    options = [
+      params: [client_version: @models_client_version],
+      headers: [
+        {"authorization", "Bearer #{access_token}"},
+        {"chatgpt-account-id", account_id},
+        {"originator", "pi"},
+        {"accept", "application/json"}
+      ],
+      receive_timeout: 5_000,
+      request_timeout: 5_000,
+      finch: [pool_timeout: 1_000, conn_opts: [transport_opts: [timeout: 5_000]]],
+      retry: false,
+      redirect: false
+    ]
+
+    req_options =
+      :frontman_server
+      |> Application.get_env(__MODULE__, [])
+      |> Keyword.get(:req_options, [])
+
+    case Req.get(
+           "https://chatgpt.com/backend-api/codex/models",
+           Keyword.merge(options, req_options)
+         ) do
+      {:ok, %Req.Response{status: 200, body: %{"models" => models}}}
+      when is_list(models) and length(models) <= 1_000 ->
+        parse_model_ids(models)
+
+      {:ok, %Req.Response{status: status}} when status in [401, 403] ->
+        {:error, :invalid_oauth_token}
+
+      {:ok, %Req.Response{status: status}} ->
+        Logger.warning("Codex model discovery failed: status=#{status}")
+        {:error, :model_discovery_failed}
+
+      {:error, _reason} ->
+        Logger.warning("Codex model discovery failed: transport error")
+        {:error, :model_discovery_failed}
+    end
+  end
+
+  def available_model_ids(_access_token, _account_id), do: {:error, :invalid_oauth_token}
+
+  defp parse_model_ids(models) do
+    Enum.reduce_while(models, {:ok, MapSet.new()}, fn
+      %{"slug" => slug, "visibility" => visibility}, {:ok, ids}
+      when is_binary(slug) and slug != "" and visibility in ["list", "hide", "none"] ->
+        ids = if visibility == "list", do: MapSet.put(ids, slug), else: ids
+        {:cont, {:ok, ids}}
+
+      _invalid, _acc ->
+        Logger.warning("Codex model discovery failed: invalid catalog")
+        {:halt, {:error, :model_discovery_failed}}
+    end)
+  end
+
   @doc """
   Step 1: Request a device code from OpenAI.
 

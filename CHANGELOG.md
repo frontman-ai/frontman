@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Show only account-available Codex models in the picker. Check availability before inference and reject stale selections without sending an unsupported request.
+- Show model-selection guidance for provider `model_not_found` errors instead of a generic bad-request message.
 - Include nested changeset validation errors in Sentry reports. Preserve the original exception diagnostics and convert unsupported error metadata to JSON-safe values.
 
 ## [5.4.0] - 2026-10-21

@@ -26,12 +26,18 @@ defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
   def classify_error({:llm_error, reason}), do: classify_error(reason)
 
   def classify_error(:no_api_key), do: {"No API key available for this request.", "auth", false}
+  def classify_error(:invalid_oauth_token), do: classify_reqllm_request(401, nil)
   def classify_error(:missing_model), do: {"Model is required for this request.", "auth", false}
 
   def classify_error(:unknown_model),
     do:
       {"This model is unavailable for your connection. Select another model and send a new message.",
        "unknown", false}
+
+  def classify_error(:model_discovery_failed),
+    do:
+      {"Could not check model availability with your AI provider. Try again in a moment.",
+       "overload", true}
 
   def classify_error(:registration_timeout),
     do: {"Agent failed to start. Please try again.", "unknown", false}
@@ -79,6 +85,24 @@ defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
         classify_reqllm_request(429, request.reason)
     end
   end
+
+  defp classify_reqllm_request(%ReqLLM.Error.API.Request{
+         status: 400,
+         provider_code: "model_not_found"
+       }),
+       do: classify_error(:unknown_model)
+
+  defp classify_reqllm_request(%ReqLLM.Error.API.Request{
+         status: 400,
+         response_body: %{"code" => "model_not_found"}
+       }),
+       do: classify_error(:unknown_model)
+
+  defp classify_reqllm_request(%ReqLLM.Error.API.Request{
+         status: 400,
+         response_body: %{"error" => %{"code" => "model_not_found"}}
+       }),
+       do: classify_error(:unknown_model)
 
   defp classify_reqllm_request(
          %ReqLLM.Error.API.Request{

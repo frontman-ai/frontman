@@ -40,11 +40,11 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       assert reason =~ "image exceeds the maximum allowed size"
     end
 
-    test "removed models are rejected before a turn is recorded", %{
+    test "removed models end the queued turn without starting inference", %{
       task_id: task_id,
       scope: scope
     } do
-      assert {:error, :unknown_model} =
+      assert {:ok, _, 1} =
                submit_user_message_and_run(
                  scope,
                  task_id,
@@ -52,7 +52,13 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
                  user_content("Hello")
                )
 
-      refute Repo.get_by(InteractionSchema, task_id: task_id, type: :turn_started)
+      assert_receive_interaction(
+        %Interaction.AgentError{kind: "rejected", retryable: false},
+        1
+      )
+
+      assert {:ok, :no_active_turn} =
+               Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
     end
 
     for delivery <- [:error, :stream_raise] do
@@ -61,13 +67,18 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
         task_id: task_id,
         scope: scope
       } do
+        reason =
+          "The 'gpt-6-astra' model is not supported when using Codex with a ChatGPT account."
+
         request =
           Request.exception(
             status: 400,
-            reason: "HTTP 400",
+            provider_code: "model_not_found",
+            reason: reason,
             response_body: %{
-              "detail" =>
-                "The 'gpt-5.4-mini' model is not supported when using Codex with a ChatGPT account."
+              "code" => "model_not_found",
+              "message" => reason,
+              "type" => "invalid_request_error"
             }
           )
 

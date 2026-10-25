@@ -601,6 +601,13 @@ defmodule FrontmanServer.Tasks do
   defp start_next_turn(%Scope{} = scope, task_id) when is_binary(task_id) do
     case claim_next_turn(scope, task_id) do
       {:ok,
+       {_task_schema, turn_started_row, _turn_number, _turn_model, _agent, _first_message,
+        {:unavailable_model, rejected_rows}}} ->
+        broadcast_task(task_id, {:interaction, turn_started_row})
+        {:ok, _error} = publish_outcome({:ok, rejected_rows}, task_id)
+        :turn_rejected
+
+      {:ok,
        {task_schema, turn_started_row, turn_number, turn_model, agent, first_message,
         billing_authorization}} ->
         broadcast_task(task_id, {:interaction, turn_started_row})
@@ -610,7 +617,7 @@ defmodule FrontmanServer.Tasks do
           :subscription -> :ok
         end
 
-        enqueue_title_generation(scope, task_id, first_message, turn_model, turn_number)
+        enqueue_title_generation(scope, task_id, first_message, turn_model)
         {:ok, task_schema, turn_number, turn_model, agent}
 
       {:error, :already_running} ->
@@ -649,8 +656,7 @@ defmodule FrontmanServer.Tasks do
            end),
          user_message_ids = Enum.map(accepted_messages, & &1.id),
          {:ok, agent} <- Agents.get_agent(scope, agent_id),
-         {:ok, _access} <- Providers.resolve_model_access(scope, turn_model),
-         {:ok, billing_authorization} <- Billing.authorize_new_turn(scope),
+         {:ok, billing_authorization} <- authorize_queued_turn(scope, turn_model),
          {:ok, turn_started_row} <-
            insert_interaction_row(task_schema, %{
              id: Ecto.UUID.generate(),
@@ -661,7 +667,9 @@ defmodule FrontmanServer.Tasks do
              },
              turn_number: turn_number
            }),
-         :ok <- insert_skill_used_rows(task_schema, accepted_messages, turn_number) do
+         :ok <- insert_skill_used_rows(task_schema, accepted_messages, turn_number),
+         {:ok, billing_authorization} <-
+           reject_unavailable_turn(task_schema, history, turn_number, billing_authorization) do
       {:ok,
        {task_schema, turn_started_row, turn_number, turn_model, agent, first_accepted_message,
         billing_authorization}}
@@ -672,13 +680,31 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  defp authorize_queued_turn(scope, model) do
+    case Providers.resolve_model_access(scope, model) do
+      {:ok, _access} -> Billing.authorize_new_turn(scope)
+      {:error, :unknown_model} -> {:ok, :unavailable_model}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp reject_unavailable_turn(task, history, turn_number, :unavailable_model) do
+    with {:ok, rows} <-
+           finish_turn(task, history, turn_number, build_execution_outcome(:model_rejected)) do
+      {:ok, {:unavailable_model, rows}}
+    end
+  end
+
+  defp reject_unavailable_turn(_task, _history, _turn_number, authorization),
+    do: {:ok, authorization}
+
   defp enqueue_title_generation(
          %Scope{} = scope,
          task_id,
          %InteractionSchema{data: user_message},
-         model,
-         1
+         model
        ) do
+    # The worker's task-scoped uniqueness selects the first authorized turn, not a rejected one.
     GenerateTitle.new(%{
       user_id: scope.user.id,
       task_id: task_id,
@@ -687,9 +713,6 @@ defmodule FrontmanServer.Tasks do
     })
     |> Oban.insert!()
   end
-
-  defp enqueue_title_generation(%Scope{}, _task_id, %InteractionSchema{}, _model, _turn_number),
-    do: :ok
 
   defp accepted_message_model(%InteractionSchema{data: %Interaction.UserMessage{model: model}})
        when is_binary(model) and model != "",
@@ -794,6 +817,12 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp build_execution_outcome(:completed), do: {:agent_completed, %{result: nil}}
+
+  defp build_execution_outcome(:model_rejected) do
+    {message, category, retryable} = ErrorClassifier.classify_error(:unknown_model)
+    turn_error(message, "rejected", retryable, category)
+  end
+
   defp build_execution_outcome(:cancelled), do: turn_error("Cancelled", "cancelled")
 
   defp build_execution_outcome(:terminated),
@@ -969,6 +998,7 @@ defmodule FrontmanServer.Tasks do
     with {:ok, schema} <- get_task(scope, task_id),
          {:ok, history} = load_history(task_id),
          {:ok, turn_number} <- retry_turn_number(history.rows, retried_error_id),
+         :ok <- ensure_authorized_turn(history, turn_number),
          :ok <- ensure_latest_retry_turn(retried_error_id, turn_number, history),
          {:ok, execution} <- ensure_execution_model(history, turn_number, execution),
          {:ok, agent} <- turn_agent(scope, history, turn_number),
@@ -987,6 +1017,9 @@ defmodule FrontmanServer.Tasks do
 
       stop when stop in [:already_running, :no_accepted_messages] ->
         stop
+
+      :turn_rejected ->
+        :ok
 
       {:error, reason} ->
         {:error, reason}
@@ -1035,6 +1068,7 @@ defmodule FrontmanServer.Tasks do
     with {:ok, task} <- get_task(scope, task_id),
          {:ok, history} <- load_history(task.id),
          turn_number when is_integer(turn_number) <- History.active_turn_number(history),
+         :ok <- ensure_authorized_turn(history, turn_number),
          {:ok, agent} <- turn_agent(scope, history, turn_number),
          {:ok, execution} <- ensure_execution_model(history, turn_number, execution) do
       start_execution(scope, task, turn_number, agent, execution)
@@ -1047,6 +1081,26 @@ defmodule FrontmanServer.Tasks do
   defp turn_agent(%Scope{} = scope, history, turn_number) do
     with {:ok, agent_id} <- History.turn_agent_id(history, turn_number) do
       Agents.get_agent(scope, agent_id || Agents.default_agent_id(scope))
+    end
+  end
+
+  # Rejected turns consume queued messages but never receive billing authorization.
+  defp ensure_authorized_turn(history, turn_number) do
+    rejected? =
+      Enum.any?(history.rows, fn
+        %InteractionSchema{
+          turn_number: ^turn_number,
+          data: %Interaction.AgentError{kind: "rejected"}
+        } ->
+          true
+
+        _row ->
+          false
+      end)
+
+    case rejected? do
+      true -> {:error, :turn_not_authorized}
+      false -> :ok
     end
   end
 

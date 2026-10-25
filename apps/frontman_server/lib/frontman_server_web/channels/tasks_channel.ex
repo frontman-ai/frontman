@@ -22,6 +22,7 @@ defmodule FrontmanServerWeb.TasksChannel do
   alias FrontmanServer.Protocols.{ACP, JsonRpc}
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
+  alias FrontmanServerWeb.CatalogRefresh
 
   @billing_status_updated "billing_status_updated"
   @acp_message ACP.event_acp_message()
@@ -99,11 +100,12 @@ defmodule FrontmanServerWeb.TasksChannel do
     case ACP.negotiate_agent_attribution_version(params["clientCapabilities"]) do
       {:ok, _version} ->
         socket = assign(socket, :acp_client_info, params["clientInfo"])
+        {config_options, socket} = CatalogRefresh.current(socket)
 
         push(
           socket,
           @acp_config_updated,
-          ACP.build_config_options_updated_payload(current_config_options(socket))
+          ACP.build_config_options_updated_payload(config_options)
         )
 
         push(socket, @billing_status_updated, Billing.status(socket.assigns.scope))
@@ -149,12 +151,14 @@ defmodule FrontmanServerWeb.TasksChannel do
              session_id,
              raw_framework
            ) do
+      {config_options, socket} = CatalogRefresh.current(socket)
+
       reply_response(
         socket,
         id,
         ACP.build_session_new_result(
           session_id,
-          current_config_options(socket)
+          config_options
         )
       )
     else
@@ -195,10 +199,15 @@ defmodule FrontmanServerWeb.TasksChannel do
 
   @impl true
   def handle_info(:config_options_changed, socket) do
+    {config_options, socket} =
+      socket
+      |> CatalogRefresh.invalidate()
+      |> CatalogRefresh.current()
+
     push(
       socket,
       @acp_config_updated,
-      ACP.build_config_options_updated_payload(current_config_options(socket))
+      ACP.build_config_options_updated_payload(config_options)
     )
 
     {:noreply, socket}
@@ -209,10 +218,15 @@ defmodule FrontmanServerWeb.TasksChannel do
     {:noreply, socket}
   end
 
-  defp current_config_options(socket) do
-    socket.assigns.scope
-    |> Providers.available_models()
-    |> ACP.build_model_config_options()
+  def handle_info({:catalog_refresh, token}, socket) do
+    case CatalogRefresh.fire(socket, token) do
+      {:ok, options, socket} ->
+        push(socket, @acp_config_updated, ACP.build_config_options_updated_payload(options))
+        {:noreply, socket}
+
+      :stale ->
+        {:noreply, socket}
+    end
   end
 
   defp session_new_id(params) do

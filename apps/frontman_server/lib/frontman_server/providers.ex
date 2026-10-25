@@ -23,6 +23,8 @@ defmodule FrontmanServer.Providers do
     OpenAIOAuth
   }
 
+  require Logger
+
   @spec list_custom_providers(Scope.t()) :: [map()]
   def list_custom_providers(%Scope{user: %User{id: user_id}}) do
     CustomProvider
@@ -104,20 +106,22 @@ defmodule FrontmanServer.Providers do
   def resolve_model_access(%Scope{} = scope, model)
       when is_binary(model) and model != "" do
     with {:ok, {credential_source, resolved_model}} <- resolve_catalog_model(model) do
-      case oauth_llm_opts(credential_source, resolve_oauth_token(scope, credential_source)) do
-        {:ok, llm_opts} ->
-          {:ok, {resolved_model, llm_opts ++ transport_llm_opts(resolved_model)}}
-
-        {:error, reason} ->
-          {:error, reason}
-
-        :use_api_key ->
-          api_key_llm_args(scope, credential_source, resolved_model)
-      end
+      resolve_catalog_access(scope, credential_source, resolved_model)
     end
   end
 
   def resolve_model_access(%Scope{}, _model), do: {:error, :missing_model}
+
+  defp resolve_catalog_access(scope, credential_source, model) do
+    with {:ok, opts} <-
+           oauth_llm_opts(credential_source, resolve_oauth_token(scope, credential_source)),
+         :ok <- validate_account_model(credential_source, model, opts) do
+      {:ok, {model, opts ++ transport_llm_opts(model)}}
+    else
+      :use_api_key -> api_key_llm_args(scope, credential_source, model)
+      {:error, _reason} = error -> error
+    end
+  end
 
   defp oauth_llm_opts("anthropic", %OAuthToken{access_token: access_token}) do
     {:ok,
@@ -138,6 +142,21 @@ defmodule FrontmanServer.Providers do
 
   defp oauth_llm_opts("openai_codex", %OAuthToken{}), do: {:error, :invalid_oauth_token}
   defp oauth_llm_opts(_provider, _token), do: :use_api_key
+
+  defp validate_account_model("openai_codex", %LLMDB.Model{id: id}, opts) do
+    with {:ok, ids} <-
+           OpenAIOAuth.available_model_ids(opts[:access_token], opts[:chatgpt_account_id]) do
+      case MapSet.member?(ids, id) do
+        true -> :ok
+        false -> {:error, :unknown_model}
+      end
+    end
+  end
+
+  defp validate_account_model(_provider, _model, _opts), do: :ok
+
+  # The Codex backend requires a ChatGPT connection, not an OpenAI API key.
+  defp api_key_llm_args(_scope, "openai_codex", _model), do: {:error, :no_api_key}
 
   defp api_key_llm_args(scope, provider, model) do
     case get_api_key(scope, provider) do
@@ -496,51 +515,100 @@ defmodule FrontmanServer.Providers do
       `:options` (list of `%{name: name, value: value}` maps where
       `value` is a serialized `"provider:model"` string)
   """
-  @spec available_models(Scope.t()) :: %{groups: [map()]}
-  def available_models(%Scope{} = scope) do
+  @spec available_models(Scope.t(), map()) :: map()
+  def available_models(%Scope{} = scope, previous \\ %{groups: []}) do
     api_key_providers = list_api_key_providers(scope)
 
-    oauth_providers =
+    oauth_tokens =
       OAuthToken
       |> OAuthToken.for_user(Accounts.scope_user_id(scope))
       |> Repo.all()
       |> Enum.flat_map(fn token ->
         case resolve_oauth_token(scope, token.provider) do
-          %OAuthToken{} -> [token.provider]
+          %OAuthToken{} = resolved -> [{token.provider, resolved}]
           nil -> []
         end
       end)
+      |> Map.new()
 
     provider_configs =
       Enum.filter(providers(), fn
         {provider, %{models: [_ | _]} = config} ->
           credential_source = config |> Map.get(:credential_source, provider) |> to_string()
-          credential_source in oauth_providers or credential_source in api_key_providers
+          Map.has_key?(oauth_tokens, credential_source) or credential_source in api_key_providers
 
         {_provider, _config} ->
           false
       end)
 
-    groups =
-      Enum.map(provider_configs, fn {provider, config} ->
-        options =
-          config.models
-          |> Enum.map(fn entry ->
-            {name, value, _model_spec} = model_entry(entry, provider)
+    {groups, failed, accounts} =
+      Enum.reduce(provider_configs, {[], [], %{}}, fn {provider, config},
+                                                      {groups, failed, accounts} ->
+        {provider_groups, provider_failed, account} =
+          available_provider_group(provider, config, oauth_tokens, previous)
 
-            %{
-              name: name,
-              value: model_string(provider, value)
-            }
-          end)
-
-        %{id: provider, name: config.display_name, options: options}
+        {groups ++ provider_groups, failed ++ provider_failed,
+         Map.put(accounts, provider, account)}
       end)
 
     groups = groups ++ build_custom_provider_groups(scope)
 
-    %{groups: groups}
+    %{groups: groups, failed: failed, accounts: accounts}
   end
+
+  defp available_provider_group(provider, config, tokens, previous) do
+    credential_source = config |> Map.get(:credential_source, provider) |> to_string()
+    token = Map.get(tokens, credential_source)
+    account = if token, do: {token.id, token.metadata["account_id"]}
+
+    case available_provider_models(config, credential_source, tokens) do
+      {:ok, models} ->
+        {build_provider_group(provider, config, models), [], account}
+
+      {:error, _reason} ->
+        {retained_provider_group(previous, provider, account), [provider], account}
+    end
+  end
+
+  defp build_provider_group(_provider, _config, []), do: []
+
+  defp build_provider_group(provider, config, models) do
+    options =
+      Enum.map(models, fn entry ->
+        {name, value, _model_spec} = model_entry(entry, provider)
+        %{name: name, value: model_string(provider, value)}
+      end)
+
+    [%{id: provider, name: config.display_name, options: options}]
+  end
+
+  defp retained_provider_group(previous, provider, account) do
+    # Only retain a catalog verified for the same connected account.
+    case get_in(previous, [:accounts, provider]) == account do
+      true -> Enum.filter(previous.groups, &(&1.id == provider))
+      false -> []
+    end
+  end
+
+  defp available_provider_models(config, "openai_codex", tokens) do
+    with {:ok, opts} <- oauth_llm_opts("openai_codex", Map.get(tokens, "openai_codex")),
+         {:ok, ids} <-
+           OpenAIOAuth.available_model_ids(opts[:access_token], opts[:chatgpt_account_id]) do
+      {:ok, Enum.filter(config.models, &MapSet.member?(ids, elem(&1, 1)))}
+    else
+      :use_api_key ->
+        {:ok, []}
+
+      {:error, :invalid_oauth_token} ->
+        {:ok, []}
+
+      {:error, _reason} = error ->
+        Logger.warning("Codex models omitted because account availability could not be verified")
+        error
+    end
+  end
+
+  defp available_provider_models(config, _credential_source, _tokens), do: {:ok, config.models}
 
   defp build_custom_provider_groups(%Scope{user: %User{id: user_id}}) do
     CustomProvider
