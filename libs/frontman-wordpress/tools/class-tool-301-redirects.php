@@ -29,6 +29,40 @@ class Frontman_Tool_301_Redirects {
 				'properties' => [ 'source' => [ 'type' => 'string' ], 'target' => [ 'type' => 'string' ], 'confirm' => [ 'type' => 'boolean' ] ] ],
 			[ $this, 'create_redirect' ], 'read-write', true, true
 		) );
+		$tools->add( new Frontman_Tool_Definition(
+			'wp_301_redirects_delete',
+			'Deletes one WebFactory rule only after approval. Read wp_301_redirects_list and supply its exact old_link as expected_source. Does not alter Redirection or other rules.',
+			[ 'type' => 'object', 'additionalProperties' => false, 'required' => [ 'id', 'expected_source', 'confirm' ],
+				'properties' => [ 'id' => [ 'type' => 'integer', 'minimum' => 1 ], 'expected_source' => [ 'type' => 'string' ], 'confirm' => [ 'type' => 'boolean' ] ] ],
+			[ $this, 'delete_redirect' ], 'read-write', true, true
+		) );
+	}
+
+	public function delete_redirect( array $input ): array {
+		$this->confirm( $input );
+		$id = $input['id'] ?? null;
+		if ( ! is_int( $id ) || $id < 1 || ! is_string( $input['expected_source'] ?? null ) ) {
+			throw new Frontman_Tool_Error( 'Positive integer ID and exact expected_source are required.' );
+		}
+		$before = $this->redirect_snapshot();
+		$found = array_values( array_filter( $before, static function ( $row ) use ( $id ) { return (int) $row['id'] === $id; } ) );
+		if ( count( $found ) !== 1 || $found[0]['old_link'] !== $input['expected_source'] ) {
+			throw new Frontman_Tool_Error( 'Rule missing or source changed. List rules before deleting.' );
+		}
+		global $wpdb;
+		$row = $found[0];
+		$result = $wpdb->query( $wpdb->prepare(
+			"DELETE FROM {$wpdb->prefix}ts_redirects WHERE id = %d AND BINARY old_link = %s AND BINARY new_link = %s AND BINARY title = %s AND BINARY section = %s",
+			$id, $row['old_link'], $row['new_link'], $row['title'], $row['section']
+		) );
+		if ( 1 !== $result || $wpdb->last_error ) {
+			throw new Frontman_Tool_Error( 'Delete failed or rule changed. Inspect rules before retrying.' );
+		}
+		$expected = array_values( array_filter( $before, static function ( $row ) use ( $id ) { return (int) $row['id'] !== $id; } ) );
+		if ( $this->redirect_snapshot() !== $expected ) {
+			throw new Frontman_Tool_Error( 'Could not verify deletion and preservation. Inspect rules before retrying.' );
+		}
+		return [ 'before' => $row, 'after' => null ];
 	}
 
 	public function create_redirect( array $input ): array {
