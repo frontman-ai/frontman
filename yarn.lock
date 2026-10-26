@@ -11195,7 +11195,7 @@ __metadata:
     prettier: "npm:^3.9.8"
     prettier-plugin-astro: "npm:^1.1.0"
     prettier-plugin-tailwindcss: "npm:^0.8.1"
-    satori: "npm:^0.33.4"
+    satori: "npm:^0.33.5"
     sharp: "npm:^0.35.5"
     sury: "catalog:"
     tailwindcss: "npm:^4.3.3"
@@ -14121,9 +14121,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"satori@npm:^0.33.4":
-  version: 0.33.4
-  resolution: "satori@npm:0.33.4"
+"satori@npm:^0.33.5":
+  version: 0.33.5
+  resolution: "satori@npm:0.33.5"
   dependencies:
     "@shuding/opentype.js": "npm:1.4.0-beta.0"
     css-background-parser: "npm:^0.1.0"
@@ -14138,7 +14138,7 @@ __metadata:
     parse-css-color: "npm:^0.2.1"
     postcss-value-parser: "npm:^4.2.0"
     yoga-layout: "npm:^3.2.1"
-  checksum: 10c0/7d6038cbe88f973efc43dabd7ac1abe284cd20552382b60c6a8b11b4b1a128f55b8dd340368de425ed3f6f1c090ec6778aece975aeb5d0276c0e9795224a9fc4
+  checksum: 10c0/8bb25d4b0f03d44dfa864eeb9e9c174cee49ab72f914f0952923bcea46695ffe9957993a36869ee541fb972af94b6e2e360beef3a2fab8aad8773f8a212ac892
   languageName: node
   linkType: hard
 
