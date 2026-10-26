@@ -167,9 +167,14 @@ config :frontman_server, FrontmanServer.Mailer,
 
 config :frontman_server, FrontmanServer.Workers.SendWelcomeEmail, enabled: false
 
-config :frontman_server, FrontmanServer.Workers.SyncResendContact,
+config :frontman_server, FrontmanServer.Workers.SyncResendContact, enabled: false
+
+config :frontman_server, FrontmanServer.ResendContacts, req_options: []
+
+config :frontman_server, FrontmanServer.Workers.EnterActivationCampaign,
   enabled: false,
-  req_options: []
+  cutoff: nil,
+  max_entry_lag_seconds: 3600
 
 config :frontman_server, FrontmanServer.Workers.NotifyDiscordNewUser,
   enabled: false,

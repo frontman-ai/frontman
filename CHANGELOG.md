@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Add opt-in activated contact synchronization and default-off, one-shot activation campaign entry through Resend. The campaign uses Elixir configuration for enrollment, the observation cutoff, and the entry lag. Failure reports exclude private payloads. Production enrollment and delivery remain disabled.
+
 ### Fixed
 
 - Show safe model-selection guidance when Codex rejects a model with `model_not_found`, instead of a generic bad-request error.

@@ -31,31 +31,15 @@ defmodule FrontmanServer.Accounts do
     |> Map.fetch!(:id)
   end
 
-  @doc """
-  Checks fresh activation candidacy, not permission to send, with an inclusive UTC signup age bound.
-  Existing users are excluded by the first-message backfill; callers supply the age bound.
-  Bounds are truncated to seconds to match stored signup timestamps.
-  """
-  def activation_candidate?(
-        %Scope{} = scope,
-        %DateTime{time_zone: "Etc/UTC"} = eligible_before
-      ) do
-    eligible_before = DateTime.truncate(eligible_before, :second)
-
-    scope
-    |> scope_user_id()
-    |> User.activation_candidate(eligible_before)
-    |> Repo.exists?()
-  end
-
-  @doc "Records the first accepted prompt once, including for a stale scope."
+  @doc "Records the first accepted prompt; returns true only when the stored milestone changes."
   def record_first_message(%Scope{} = scope) do
-    scope
-    |> scope_user_id()
-    |> User.without_first_message()
-    |> Repo.update_all(set: [first_message_at: DateTime.utc_now(:second)])
+    {count, nil} =
+      scope
+      |> scope_user_id()
+      |> User.without_first_message()
+      |> Repo.update_all(set: [first_message_at: DateTime.utc_now(:second)])
 
-    :ok
+    count == 1
   end
 
   @doc """
@@ -114,10 +98,6 @@ defmodule FrontmanServer.Accounts do
   Sends the welcome email for a user.
   """
   def deliver_welcome_email(%User{} = user), do: UserNotifier.deliver_welcome(user)
-
-  @doc "Builds a first follow-up without sending; the unsubscribe URL must be trusted."
-  def first_follow_up_email(recipient, unsubscribe_url),
-    do: UserNotifier.first_follow_up_email(recipient, unsubscribe_url)
 
   @doc """
   Registers a user.

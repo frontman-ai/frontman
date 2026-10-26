@@ -20,6 +20,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
   alias FrontmanServer.Accounts.UserIdentity
   alias FrontmanServer.Accounts.WorkOS.AuthError
   alias FrontmanServer.Repo
+  alias FrontmanServer.Workers.EnterActivationCampaign
   alias FrontmanServer.Workers.NotifyDiscordNewUser
   alias FrontmanServer.Workers.SendWelcomeEmail
   alias FrontmanServer.Workers.SyncResendContact
@@ -315,6 +316,9 @@ defmodule FrontmanServer.Accounts.WorkOS do
     end)
     |> Oban.insert(:sync_resend_contact, fn %{user: user} ->
       SyncResendContact.new(%{user_id: user.id})
+    end)
+    |> Oban.insert(:activation_entry, fn %{user: user} ->
+      EnterActivationCampaign.new(%{user_id: user.id})
     end)
     |> Oban.insert(:notify_discord, fn %{user: user} ->
       NotifyDiscordNewUser.new(notify_discord_args(user.id, signup_framework))

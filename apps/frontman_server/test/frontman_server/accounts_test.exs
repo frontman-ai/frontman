@@ -123,66 +123,6 @@ defmodule FrontmanServer.AccountsTest do
     end
   end
 
-  describe "activation_candidate?/2" do
-    test "accepts subsecond UTC bounds without including the next second" do
-      bound = ~U[2026-06-02 12:00:00.999999Z]
-      signup_second = ~U[2026-06-02 12:00:00Z]
-
-      for {signup, expected} <- [
-            {signup_second, true},
-            {DateTime.add(signup_second, 1), false}
-          ] do
-        user =
-          unconfirmed_user_fixture()
-          |> Ecto.Changeset.change(inserted_at: signup, confirmed_at: signup_second)
-          |> Repo.update!()
-
-        assert Accounts.activation_candidate?(Scope.for_user(user), bound) == expected
-      end
-    end
-
-    test "includes signups at or before the UTC age bound and excludes newer signups" do
-      bound = ~U[2026-06-02 12:00:00Z]
-
-      for {signup, expected} <- [
-            {DateTime.add(bound, -1), true},
-            {bound, true},
-            {DateTime.add(bound, 1), false}
-          ] do
-        user =
-          unconfirmed_user_fixture()
-          |> Ecto.Changeset.change(inserted_at: signup, confirmed_at: bound)
-          |> Repo.update!()
-
-        scope = Scope.for_user(user)
-        assert Accounts.activation_candidate?(scope, bound) == expected
-      end
-    end
-
-    test "uses current confirmation and first-prompt state for the scoped user" do
-      bound = ~U[2026-06-02 12:00:00Z]
-
-      user =
-        unconfirmed_user_fixture()
-        |> Ecto.Changeset.change(inserted_at: bound)
-        |> Repo.update!()
-
-      scope = Scope.for_user(user)
-      refute Accounts.activation_candidate?(scope, bound)
-      confirmed = user |> Ecto.Changeset.change(confirmed_at: bound) |> Repo.update!()
-      assert Accounts.activation_candidate?(scope, bound)
-
-      other =
-        unconfirmed_user_fixture()
-        |> Ecto.Changeset.change(inserted_at: bound, confirmed_at: bound)
-        |> Repo.update!()
-
-      confirmed |> Ecto.Changeset.change(first_message_at: bound) |> Repo.update!()
-      refute Accounts.activation_candidate?(scope, bound)
-      assert Accounts.activation_candidate?(Scope.for_user(other), bound)
-    end
-  end
-
   describe "sudo_mode?/2" do
     test "validates the authenticated_at time" do
       now = DateTime.utc_now()

@@ -7,7 +7,13 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.{User, UserIdentity}
   alias FrontmanServer.Repo
-  alias FrontmanServer.Workers.{NotifyDiscordNewUser, SendWelcomeEmail, SyncResendContact}
+
+  alias FrontmanServer.Workers.{
+    EnterActivationCampaign,
+    NotifyDiscordNewUser,
+    SendWelcomeEmail,
+    SyncResendContact
+  }
 
   setup do
     original = Application.fetch_env(:frontman_server, :workos_req_options)
@@ -57,6 +63,20 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
 
   describe "successful authentication" do
     test "signup commits the account and jobs; repeat login does not enqueue again", %{conn: conn} do
+      expect_auth(oauth_body(), 200, profile())
+      conn = get(conn, ~p"/users/log-in?framework=nextjs")
+
+      assert {:error, :rollback} =
+               Repo.transact(fn ->
+                 conn
+                 |> sign_in()
+                 |> assert_signed_in()
+                 |> assert_signup()
+
+                 {:error, :rollback}
+               end)
+
+      assert_no_signup(conn)
       expect_auth(oauth_body(), 200, profile())
       conn = conn |> get(~p"/users/log-in?framework=nextjs") |> sign_in()
       user = assert_signed_in(conn)
@@ -367,8 +387,9 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
     assert [%{provider: "github", provider_id: "github-id"}] = Accounts.list_user_identities(user)
     assert_enqueued(worker: SendWelcomeEmail, args: %{user_id: user.id})
     assert_enqueued(worker: SyncResendContact, args: %{user_id: user.id})
+    assert_enqueued(worker: EnterActivationCampaign, args: %{user_id: user.id})
     assert_enqueued(worker: NotifyDiscordNewUser, args: %{user_id: user.id, framework: "nextjs"})
-    assert length(all_enqueued()) == 3
+    assert length(all_enqueued()) == 4
   end
 
   defp assert_no_signup(conn) do

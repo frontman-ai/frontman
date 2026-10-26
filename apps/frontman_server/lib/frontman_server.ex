@@ -36,6 +36,7 @@ defmodule FrontmanServer do
     Observability.ConsoleHandler,
     Observability.SentryContext,
     Workers.GenerateTitle,
+    Workers.EnterActivationCampaign,
     Workers.NotifyDiscordNewUser,
     Workers.SendAgentFeedbackToDiscord,
     Workers.SendWelcomeEmail,

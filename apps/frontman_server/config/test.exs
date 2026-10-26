@@ -76,9 +76,15 @@ config :paper_tiger,
 
 config :frontman_server, FrontmanServer.Workers.SendWelcomeEmail, enabled: true
 
-config :frontman_server, FrontmanServer.Workers.SyncResendContact,
+config :frontman_server, FrontmanServer.Workers.SyncResendContact, enabled: true
+
+config :frontman_server, FrontmanServer.ResendContacts,
+  req_options: [plug: {Req.Test, :resend}, retry: true]
+
+config :frontman_server, FrontmanServer.Workers.EnterActivationCampaign,
   enabled: true,
-  req_options: []
+  cutoff: ~U[2020-01-01 00:00:00Z],
+  max_entry_lag_seconds: 3600
 
 config :frontman_server, FrontmanServer.Workers.NotifyDiscordNewUser,
   enabled: true,
