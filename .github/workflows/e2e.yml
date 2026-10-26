@@ -118,6 +118,7 @@ jobs:
       DB_NAME: frontman_server_e2e_${{ github.run_id }}
       CLOAK_KEY: "HE9hCRnQXEREL1X+1+cU4wPdVGqJMhwR05edbBBq1RY="
       YARN_ENABLE_HARDENED_MODE: "0"
+      MISE_AUTO_INSTALL: "false"
       E2E_OPENAI_ACCESS_TOKEN: ${{ secrets.E2E_CHATGPT_ACCESS_TOKEN }}
       E2E_OPENAI_REFRESH_TOKEN: ${{ secrets.E2E_CHATGPT_REFRESH_TOKEN }}
       E2E_OPENAI_ACCOUNT_ID: ${{ secrets.E2E_CHATGPT_ACCOUNT_ID }}
@@ -136,10 +137,11 @@ jobs:
       - name: Fix mise binary permissions
         run: chmod -R +x ~/.local/share/mise/bin/ 2>/dev/null || true
 
-      - name: Setup Erlang/Elixir via mise
+      - name: Install E2E runtime tools via mise
         uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
         with:
           install: true
+          install_args: erlang elixir mkcert
           cache: true
 
       - name: Install Hex/Rebar
