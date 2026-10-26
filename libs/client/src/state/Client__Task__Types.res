@@ -27,8 +27,10 @@ module Task = {
 
   type previewFrame = {
     url: string,
+    /// Only explicit parent navigation increments this key; observed URLs retain the iframe.
+    navigationKey: int,
     contentDocument: option<WebAPI.DomTypes.document>,
-    contentWindow: option<WebAPI.DomTypes.window>,
+    contentWindow: option<FrontmanBindings.Bindings__WebAPI.windowHandle>,
     deviceMode: Client__DeviceMode.deviceMode,
     orientation: Client__DeviceMode.orientation,
   }
@@ -127,6 +129,7 @@ module Task = {
     | New({previewFrame}) => previewFrame
     | Unloaded(_) => {
         url: defaultUrl,
+        navigationKey: 0,
         contentDocument: None,
         contentWindow: None,
         deviceMode: Client__DeviceMode.defaultDeviceMode,
@@ -220,6 +223,7 @@ module Task = {
       clientId: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
       previewFrame: {
         url: previewUrl,
+        navigationKey: 0,
         contentDocument: None,
         contentWindow: None,
         deviceMode: Client__DeviceMode.defaultDeviceMode,
@@ -785,7 +789,7 @@ let currentPageToContentBlock = (
   let url = previewFrame.url
 
   let (viewportWidth, viewportHeight, dpr, scrollY) = switch previewFrame.contentWindow {
-  | Some(win) =>
+  | Some({window: win}) =>
     try {
       (
         Some(win->WebAPI.Window.innerWidth),
@@ -824,7 +828,7 @@ let currentPageToContentBlock = (
   }
 
   let colorScheme = switch previewFrame.contentWindow {
-  | Some(win) =>
+  | Some({window: win}) =>
     let scheme = getColorScheme(win)
     switch scheme {
     | "unknown" => None

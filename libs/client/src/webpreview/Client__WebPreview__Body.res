@@ -1,5 +1,11 @@
 @react.component
-let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=?) => {
+let make = (
+  ~clientId,
+  ~navigationKey,
+  ~url,
+  ~isActive,
+  ~viewportStyle: option<(int, int, float)>=?,
+) => {
   let iframeRef: React.ref<Nullable.t<Dom.element>> = React.useRef(Nullable.null)
   let (iframeElement, setIframeElement): (option<WebAPI.DomTypes.element>, _) = React.useState(() =>
     None
@@ -18,12 +24,10 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
     ->Nullable.toOption
     ->Option.map(FrontmanBindings.Bindings__WebAPI.elementFromReact)
     ->Option.flatMap(FrontmanBindings.Bindings__WebAPI.iframeElementFromElement)
-    ->Option.map(iframeElement => {
-      (
-        WebAPI.HTMLIFrameElement.contentDocument(iframeElement),
-        WebAPI.HTMLIFrameElement.contentWindow(iframeElement),
-      )
-    })
+    ->Option.flatMap(Client__PreviewFrame.read)
+
+  let observeFrame = () =>
+    Client__State.Actions.setPreviewFrame(~clientId, ~navigationKey, ~context=readPreviewFrame())
 
   React.useEffect(() => {
     switch hasLoaded {
@@ -69,7 +73,7 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
           | false => ()
           | true =>
             lastLocationRef.current = Some(location)
-            Client__State.Actions.observePreviewUrl(~url=location)
+            Client__State.Actions.observePreviewUrl(~clientId, ~navigationKey, ~url=location)
           }
         }
       | None => ()
@@ -86,10 +90,7 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
       setAttachmentKey(prev => prev + 1)
       switch isActive {
       | false => ()
-      | true =>
-        readPreviewFrame()->Option.forEach(((contentDocument, contentWindow)) =>
-          Client__State.Actions.setPreviewFrame(~contentDocument, ~contentWindow)
-        )
+      | true => observeFrame()
       }
     }
   }
@@ -97,13 +98,7 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
   React.useEffect(() => {
     switch isActive {
     | false => ()
-    | true =>
-      readPreviewFrame()->Option.forEach(((contentDocument, contentWindow)) => {
-        switch contentDocument->Option.isSome {
-        | false => ()
-        | true => Client__State.Actions.setPreviewFrame(~contentDocument, ~contentWindow)
-        }
-      })
+    | true => observeFrame()
     }
     None
   }, [isActive])
@@ -125,7 +120,7 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
   })
   let iframe =
     <iframe
-      className="size-full" src={iframeSrc} title={`Preview - ${taskId}`} onLoad ref={refCallback}
+      className="size-full" src={iframeSrc} title={`Preview - ${clientId}`} onLoad ref={refCallback}
     />
 
   switch (isActive, viewportStyle) {

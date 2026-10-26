@@ -1291,12 +1291,12 @@ describe("Client State Reducer - Task Management Actions", () => {
     }
   })
 
-  test("SetPreviewUrl synchronizes the selected task browser URL", t => {
+  test("PreviewUrlObserved synchronizes the selected task browser URL", t => {
     let state = TestHelpers.makeStateWithTask()
     let previewUrl = "http://localhost:3000/products/42"
     let (nextState, effects) = Reducer.next(
       state,
-      TaskAction({target: CurrentTask, action: SetPreviewUrl({url: previewUrl})}),
+      TaskAction({target: CurrentTask, action: PreviewUrlObserved({url: previewUrl})}),
     )
 
     t->expect(Reducer.Selectors.previewUrl(nextState))->Expect.toBe(previewUrl)

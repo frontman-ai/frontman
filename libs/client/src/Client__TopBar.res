@@ -6,7 +6,9 @@ module FrontmanLogo = Client__FrontmanLogo
 let renderToolbarButton = (~label, ~onClick, ~children, ~className="") =>
   <Tooltip>
     <Tooltip.Trigger
-      render={<Button variant=Button.Variant.Ghost size=Button.Size.IconSm className onClick />}
+      render={<Button
+        variant=Button.Variant.Ghost size=Button.Size.IconSm className onClick ariaLabel=label
+      />}
     >
       {children}
     </Tooltip.Trigger>
@@ -25,7 +27,6 @@ let make = (
   let isAgentRunning = Client__State.useSelector(Client__State.Selectors.isAgentRunning)
   let isNewTask = Client__State.useSelector(Client__State.Selectors.isNewTask)
   let previewUrl = Client__State.useSelector(Client__State.Selectors.previewUrl)
-  let previewFrame = Client__State.useSelector(Client__State.Selectors.previewFrame)
   let deviceMode = Client__State.useSelector(Client__State.Selectors.deviceMode)
   let completedFileChanges = Client__State.useSelector(Client__State.Selectors.completedFileChanges)
   let supportsChanges =
@@ -56,11 +57,7 @@ let make = (
           ~targetUrl=resolvedUrl,
         ) {
         | false => ()
-        | true =>
-          previewFrame.contentWindow->Option.forEach(contentWindow => {
-            contentWindow->WebAPI.Window.location->WebAPI.Location.assign(resolvedUrl)
-          })
-          Client__State.Actions.setCurrentPreviewUrl(~url=resolvedUrl)
+        | true => Client__State.Actions.setCurrentPreviewUrl(~url=resolvedUrl)
         }
       }
       ReactEvent.Keyboard.currentTarget(e)["blur"]()
@@ -79,10 +76,7 @@ let make = (
   }
 
   let handleReload = () => {
-    previewFrame.contentWindow->Option.forEach(contentWindow => {
-      contentWindow->WebAPI.Window.location->WebAPI.Location.reload
-    })
-    Client__State.Actions.clearAnnotations()
+    Client__State.Actions.setCurrentPreviewUrl(~url=previewUrl)
   }
 
   let handleNewTask = () => {
@@ -146,6 +140,7 @@ let make = (
             )}
             <input
               type_="text"
+              ariaLabel="Preview URL"
               value={displayedUrl}
               onChange={handleUrlChange}
               onKeyDown={handleUrlKeyDown}

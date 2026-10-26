@@ -19,18 +19,31 @@ module Actions = {
 
   let setCurrentPreviewUrl = (~url) =>
     Client__State__Store.dispatch(
-      TaskAction({target: CurrentTask, action: SetPreviewUrl({url: url})}),
+      TaskAction({target: CurrentTask, action: NavigatePreview({url: url})}),
     )
 
-  let observePreviewUrl = (~url) =>
+  let observePreviewUrl = (~clientId: string, ~navigationKey: int, ~url: string) =>
     Client__State__Store.dispatch(
-      TaskAction({target: CurrentTask, action: SetPreviewUrl({url: url})}),
+      PreviewAction({clientId, navigationKey, action: PreviewUrlObserved({url: url})}),
     )
 
-  let setPreviewFrame = (~contentDocument, ~contentWindow) =>
+  let setPreviewFrame = (
+    ~clientId,
+    ~navigationKey,
+    ~context: option<Client__PreviewFrame.context>,
+  ) => {
+    let (contentDocument, contentWindow) = switch context {
+    | Some({doc, win}) => (Some(doc), Some({FrontmanBindings.Bindings__WebAPI.window: win}))
+    | None => (None, None)
+    }
     Client__State__Store.dispatch(
-      TaskAction({target: CurrentTask, action: SetPreviewFrame({contentDocument, contentWindow})}),
+      PreviewAction({
+        clientId,
+        navigationKey,
+        action: SetPreviewFrame({contentDocument, contentWindow}),
+      }),
     )
+  }
 
   let setDeviceMode = (~deviceMode) =>
     Client__State__Store.dispatch(
