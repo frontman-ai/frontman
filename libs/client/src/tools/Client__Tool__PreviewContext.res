@@ -11,7 +11,11 @@ let get = (): option<t> => {
     switch Client__PreviewFrame.validate(~doc, ~window) {
     | Some(context) => Some(context)
     | None =>
-      Client__State.Actions.setPreviewFrame(~contentDocument=None, ~contentWindow=None)
+      Client__State.Actions.setPreviewFrame(
+        ~clientId=Client__State.Selectors.currentTaskClientId(state),
+        ~navigationKey=previewFrame.navigationKey,
+        ~context=None,
+      )
       None
     }
   | (Some(_), None) | (None, Some(_)) | (None, None) => None

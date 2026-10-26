@@ -22,13 +22,13 @@ module Actions = {
       TaskAction({target: CurrentTask, action: NavigatePreview({url: url})}),
     )
 
-  let observePreviewUrl = (~taskId: string, ~navigationKey: int, ~url: string) =>
+  let observePreviewUrl = (~clientId: string, ~navigationKey: int, ~url: string) =>
     Client__State__Store.dispatch(
-      PreviewAction({clientId: taskId, navigationKey, action: SetPreviewUrl({url: url})}),
+      PreviewAction({clientId, navigationKey, action: PreviewUrlObserved({url: url})}),
     )
 
-  let previewFrameObserved = (
-    ~taskId,
+  let setPreviewFrame = (
+    ~clientId,
     ~navigationKey,
     ~context: option<Client__PreviewFrame.context>,
   ) => {
@@ -38,17 +38,12 @@ module Actions = {
     }
     Client__State__Store.dispatch(
       PreviewAction({
-        clientId: taskId,
+        clientId,
         navigationKey,
         action: SetPreviewFrame({contentDocument, contentWindow}),
       }),
     )
   }
-
-  let setPreviewFrame = (~contentDocument, ~contentWindow) =>
-    Client__State__Store.dispatch(
-      TaskAction({target: CurrentTask, action: SetPreviewFrame({contentDocument, contentWindow})}),
-    )
 
   let setDeviceMode = (~deviceMode) =>
     Client__State__Store.dispatch(

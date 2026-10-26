@@ -1,25 +1,22 @@
 @@live
 
-/// Extend the normal Chromium suite with a real redirect between loopback origins.
+/// Reuse the Chromium suite configuration and add HTTP fixtures for origin-boundary tests.
 module Http = FrontmanBindings.NodeHttp
-type middleware
-type server = {middlewares: middleware}
-@send external use: (middleware, Http.connectMiddleware) => unit = "use"
-type plugin = {name: string, configureServer: server => unit}
+module Vite = FrontmanBindings.Astro
 type settings
 type dependencies = {exclude: array<string>, @as("include") include_?: array<string>}
 type config = {
-  plugins: array<plugin>,
+  plugins: array<Vite.vitePlugin>,
   test: settings,
   resolve: settings,
   optimizeDeps: dependencies,
 }
 @module("../vitest.browser.config.js") external base: config = "default"
 
-let fixture: plugin = {
+let fixture = Vite.makeVitePlugin({
   name: "preview-origin-fixture",
   configureServer: server =>
-    server.middlewares->use((request, response, next) => {
+    server.middlewares->Vite.use((request, response, next) => {
       switch request->Http.url {
       | "/__preview_redirect" =>
         let host = request->Http.headers->Dict.get("host")->Option.getOrThrow
@@ -38,7 +35,7 @@ let fixture: plugin = {
       | _ => next()
       }
     }),
-}
+})
 
 let default = {
   ...base,

@@ -6,32 +6,12 @@ module Reducer = Client__Task__Reducer
 module Context = Client__Tool__PreviewContext
 module HttpTool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 module MCP = HttpTool.MCP
+module Test = Client__ActivationBrowserHelpers
 
 let originalState = StateStore.getState(Client__State__Store.store)
 let origin = (WebAPI.Window.current->WebAPI.Window.location).origin
 let frames = ref([])
-let root = ref(None)
-let container = ref(None)
 let runtimes = ref([])
-@module("react-dom/client")
-external createRoot: WebAPI.DomTypes.element => ReactDOM.Client.Root.t = "createRoot"
-@module("vitest") @scope("vi") external waitFor: (unit => unit) => promise<unit> = "waitFor"
-type page
-type locator
-type userEvent
-type locatorOptions = {@live name: string}
-@module("vitest/browser") external page: page = "page"
-@module("vitest/browser") external userEvent: userEvent = "userEvent"
-@send external getByRole: (page, string, locatorOptions) => locator = "getByRole"
-@send external click: locator => promise<unit> = "click"
-@send external fill: (locator, string) => promise<unit> = "fill"
-@send external keyboard: (userEvent, string) => promise<unit> = "keyboard"
-@get external title: WebAPI.DomTypes.document => string = "title"
-@set
-external setAnnotations: (
-  WebAPI.DomTypes.window,
-  FrontmanBindings.AstroAnnotations.annotationsApi,
-) => unit = "__frontman_annotations__"
 let frameOf = element => element->Browser.iframeElementFromElement->Option.getOrThrow
 let mount = () => {
   let element = WebAPI.DomGlobal.document->WebAPI.Document.createElement("iframe")
@@ -90,10 +70,7 @@ beforeEach(Client__ActivationTestHelpers.setup)
 afterEach(() => {
   runtimes.contents->Array.forEach(Client__PreviewRuntime.close)
   runtimes := []
-  root.contents->Option.forEach(root => root->ReactDOM.Client.Root.unmount())
-  root := None
-  container.contents->Option.forEach(WebAPI.Element.remove)
-  container := None
+  Test.cleanup()
   frames.contents->Array.forEach(WebAPI.HTMLIFrameElement.remove)
   frames := []
   StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
@@ -162,15 +139,9 @@ testAsync(
   },
 )
 
-let renderPreview = () => {
-  let element = WebAPI.DomGlobal.document->WebAPI.Document.createElement("div")
-  WebAPI.DomGlobal.document.body
-  ->WebAPI.HTMLElement.appendChild((element :> WebAPI.DomTypes.node))
-  ->ignore
-  container := Some(element)
-  let mounted = createRoot(element)
-  root := Some(mounted)
-  mounted->ReactDOM.Client.Root.render(
+let renderPreview = async () => {
+  await Test.page->Test.viewport(1280, 900)
+  Test.render(
     <>
       <Client__TopBar
         chatboxWidth=300
@@ -183,15 +154,15 @@ let renderPreview = () => {
   )
 }
 let renderedFrame = () =>
-  container.contents
+  Test.container.contents
   ->Option.getOrThrow
   ->WebAPI.Element.querySelector("iframe[title^='Preview - ']")
   ->Null.getOrThrow
   ->frameOf
 let waitReady = t =>
-  waitFor(() =>
+  Test.waitFor(() =>
     t
-    ->expect(Context.get()->Option.map(context => title(context.doc)))
+    ->expect(Context.get()->Option.map(context => context.doc.title))
     ->Expect.toEqual(Some("Supported preview"))
   )
 
@@ -200,33 +171,33 @@ testAsync(
   async t => {
     let task = Task.makeNew(~previewUrl=`${origin}/__preview_page`)
     storeTask(task)
-    renderPreview()
+    await renderPreview()
     await waitReady(t)
     let frame = renderedFrame()
     Client__State.Actions.observePreviewUrl(
-      ~taskId=Task.getClientId(task),
+      ~clientId=Task.getClientId(task),
       ~navigationKey=0,
       ~url=`${origin}/__preview_page#observed`,
     )
-    await waitFor(() => t->expect(renderedFrame())->Expect.toBe(frame))
+    await Test.waitFor(() => t->expect(renderedFrame())->Expect.toBe(frame))
     let _ = await Client__Tool__ExecuteJs.execute(
       {expression: "location.href = '/__preview_redirect'", timeout: None},
       ~taskId="preview",
       ~toolCallId="navigate",
     )
-    await waitFor(() => t->expect(frame->Frame.read)->Expect.toEqual(None))
-    await waitFor(() => t->expect(Context.get())->Expect.toEqual(None))
-    await page->getByRole("button", {name: "Reload"})->click
-    await waitFor(() => t->expect(renderedFrame() === frame)->Expect.toBe(false))
-    let address = page->getByRole("textbox", {name: "Preview URL"})
-    await address->fill(`${origin}/__preview_page`)
-    await userEvent->keyboard("{Enter}")
+    await Test.waitFor(() => t->expect(frame->Frame.read)->Expect.toEqual(None))
+    await Test.waitFor(() => t->expect(Context.get())->Expect.toEqual(None))
+    await Test.page->Test.getByRole("button", {name: "Reload"})->Test.click
+    await Test.waitFor(() => t->expect(renderedFrame() === frame)->Expect.toBe(false))
+    let address = Test.page->Test.getByRole("textbox", {name: "Preview URL"})
+    await address->Test.fill(`${origin}/__preview_page`)
+    await Test.userEvent->Test.keyboard("{Enter}")
     await waitReady(t)
     t->expect((await executeJs())->json->String.includes("Supported preview"))->Expect.toBe(true)
     t->expect((await screenshot())->json->String.includes("image/jpeg"))->Expect.toBe(true)
     let recovered = renderedFrame()
-    await page->getByRole("button", {name: "Reload"})->click
-    await waitFor(() => t->expect(renderedFrame() === recovered)->Expect.toBe(false))
+    await Test.page->Test.getByRole("button", {name: "Reload"})->Test.click
+    await Test.waitFor(() => t->expect(renderedFrame() === recovered)->Expect.toBe(false))
     await waitReady(t)
   },
 )
@@ -243,12 +214,12 @@ testAsync(
       Client__State__Store.store,
       {...originalState, tasks, currentTask: Task.Selected("first")},
     )
-    renderPreview()
+    await renderPreview()
     await waitReady(t)
     let frame = renderedFrame()
     let old = Context.get()->Option.getOrThrow
     await load(frame, "/__preview_redirect")
-    await waitFor(() => t->expect(Context.get())->Expect.toEqual(None))
+    await Test.waitFor(() => t->expect(Context.get())->Expect.toEqual(None))
     Client__State.Actions.switchTask(~taskId="second")
     await waitReady(t)
     let current = Context.get()->Option.getOrThrow
@@ -257,7 +228,7 @@ testAsync(
     t->expect((Context.get()->Option.getOrThrow).doc)->Expect.toBe(current.doc)
     await load(frame, "/__preview_redirect")
     Client__State.Actions.switchTask(~taskId="first")
-    await waitFor(() => t->expect(Context.get())->Expect.toEqual(None))
+    await Test.waitFor(() => t->expect(Context.get())->Expect.toEqual(None))
     t->expect((await executeJs())->json->String.includes("not available"))->Expect.toBe(true)
     Client__State.Actions.setCurrentPreviewUrl(~url=`${origin}/__preview_page`)
     await waitReady(t)
@@ -270,7 +241,7 @@ testAsync("annotation enrichment unwraps the exact preview window handle", async
   let frame = mount()
   await load(frame, "/__preview_page")
   let {doc, win} = Frame.read(frame)->Option.getOrThrow
-  setAnnotations(
+  FrontmanBindings.AstroAnnotations.setAnnotationsApi(
     win,
     {
       get: _ => Nullable.null,
@@ -291,7 +262,7 @@ testAsync("annotation enrichment unwraps the exact preview window handle", async
       | _ => failwith("Unexpected annotation action")
       },
   )
-  await waitFor(() =>
+  await Test.waitFor(() =>
     t
     ->expect((resolved.contents->Option.getOrThrow->Result.getOrThrow->Option.getOrThrow).file)
     ->Expect.toBe("src/Preview.astro")

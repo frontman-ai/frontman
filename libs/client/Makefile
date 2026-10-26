@@ -1,16 +1,15 @@
 .DEFAULT_GOAL := help
-.PHONY: help install test test-screenshots test-browser-forms test-browser-preview test-coverage lint format dev dev-hot build build-lib clean serve preview check
+.PHONY: help install test test-screenshots test-browser-forms test-coverage lint format dev dev-hot build build-lib clean serve preview check
 
 SHELL := /bin/bash
 PATH := ./node_modules/.bin:$(PATH)
 
-HELP_TARGETS := help install test test-screenshots test-browser-forms test-browser-preview test-coverage lint format dev-build-watch dev-hot build build-lib build-standalone clean serve preview check
+HELP_TARGETS := help install test test-screenshots test-browser-forms test-coverage lint format dev-build-watch dev-hot build build-lib build-standalone clean serve preview check
 HELP_help := Display this help message
 HELP_install := Install project dependencies
 HELP_test := Run test suite
 HELP_test-screenshots := Run Chromium regressions (optional BROWSER_TEST_FILTER)
 HELP_test-browser-forms := Run Chromium form discovery and fill acceptance tests
-HELP_test-browser-preview := Run Chromium cross-origin preview recovery acceptance tests
 HELP_test-coverage := Run tests with coverage
 HELP_lint := Run linters and code formatters
 HELP_format := Format code with biome
@@ -35,13 +34,10 @@ test: build
 
 test-screenshots: build
 	$(MAKE) build-lib
-	yarn vitest run --config vitest.browser.config.js $(BROWSER_TEST_FILTER)
+	yarn vitest run --config test/Client__BrowserTestConfig.res.mjs $(BROWSER_TEST_FILTER)
 
 test-browser-forms: build
-	yarn vitest run --config vitest.browser.config.js test/browser/Client__Tool__Form
-
-test-browser-preview: build
-	yarn vitest run --config test/Client__PreviewBrowserConfig.res.mjs test/browser/Client__PreviewRecovery
+	yarn vitest run --config test/Client__BrowserTestConfig.res.mjs test/browser/Client__Tool__Form
 
 test-coverage: build
 	yarn vitest run --coverage

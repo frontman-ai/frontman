@@ -104,7 +104,7 @@ let make = () => {
           let navigationKey = frame.navigationKey
           <Client__WebPreview__Body
             key={`${clientId}:${Int.toString(navigationKey)}`}
-            taskId={clientId}
+            clientId
             navigationKey
             url={frame.url}
             isActive={clientId == currentTaskClientId}

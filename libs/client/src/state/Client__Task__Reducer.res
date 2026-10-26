@@ -358,7 +358,7 @@ type action =
   | UpdateAnnotationComment({id: string, comment: string})
   | SetActivePopupAnnotationId({id: option<string>})
   | NavigatePreview({url: string})
-  | SetPreviewUrl({url: string})
+  | PreviewUrlObserved({url: string})
   | SetPreviewFrame({
       contentDocument: option<WebAPI.DomTypes.document>,
       contentWindow: option<FrontmanBindings.Bindings__WebAPI.windowHandle>,
@@ -436,7 +436,7 @@ let actionToString = (action: action): string =>
   | UpdateAnnotationComment(_) => "UpdateAnnotationComment"
   | SetActivePopupAnnotationId(_) => "SetActivePopupAnnotationId"
   | NavigatePreview(_) => "NavigatePreview"
-  | SetPreviewUrl(_) => "SetPreviewUrl"
+  | PreviewUrlObserved(_) => "PreviewUrlObserved"
   | SetPreviewFrame(_) => "SetPreviewFrame"
   | SetDeviceMode(_) => "SetDeviceMode"
   | SetOrientation(_) => "SetOrientation"
@@ -594,8 +594,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     let updated = Lens.setActivePopupAnnotationId(updated, None)
     (updated, [SyncBrowserUrl(url)])
 
-  | (Task.Unloaded(_), SetPreviewUrl(_)) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetPreviewUrl({url})) =>
+  | (Task.Unloaded(_), PreviewUrlObserved(_)) => (task, [])
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), PreviewUrlObserved({url})) =>
     let currentUrl = Task.getPreviewFrame(task, ~defaultUrl="").url
     let urlChanged = normalizeUrl(currentUrl) != normalizeUrl(url)
     let updated = Lens.setPreviewUrl(task, url)

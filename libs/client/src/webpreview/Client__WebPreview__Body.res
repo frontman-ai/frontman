@@ -1,6 +1,6 @@
 @react.component
 let make = (
-  ~taskId,
+  ~clientId,
   ~navigationKey,
   ~url,
   ~isActive,
@@ -27,7 +27,7 @@ let make = (
     ->Option.flatMap(Client__PreviewFrame.read)
 
   let observeFrame = () =>
-    Client__State.Actions.previewFrameObserved(~taskId, ~navigationKey, ~context=readPreviewFrame())
+    Client__State.Actions.setPreviewFrame(~clientId, ~navigationKey, ~context=readPreviewFrame())
 
   React.useEffect(() => {
     switch hasLoaded {
@@ -73,7 +73,7 @@ let make = (
           | false => ()
           | true =>
             lastLocationRef.current = Some(location)
-            Client__State.Actions.observePreviewUrl(~taskId, ~navigationKey, ~url=location)
+            Client__State.Actions.observePreviewUrl(~clientId, ~navigationKey, ~url=location)
           }
         }
       | None => ()
@@ -120,7 +120,7 @@ let make = (
   })
   let iframe =
     <iframe
-      className="size-full" src={iframeSrc} title={`Preview - ${taskId}`} onLoad ref={refCallback}
+      className="size-full" src={iframeSrc} title={`Preview - ${clientId}`} onLoad ref={refCallback}
     />
 
   switch (isActive, viewportStyle) {

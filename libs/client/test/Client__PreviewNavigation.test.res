@@ -14,7 +14,7 @@ test("late frame and URL observations cannot update a switched task or replaced 
     action,
   })
   [
-    Reducer.SetPreviewUrl({url: url ++ "/stale"}),
+    Reducer.PreviewUrlObserved({url: url ++ "/stale"}),
     SetPreviewFrame({contentDocument: None, contentWindow: None}),
   ]->Array.forEach(action => {
     let (unchanged, effects) = State.next(switched, stale(action))
@@ -26,7 +26,7 @@ test("late frame and URL observations cannot update a switched task or replaced 
     state,
     TaskAction({target: CurrentTask, action: NavigatePreview({url: url})}),
   )
-  let (unchanged, effects) = State.next(reset, stale(SetPreviewUrl({url: url ++ "/stale"})))
+  let (unchanged, effects) = State.next(reset, stale(PreviewUrlObserved({url: url ++ "/stale"})))
   t->expect(unchanged)->Expect.toBe(reset)
   t->expect(effects)->Expect.toEqual([])
   let (accepted, _) = State.next(
@@ -34,7 +34,7 @@ test("late frame and URL observations cannot update a switched task or replaced 
     PreviewAction({
       clientId: Task.getClientId(first),
       navigationKey: 1,
-      action: SetPreviewUrl({url: url ++ "/observed"}),
+      action: PreviewUrlObserved({url: url ++ "/observed"}),
     }),
   )
   t->expect(State.Selectors.previewUrl(accepted))->Expect.toBe(url ++ "/observed")
