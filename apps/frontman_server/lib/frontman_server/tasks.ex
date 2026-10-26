@@ -398,13 +398,13 @@ defmodule FrontmanServer.Tasks do
     Logger.warning("Execution failed for task #{task_id}, reason: #{reason_str}")
   end
 
-  defp report_agent_execution_failure(task_id, reason_str, _category, _retryable) do
-    Logger.error("Execution failed for task #{task_id}, reason: #{reason_str}")
+  defp report_agent_execution_failure(task_id, reason_str, category, retryable) do
+    Logger.warning("Execution failed for task #{task_id}, reason: #{reason_str}")
 
     Sentry.capture_message("Agent execution failed",
       level: :error,
-      tags: %{error_type: "agent_execution_error"},
-      extra: %{task_id: task_id, reason: reason_str}
+      tags: %{error_type: "agent_execution_error", category: category},
+      extra: %{task_id: task_id, reason: reason_str, retryable: retryable}
     )
   end
 
