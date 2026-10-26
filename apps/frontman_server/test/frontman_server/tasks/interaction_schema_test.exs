@@ -17,12 +17,72 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
 
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
+  alias SwarmAi.LLM.Response
 
   setup do
     scope = user_scope_fixture()
     task = task_fixture(scope)
 
     %{task: task}
+  end
+
+  describe "persisted assistant replay" do
+    test "replays a stream response with no text or tool calls", %{task: task} do
+      response = Response.from_stream([])
+      assert response.content == ""
+
+      attrs = Interaction.AgentResponse.attrs_from_llm_response(response)
+
+      row =
+        task
+        |> changeset(interaction_attrs(:agent_response, attrs, 1))
+        |> Repo.insert!()
+
+      loaded = Repo.get!(InteractionSchema, row.id)
+      assert loaded.data.content == nil
+
+      assert [%SwarmAi.Message.Assistant{content: [], tool_calls: []}] =
+               Interaction.to_swarm_messages([loaded.data])
+    end
+
+    test "preserves assistant and tool result ordering after reload", %{task: task} do
+      call = %SwarmAi.ToolCall{id: "call_replay", name: "read_file", arguments: "{}"}
+
+      responses = [
+        %Response{content: "Reading", tool_calls: [call]},
+        %Response{content: nil, tool_calls: [call]}
+      ]
+
+      for {response, turn_number} <- Enum.with_index(responses, 1) do
+        assistant =
+          task
+          |> changeset(
+            interaction_attrs(
+              :agent_response,
+              Interaction.AgentResponse.attrs_from_llm_response(response),
+              turn_number
+            )
+          )
+          |> Repo.insert!()
+
+        result =
+          task
+          |> interaction_changeset(
+            tool_result("call_replay", "read_file", %{
+              "content" => [%{"type" => "text", "text" => "File contents"}]
+            }),
+            turn_number
+          )
+          |> Repo.insert!()
+
+        interactions = Enum.map([assistant, result], &Repo.get!(InteractionSchema, &1.id).data)
+
+        assert [
+                 %SwarmAi.Message.Assistant{tool_calls: [%SwarmAi.ToolCall{id: "call_replay"}]},
+                 %SwarmAi.Message.Tool{tool_call_id: "call_replay"}
+               ] = Interaction.to_swarm_messages(interactions)
+      end
+    end
   end
 
   describe "changeset/2 turn_number validation" do

@@ -1139,9 +1139,9 @@ defmodule FrontmanServer.Tasks.Interaction do
     [message]
   end
 
-  defp to_swarm_message(
-         %AgentResponse{content: nil, metadata: %{"tool_calls" => [_ | _]} = meta} = msg
-       ) do
+  defp to_swarm_message(%AgentResponse{content: nil, metadata: metadata} = msg) do
+    meta = metadata || %{}
+
     [
       %SwarmMessage.Assistant{
         content: [],

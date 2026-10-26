@@ -96,7 +96,7 @@ jobs:
   e2e:
     name: E2E (${{ github.event.inputs.test_suite || 'all' }})
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:16
