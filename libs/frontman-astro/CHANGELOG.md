@@ -1,5 +1,11 @@
 # @frontman-ai/astro
 
+## 3.1.3
+
+### Patch Changes
+
+- [#1984](https://github.com/frontman-ai/frontman/pull/1984) [`6211793`](https://github.com/frontman-ai/frontman/commit/62117932136b0c533cbb15cb922da240c46e1cb2) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update magic-string from 1.4.1 to 1.4.2.
+
 ## 3.1.2
 
 ### Patch Changes

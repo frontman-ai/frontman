@@ -1,5 +1,17 @@
 # @frontman-ai/nextjs
 
+## 2.0.4
+
+### Patch Changes
+
+- [#1919](https://github.com/frontman-ai/frontman/pull/1919) [`db72760`](https://github.com/frontman-ai/frontman/commit/db72760b282b87d4c20b72a1527ef3be58e99c05) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Use a shared typed record for relay tool definitions. Tool names are required strings, and callers no longer decode them from JSON.
+
+  Preserve vendor metadata and JSON Schema extensions. Unknown top-level tool fields are no longer forwarded.
+
+- [#1960](https://github.com/frontman-ai/frontman/pull/1960) [`b60a406`](https://github.com/frontman-ai/frontman/commit/b60a406eb0cdbe61a81d90937e956ad38e37789a) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update the Sentry Next.js SDK to 10.75.2 for upstream telemetry fixes.
+
+- [#1983](https://github.com/frontman-ai/frontman/pull/1983) [`b0f2944`](https://github.com/frontman-ai/frontman/commit/b0f2944c9c58aedf76743abf076fa12e9540468c) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update the Sentry Next.js SDK from 10.75.2 to 11.0.0.
+
 ## 2.0.3
 
 ### Patch Changes

@@ -1,5 +1,21 @@
 # @frontman-ai/client
 
+## 1.5.1
+
+### Patch Changes
+
+- [#2002](https://github.com/frontman-ai/frontman/pull/2002) [`af7e347`](https://github.com/frontman-ai/frontman/commit/af7e347c29852b4b0c56e124cb4191da1afdef3f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Block new prompts as soon as a trial is canceled, including cancellations scheduled for trial end. Keep unused free prompts available and preserve paid subscription access.
+
+  Show canceled trial access accurately in billing settings instead of promising access until the scheduled cancellation date.
+
+- [#1993](https://github.com/frontman-ai/frontman/pull/1993) [`c2535b8`](https://github.com/frontman-ai/frontman/commit/c2535b88ceaef24645ea850555fa8a6b91926fea) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Show todo progress with a static started-but-unfinished indicator instead of a spinner. Rename the plan heading to "Plan" so stopped agents do not appear active. Preserve todo statuses after Stop.
+
+- [#1972](https://github.com/frontman-ai/frontman/pull/1972) [`9dedf54`](https://github.com/frontman-ai/frontman/commit/9dedf545051b2744a6b364d08d4f3e7a0801788d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Handle cross-origin preview navigation without WindowProxy option errors. Reload and address-bar navigation now reset the iframe from parent state, and preview tools reject stale documents until a supported page loads.
+
+- [#1985](https://github.com/frontman-ai/frontman/pull/1985) [`f9894b0`](https://github.com/frontman-ai/frontman/commit/f9894b0a4774e7310a954b5b0f5ae23f7f8fe367) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update lucide-react from 1.46.0 to 1.48.0.
+
+- [#1975](https://github.com/frontman-ai/frontman/pull/1975) [`08b834a`](https://github.com/frontman-ai/frontman/commit/08b834abc4464ace02d2d5c9278d6f7fed88bee4) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update @pierre/diffs from 1.4.2 to 1.5.1.
+
 ## 1.5.0
 
 ### Minor Changes

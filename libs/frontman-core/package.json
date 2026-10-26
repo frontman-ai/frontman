@@ -1,7 +1,7 @@
 {
 	"name": "@frontman-ai/frontman-core",
 	"private": true,
-	"version": "2.0.4",
+	"version": "2.0.5",
 	"description": "Core server-side tools for Frontman",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
@@ -33,8 +33,8 @@
 		"build": "rescript build"
 	},
 	"dependencies": {
-		"@frontman-ai/frontman-protocol": "4.1.1",
-		"@frontman/bindings": "0.3.3",
+		"@frontman-ai/frontman-protocol": "4.1.2",
+		"@frontman/bindings": "0.3.4",
 		"@rescript/runtime": "catalog:",
 		"chrome-launcher": "^1.1.2",
 		"dom-element-to-component-source": "npm:@frontman-ai/dom-element-to-component-source@0.5.0",
