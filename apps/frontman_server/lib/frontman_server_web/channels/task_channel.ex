@@ -411,6 +411,8 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp handle_tool_call_response_by_id(id, result, socket) when is_integer(id) do
     case pop_mcp_tool_request(socket, id) do
       {:ok, tool_call_id, socket} ->
+        log_mcp_tool_response(id, tool_call_id, :result)
+
         case open_tool_call(socket, tool_call_id) do
           {:ok, tool_call} ->
             handle_tool_call_response(tool_call, result, socket)
@@ -457,6 +459,15 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp unknown_mcp_response(_id, socket) do
     Logger.warning("Received MCP response for unknown request")
     {:noreply, socket}
+  end
+
+  defp log_mcp_tool_response(request_id, tool_call_id, response_kind) do
+    Logger.info("MCP tool response received",
+      mcp_request_id: request_id,
+      tool_call_id: tool_call_id,
+      stage: :response,
+      response_kind: response_kind
+    )
   end
 
   defp handle_tool_call_response(tool_call, result, socket) do
@@ -517,7 +528,12 @@ defmodule FrontmanServerWeb.TaskChannel do
           )
 
         push(socket, @acp_message, notification)
-        Logger.info("Tool #{interaction.tool_name} #{status}")
+
+        Logger.info("Tool #{interaction.tool_name} #{status}",
+          tool_call_id: interaction.tool_call_id,
+          stage: :completion,
+          outcome: status
+        )
 
         resume_after_tool_result(executor_status, socket, scope, task_id)
 
@@ -575,6 +591,8 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp handle_tool_call_error_by_id(id, error, socket) when is_integer(id) do
     case pop_mcp_tool_request(socket, id) do
       {:ok, tool_call_id, socket} ->
+        log_mcp_tool_response(id, tool_call_id, :error)
+
         case open_tool_call(socket, tool_call_id) do
           {:ok, tool_call} ->
             handle_tool_call_error(tool_call, error, socket)
@@ -1185,6 +1203,13 @@ defmodule FrontmanServerWeb.TaskChannel do
     socket = remember_mcp_tool_request(socket, request_id, tool_call.tool_call_id)
 
     push(socket, "mcp:message", request)
+
+    Logger.info("MCP tool request pushed",
+      mcp_request_id: request_id,
+      tool_call_id: tool_call.tool_call_id,
+      stage: :dispatch
+    )
+
     {:noreply, socket}
   end
 

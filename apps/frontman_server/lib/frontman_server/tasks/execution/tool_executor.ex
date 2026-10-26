@@ -35,22 +35,35 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         build_rejected_execution(scope, turn_ref, tool_call)
 
       %MCPTool{} = tool ->
+        diagnostics = execution_diagnostics(tool_call, :mcp, tool.timeout_ms)
+
         %ToolExecution.Await{
           tool_call: tool_call,
           timeout_ms: tool.timeout_ms,
           start:
             {__MODULE__, :start_mcp_tool, [scope, task_id, turn_number, tool.execution_mode]},
-          on_error: {__MODULE__, :handle_error, [scope, task_id, turn_number]}
+          on_error: {__MODULE__, :handle_error, [scope, task_id, turn_number, diagnostics]}
         }
 
       module when is_atom(module) ->
+        timeout_ms = module.timeout_ms()
+        diagnostics = execution_diagnostics(tool_call, :backend, timeout_ms)
+
         %ToolExecution.Sync{
           tool_call: tool_call,
-          timeout_ms: module.timeout_ms(),
+          timeout_ms: timeout_ms,
           run: {__MODULE__, :run_backend_tool, [scope, module, task_id, turn_number]},
-          on_error: {__MODULE__, :handle_error, [scope, task_id, turn_number]}
+          on_error: {__MODULE__, :handle_error, [scope, task_id, turn_number, diagnostics]}
         }
     end
+  end
+
+  defp execution_diagnostics(tool_call, target, timeout_ms) do
+    metadata = [tool_call_id: tool_call.id, target: target, timeout_ms: timeout_ms]
+
+    Logger.debug("Tool execution configured", metadata)
+
+    metadata
   end
 
   defp build_rejected_execution(scope, turn_ref, tool_call) do
@@ -112,6 +125,12 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   @doc false
   def handle_error(%Scope{} = scope, task_id, turn_number, reason, tool_call)
       when is_integer(turn_number) and turn_number > 0 do
+    handle_error(scope, task_id, turn_number, [], reason, tool_call)
+  end
+
+  @doc false
+  def handle_error(%Scope{} = scope, task_id, turn_number, diagnostics, reason, tool_call)
+      when is_integer(turn_number) and turn_number > 0 do
     SentryContext.set_task_scope_context(scope, task_id)
 
     {error_type, message} =
@@ -132,7 +151,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
       task_id: task_id
     ]
 
-    Logger.error("Tool execution failed", metadata)
+    Logger.error("Tool execution failed", Keyword.merge(metadata, diagnostics))
 
     result = persist_error_tool_result(scope, task_id, turn_number, tool_call, message)
     to_swarm_tool_result(tool_call, result)
