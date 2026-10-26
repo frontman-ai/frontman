@@ -117,19 +117,22 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
     end
   end
 
-  for {reason, category} <- [
-        {%ReqLLM.Error.API.Request{status: 400, reason: "invalid request"}, "unknown"},
-        {%ReqLLM.Error.API.Request{status: 401, reason: "unauthorized"}, "auth"},
-        {%ReqLLM.Error.API.Request{status: 402, reason: "payment required"}, "billing"},
-        {%ReqLLM.Error.API.Request{
+  for {label, reason, category} <- [
+        {"provider400", %ReqLLM.Error.API.Request{status: 400, reason: "invalid request"},
+         "unknown"},
+        {"provider401", %ReqLLM.Error.API.Request{status: 401, reason: "unauthorized"}, "auth"},
+        {"provider402", %ReqLLM.Error.API.Request{status: 402, reason: "payment required"},
+         "billing"},
+        {"provider_quota",
+         %ReqLLM.Error.API.Request{
            status: 429,
            reason: "quota exhausted",
            response_body: %{"error" => %{"code" => "insufficient_quota"}}
          }, "quota"},
-        {:unknown_model, "unknown"}
+        {"unknown_model", :unknown_model, "unknown"}
       ] do
     @tag :capture_log
-    test "reports nonretryable #{category} failure #{inspect(reason)} exactly once", %{
+    test "reports nonretryable #{label} failure exactly once", %{
       task_id: task_id,
       scope: scope
     } do
