@@ -1,5 +1,7 @@
 type frameworkId = Nextjs | Vite | Astro | Wordpress
 
+type previewBridge = PageContextV1
+
 let frameworkIdFromString = (s: string): frameworkId =>
   switch s {
   | "nextjs" => Nextjs
@@ -46,6 +48,7 @@ type parsed = {
 @@live
 type t = {
   framework: frameworkId,
+  previewBridge: option<previewBridge>,
   basePath: string,
   relayBaseUrl: option<string>,
   wpNonce: option<string>,
@@ -65,6 +68,19 @@ let read = (): t => {
   let json = getRuntime()->Nullable.toOption->Option.getOrThrow
   let config = S.parseOrThrow(json, ~to=parsedSchema)
   let framework = frameworkIdFromString(config.framework)
+  let previewBridge = switch framework {
+  | Wordpress =>
+    switch WebAPI.DomGlobal.document
+    ->WebAPI.Document.querySelector("#frontman-runtime-config")
+    ->Null.toOption
+    ->Option.flatMap(element =>
+      element->WebAPI.Element.getAttribute("data-preview-bridge")->Null.toOption
+    ) {
+    | Some("page-context-v1") => Some(PageContextV1)
+    | Some(_) | None => None
+    }
+  | Nextjs | Vite | Astro => None
+  }
   let wordpressLoginUrl = switch (framework, config.wordpressLoginUrl) {
   | (Wordpress, None) =>
     WebAPI.DomGlobal.document
@@ -78,6 +94,7 @@ let read = (): t => {
   }
   {
     framework,
+    previewBridge,
     basePath: switch config.basePath {
     | Some("") | None => "frontman"
     | Some(bp) => bp
