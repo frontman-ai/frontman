@@ -13,10 +13,6 @@ type annotationsApi = {
   contentFile: Nullable.t<string>,
 }
 
-@set
-external setAnnotationsApi: (WebAPI.DomTypes.window, annotationsApi) => unit =
-  "__frontman_annotations__"
-
 let getAnnotationsApi = (window: WebAPI.DomTypes.window): option<annotationsApi> => {
   let obj = window->Obj.magic
   let annotations: Nullable.t<annotationsApi> = obj["__frontman_annotations__"]

@@ -241,7 +241,7 @@ testAsync("annotation enrichment unwraps the exact preview window handle", async
   let frame = mount()
   await load(frame, "/__preview_page")
   let {doc, win} = Frame.read(frame)->Option.getOrThrow
-  FrontmanBindings.AstroAnnotations.setAnnotationsApi(
+  FrontmanBindings.Bindings__Test__AstroAnnotations.setAnnotationsApi(
     win,
     {
       get: _ => Nullable.null,
