@@ -180,6 +180,10 @@ class Frontman_Tools {
 			return Frontman_Tool_Users::validate_input( $input );
 		}
 
+		if ( class_exists( 'Frontman_Tool_Elementor' ) && in_array( $name, [ 'wp_elementor_add_element', 'wp_elementor_generate_element' ], true ) ) {
+			Frontman_Tool_Elementor::validate_creation_input( $name, $input );
+		}
+
 		$preserve_strings = $tool->preserve_input_strings || ( 'wp_update_custom_css' === $name && 'edit' === ( $input['mode'] ?? null ) );
 		$sanitized = $this->sanitize_value_for_schema( $input, $tool->input_schema, $name, '', $preserve_strings );
 		return is_array( $sanitized ) ? $sanitized : [];

@@ -23,6 +23,7 @@ class Frontman_Tool_Elementor {
 					'per_page'    => [ 'type' => 'integer', 'default' => 100, 'minimum' => 1, 'maximum' => 200 ],
 					'offset'      => [ 'type' => 'integer', 'default' => 0, 'minimum' => 0 ],
 					'text_search' => [ 'type' => 'string', 'minLength' => 1, 'maxLength' => 200, 'description' => 'Literal substring to find in Elementor string settings. Does not search theme mods or post content.' ],
+					'include_context' => [ 'type' => 'boolean', 'default' => false, 'description' => 'Requires text_search. Example: text_search="Book Demo", include_context=true. Adds element_contexts with immediate parent, sibling position, nearest layout ancestor and narrow stored style overrides, NOT computed styles. Global style references are not resolved.' ],
 				],
 			],
 			[ $this, 'list_pages' ],
@@ -135,7 +136,7 @@ class Frontman_Tool_Elementor {
 					'post_id'    => [ 'type' => 'integer' ],
 					'element'    => [
 						'type'                 => 'object',
-						'description'          => 'Complete Elementor element JSON. Prefer the exact object returned by wp_elementor_generate_element; never pass an empty object.',
+						'description'          => 'Complete Elementor subtree. IDs can be omitted at every depth and are generated automatically. Prefer wp_elementor_generate_element; never pass an empty object.',
 						'additionalProperties' => true,
 						'properties'           => [
 							'elType'     => [ 'type' => 'string', 'enum' => [ 'container', 'section', 'column', 'widget' ], 'description' => 'Elementor element type. Use widget for widgets and include widgetType.' ],
@@ -290,6 +291,10 @@ class Frontman_Tool_Elementor {
 
 	public function list_pages( array $input ): array {
 		$search = $input['text_search'] ?? null;
+		$include_context = $input['include_context'] ?? false;
+		if ( ! is_bool( $include_context ) || ( $include_context && null === $search ) ) {
+			throw new Frontman_Tool_Error( 'include_context must be a boolean and requires text_search when true.' );
+		}
 		if ( array_key_exists( 'text_search', $input ) && ( ! is_string( $search ) || '' === trim( $search ) || strlen( $search ) > 200 || 1 !== preg_match( '//u', $search ) ) ) {
 			throw new Frontman_Tool_Error( 'text_search must be a nonempty UTF-8 string of at most 200 bytes.' );
 		}
@@ -329,9 +334,17 @@ class Frontman_Tool_Elementor {
 				if ( null === $data && ! empty( get_post_meta( $post->ID, '_elementor_data', true ) ) ) {
 					throw new Frontman_Tool_Error( 'Could not read Elementor data for post_id ' . $post->ID . '. Search is incomplete.' );
 				}
-				$page['matches'] = $this->search_element_settings( $data ?? [], $search );
+				$contexts = $include_context ? [] : null;
+				if ( $include_context ) {
+					$seen = [];
+					$this->check_search_context_ids( $data ?? [], $seen );
+				}
+				$page['matches'] = $this->search_element_settings( $data ?? [], $search, $contexts );
 				if ( [] === $page['matches'] ) {
 					continue;
+				}
+				if ( $include_context ) {
+					$page['element_contexts'] = (object) $contexts;
 				}
 			}
 			$pages[] = $page;
@@ -340,9 +353,43 @@ class Frontman_Tool_Elementor {
 		return [ 'pages' => $pages, 'next_offset' => $has_more ? $offset + count( $posts ) : null ];
 	}
 
-	private function search_element_settings( array $elements, string $search ): array {
-		$matches = [];
+	private function check_search_context_ids( array $elements, array &$seen ): void {
 		foreach ( $elements as $element ) {
+			$id = $element['id'] ?? null;
+			if ( ! is_string( $id ) || '' === $id || isset( $seen[$id] ) ) {
+				throw new Frontman_Tool_Error( 'Cannot return search context: missing or duplicate Elementor element ID. Context is ambiguous.' );
+			}
+			$seen[$id] = true;
+			$this->check_search_context_ids( $element['elements'] ?? [], $seen );
+		}
+	}
+
+	/** Narrow stored overrides only; never resolved or computed styles. */
+	private function project_search_styles( array $settings ): object {
+		$projected = [];
+		$refs = [];
+		$pattern = '/^(flex_direction|flex_wrap|button_text_color|title_color|text_color|background_color)(_[a-zA-Z0-9_]+)?$/D';
+		foreach ( $settings as $key => $value ) {
+			if ( preg_match( $pattern, (string) $key ) && is_scalar( $value ) ) {
+				$projected[$key] = $value;
+			}
+		}
+		foreach ( $settings['__globals__'] ?? [] as $key => $value ) {
+			if ( preg_match( $pattern, (string) $key ) && is_scalar( $value ) ) {
+				$refs[$key] = $value;
+			}
+		}
+		if ( $refs ) {
+			$projected['global_style_refs'] = (object) $refs;
+		}
+		return (object) $projected;
+	}
+
+	private function search_element_settings( array $elements, string $search, ?array &$contexts = null, ?string $parent_id = null, ?array $container = null ): array {
+		$matches = [];
+		$position = 0;
+		foreach ( $elements as $element ) {
+			$element_matched = false;
 			$settings = new \RecursiveIteratorIterator( new \RecursiveArrayIterator( $element['settings'] ?? [] ) );
 			foreach ( $settings as $value ) {
 				if ( ! is_string( $value ) ) {
@@ -365,10 +412,25 @@ class Frontman_Tool_Elementor {
 					'setting_path' => $path,
 					'excerpt'      => $found[0],
 				];
+				$element_matched = true;
+			}
+			if ( null !== $contexts && $element_matched ) {
+				$contexts[$element['id']] = [
+					'source' => 'stored',
+					'el_type' => $element['elType'],
+					'widget_type' => 'widget' === $element['elType'] ? ( $element['widgetType'] ?? null ) : null,
+					'parent_id' => $parent_id,
+					'position' => $position,
+					'container_id' => $container['id'] ?? null,
+					'stored_settings' => $this->project_search_styles( $element['settings'] ?? [] ),
+					'container_stored_settings' => $this->project_search_styles( $container['settings'] ?? [] ),
+				];
 			}
 			if ( ! empty( $element['elements'] ) ) {
-				$matches = array_merge( $matches, $this->search_element_settings( $element['elements'], $search ) );
+				$next_container = in_array( $element['elType'] ?? null, [ 'container', 'section', 'column' ], true ) ? $element : $container;
+				$matches = array_merge( $matches, $this->search_element_settings( $element['elements'], $search, $contexts, $element['id'] ?? null, $next_container ) );
 			}
+			++$position;
 		}
 		return $matches;
 	}
@@ -622,6 +684,7 @@ class Frontman_Tool_Elementor {
 	}
 
 	public function add_element( array $input ): array {
+		self::validate_creation_input( 'wp_elementor_add_element', $input );
 		$post_id = $this->require_post_id( $input );
 		$element = $input['element'] ?? null;
 		if ( ! is_array( $element ) ) {
@@ -631,11 +694,8 @@ class Frontman_Tool_Elementor {
 		if ( ! is_string( $el_type ) || '' === trim( $el_type ) ) {
 			throw new Frontman_Tool_Error( 'element.elType is required. Do not call wp_elementor_add_element with element: {}. Use wp_elementor_generate_element first and pass the returned object as element.' );
 		}
-		if ( empty( $element['id'] ) ) {
-			$element['id'] = Frontman_Elementor_Data::generate_id();
-		}
-
 		$data      = Frontman_Elementor_Data::get_page_data( $post_id ) ?? [];
+		$element   = $this->prepare_new_subtree( $element, $data );
 		$rollback  = Frontman_Elementor_Data::make_page_rollback( 'added_element', $data );
 		$parent_id = isset( $input['parent_id'] ) ? sanitize_text_field( $input['parent_id'] ) : null;
 		$position  = (int) ( $input['position'] ?? -1 );
@@ -728,7 +788,79 @@ class Frontman_Tool_Elementor {
 	}
 
 	public function generate_element( array $input ): array {
-		return Frontman_Elementor_Data::generate_element( $input );
+		self::validate_creation_input( 'wp_elementor_generate_element', $input );
+		$element = Frontman_Elementor_Data::generate_element( $input );
+		unset( $element['id'] );
+		return $this->prepare_new_subtree( $element );
+	}
+
+	private static function validate_settings_object( $settings, string $path ): void {
+		if ( ! is_array( $settings ) || ( [] !== $settings && array_values( $settings ) === $settings ) ) {
+			throw new Frontman_Tool_Error( $path . ' must be an object.' );
+		}
+	}
+
+	public static function validate_creation_input( string $name, array $input ): void {
+		$seen = [];
+		if ( 'wp_elementor_add_element' === $name ) {
+			self::validate_element_tree( [ $input['element'] ?? null ], 'element', $seen, true, true );
+			return;
+		}
+		if ( array_key_exists( 'settings', $input ) ) {
+			self::validate_settings_object( $input['settings'], 'settings' );
+		}
+		if ( array_key_exists( 'children', $input ) ) {
+			if ( ! is_array( $input['children'] ) || array_values( $input['children'] ) !== $input['children'] ) {
+				throw new Frontman_Tool_Error( 'children must be an array.' );
+			}
+			self::validate_element_tree( $input['children'], 'children', $seen, true );
+		}
+	}
+
+	/** Reserve supplied IDs before generating any, including IDs on later descendants. */
+	private function prepare_new_subtree( array $element, array $existing_elements = [], ?callable $id_factory = null ): array {
+		$seen = [];
+		self::validate_element_tree( [ $element ], 'element', $seen, true, true );
+		$reserved = [];
+		$collect = function ( array $elements ) use ( &$collect, &$reserved ): void {
+			foreach ( $elements as $node ) {
+				if ( isset( $node['id'] ) && is_string( $node['id'] ) ) {
+					$reserved[ $node['id'] ] = true;
+				}
+				$collect( $node['elements'] ?? [] );
+			}
+		};
+		$collect( $existing_elements );
+		foreach ( $seen as $id => $_ ) {
+			if ( isset( $reserved[ $id ] ) ) {
+				throw new Frontman_Tool_Error( 'Duplicate Elementor element ID: ' . $id . '. Supply a different ID in element.' );
+			}
+			$reserved[ $id ] = true;
+		}
+		$id_factory = $id_factory ?? [ Frontman_Elementor_Data::class, 'generate_id' ];
+		$fill = function ( array $node, string $path ) use ( &$fill, &$reserved, $id_factory ): array {
+			if ( ! isset( $node['id'] ) || '' === trim( $node['id'] ) ) {
+				for ( $attempt = 0; $attempt < 16; ++$attempt ) {
+					$id = $id_factory();
+					if ( is_string( $id ) && '' !== trim( $id ) && ! isset( $reserved[ $id ] ) ) {
+						$node['id'] = $id;
+						$reserved[ $id ] = true;
+						break;
+					}
+				}
+				if ( ! isset( $node['id'] ) || '' === trim( $node['id'] ) ) {
+					throw new Frontman_Tool_Error( $path . '.id could not be generated without a collision after 16 attempts. Retry creation.' );
+				}
+			}
+			foreach ( $node['elements'] ?? [] as $index => $child ) {
+				$node['elements'][ $index ] = $fill( $child, $path . '.elements[' . $index . ']' );
+			}
+			return $node;
+		};
+		$element = $fill( $element, 'element' );
+		$seen = [];
+		self::validate_element_tree( [ $element ], 'element', $seen, false, true );
+		return $element;
 	}
 
 	public function list_widgets( array $input ): array {
@@ -832,21 +964,27 @@ class Frontman_Tool_Elementor {
 		$this->validate_element_tree( $elements, 'data', $seen_ids );
 	}
 
-	private function validate_element_tree( array $elements, string $path, array &$seen_ids ): void {
+	private static function validate_element_tree( array $elements, string $path, array &$seen_ids, bool $allow_missing = false, bool $single = false ): void {
 		foreach ( $elements as $index => $element ) {
-			$element_path = $path . '[' . $index . ']';
+			$element_path = $single ? $path : $path . '[' . $index . ']';
 			if ( ! is_array( $element ) ) {
 				throw new Frontman_Tool_Error( $element_path . ' must be an Elementor element object.' );
 			}
 
 			$id = $element['id'] ?? '';
-			if ( ! is_string( $id ) || '' === trim( $id ) ) {
-				throw new Frontman_Tool_Error( $element_path . '.id is required. You passed an incomplete Elementor tree. Do not use placeholder objects; call wp_elementor_get_page_data and pass the complete returned data array with targeted modifications.' );
+			if ( array_key_exists( 'id', $element ) && ! is_string( $element['id'] ) ) {
+				throw new Frontman_Tool_Error( $element_path . '.id must be a string.' );
 			}
-			if ( isset( $seen_ids[ $id ] ) ) {
-				throw new Frontman_Tool_Error( 'Duplicate Elementor element ID: ' . $id );
+			if ( '' === trim( $id ) ) {
+				if ( ! $allow_missing ) {
+					throw new Frontman_Tool_Error( $element_path . '.id is required. Supply the missing ID.' );
+				}
+			} else {
+				if ( isset( $seen_ids[ $id ] ) ) {
+					throw new Frontman_Tool_Error( $element_path . '.id: Duplicate Elementor element ID: ' . $id );
+				}
+				$seen_ids[ $id ] = true;
 			}
-			$seen_ids[ $id ] = true;
 
 			$el_type = $element['elType'] ?? '';
 			if ( ! is_string( $el_type ) || '' === trim( $el_type ) ) {
@@ -859,14 +997,14 @@ class Frontman_Tool_Elementor {
 				}
 			}
 
-			if ( isset( $element['settings'] ) && ! is_array( $element['settings'] ) ) {
-				throw new Frontman_Tool_Error( $element_path . '.settings must be an object.' );
+			if ( array_key_exists( 'settings', $element ) ) {
+				self::validate_settings_object( $element['settings'], $element_path . '.settings' );
 			}
-			if ( isset( $element['elements'] ) ) {
-				if ( ! is_array( $element['elements'] ) ) {
+			if ( array_key_exists( 'elements', $element ) ) {
+				if ( ! is_array( $element['elements'] ) || array_values( $element['elements'] ) !== $element['elements'] ) {
 					throw new Frontman_Tool_Error( $element_path . '.elements must be an array.' );
 				}
-				$this->validate_element_tree( $element['elements'], $element_path . '.elements', $seen_ids );
+				self::validate_element_tree( $element['elements'], $element_path . '.elements', $seen_ids, $allow_missing );
 			}
 		}
 	}

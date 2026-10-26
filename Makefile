@@ -120,7 +120,7 @@ HELP_publish-swarm-ai := Publish swarm_ai to Hex (dry run by default, HEX_PUBLIS
 HELP_release := Create a release PR from pending changesets
 HELP_package-wordpress-plugin := Build WordPress ZIP and WordPress.org bundle
 HELP_publish-wordpress-plugin-svn := Publish WordPress.org bundle to SVN (requires WORDPRESS_ORG_* env vars)
-HELP_test-wordpress-core-tools := Run PHP tests for WordPress tool implementations
+HELP_test-wordpress-core-tools := Run PHP tests (select basenames with WORDPRESS_TESTS="ToolRegistryTest ElementorToolsTest")
 HELP_test-wordpress-runtime := Run plugin integration tests in WordPress containers
 HELP_test-wordpress-301-runtime := Test pinned redirect plugins and tool coexistence in WordPress containers
 HELP_build-wordpress-dependencies := Bundle the locked PHP SDK (Docker, or CONTAINER_RUNTIME=podman)
@@ -606,21 +606,18 @@ test-wordpress-plugin-export: package-wordpress-plugin
 publish-wordpress-plugin-svn: package-wordpress-plugin
 	@VERSION=$(VERSION) bash ./scripts/publish-wordpress-plugin-svn.sh
 
+WORDPRESS_TESTS ?= ToolRegistryTest AuthDiagnosticsTest PostAuthorsTest NoFilesystemToolsTest PublicFilesTest ElementorToolsTest MediaToolsTest WooCommerceToolsTest MutationSnapshotsTest PluginDependenciesTest SeoToolsTest RouterTest SentryTest SentryUnavailableTest
+
 test-wordpress-core-tools: build-wordpress-dependencies
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/ToolRegistryTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/AuthDiagnosticsTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/PostAuthorsTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/NoFilesystemToolsTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/PublicFilesTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/ElementorToolsTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/MediaToolsTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/WooCommerceToolsTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/MutationSnapshotsTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/PluginDependenciesTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/SeoToolsTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/RouterTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/SentryTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/SentryUnavailableTest.php
+	@set -eu; \
+	set -- $(WORDPRESS_TESTS); \
+	if [ "$$#" -eq 0 ]; then echo "WORDPRESS_TESTS must select at least one test." >&2; exit 1; fi; \
+	for test in "$$@"; do \
+		if [ ! -f "libs/frontman-wordpress/tests/$$test.php" ]; then echo "WordPress test file not found: $$test.php" >&2; exit 1; fi; \
+	done; \
+	for test in "$$@"; do \
+		php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php "libs/frontman-wordpress/tests/$$test.php"; \
+	done
 
 test-wordpress-runtime:
 	@bash scripts/test-wordpress-plugin-runtime.sh
