@@ -208,21 +208,10 @@ module Scroll = {
   }
 }
 
-let getIframeWindowSafe = (iframe: WebAPI.DomTypes.element): option<WebAPI.DomTypes.window> => {
+let getIframeWindowSafe = (iframe: WebAPI.DomTypes.element) => {
   switch iframe->FrontmanBindings.Bindings__WebAPI.iframeElementFromElement {
   | None => None
-  | Some(iframeElement) =>
-    try {
-      switch WebAPI.HTMLIFrameElement.contentWindow(iframeElement) {
-      | None => None
-      | Some(iframeWindow) =>
-        let location = iframeWindow->WebAPI.Window.location
-        ignore(location.href)
-        Some(iframeWindow)
-      }
-    } catch {
-    | _ => None
-    }
+  | Some(iframeElement) => Client__PreviewFrame.read(iframeElement)
   }
 }
 
@@ -264,7 +253,7 @@ let useIFrameLocation = (~iframeElement: option<WebAPI.DomTypes.element>, ~attac
       | None =>
         setLocation(_ => None)
         None
-      | Some(iframeWindow) =>
+      | Some({win: iframeWindow}) =>
         try {
           let initialLocation = Some((iframeWindow->WebAPI.Window.location).href)
           setLocation(_ => initialLocation)

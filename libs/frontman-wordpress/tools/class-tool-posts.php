@@ -87,7 +87,7 @@ class Frontman_Tool_Posts {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_read_post',
-			'Reads a single post by ID, returning stored post_content (including any block markup), basic post fields, and categories/tags with IDs, names and slugs. Does not return custom post metadata or plugin snippet source. Empty content does not mean a plugin-managed snippet has no code.',
+			'Reads a single post by ID, returning stored post_content (including any block markup), content_sha256 for wp_update_post edit mode, basic post fields, and categories/tags with IDs, names and slugs. Does not return custom post metadata or plugin snippet source. Empty content does not mean a plugin-managed snippet has no code.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -189,6 +189,25 @@ class Frontman_Tool_Posts {
 					'content' => [
 						'type'        => 'string',
 						'description' => 'New post content as HTML or block markup.',
+					],
+					'mode' => [
+						'type' => 'string',
+						'enum' => [ 'replace', 'edit' ],
+						'default' => 'replace',
+						'description' => 'replace accepts full content. For user-authorized fragment changes, use edit after a fresh wp_read_post: supply oldText, newText and content_sha256 as expected_current_sha256, never content. Requires exactly one exact byte match. Supports drafts, freeform HTML and block HTML without parsing or reserializing blocks. Conflict detection is best-effort, not an atomic lock. Elementor content is not supported.',
+					],
+					'oldText' => [
+						'type' => 'string',
+						'description' => 'Required in edit mode only: nonempty exact fragment from stored content, occurring exactly once.',
+					],
+					'newText' => [
+						'type' => 'string',
+						'description' => 'Required in edit mode only: replacement bytes, different from oldText. Empty deletes the fragment.',
+					],
+					'expected_current_sha256' => [
+						'type' => 'string',
+						'pattern' => '^[a-f0-9]{64}$',
+						'description' => 'Required in edit mode only: lowercase SHA256 from the fresh wp_read_post.content_sha256. Any content change requires reading again.',
 					],
 					'status'  => [
 						'type'        => 'string',
@@ -296,6 +315,7 @@ class Frontman_Tool_Posts {
 			'id'        => $post->ID,
 			'title'     => $post->post_title,
 			'content'   => $post->post_content,
+			'content_sha256' => hash( 'sha256', $post->post_content ),
 			'excerpt'   => $post->post_excerpt,
 			'status'    => $post->post_status,
 			'type'      => $post->post_type,
@@ -602,6 +622,7 @@ class Frontman_Tool_Posts {
 		}
 
 		$this->check_write_permissions( $input, $post->post_type, $post );
+		$input = $this->prepare_content_edit( $input, $post );
 		$this->check_content( $input + [ 'content' => $post->post_content ] );
 		$this->check_page_template( $input, $post->post_type, $post );
 		$assignments = $this->check_taxonomies( $input, $post->post_type, sanitize_key( $input['status'] ?? $post->post_status ) );
@@ -652,6 +673,46 @@ class Frontman_Tool_Posts {
 			'before' => $before,
 			'after'  => $this->assign_and_read( $id, $assignments ),
 		];
+	}
+
+	/** Prepare exact bytes before any write; the existing writer owns persistence. */
+	private function prepare_content_edit( array $input, \WP_Post $post ): array {
+		$mode = array_key_exists( 'mode', $input ) ? $input['mode'] : 'replace';
+		if ( ! is_string( $mode ) || ! in_array( $mode, [ 'replace', 'edit' ], true ) ) {
+			throw new Frontman_Tool_Error( 'mode must be replace or edit.' );
+		}
+		$fields = [ 'oldText', 'newText', 'expected_current_sha256' ];
+		if ( 'replace' === $mode ) {
+			foreach ( $fields as $field ) {
+				if ( array_key_exists( $field, $input ) ) {
+					throw new Frontman_Tool_Error( "{$field} is only allowed in edit mode." );
+				}
+			}
+			return $input;
+		}
+		if ( array_key_exists( 'content', $input ) ) {
+			throw new Frontman_Tool_Error( 'content is not allowed in edit mode.' );
+		}
+		foreach ( $fields as $field ) {
+			if ( ! array_key_exists( $field, $input ) || ! is_string( $input[ $field ] ) ) {
+				throw new Frontman_Tool_Error( "{$field} is required in edit mode and must be a string." );
+			}
+		}
+		if ( '' === $input['oldText'] || $input['oldText'] === $input['newText'] ) {
+			throw new Frontman_Tool_Error( 'oldText must be nonempty and different from newText.' );
+		}
+		if ( ! preg_match( '/\A[a-f0-9]{64}\z/', $input['expected_current_sha256'] ) ) {
+			throw new Frontman_Tool_Error( 'expected_current_sha256 must be a lowercase SHA256 hash.' );
+		}
+		if ( hash( 'sha256', $post->post_content ) !== $input['expected_current_sha256'] ) {
+			throw new Frontman_Tool_Error( 'Stale content hash. Read wp_read_post before retrying; no changes were saved.' );
+		}
+		$offset = strpos( $post->post_content, $input['oldText'] );
+		if ( false === $offset || false !== strpos( $post->post_content, $input['oldText'], $offset + 1 ) ) {
+			throw new Frontman_Tool_Error( 'oldText must match exactly once. No changes were saved.' );
+		}
+		$input['content'] = substr_replace( $post->post_content, $input['newText'], $offset, strlen( $input['oldText'] ) );
+		return $input;
 	}
 
 	/**

@@ -13,10 +13,10 @@ let handler:
 let make = (~iframe: WebAPI.DomTypes.htmliFrameElement, ~targetOrigin, ~channel) => {
   let targetWindow =
     iframe
-    ->WebAPI.HTMLIFrameElement.contentWindow
+    ->FrontmanBindings.Bindings__WebAPI.iframeWindowHandle
     ->Option.getOrThrow(~message="Preview iframe requires a contentWindow")
   let transport = WindowTransport.Parent.make({
-    targetWindow,
+    targetWindow: targetWindow.window,
     targetOrigin,
     channel,
     subscribeLoad: listener => {

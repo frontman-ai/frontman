@@ -57,6 +57,27 @@ external openPopup: (
 external messageSourceFromWindow: WebAPI.Window.t => WebAPI.MessageEvent.messageEventSource =
   "%identity"
 
+/// WindowProxy forbids arbitrary property reads across origins, including ReScript's option sentinel.
+/// Only the plain handle record may cross an option boundary.
+type windowHandle = {window: WebAPI.DomTypes.window}
+
+@get
+external iframeWindow: WebAPI.DomTypes.htmliFrameElement => Nullable.t<WebAPI.DomTypes.window> =
+  "contentWindow"
+
+let iframeWindowHandle = iframe => {
+  let window = iframeWindow(iframe)
+  switch Nullable.isNullable(window) {
+  | true => None
+  | false => Some({window: Nullable.getOrThrow(window)})
+  }
+}
+
+@get external exceptionName: JsExn.t => string = "name"
+
+let isSecurityError = exn =>
+  exn->JsExn.fromException->Option.mapOr(false, error => exceptionName(error) == "SecurityError")
+
 external unsafeIframeElementFromElement: WebAPI.DomTypes.element => WebAPI.DomTypes.htmliFrameElement =
   "%identity"
 

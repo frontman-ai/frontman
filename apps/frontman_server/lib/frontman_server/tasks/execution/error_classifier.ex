@@ -80,6 +80,24 @@ defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
     end
   end
 
+  defp classify_reqllm_request(%ReqLLM.Error.API.Request{
+         status: 400,
+         provider_code: "model_not_found"
+       }),
+       do: classify_error(:unknown_model)
+
+  defp classify_reqllm_request(%ReqLLM.Error.API.Request{
+         status: 400,
+         response_body: %{"code" => "model_not_found"}
+       }),
+       do: classify_error(:unknown_model)
+
+  defp classify_reqllm_request(%ReqLLM.Error.API.Request{
+         status: 400,
+         response_body: %{"error" => %{"code" => "model_not_found"}}
+       }),
+       do: classify_error(:unknown_model)
+
   defp classify_reqllm_request(
          %ReqLLM.Error.API.Request{
            status: 400,

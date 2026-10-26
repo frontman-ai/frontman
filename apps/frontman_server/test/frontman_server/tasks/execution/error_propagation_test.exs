@@ -64,10 +64,14 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
         request =
           Request.exception(
             status: 400,
-            reason: "HTTP 400",
+            provider_code: "model_not_found",
+            reason:
+              "The 'gpt-6-astra' model is not supported when using Codex with a ChatGPT account.",
             response_body: %{
-              "detail" =>
-                "The 'gpt-5.4-mini' model is not supported when using Codex with a ChatGPT account."
+              "code" => "model_not_found",
+              "message" =>
+                "The 'gpt-6-astra' model is not supported when using Codex with a ChatGPT account.",
+              "type" => "invalid_request_error"
             }
           )
 

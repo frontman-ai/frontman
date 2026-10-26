@@ -46,6 +46,7 @@ type rec action =
     })
   | AcpSessionUpdateReceived({taskId: string, update: ACP.sessionUpdate})
   | TaskAction({target: taskTarget, action: TaskReducer.action})
+  | PreviewAction({clientId: string, navigationKey: int, action: TaskReducer.action})
   | CancelTurn
   | ExecutePendingPlan({id: Message.UserMessageId.t})
   | TaskLoadFinished({taskId: string, result: result<Connection.sessionRequestId, string>})
@@ -2248,6 +2249,13 @@ let rec next = (state: state, action) => {
         })
       }
       flush([...settings, task(action)])
+    }
+  | PreviewAction({clientId, navigationKey, action}) =>
+    let frame = Selectors.previewFrame(state)
+    switch clientId == Selectors.currentTaskClientId(state) &&
+      navigationKey == frame.navigationKey {
+    | true => state->Lens.delegateToTask(CurrentTask, action)
+    | false => StateReducer.update(state)
     }
   | TaskAction({target, action: taskAction}) => state->Lens.delegateToTask(target, taskAction)
 
