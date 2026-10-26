@@ -7,6 +7,9 @@ DB_NAME="frontman_server_prod"
 DB_USER="frontman"
 DOMAIN="api.frontman.sh"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+bash "${SCRIPT_DIR}/install-postgresql-maintenance-policy.sh"
+
 echo "=== Frontman Production Server Setup ==="
 echo "Deploy root: ${DEPLOY_ROOT}"
 echo "Database:    ${DB_NAME}"

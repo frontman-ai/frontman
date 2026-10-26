@@ -504,6 +504,12 @@ test-production-backup:
 	@for script in infra/production/backup-pg.sh infra/production/backup-pg.test.sh infra/production/build-and-deploy.sh; do bash -n "$$script" || exit; done
 	bash infra/production/backup-pg.test.sh
 
+.PHONY: test-production-postgresql-maintenance
+test-production-postgresql-maintenance:
+	@for script in infra/production/install-postgresql-maintenance-policy.sh infra/production/postgresql-maintenance-policy.test.sh infra/production/server-setup.sh; do bash -n "$$script" || exit; done
+	perl -c infra/production/needrestart-postgresql.conf
+	bash infra/production/postgresql-maintenance-policy.test.sh
+
 worktree-list:
 	@git worktree list
 
