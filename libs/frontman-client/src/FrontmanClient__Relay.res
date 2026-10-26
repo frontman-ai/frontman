@@ -154,25 +154,24 @@ let executeTool = async (
   relay: connected,
   ~name: string,
   ~arguments: option<Dict.t<JSON.t>>=?,
+  ~signal: option<WebAPI.EventTypes.abortSignal>=?,
 ): result<MCPTypes.CallToolResult.t, string> => {
+  let requestSignal = signal->Option.getOr(relay.signal)
   switch relay.signal.aborted {
   | true => Error("Relay connection aborted")
+  | false if requestSignal.aborted => Error("Relay tool request cancelled before dispatch")
   | false =>
     Log.debug(~ctx={"tool": name}, "Executing relay tool")
     let input: Types.toolCallRequest = {name, arguments}
     let body = input->S.decodeOrThrow(~from=Types.toolCallRequestSchema, ~to=S.jsonString)
-    await request(
-      relay.config,
-      ~path="tools/call",
-      ~body,
-      ~signal=relay.signal,
-      ~decode=async response => {
-        (await SSE.readStream(response))->Result.flatMap(json =>
-          json
-          ->Decoders.parseSchema(MCPTypes.callToolResultSchema)
-          ->Result.mapError(message => `Invalid result: ${message}`)
-        )
-      },
-    )
+    // Aborting this fetch cannot establish whether an external write took effect.
+    let signal = WebAPI.AbortSignal.any([relay.signal, requestSignal])
+    await request(relay.config, ~path="tools/call", ~body, ~signal, ~decode=async response => {
+      (await SSE.readStream(response))->Result.flatMap(json =>
+        json
+        ->Decoders.parseSchema(MCPTypes.callToolResultSchema)
+        ->Result.mapError(message => `Invalid result: ${message}`)
+      )
+    })
   }
 }
