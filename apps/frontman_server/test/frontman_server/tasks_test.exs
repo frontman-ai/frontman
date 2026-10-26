@@ -17,6 +17,7 @@ defmodule FrontmanServer.TasksTest do
     ScrubToolResultMetadata
   }
 
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
@@ -98,7 +99,7 @@ defmodule FrontmanServer.TasksTest do
             assert is_nil(Repo.reload!(scope.user).first_message_at)
             refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.UserMessage{}, &1))
             refute_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
-            refute_enqueued(worker: SyncResendContact)
+            refute_enqueued(worker: SyncResendContact, args: %{user_id: Scope.user_id(scope)})
         end
       end
     end
@@ -174,7 +175,7 @@ defmodule FrontmanServer.TasksTest do
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, "task:#{task.id}")
       assert {:error, _} = Tasks.submit_user_message(scope, %{arguments | message_id: nil})
       assert is_nil(Repo.reload!(scope.user).first_message_at)
-      refute_enqueued(worker: SyncResendContact)
+      refute_enqueued(worker: SyncResendContact, args: %{user_id: Scope.user_id(scope)})
       assert db_rows(task.id) == []
       refute_receive {:interaction, _}
 
@@ -199,14 +200,14 @@ defmodule FrontmanServer.TasksTest do
       assert %DateTime{} = Repo.reload!(scope.user).first_message_at
 
       assert [%{args: %{"activation" => true, "user_id" => user_id}}] =
-               all_enqueued(worker: SyncResendContact)
+               all_enqueued(worker: SyncResendContact, args: %{user_id: Scope.user_id(scope)})
 
       assert user_id == scope.user.id
       observed_at = ~U[2026-06-02 12:00:00Z]
       scope.user |> Ecto.Changeset.change(first_message_at: observed_at) |> Repo.update!()
       assert {:ok, _} = Tasks.submit_user_message(scope, arguments)
       assert Repo.reload!(scope.user).first_message_at == observed_at
-      assert [_] = all_enqueued(worker: SyncResendContact)
+      assert [_] = all_enqueued(worker: SyncResendContact, args: %{user_id: Scope.user_id(scope)})
     end
 
     test "requires agent id", %{scope: scope} do
