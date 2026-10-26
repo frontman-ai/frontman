@@ -25,15 +25,32 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
     end)
   end
 
-  describe "GET /auth/:provider" do
-    for {provider, method} <- [{"google", "GoogleOAuth"}, {"github", "GitHubOAuth"}] do
-      @tag provider: provider, method: method
-      test "redirects #{provider} sign-in to WorkOS authorization", context do
-        conn = get(context.conn, "/auth/#{context.provider}")
-        location = redirected_to(conn, 302)
-        assert location =~ "https://api.workos.com/user_management/authorize"
-        assert location =~ "provider=#{context.method}"
-        assert location =~ "client_id=client_test_workos"
+  for {suffix, callback, key} <- [
+        {"", "/auth/callback", :oauth_signin_state},
+        {"/link", "/auth/link/callback", :oauth_state}
+      ] do
+    @tag suffix: suffix, callback: callback, key: key
+    test "provider initiation #{suffix} validates providers and preserves state", context do
+      conn =
+        if context.suffix == "/link",
+          do: log_in_user(context.conn, user_fixture()),
+          else: context.conn
+
+      for {provider, method} <- [{"google", "GoogleOAuth"}, {"github", "GitHubOAuth"}] do
+        started = get(conn, "/auth/#{provider}#{context.suffix}")
+        location = URI.parse(redirected_to(started))
+        assert location.host == "api.workos.com"
+        assert location.path == "/user_management/authorize"
+        query = URI.decode_query(location.query)
+        assert query["provider"] == method
+        assert query["client_id"] == "client_test_workos"
+        assert URI.parse(query["redirect_uri"]).path == context.callback
+        assert query["state"] == get_session(started, context.key)
+        assert byte_size(query["state"]) > 0
+        invalid = get(started, "/auth/unsupported#{context.suffix}")
+        assert response(invalid, 404) == "Not Found"
+        assert get_resp_header(invalid, "location") == []
+        assert get_session(invalid, context.key) == query["state"]
       end
     end
   end
@@ -41,7 +58,7 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
   describe "successful authentication" do
     test "signup commits the account and jobs; repeat login does not enqueue again", %{conn: conn} do
       expect_auth(oauth_body(), 200, profile())
-      conn = conn |> get(~p"/users/log-in?framework=nextjs") |> get(~p"/auth/callback?code=code")
+      conn = conn |> get(~p"/users/log-in?framework=nextjs") |> sign_in()
       user = assert_signed_in(conn)
       assert_signup(user)
 
@@ -54,7 +71,7 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
       user |> Ecto.Changeset.change(last_signed_in_at: old_login) |> Repo.update!()
 
       expect_auth(oauth_body(), 200, profile())
-      returned = build_conn() |> get(~p"/auth/callback?code=code") |> assert_signed_in()
+      returned = build_conn() |> sign_in() |> assert_signed_in()
       assert returned.id == user.id
       assert returned.first_message_at == observed_at
       assert DateTime.compare(returned.last_signed_in_at, old_login) == :gt
@@ -73,8 +90,9 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
         email: "signup@example.com"
       })
 
-      conn = conn |> get(~p"/users/log-in?framework=nextjs") |> get(~p"/auth/callback?code=code")
+      conn = conn |> get(~p"/users/log-in?framework=nextjs") |> sign_in()
       assert redirected_to(conn) == ~p"/auth/verify-email"
+      refute get_session(conn, :oauth_signin_state)
       assert get_session(conn, :pending_auth_token) == "pending"
       assert get_session(conn, :pending_auth_email) == "signup@example.com"
       assert_no_signup(conn)
@@ -103,7 +121,7 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
     } do
       user = user_fixture(email: "signup@example.com")
       expect_auth(oauth_body(), 200, profile("GoogleOAuth", "google-id"))
-      signed_in = conn |> get(~p"/auth/callback?code=code") |> assert_signed_in()
+      signed_in = conn |> sign_in("google") |> assert_signed_in()
       assert signed_in.id == user.id
 
       assert [%{provider: "google", provider_id: "google-id"}] =
@@ -118,7 +136,7 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
       other = user_fixture(email: "signup@example.com")
       identity_fixture(owner, provider: "github", provider_id: "github-id")
       expect_auth(oauth_body(), 200, profile())
-      signed_in = conn |> get(~p"/auth/callback?code=code") |> assert_signed_in()
+      signed_in = conn |> sign_in() |> assert_signed_in()
       assert signed_in.id == owner.id
       assert Accounts.list_user_identities(other) == []
       assert Repo.aggregate(User, :count) == 2
@@ -136,18 +154,25 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
       @tag status: status, response: response
       test "#{label} leaves no account, identity, jobs, or session", context do
         expect_auth(oauth_body(), context.status, context.response)
-        conn = get(context.conn, ~p"/auth/callback?code=code")
+        started = get(context.conn, ~p"/auth/github")
+        state = get_session(started, :oauth_signin_state)
+        conn = get(started, ~p"/auth/callback", %{"code" => "code", "state" => state})
         assert redirected_to(conn) == ~p"/users/log-in"
         assert Phoenix.Flash.get(conn.assigns.flash, :error)
         assert_no_signup(conn)
+        refute get_session(conn, :oauth_signin_state)
+        replay = get(conn, ~p"/auth/callback", %{"code" => "code", "state" => state})
+        assert redirected_to(replay) == ~p"/users/log-in"
+        assert_no_signup(replay)
       end
     end
 
     @tag :capture_log
     test "transport timeout leaves no account, identity, jobs, or session", %{conn: conn} do
       Req.Test.expect(__MODULE__, &Req.Test.transport_error(&1, :timeout))
-      conn = get(conn, ~p"/auth/callback?code=code")
+      conn = sign_in(conn)
       assert redirected_to(conn) == ~p"/users/log-in"
+      refute get_session(conn, :oauth_signin_state)
       assert_no_signup(conn)
     end
 
@@ -160,10 +185,13 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
 
   describe "GET /auth/callback - access_denied" do
     test "redirects with error message when user cancels", %{conn: conn} do
-      conn = get(conn, ~p"/auth/callback", %{"error" => "access_denied"})
+      conn = get(conn, ~p"/auth/github")
+      state = get_session(conn, :oauth_signin_state)
+      conn = get(conn, ~p"/auth/callback", %{"error" => "access_denied", "state" => state})
 
       assert redirected_to(conn) == ~p"/users/log-in"
       assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Sign in was cancelled."
+      refute get_session(conn, :oauth_signin_state)
     end
   end
 
@@ -189,38 +217,23 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
 
     test "mismatched state cannot link an identity", %{conn: conn} do
       conn = get(conn, ~p"/auth/google/link")
-      Req.Test.stub(__MODULE__, &Req.Test.json(&1, profile("GoogleOAuth", "google-id")))
-
-      assert_error_sent 500, fn ->
-        get(conn, ~p"/auth/link/callback", %{"code" => "code", "state" => "wrong"})
-      end
+      state = get_session(conn, :oauth_state)
+      conn = get(conn, ~p"/auth/link/callback", %{"code" => "code", "state" => "wrong"})
+      assert redirected_to(conn) == ~p"/users/settings"
+      assert get_session(conn, :oauth_state) == state
 
       assert Repo.aggregate(UserIdentity, :count) == 0
       assert all_enqueued() == []
     end
 
     test "redirects with error message when user cancels", %{conn: conn, user: user} do
-      conn =
-        conn
-        |> log_in_user(user)
-        |> get(~p"/auth/link/callback", %{"error" => "access_denied"})
+      conn = conn |> log_in_user(user) |> get(~p"/auth/google/link")
+      state = get_session(conn, :oauth_state)
+      conn = get(conn, ~p"/auth/link/callback", %{"error" => "access_denied", "state" => state})
 
       assert redirected_to(conn) == ~p"/users/settings"
       assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Connection was cancelled."
-    end
-
-    test "requires sudo mode", %{conn: conn, user: user} do
-      old_auth_time = DateTime.add(DateTime.utc_now(), -30, :minute)
-
-      conn =
-        conn
-        |> log_in_user(user, token_authenticated_at: old_auth_time)
-        |> get(~p"/auth/link/callback", %{"error" => "access_denied"})
-
-      assert redirected_to(conn) == ~p"/users/log-in"
-
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
-               "You must re-authenticate to access this page."
+      refute get_session(conn, :oauth_state)
     end
   end
 
@@ -239,27 +252,81 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
 
       assert redirected_to(conn) == ~p"/users/settings"
       assert Phoenix.Flash.get(conn.assigns.flash, :info) == "GitHub disconnected."
+
+      for provider <- ["github", "google", "unsupported"] do
+        assert conn |> delete("/auth/#{provider}/unlink") |> response(404) == "Not Found"
+      end
     end
+  end
 
-    test "requires authentication", %{conn: conn} do
-      conn = delete(conn, ~p"/auth/github/unlink")
-      assert redirected_to(conn) == ~p"/users/log-in"
-    end
+  test "linking and unlinking retain authentication and sudo gates", %{conn: conn} do
+    user = user_fixture()
+    identity_fixture(user, provider: "github")
 
-    test "requires sudo mode", %{conn: conn, user: user} do
-      _identity = identity_fixture(user, provider: "github")
-      old_auth_time = DateTime.add(DateTime.utc_now(), -30, :minute)
+    for {method, path} <- [
+          {:get, "/auth/unsupported/link"},
+          {:get, "/auth/link/callback?error=access_denied"},
+          {:delete, "/auth/github/unlink"},
+          {:delete, "/auth/unsupported/unlink"}
+        ] do
+      assert conn |> dispatch(@endpoint, method, path) |> redirected_to() == ~p"/users/log-in"
 
-      conn =
-        conn
-        |> log_in_user(user, token_authenticated_at: old_auth_time)
-        |> delete(~p"/auth/github/unlink")
+      stale =
+        log_in_user(conn, user,
+          token_authenticated_at: DateTime.add(DateTime.utc_now(), -30, :minute)
+        )
 
-      assert redirected_to(conn) == ~p"/users/log-in"
+      denied = dispatch(stale, @endpoint, method, path)
+      assert redirected_to(denied) == ~p"/users/log-in"
 
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+      assert Phoenix.Flash.get(denied.assigns.flash, :error) ==
                "You must re-authenticate to access this page."
     end
+  end
+
+  test "invalid sign-in state never reaches WorkOS or mutates accounts", %{conn: conn} do
+    conn = get(conn, ~p"/auth/github")
+    state = get_session(conn, :oauth_signin_state)
+
+    for invalid <- [nil, "", "wrong", ["malformed"]] do
+      rejected = get(conn, ~p"/auth/callback", %{"code" => "code", "state" => invalid})
+      assert redirected_to(rejected) == ~p"/users/log-in"
+      assert get_session(rejected, :oauth_signin_state) == state
+      assert_no_signup(rejected)
+    end
+  end
+
+  test "rejected linking exchanges consume state without identity mutation or jobs", %{conn: conn} do
+    user = user_fixture()
+    identity_fixture(user, provider: "github", provider_id: "github-id")
+    identities = Accounts.list_user_identities(user)
+
+    for {status, body} <- [
+          {400, %{code: "invalid_grant", message: "untrusted"}},
+          {200, profile()},
+          {200, %{}},
+          {200, profile("UnknownOAuth")}
+        ] do
+      started = conn |> log_in_user(user) |> get(~p"/auth/github/link")
+      state = get_session(started, :oauth_state)
+      expect_auth(oauth_body(), status, body)
+      failed = get(started, ~p"/auth/link/callback", %{"code" => "code", "state" => state})
+      assert redirected_to(failed) == ~p"/users/settings"
+
+      assert Phoenix.Flash.get(failed.assigns.flash, :error) ==
+               "Connection failed. Please try again."
+
+      refute get_session(failed, :oauth_state)
+      assert Accounts.list_user_identities(user) == identities
+      assert Repo.aggregate(User, :count) == 1
+      assert all_enqueued() == []
+    end
+  end
+
+  defp sign_in(conn, provider \\ "github") do
+    conn = get(conn, "/auth/#{provider}")
+    state = get_session(conn, :oauth_signin_state)
+    get(conn, ~p"/auth/callback", %{"code" => "code", "state" => state})
   end
 
   defp oauth_body, do: %{"grant_type" => "authorization_code", "code" => "code"}
