@@ -231,10 +231,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     })
   end
 
-  defp assert_tool_result_crash(context, content, reason) do
+  defp assert_tool_result_crash(context, content, reason, structured \\ %{"logged" => true}) do
     %{socket: socket, task_id: task_id, scope: scope} = context
     result = %{"resultType" => "complete", "content" => content}
-    result = Map.put(result, "structuredContent", %{"logged" => true})
+    result = Map.put(result, "structuredContent", structured)
     tool_call = tool_call("call_invalid_result", "testTool")
     register_tool_receiver(task_id, tool_call.tool_call_id)
 
@@ -1513,10 +1513,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
                           type: :image,
                           data: decoded_image_data,
                           media_type: "image/png"
-                        }
+                        },
+                        %SwarmAi.Message.ContentPart{type: :text, text: structured_json}
                       ], false}
 
       assert decoded_image_data == Base.decode64!(image_data)
+      assert Jason.decode!(structured_json) == %{"logged" => true}
 
       assert_push("acp:message", %{
         "method" => "session/update",
@@ -1564,6 +1566,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     test "crashes loudly for malformed MCP tool results", context do
       assert_tool_result_crash(context, "invalid", "Invalid MCP tools/call result")
+    end
+
+    test "rejects structured-only output that violates the discovered schema", context do
+      assert_tool_result_crash(context, [], "Invalid MCP tools/call result", %{})
     end
 
     test "rejects invalid image data before persistence", context do

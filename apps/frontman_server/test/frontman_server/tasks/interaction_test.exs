@@ -266,6 +266,38 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   end
 
   describe "tool_result_content_parts/1" do
+    test "projects every structured JSON value into model history, including present null" do
+      for value <- [%{"count" => 1}, [1, "two"], "hello", 2.5, true, nil] do
+        result = %{"content" => [], "structuredContent" => value}
+
+        assert [%SwarmAi.Message.Tool{content: [part]}] =
+                 Interaction.to_swarm_messages([tool_result("call", "data", result)])
+
+        assert part.type == :text
+        assert Jason.decode!(part.text) === value
+        assert Interaction.tool_result_content_parts(result) == [part]
+      end
+
+      assert Interaction.tool_result_content_parts(%{"content" => []}) == []
+    end
+
+    test "preserves prose and images but does not append equivalent JSON text twice" do
+      value = %{"a" => [1, nil], "b" => true}
+      json = ~s( { "b": true, "a": [1, null] } )
+      blocks = [text_block("Summary"), text_block(json)]
+      result = %{"content" => blocks, "structuredContent" => value}
+
+      assert Interaction.tool_result_content_parts(result) ==
+               [ContentPart.text("Summary"), ContentPart.text(json)]
+
+      image = %{"type" => "image", "data" => Base.encode64("image"), "mimeType" => "image/png"}
+      mixed = %{result | "content" => [text_block("Summary"), image]}
+      assert [summary, picture, structured] = Interaction.tool_result_content_parts(mixed)
+      assert summary == ContentPart.text("Summary")
+      assert picture == ContentPart.image("image", "image/png")
+      assert Jason.decode!(structured.text) == value
+    end
+
     test "preserves mixed content order and decodes images for live results and replay" do
       image = <<137, 80, 78, 71>>
 
