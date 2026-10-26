@@ -211,32 +211,31 @@ defmodule FrontmanServer.Tasks do
 
     enforce_project_rule_limit!(length(loaded_paths) + length(attrs), task.id)
 
-    case attrs do
+    rows =
+      Enum.map(attrs, fn attrs ->
+        result =
+          task
+          |> Ecto.build_assoc(:interaction_rows)
+          |> InteractionSchema.changeset(attrs)
+          |> Repo.insert()
+
+        case result do
+          {:ok, row} -> row
+          {:error, changeset} -> Repo.rollback({:invalid_project_rule, changeset})
+        end
+      end)
+
+    case rows do
       [] ->
         {:ok, {task, []}}
 
       [_ | _] ->
-        rows =
-          Enum.map(attrs, fn attrs ->
-            task
-            |> Ecto.build_assoc(:interaction_rows)
-            |> InteractionSchema.changeset(attrs)
-            |> insert_project_rule()
-          end)
-
         {1, _} =
           TaskSchema
           |> TaskSchema.by_id(task.id)
           |> Repo.update_all(set: [updated_at: DateTime.utc_now(:second)])
 
         {:ok, {task, rows}}
-    end
-  end
-
-  defp insert_project_rule(changeset) do
-    case Repo.insert(changeset) do
-      {:ok, row} -> row
-      {:error, changeset} -> Repo.rollback({:invalid_project_rule, changeset})
     end
   end
 
