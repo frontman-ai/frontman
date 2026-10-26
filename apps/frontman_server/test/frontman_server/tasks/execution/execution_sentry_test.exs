@@ -24,6 +24,10 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
     Sentry.Context.clear_all()
     Logger.reset_metadata([])
 
+    assert {:ok, %{config: config}} = :logger.get_handler_config(:sentry_handler)
+    assert config.capture_log_messages
+    assert config.capture_level == :error
+
     scope = user_scope_fixture()
     task_id = task_with_active_turn_fixture(scope, framework: "nextjs").id
     Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
@@ -46,15 +50,10 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
 
       assert_receive_interaction(%Interaction.AgentError{kind: "failed"}, _turn_number)
 
-      reports = Sentry.Test.pop_sentry_reports()
-
-      error_reports =
-        Enum.filter(reports, &agent_execution_error_for_task?(&1, task_id))
-
-      assert error_reports != [],
-             "Expected at least one agent_execution_error Sentry report for task #{task_id}, got none. All reports: #{inspect(Enum.map(reports, & &1.tags))}"
-
-      [report | _] = error_reports
+      [report] = pop_all_reports()
+      assert report.level == :error
+      assert report.tags[:error_type] == "agent_execution_error"
+      assert report.tags[:category] == "unknown"
       assert report.message.formatted == "Agent execution failed"
       assert report.tags[:task_id] == task_id
       assert report.tags[:user_id] == scope.user.id
@@ -74,15 +73,9 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
 
       assert_receive_interaction(%Interaction.AgentError{kind: "failed"}, _turn_number)
 
-      reports = Sentry.Test.pop_sentry_reports()
-
-      error_reports =
-        Enum.filter(reports, &agent_execution_error_for_task?(&1, task_id))
-
-      assert error_reports != [],
-             "Expected at least one agent_execution_error Sentry report for task #{task_id}, got none. All reports: #{inspect(Enum.map(reports, &{&1.tags, &1.extra[:task_id]}))}"
-
-      [report | _] = error_reports
+      [report] = pop_all_reports()
+      assert report.level == :error
+      assert report.tags[:error_type] == "agent_execution_error"
       assert report.message.formatted == "Agent execution failed"
       assert report.tags[:task_id] == task_id
       assert report.tags[:user_id] == scope.user.id
@@ -103,9 +96,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
         _turn_number
       )
 
-      reports = Sentry.Test.pop_sentry_reports()
-
-      assert Enum.filter(reports, &agent_execution_error_for_task?(&1, task_id)) == []
+      assert pop_all_reports() == []
     end
 
     @tag :capture_log
@@ -122,16 +113,56 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
         _turn_number
       )
 
-      reports = Sentry.Test.pop_sentry_reports()
-
-      assert Enum.filter(reports, &agent_execution_error_for_task?(&1, task_id)) == []
+      assert pop_all_reports() == []
     end
   end
 
-  defp agent_execution_error_for_task?(event, task_id) do
-    case event.tags[:error_type] do
-      "agent_execution_error" -> event.extra[:task_id] == task_id
-      _other -> false
+  for {reason, category} <- [
+        {%ReqLLM.Error.API.Request{status: 400, reason: "invalid request"}, "unknown"},
+        {%ReqLLM.Error.API.Request{status: 401, reason: "unauthorized"}, "auth"},
+        {%ReqLLM.Error.API.Request{status: 402, reason: "payment required"}, "billing"},
+        {%ReqLLM.Error.API.Request{
+           status: 429,
+           reason: "quota exhausted",
+           response_body: %{"error" => %{"code" => "insufficient_quota"}}
+         }, "quota"},
+        {:unknown_model, "unknown"}
+      ] do
+    @tag :capture_log
+    test "reports nonretryable #{category} failure #{inspect(reason)} exactly once", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      Tasks.handle_swarm_event(
+        scope,
+        task_id,
+        latest_turn_number(task_id),
+        {:failed, unquote(Macro.escape(reason))}
+      )
+
+      assert_receive_interaction(
+        %Interaction.AgentError{kind: "failed", retryable: false, category: category},
+        _turn_number
+      )
+
+      assert category == unquote(category)
+      [report] = pop_all_reports()
+      assert report.level == :error
+      assert report.message.formatted == "Agent execution failed"
+      assert report.tags[:error_type] == "agent_execution_error"
+      assert report.tags[:category] == category
+      assert report.tags[:task_id] == task_id
+      assert report.tags[:user_id] == scope.user.id
+      assert report.extra[:task_id] == task_id
+      assert report.extra[:retryable] == false
+      assert is_binary(report.extra[:reason])
     end
+  end
+
+  defp pop_all_reports do
+    # Logger handlers and Sentry's collecting before_send callback run in the caller.
+    # Flush Logger too so assertions do not race buffered logging.
+    Logger.flush()
+    Sentry.Test.pop_sentry_reports()
   end
 end
