@@ -361,6 +361,29 @@ describe("Task - Plan Entries", () => {
     ->expect(TaskReducer.Selectors.planEntries(task2)->Option.getOr([])->Array.length)
     ->Expect.toBe(2)
   })
+
+  test("Stop preserves started-but-unfinished plan entries through the next turn", t => {
+    let entries: array<Client__Task__Types.ACPTypes.planEntry> = [
+      {content: "Finished step", priority: High, status: Completed},
+      {content: "Started step", priority: Medium, status: InProgress},
+      {content: "Future step", priority: Low, status: Pending},
+    ]
+    let (planned, _) = TaskReducer.next(
+      TestHelpers.makeLoadedTask(),
+      PlanReceived({entries: entries}),
+    )
+    let (running, _) = TaskReducer.next(planned, ExecutionStateRunning)
+    let (cancelled, _) = TaskReducer.next(running, CancelTurn)
+    let (idle, _) = TaskReducer.next(cancelled, ExecutionStateIdle)
+    let nextTurn = TestHelpers.acceptUserMessage(idle, ~id="continue", ~text="Continue")
+    let (resumed, _) = TaskReducer.next(nextTurn, ExecutionStateRunning)
+
+    [cancelled, idle, resumed]->Array.forEach(task => {
+      t->expect(TaskReducer.Selectors.planEntries(task))->Expect.toEqual(Some(entries))
+    })
+    t->expect(TaskReducer.Selectors.isAgentRunning(idle))->Expect.toEqual(Some(false))
+    t->expect(TaskReducer.Selectors.isAgentRunning(resumed))->Expect.toEqual(Some(true))
+  })
 })
 
 describe("Task - Error Handling", () => {
