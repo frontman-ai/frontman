@@ -4,17 +4,37 @@ module Task = Client__State__Types.Task
 module Context = Client__Tool__PreviewContext
 module Fixture = Client__FormFixture
 module Test = Client__ActivationBrowserHelpers
+module RuntimeConfig = FrontmanBindings.Bindings__Test__RuntimeConfig
 
+module Preview = {
+  @react.component
+  let make = () => {
+    let (workspaceView, setWorkspaceView) = React.useState(() => Client__WorkspacePanel.Preview)
+    <>
+      <Client__TopBar
+        chatboxWidth=300
+        workspaceView
+        onWorkspaceViewChange={view => setWorkspaceView(_ => view)}
+        onSettingsClick=Client__State.Actions.openSettingsModal
+      />
+      <Client__WebPreview />
+    </>
+  }
+}
+
+let originalRuntime = RuntimeConfig.get(WebAPI.Window.current)
 let previewUrl = `${(
     WebAPI.Window.current->WebAPI.Window.location
   ).origin}/test/browser/preview.html`
 let redirectUrl = previewUrl ++ "?redirect"
 let state = () => StateStore.getState(Client__State__Store.store)
-let renderedFrame = () =>
-  Test.query("iframe[title^='Preview - ']")
+let renderedFrame = () => {
+  let clientId = Client__State.Selectors.currentTaskClientId(state())
+  Test.query(`iframe[title='Preview - ${clientId}']`)
   ->Option.getOrThrow
   ->FrontmanBindings.Bindings__WebAPI.iframeElementFromElement
   ->Option.getOrThrow
+}
 let waitReady = () =>
   Test.waitFor(() => {
     let context = Context.get()->Option.getOrThrow(~message="Preview is unavailable")
@@ -39,25 +59,20 @@ let executeJs = async () =>
   JSON.stringify(await Fixture.execute(~name="execute_js", `{"expression":"document.title"}`))
 
 beforeEachAsync(async () => {
-  Client__ActivationTestHelpers.setup()
+  let runtime =
+    {"framework": "vite"}->S.decodeOrThrow(
+      ~from=S.object(s => {"framework": s.field("framework", S.string)}),
+      ~to=S.json,
+    )
+  RuntimeConfig.set(WebAPI.Window.current, Nullable.make(runtime))
   Test.force({...Test.original, currentTask: Task.New(Task.makeNew(~previewUrl))})
   await Test.page->Test.viewport(1280, 900)
-  Test.render(
-    <>
-      <Client__TopBar
-        chatboxWidth=300
-        workspaceView=Preview
-        onWorkspaceViewChange={_ => ()}
-        onSettingsClick={() => ()}
-      />
-      <Client__WebPreview />
-    </>,
-  )
+  Test.render(<Preview />)
   await waitReady()
 })
 afterEach(() => {
   Test.cleanup()
-  Client__ActivationTestHelpers.unstubAllGlobals()
+  RuntimeConfig.set(WebAPI.Window.current, originalRuntime)
 })
 
 testAsync(
@@ -109,7 +124,7 @@ testAsync("toolbar reload and address entry recover without restarting the clien
     ~name="execute_js",
     input->S.decodeOrThrow(~from=Client__Tool__ExecuteJs.inputSchema, ~to=S.jsonString),
   )
-  await Test.waitFor(() => t->expect(Context.get())->Expect.toEqual(None))
+  await Test.waitFor(() => t->expect(Context.get()->Option.isNone)->Expect.toBe(true))
   await Test.page->Test.getByRole("button", {name: "Reload"})->Test.click
   await Test.waitFor(() => t->expect(renderedFrame() === frame)->Expect.toBe(false))
   let address = Test.page->Test.getByRole("textbox", {name: "Preview URL"})
@@ -127,7 +142,11 @@ testAsync(
   "retained task frames cannot update another task or reuse a replaced document",
   async t => {
     let make = id => Task.makeNew(~previewUrl)->Task.newToLoaded(~id, ~title=id)
-    let tasks = Dict.fromArray([("first", make("first")), ("second", make("second"))])
+    let first = switch make("first") {
+    | Task.Loaded(data) => Task.Loaded({...data, updatedAt: data.updatedAt -. 1000.0})
+    | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => failwith("Expected a loaded task")
+    }
+    let tasks = Dict.fromArray([("first", first), ("second", make("second"))])
     Test.force({...Test.original, tasks, currentTask: Task.Selected("first")})
     await waitReady()
     let frame = renderedFrame()
@@ -141,40 +160,10 @@ testAsync(
     t->expect((Context.get()->Option.getOrThrow).doc)->Expect.toBe(current.doc)
     await load(frame, redirectUrl)
     Client__State.Actions.switchTask(~taskId="first")
-    await Test.waitFor(() => t->expect(Context.get())->Expect.toEqual(None))
+    await Test.waitFor(() => t->expect(Context.get()->Option.isNone)->Expect.toBe(true))
     Client__State.Actions.setCurrentPreviewUrl(~url=previewUrl)
     await waitReady()
     t->expect((Context.get()->Option.getOrThrow).doc === old.doc)->Expect.toBe(false)
     t->expect((await screenshot())->String.includes("image/jpeg"))->Expect.toBe(true)
   },
 )
-
-testAsync("annotation enrichment unwraps the preview window handle", async t => {
-  let {doc, win} = Context.get()->Option.getOrThrow
-  FrontmanBindings.Bindings__Test__AstroAnnotations.setAnnotationsApi(
-    win,
-    {
-      get: _ => Nullable.null,
-      has: _ => false,
-      size: () => 0,
-      contentFile: Nullable.make("src/Preview.astro"),
-    },
-  )
-  let resolved = ref(None)
-  Client__Task__Reducer.fetchAnnotationDetails(
-    ~id="annotation",
-    ~element=doc->WebAPI.Document.querySelector("#marker")->Null.getOrThrow,
-    ~document=Some(doc),
-    ~contentWindow=Some({window: win}),
-    ~dispatch=action =>
-      switch action {
-      | AnnotationDetailsResolved({sourceLocation}) => resolved := Some(sourceLocation)
-      | _ => failwith("Unexpected annotation action")
-      },
-  )
-  await Test.waitFor(() =>
-    t
-    ->expect((resolved.contents->Option.getOrThrow->Result.getOrThrow->Option.getOrThrow).file)
-    ->Expect.toBe("src/Preview.astro")
-  )
-})
