@@ -26,6 +26,12 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
   end
 
   describe "GET /auth/:provider" do
+    test "unsupported provider returns a static 404", %{conn: conn} do
+      conn = get(conn, "/auth/unsupported")
+      assert response(conn, 404) == "Not Found"
+      assert get_resp_header(conn, "location") == []
+    end
+
     for {provider, method} <- [{"google", "GoogleOAuth"}, {"github", "GitHubOAuth"}] do
       @tag provider: provider, method: method
       test "redirects #{provider} sign-in to WorkOS authorization", context do
@@ -164,6 +170,51 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
 
       assert redirected_to(conn) == ~p"/users/log-in"
       assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Sign in was cancelled."
+    end
+  end
+
+  describe "GET /auth/:provider/link" do
+    test "unsupported provider returns a static 404 without starting linking", %{conn: conn} do
+      conn = conn |> log_in_user(user_fixture()) |> get("/auth/unsupported/link")
+      assert response(conn, 404) == "Not Found"
+      refute get_session(conn, :oauth_state)
+      assert get_resp_header(conn, "location") == []
+    end
+
+    for {provider, method} <- [{"google", "GoogleOAuth"}, {"github", "GitHubOAuth"}] do
+      @tag provider: provider, method: method
+      test "redirects #{provider} linking to WorkOS authorization", context do
+        conn =
+          context.conn
+          |> log_in_user(user_fixture())
+          |> get("/auth/#{context.provider}/link")
+
+        location = redirected_to(conn, 302)
+        assert location =~ "https://api.workos.com/user_management/authorize"
+        query = URI.decode_query(URI.parse(location).query)
+        assert query["provider"] == context.method
+        assert query["state"] == get_session(conn, :oauth_state)
+        assert is_binary(query["state"])
+      end
+    end
+
+    test "unsupported provider still requires authentication", %{conn: conn} do
+      conn = get(conn, "/auth/unsupported/link")
+      assert redirected_to(conn) == ~p"/users/log-in"
+    end
+
+    test "unsupported provider still requires sudo mode", %{conn: conn} do
+      old_auth_time = DateTime.add(DateTime.utc_now(), -30, :minute)
+
+      conn =
+        conn
+        |> log_in_user(user_fixture(), token_authenticated_at: old_auth_time)
+        |> get("/auth/unsupported/link")
+
+      assert redirected_to(conn) == ~p"/users/log-in"
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+               "You must re-authenticate to access this page."
     end
   end
 

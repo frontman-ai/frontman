@@ -17,8 +17,14 @@ defmodule FrontmanServerWeb.OAuthController do
 
   def request(conn, %{"provider" => provider}) do
     redirect_uri = url(~p"/auth/callback")
-    {:ok, url} = Accounts.get_oauth_authorization_url(provider, redirect_uri)
-    redirect(conn, external: url)
+
+    case Accounts.get_oauth_authorization_url(provider, redirect_uri) do
+      {:ok, url} ->
+        redirect(conn, external: url)
+
+      {:error, "Unsupported provider: " <> _reason} ->
+        send_resp(conn, :not_found, "Not Found")
+    end
   end
 
   def callback(conn, %{"code" => code}) do
@@ -114,11 +120,16 @@ defmodule FrontmanServerWeb.OAuthController do
   def link_request(%{assigns: %{current_scope: %{user: _user}}} = conn, %{"provider" => provider}) do
     redirect_uri = url(~p"/auth/link/callback")
     state = generate_state_token()
-    {:ok, url} = Accounts.get_oauth_authorization_url(provider, redirect_uri, state)
 
-    conn
-    |> put_session(:oauth_state, state)
-    |> redirect(external: url)
+    case Accounts.get_oauth_authorization_url(provider, redirect_uri, state) do
+      {:ok, url} ->
+        conn
+        |> put_session(:oauth_state, state)
+        |> redirect(external: url)
+
+      {:error, "Unsupported provider: " <> _reason} ->
+        send_resp(conn, :not_found, "Not Found")
+    end
   end
 
   def link_callback(%{assigns: %{current_scope: %{user: user}}} = conn, %{
