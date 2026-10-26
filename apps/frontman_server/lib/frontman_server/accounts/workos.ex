@@ -56,9 +56,8 @@ defmodule FrontmanServer.Accounts.WorkOS do
     {:ok, WorkOS.UserManagement.get_authorization_url(workos_client(), opts)}
   end
 
-  def get_authorization_url(provider, _redirect_uri, _state) do
-    {:error,
-     "Unsupported provider: #{provider}. Supported: #{Enum.join(@supported_providers, ", ")}"}
+  def get_authorization_url(_provider, _redirect_uri, _state) do
+    {:error, :unsupported_provider}
   end
 
   @doc """
@@ -199,9 +198,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
     end
   end
 
-  def unlink_provider(%User{}, provider) do
-    {:error, "Unsupported provider: #{provider}"}
-  end
+  def unlink_provider(%User{}, _provider), do: {:error, :unsupported_provider}
 
   @doc """
   Lists all OAuth identities for a user.
