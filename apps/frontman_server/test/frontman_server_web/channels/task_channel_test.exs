@@ -990,75 +990,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:ok, socket: socket, task_id: task_id, scope: scope}
     end
 
-    for response_kind <- [:result, :error] do
-      test "correlates dispatch and #{response_kind} without private content", context do
-        %{socket: socket, task_id: task_id, scope: scope} = context
-        previous_level = Logger.level()
-        Logger.configure(level: :info)
-        on_exit(fn -> Logger.configure(level: previous_level) end)
-        call = tool_call("diagnostic-call", "consoleLog", %{"message" => "private-input-marker"})
-        register_tool_receiver(task_id, call.tool_call_id)
-        turn_number = start_turn_fixture(scope, task_id)
-
-        log =
-          capture_log([level: :info, metadata: :all], fn ->
-            persist_tool_call_fixture(scope, task_id, turn_number, call)
-            assert_push("mcp:message", %{"method" => "tools/call", "id" => request_id})
-
-            response =
-              case unquote(response_kind) do
-                :result ->
-                  JsonRpc.success_response(
-                    request_id,
-                    MCP.tool_result_text("private-output-marker")
-                  )
-
-                :error ->
-                  JsonRpc.error_response(request_id, -32_000, "private-error-marker")
-              end
-
-            push(socket, "mcp:message", response)
-            :sys.get_state(socket.channel_pid)
-
-            assert_receive {:tool_result, "diagnostic-call", _, _}
-
-            send(self(), {:diagnostic_request_id, request_id})
-          end)
-
-        assert_receive {:diagnostic_request_id, request_id}
-        assert log =~ "MCP tool request pushed"
-        assert log =~ "MCP tool response received"
-
-        correlated_lines =
-          log
-          |> String.split("\n")
-          |> Enum.filter(
-            &String.contains?(&1, ["MCP tool request pushed", "MCP tool response received"])
-          )
-
-        assert length(correlated_lines) == 2
-        assert Enum.all?(correlated_lines, &String.contains?(&1, "mcp_request_id=#{request_id}"))
-        assert Enum.all?(correlated_lines, &String.contains?(&1, "tool_call_id=diagnostic-call"))
-        assert log =~ "tool_call_id=diagnostic-call"
-        assert log =~ "response_kind=#{unquote(response_kind)}"
-        assert log =~ "stage=dispatch"
-        assert log =~ "stage=response"
-        assert log =~ "stage=completion"
-        refute log =~ "private-input-marker"
-        refute log =~ "private-output-marker"
-        refute log =~ "private-error-marker"
-
-        duplicate_log =
-          capture_log([level: :info], fn ->
-            push(socket, "mcp:message", JsonRpc.success_response(request_id, %{}))
-            :sys.get_state(socket.channel_pid)
-          end)
-
-        assert duplicate_log =~ "Received MCP response for unknown request"
-        refute duplicate_log =~ "MCP tool response received"
-      end
-    end
-
     test "extracts text content from MCP tool result", %{
       socket: socket,
       task_id: task_id,
@@ -1460,12 +1391,19 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
 
     test "accepts valid MCP response", %{socket: socket, task_id: task_id, scope: scope} do
-      tool_call = tool_call("call_valid_test", "testTool")
+      previous_level = Logger.level()
+      Logger.configure(level: :info)
+      on_exit(fn -> Logger.configure(level: previous_level) end)
+      tool_call = tool_call("call_valid_test", "testTool", %{"private" => "private-input-marker"})
       tool_call_id = tool_call.tool_call_id
       turn_number = start_turn_fixture(scope, task_id)
       register_tool_receiver(task_id, tool_call.tool_call_id)
 
-      {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
+      dispatch_log =
+        capture_log([level: :info, metadata: :all], fn ->
+          {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
+          :sys.get_state(socket.channel_pid)
+        end)
 
       assert_push("mcp:message", %{
         "method" => "tools/call",
@@ -1478,6 +1416,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
 
       assert is_integer(mcp_request_id)
+      assert dispatch_log =~ "MCP tool request pushed"
+      assert dispatch_log =~ "mcp_request_id=#{mcp_request_id}"
+      assert dispatch_log =~ "tool_call_id=#{tool_call_id}"
+      refute dispatch_log =~ "private-input-marker"
 
       image_data =
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
@@ -1489,11 +1431,15 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         |> Map.put("_meta", %{"envApiKey" => "sk-fake-valid-mcp-marker"})
 
       log =
-        capture_log([level: :info], fn ->
+        capture_log([level: :info, metadata: :all], fn ->
           push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, mcp_result))
           :sys.get_state(socket.channel_pid)
         end)
 
+      assert log =~ "MCP tool response received"
+      assert log =~ "mcp_request_id=#{mcp_request_id}"
+      assert log =~ "tool_call_id=#{tool_call_id}"
+      assert log =~ "response_kind=result"
       refute log =~ "sk-fake-valid-mcp-marker"
       refute log =~ "envApiKey"
 
@@ -2086,8 +2032,26 @@ defmodule FrontmanServerWeb.TaskChannelTest do
                    false
                end)
 
-      push(socket, "mcp:message", JsonRpc.error_response(mcp_request_id, -32_000, "Tool failed"))
-      :sys.get_state(socket.channel_pid)
+      previous_level = Logger.level()
+      Logger.configure(level: :info)
+      on_exit(fn -> Logger.configure(level: previous_level) end)
+
+      log =
+        capture_log([level: :info, metadata: :all], fn ->
+          push(
+            socket,
+            "mcp:message",
+            JsonRpc.error_response(mcp_request_id, -32_000, "Tool failed")
+          )
+
+          :sys.get_state(socket.channel_pid)
+        end)
+
+      assert log =~ "MCP tool response received"
+      assert log =~ "mcp_request_id=#{mcp_request_id}"
+      assert log =~ "tool_call_id=#{tool_call_id}"
+      assert log =~ "response_kind=error"
+      refute log =~ "Tool failed"
 
       assert_receive {:resumed_model, %LLMDB.Model{id: "openai/gpt-5.5"}}, 1_000
 

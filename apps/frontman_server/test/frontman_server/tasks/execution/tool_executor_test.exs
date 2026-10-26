@@ -143,58 +143,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
   end
 
   describe "callback/5" do
-    test "retains configured target and deadline on timeout without private arguments", context do
-      %{scope: scope, task_id: task_id, turn_number: turn_number} = context
-      previous_level = Logger.level()
-      Logger.configure(level: :debug)
-      on_exit(fn -> Logger.configure(level: previous_level) end)
-      Sentry.Test.setup_sentry(dedup_events: false)
-
-      mcp = %{MCP.from_map(%{"name" => "diagnostic_tool"}) | timeout_ms: 600_000}
-
-      for {name, tool, target, timeout_ms} <- [
-            {FiniteTool.name(), FiniteTool, :backend, 30_000},
-            {mcp.name, mcp, :mcp, 600_000}
-          ] do
-        call = %SwarmAi.ToolCall{
-          id: "diagnostic_#{target}",
-          name: name,
-          arguments: ~s({"private":"diagnostic-private-input"})
-        }
-
-        log =
-          ExUnit.CaptureLog.capture_log([level: :debug, metadata: :all], fn ->
-            {:serial, [execution]} =
-              ToolExecutor.callback(scope, %{name => tool}, :serial, task_id, turn_number).([
-                call
-              ])
-
-            assert execution.timeout_ms == timeout_ms
-            {module, function, args} = execution.on_error
-            result = apply(module, function, args ++ [:timeout, call])
-            assert result.is_error
-            assert hd(result.content).text =~ "do not blindly retry mutations"
-          end)
-
-        assert log =~ "Tool execution configured"
-        assert log =~ "tool_call_id=#{call.id}"
-        assert log =~ "timeout_ms=#{timeout_ms}"
-        assert log =~ "target=#{target}"
-        refute log =~ "diagnostic-private-input"
-
-        assert [report] = Sentry.Test.pop_sentry_reports()
-        assert report.tags[:error_type] == "tool_timeout"
-        assert report.message.formatted == "Tool execution failed"
-        assert report.extra[:logger_metadata][:timeout_ms] == timeout_ms
-        assert report.extra[:logger_metadata][:target] == target
-        assert report.extra[:logger_metadata][:tool_call_id] == call.id
-        refute inspect(report) =~ "diagnostic-private-input"
-
-        {:ok, task} = Tasks.get_task_with_history(scope, task_id)
-        assert [%Interaction.ToolResult{is_error: true}] = tool_results(task, call.id)
-      end
-    end
-
     test "runs available and unavailable tools in serial and parallel", context do
       %{scope: scope, task_id: task_id, turn_number: turn_number} = context
 

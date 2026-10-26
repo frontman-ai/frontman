@@ -18,8 +18,6 @@ defmodule FrontmanServer.Application do
     :error_type,
     :tool_name,
     :tool_call_id,
-    :target,
-    :timeout_ms,
     :task_id,
     :user_id,
     :user_name,

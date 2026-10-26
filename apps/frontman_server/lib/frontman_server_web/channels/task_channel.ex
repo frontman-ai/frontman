@@ -465,7 +465,6 @@ defmodule FrontmanServerWeb.TaskChannel do
     Logger.info("MCP tool response received",
       mcp_request_id: request_id,
       tool_call_id: tool_call_id,
-      stage: :response,
       response_kind: response_kind
     )
   end
@@ -528,12 +527,7 @@ defmodule FrontmanServerWeb.TaskChannel do
           )
 
         push(socket, @acp_message, notification)
-
-        Logger.info("Tool #{interaction.tool_name} #{status}",
-          tool_call_id: interaction.tool_call_id,
-          stage: :completion,
-          outcome: status
-        )
+        Logger.info("Tool #{interaction.tool_name} #{status}")
 
         resume_after_tool_result(executor_status, socket, scope, task_id)
 
@@ -1206,8 +1200,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     Logger.info("MCP tool request pushed",
       mcp_request_id: request_id,
-      tool_call_id: tool_call.tool_call_id,
-      stage: :dispatch
+      tool_call_id: tool_call.tool_call_id
     )
 
     {:noreply, socket}
