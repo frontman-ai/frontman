@@ -165,9 +165,9 @@ config :frontman_server, FrontmanServer.Mailer,
 
 config :frontman_server, FrontmanServer.Workers.SendWelcomeEmail, enabled: false
 
-config :frontman_server, FrontmanServer.Workers.SyncResendContact,
-  enabled: false,
-  req_options: []
+config :frontman_server, FrontmanServer.Workers.SyncResendContact, enabled: false
+
+config :frontman_server, FrontmanServer.ResendClient, req_options: []
 
 config :frontman_server, FrontmanServer.Workers.EnterActivationCampaign,
   enabled: false,

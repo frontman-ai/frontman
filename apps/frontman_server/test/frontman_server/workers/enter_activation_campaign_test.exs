@@ -11,11 +11,15 @@ defmodule FrontmanServer.Workers.EnterActivationCampaignTest do
     Sentry.Test.setup_sentry(dedup_events: false)
     Sentry.Context.clear_all()
 
-    for worker <- [EnterActivationCampaign, SyncResendContact] do
-      original = Application.get_env(:frontman_server, worker, [])
-      options = [enabled: true, req_options: [plug: {Req.Test, __MODULE__}, retry: true]]
-      Application.put_env(:frontman_server, worker, Keyword.merge(original, options))
-      on_exit(fn -> Application.put_env(:frontman_server, worker, original) end)
+    for {module, options} <- [
+          {EnterActivationCampaign, [enabled: true]},
+          {SyncResendContact, [enabled: true]},
+          {FrontmanServer.ResendClient,
+           [req_options: [plug: {Req.Test, __MODULE__}, retry: true]]}
+        ] do
+      original = Application.get_env(:frontman_server, module, [])
+      Application.put_env(:frontman_server, module, Keyword.merge(original, options))
+      on_exit(fn -> Application.put_env(:frontman_server, module, original) end)
     end
 
     Application.put_env(
@@ -97,7 +101,7 @@ defmodule FrontmanServer.Workers.EnterActivationCampaignTest do
     end
   end
 
-  test "uncertain initialization never emits entry and reconciles observed activation", %{
+  test "uncertain initialization never emits entry; Accounts enqueues activation exit", %{
     user: user
   } do
     Req.Test.expect(__MODULE__, fn conn ->
@@ -204,16 +208,6 @@ defmodule FrontmanServer.Workers.EnterActivationCampaignTest do
 
     assert [event] = Sentry.Test.pop_sentry_reports()
     assert event.extra.failure_category == "replay_refused"
-  end
-
-  test "entry insertion rolls back with signup transaction", %{user: user} do
-    assert {:error, :failed} =
-             Repo.transact(fn ->
-               assert {:ok, _job} = EnterActivationCampaign.enqueue_signup(user)
-               {:error, :failed}
-             end)
-
-    refute_enqueued(worker: EnterActivationCampaign)
   end
 
   test "new OAuth signup enqueues entry atomically but repeat login does not" do

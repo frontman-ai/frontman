@@ -76,9 +76,7 @@ config :paper_tiger,
 
 config :frontman_server, FrontmanServer.Workers.SendWelcomeEmail, enabled: true
 
-config :frontman_server, FrontmanServer.Workers.SyncResendContact,
-  enabled: true,
-  req_options: []
+config :frontman_server, FrontmanServer.Workers.SyncResendContact, enabled: true
 
 config :frontman_server, FrontmanServer.Workers.NotifyDiscordNewUser,
   enabled: true,

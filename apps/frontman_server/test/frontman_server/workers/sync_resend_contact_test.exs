@@ -18,16 +18,16 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
       Application.put_env(:frontman_server, EnterActivationCampaign, original_campaign)
     end)
 
-    original_config = Application.get_env(:frontman_server, SyncResendContact, [])
+    original_config = Application.get_env(:frontman_server, FrontmanServer.ResendClient, [])
 
     Application.put_env(
       :frontman_server,
-      SyncResendContact,
-      Keyword.put(original_config, :req_options, plug: {Req.Test, :resend}, retry: false)
+      FrontmanServer.ResendClient,
+      Keyword.put(original_config, :req_options, plug: {Req.Test, :resend}, retry: true)
     )
 
     on_exit(fn ->
-      Application.put_env(:frontman_server, SyncResendContact, original_config)
+      Application.put_env(:frontman_server, FrontmanServer.ResendClient, original_config)
     end)
 
     :ok
@@ -183,6 +183,7 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
         payload = Jason.decode!(body)
 
         assert payload["email"] == user.email
+        assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer re_test_key"]
         assert payload["first_name"] == "Steve"
         refute Map.has_key?(payload, "unsubscribed")
         assert payload["segments"] == [%{"id" => "5786d8bb-df16-413c-a06d-64d1a579cc2f"}]
@@ -194,31 +195,7 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
       assert :ok = perform_job(SyncResendContact, %{user_id: user.id})
     end
 
-    test "sends the correct Authorization header" do
-      user = Accounts.user_fixture()
-
-      Req.Test.stub(:resend, fn conn ->
-        auth = Plug.Conn.get_req_header(conn, "authorization")
-        assert auth == ["Bearer re_test_key"]
-        Req.Test.json(conn, %{"object" => "contact", "id" => "abc-123"})
-      end)
-
-      assert :ok = perform_job(SyncResendContact, %{user_id: user.id})
-    end
-
-    test "extracts first name from full name" do
-      user = Accounts.user_fixture(%{name: "Ada Lovelace"})
-
-      Req.Test.stub(:resend, fn conn ->
-        {:ok, body, conn} = Plug.Conn.read_body(conn)
-        assert Jason.decode!(body)["first_name"] == "Ada"
-        Req.Test.json(conn, %{"object" => "contact", "id" => "abc-123"})
-      end)
-
-      assert :ok = perform_job(SyncResendContact, %{user_id: user.id})
-    end
-
-    test "returns error tuple on non-2xx response" do
+    test "returns error tuple on final generic failure without activation reporting" do
       user = Accounts.user_fixture()
 
       Req.Test.stub(:resend, fn conn ->
@@ -227,7 +204,14 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
         |> Plug.Conn.send_resp(422, Jason.encode!(%{"message" => "invalid"}))
       end)
 
-      assert {:error, _reason} = perform_job(SyncResendContact, %{user_id: user.id})
+      assert {:error, _reason} =
+               SyncResendContact.perform(%Oban.Job{
+                 attempt: 5,
+                 max_attempts: 5,
+                 args: %{"user_id" => user.id}
+               })
+
+      assert [] == Sentry.Test.pop_sentry_reports()
     end
 
     test "returns transport errors" do
