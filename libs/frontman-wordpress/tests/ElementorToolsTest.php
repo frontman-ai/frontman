@@ -108,6 +108,12 @@ if ( ! function_exists( 'sanitize_text_field' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_check_invalid_utf8' ) ) {
+	function wp_check_invalid_utf8( $value ): string {
+		return 1 === preg_match( '//u', $value ) ? $value : '';
+	}
+}
+
 if ( ! function_exists( 'wp_kses_post' ) ) {
 	function wp_kses_post( $value ): string {
 		return (string) $value;
@@ -245,6 +251,9 @@ class Frontman_Elementor_Tools_Test_Runner {
 		$this->test_compact_widget_pages();
 		$this->test_rollback_invalid_encoding_and_id();
 		$this->test_generate_element();
+		$this->test_search_layout_context();
+		$this->test_creation_subtrees();
+		$this->test_creation_settings_objects();
 
 		fwrite( STDOUT, "OK ({$this->assertions} assertions)\n" );
 	}
@@ -1095,6 +1104,228 @@ class Frontman_Elementor_Tools_Test_Runner {
 		$this->assert_same( 'widget', $element['elType'], 'Generated heading is a widget' );
 		$this->assert_same( 'heading', $element['widgetType'], 'Generated heading has widget type' );
 		$this->assert_same( 'Generated', $element['settings']['title'], 'Generated heading uses title' );
+	}
+
+	private function test_search_layout_context(): void {
+		$node = static function( $id, $type, $settings = [], $children = [] ) {
+			return [ 'id' => $id, 'elType' => $type, 'widgetType' => 'button', 'settings' => $settings, 'elements' => $children ];
+		};
+		$leaf = $node( 'leaf', 'widget', [
+			'text' => 'Book Demo', 'items' => [ [ 'label' => 'Book Demo' ] ],
+			'button_text_color' => '#fff', 'text_color_mobile' => '#000',
+			'title_color' => [ 'invalid' ], 'html' => str_repeat( 'x', 20000 ),
+			'__globals__' => [ 'background_color_tablet' => 'globals/colors?id=primary', 'html' => 'private' ],
+		] );
+		$tree = [
+			$node( 'root', 'section', [ 'title' => 'Book Demo' ] ),
+			$node( 'outer', 'container', [ 'flex_direction' => 'row' ], [
+				$node( 'nested', 'container', [ 'flex_direction_mobile' => 'column', '__globals__' => [ 'text_color' => 'globals/colors?id=secondary' ] ], [
+					$node( 'spacer', 'widget' ),
+					$node( 'wrapper', 'widget', [], [ $leaf ] ),
+				] ),
+				$node( 'column', 'column', [ 'flex_wrap' => 'wrap' ], [ $node( 'legacy', 'widget', [ 'text' => 'Book Demo' ] ) ] ),
+			] ),
+		];
+		$GLOBALS['frontman_test_posts'][101] = new WP_Post( 101, 'Context', 'context', 'publish', 'context_test' );
+		$GLOBALS['frontman_test_meta'][101]['_elementor_data'] = wp_json_encode( $tree );
+		$input = [ 'post_type' => 'context_test', 'text_search' => 'Book Demo' ];
+		$old = $this->call_success( 'wp_elementor_list_pages', $input );
+		$this->assert_same( $old, $this->call_success( 'wp_elementor_list_pages', $input + [ 'include_context' => false ] ), 'False preserves exact search shape' );
+		$this->assert_true( ! isset( $old['pages'][0]['element_contexts'] ), 'Absent context preserves old shape' );
+		$listing = [ 'post_type' => 'context_test' ];
+		$this->assert_same( $this->call_success( 'wp_elementor_list_pages', $listing ), $this->call_success( 'wp_elementor_list_pages', $listing + [ 'include_context' => false ] ), 'False preserves ordinary listing' );
+		$enabled = $input + [ 'include_context' => true ];
+		$this->assert_same( $enabled, $this->tools->sanitize_input( 'wp_elementor_list_pages', $enabled ), 'Schema preserves search context inputs' );
+		$page = $this->call_success( 'wp_elementor_list_pages', $enabled )['pages'][0];
+		$this->assert_same( $old['pages'][0]['matches'], $page['matches'], 'Matches remain complete and unchanged' );
+		$this->assert_same( 3, count( $page['element_contexts'] ), 'Multiple settings yield one context' );
+		$contexts = $page['element_contexts'];
+		$this->assert_same( [ null, null, 0, null ], [ $contexts['root']['parent_id'], $contexts['root']['container_id'], $contexts['root']['position'], $contexts['root']['widget_type'] ], 'Root context has no ancestors or widget type' );
+		$this->assert_same( [ 'wrapper', 'nested', 0 ], [ $contexts['leaf']['parent_id'], $contexts['leaf']['container_id'], $contexts['leaf']['position'] ], 'Widget beneath widget retains immediate parent and nearest container' );
+		$this->assert_same( [ 'column', 'column' ], [ $contexts['legacy']['parent_id'], $contexts['legacy']['container_id'] ], 'Legacy column is a layout ancestor' );
+		$this->assert_same( [ 'button_text_color' => '#fff', 'text_color_mobile' => '#000', 'global_style_refs' => [ 'background_color_tablet' => 'globals/colors?id=primary' ] ], $contexts['leaf']['stored_settings'], 'Projection excludes text, trees, invalid styles and unrelated globals' );
+		$this->assert_same( [ 'flex_direction_mobile' => 'column', 'global_style_refs' => [ 'text_color' => 'globals/colors?id=secondary' ] ], $contexts['leaf']['container_stored_settings'], 'Same projection preserves container overrides without defaults' );
+		$raw = $this->tools->call( 'wp_elementor_list_pages', $enabled );
+		$decoded = json_decode( $raw['content'][0]['text'] );
+		$this->assert_true( $decoded->pages[0]->element_contexts instanceof stdClass && $decoded->pages[0]->element_contexts->root->stored_settings instanceof stdClass && $decoded->pages[0]->element_contexts->root->container_stored_settings instanceof stdClass, 'Context and empty settings encode as objects' );
+		$this->assert_true( false !== strpos( $this->call_error( 'wp_elementor_list_pages', $listing + [ 'include_context' => true ] ), 'requires text_search' ), 'Context requires search' );
+		// Make the second sibling match, verifying its actual sibling index.
+		$tree[1]['elements'][0]['elements'][1]['settings']['text'] = 'Book Demo';
+		$GLOBALS['frontman_test_meta'][101]['_elementor_data'] = wp_json_encode( $tree );
+		$page = $this->call_success( 'wp_elementor_list_pages', $enabled )['pages'][0];
+		$this->assert_same( 1, $page['element_contexts']['wrapper']['position'], 'Position is zero-based within siblings' );
+		foreach ( [ [], [ 'text' => 'Book Demo' ] ] as $duplicate_settings ) {
+			$duplicate_tree = $tree;
+			$duplicate_tree[1]['elements'][1]['elements'][] = $node( 'leaf', 'widget', $duplicate_settings );
+			$GLOBALS['frontman_test_meta'][101]['_elementor_data'] = wp_json_encode( $duplicate_tree );
+			$this->assert_true( false !== strpos( $this->call_error( 'wp_elementor_list_pages', $enabled ), 'Context is ambiguous' ), 'Duplicate IDs across parents reject context even when nonmatching' );
+			$this->assert_same( 5 + ( $duplicate_settings ? 1 : 0 ), count( $this->call_success( 'wp_elementor_list_pages', $input )['pages'][0]['matches'] ), 'Ordinary duplicate search remains compatible' );
+		}
+		$GLOBALS['frontman_test_meta'][101]['_elementor_data'] = wp_json_encode( [
+			[ 'elType' => 'container', 'settings' => [], 'elements' => [ $node( 'child', 'widget', [ 'text' => 'Find me' ] ) ] ],
+		] );
+		$missing_id_input = array_replace( $input, [ 'text_search' => 'Find me' ] );
+		$missing_id_page = $this->call_success( 'wp_elementor_list_pages', $missing_id_input )['pages'][0];
+		$this->assert_same( [ [ 'element_id' => 'child', 'setting_path' => [ 'settings', 'text' ], 'excerpt' => 'Find me' ] ], $missing_id_page['matches'], 'Ordinary search preserves matches below an ancestor without an ID' );
+		$this->assert_true( false !== strpos( $this->call_error( 'wp_elementor_list_pages', $missing_id_input + [ 'include_context' => true ] ), 'missing or duplicate Elementor element ID' ), 'Context clearly rejects an ancestor without an ID' );
+		unset( $GLOBALS['frontman_test_posts'][101], $GLOBALS['frontman_test_meta'][101] );
+	}
+
+	private function test_creation_subtrees(): void {
+		$button = [ 'elType' => 'widget', 'widgetType' => 'button', 'settings' => [], 'elements' => [] ];
+		$nested = [ 'elType' => 'container', 'elements' => [ [ 'elType' => 'container', 'elements' => [ $button ] ] ] ];
+		$before = Frontman_Elementor_Data::get_page_data( 47 );
+		$writes = 0;
+		$GLOBALS['frontman_test_update_meta_callbacks'][] = static function ( $post_id, $key, $value ) use ( &$writes ): void {
+			if ( '_elementor_data' === $key ) {
+				++$writes;
+			}
+		};
+		try {
+			$input = $this->tools->sanitize_input( 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $nested ] );
+			$added = $this->call_success( 'wp_elementor_add_element', $input );
+			$this->assert_same( 1, $writes, 'Nested insertion saves the page once' );
+			$data = Frontman_Elementor_Data::get_page_data( 47 );
+			$root = end( $data );
+			$ids = [ $root['id'], $root['elements'][0]['id'], $root['elements'][0]['elements'][0]['id'] ];
+			$this->assert_same( $root['id'], $added['element_id'], 'Response ID matches storage' );
+			$this->assert_same( 3, count( array_unique( $ids ) ), 'All nested IDs are unique' );
+			foreach ( $ids as $id ) {
+				$this->assert_true( '' !== trim( $id ), 'Generated ID is nonempty' );
+				$this->assert_same( null, Frontman_Elementor_Data::get_element( $before, $id ), 'Generated ID avoids page IDs' );
+			}
+			$snapshots = json_decode( get_post_meta( 47, '_frontman_elementor_rollbacks', true ), true );
+			$this->assert_same( $before, $snapshots[0]['data'], 'Snapshot strictly preserves original decoded tree' );
+			$this->call_success( 'wp_elementor_restore_rollback', [ 'post_id' => 47, 'rollback_id' => $added['rollback_id'], 'confirm' => true ] );
+			$this->assert_same( json_decode( wp_json_encode( $before ), true ), Frontman_Elementor_Data::get_page_data( 47 ), 'Rollback restores original contents' );
+
+			$mixed = $nested;
+			$mixed['id'] = '0';
+			$mixed['elements'][0]['elements'][0]['id'] = ' supplied ';
+			$added = $this->call_success( 'wp_elementor_add_element', $this->tools->sanitize_input( 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $mixed ] ) );
+			$this->assert_same( '0', $added['element_id'], 'Zero ID remains in response' );
+			$stored = Frontman_Elementor_Data::get_element( Frontman_Elementor_Data::get_page_data( 47 ), '0' );
+			$this->assert_same( ' supplied ', $stored['elements'][0]['elements'][0]['id'], 'Supplied ID remains exact' );
+			$move = $this->call_success( 'wp_elementor_move_element', [ 'post_id' => 47, 'element_id' => '0', 'parent_id' => 'root4710' ] );
+			$this->assert_same( '0', Frontman_Elementor_Data::get_page_data( 47 )[1]['elements'][0]['id'], 'Move preserves zero ID' );
+			$this->call_success( 'wp_elementor_restore_rollback', [ 'post_id' => 47, 'rollback_id' => $move['rollback_id'], 'confirm' => true ] );
+			$this->assert_true( null !== Frontman_Elementor_Data::get_element( Frontman_Elementor_Data::get_page_data( 47 ), '0' ), 'Restore preserves zero ID' );
+			$invalids = [
+				[ 'elType' => 'widget' ],
+				[ 'elType' => 'container', 'elements' => 'bad' ],
+				[ 'elType' => 'container', 'elements' => [ 'bad' ] ],
+				[ 'elType' => 'container', 'settings' => null ],
+				[ 'elType' => 'container', 'id' => 1 ],
+				[ 'elType' => 'container', 'id' => null ],
+				[ 'elType' => 'container', 'id' => '0' ],
+				[ 'elType' => 'container', 'id' => 'dup', 'elements' => [ $button + [ 'id' => 'dup' ] ] ],
+			];
+			foreach ( $invalids as $invalid ) {
+				$meta = $GLOBALS['frontman_test_meta'][47];
+				$count = $writes;
+				$error = $this->call_error( 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $invalid ] );
+				$this->assert_true( false !== strpos( $error, 'element' ) && false === strpos( $error, 'complete returned data' ), 'Creation error identifies subtree without replacement advice' );
+				$this->assert_same( $count, $writes, 'Invalid input causes no page writes' );
+				$this->assert_same( $meta, $GLOBALS['frontman_test_meta'][47], 'Invalid input causes no snapshot writes' );
+			}
+			foreach ( [
+				[ 'wp_elementor_add_element', [ 'element' => [ 'elType' => 'container', 'elements' => false ] ] ],
+				[ 'wp_elementor_generate_element', [ 'type' => 'row', 'children' => false ] ],
+				[ 'wp_elementor_generate_element', [ 'type' => 'row', 'children' => [ [ 'elType' => 'container', 'elements' => null ] ] ] ],
+			] as [ $name, $input ] ) {
+				$meta = $GLOBALS['frontman_test_meta'][47];
+				$count = $writes;
+				$this->call_error( $name, $input + [ 'post_id' => 47 ] );
+				$rejected = false;
+				try {
+					$this->tools->sanitize_input( $name, $input );
+				} catch ( Frontman_Tool_Error $error ) {
+					$rejected = true;
+				}
+				$this->assert_true( $rejected, 'Production sanitizer rejects malformed creation shapes' );
+				$this->assert_same( $count, $writes, 'Malformed creation causes no page writes' );
+				$this->assert_same( $meta, $GLOBALS['frontman_test_meta'][47], 'Malformed creation leaves snapshots unchanged' );
+			}
+			$meta = $GLOBALS['frontman_test_meta'][47];
+			$count = $writes;
+			$this->call_error( 'wp_elementor_add_element', [ 'post_id' => 47, 'parent_id' => 'absent', 'element' => $nested ] );
+			$this->assert_same( $meta, $GLOBALS['frontman_test_meta'][47], 'Unknown parent leaves metadata unchanged' );
+			$GLOBALS['frontman_test_reject_rollback_write'] = true;
+			try {
+				$this->call_error( 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $nested ] );
+			} finally {
+				$GLOBALS['frontman_test_reject_rollback_write'] = false;
+			}
+			$this->assert_same( $count, $writes, 'Snapshot failure prevents insertion page write' );
+			$row = $this->call_success( 'wp_elementor_generate_element', $this->tools->sanitize_input( 'wp_elementor_generate_element', [ 'type' => 'row', 'children' => [ $button ] ] ) );
+			$this->assert_true( '' !== $row['elements'][0]['id'], 'Generator prepares ID-less children' );
+			$this->call_success( 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $row ] );
+		} finally {
+			$GLOBALS['frontman_test_update_meta_callbacks'] = [];
+		}
+
+		$method = new ReflectionMethod( Frontman_Tool_Elementor::class, 'prepare_new_subtree' );
+		if ( PHP_VERSION_ID < 80100 ) {
+			$method->setAccessible( true );
+		}
+		$sequence = [ 'existing', 'later', 'fresh', 'child' ];
+		$tree = [ 'elType' => 'container', 'elements' => [ $button, $button + [ 'id' => 'later' ] ] ];
+		$result = $method->invoke( new Frontman_Tool_Elementor(), $tree, [ [ 'id' => 'existing' ] ], static function () use ( &$sequence ) { return array_shift( $sequence ); } );
+		$this->assert_same( 'fresh', $result['id'], 'Generated root retries existing and later supplied collisions' );
+		$this->assert_same( 'child', $result['elements'][0]['id'], 'Missing child gets next unique ID' );
+		$this->assert_same( 'later', $result['elements'][1]['id'], 'Later supplied child stays unchanged' );
+		$attempts = 0;
+		$failed = false;
+		try {
+			$method->invoke( new Frontman_Tool_Elementor(), $tree, [], static function () use ( &$attempts ) { ++$attempts; return 'later'; } );
+		} catch ( Frontman_Tool_Error $error ) {
+			$failed = true;
+		}
+		$this->assert_true( $failed, 'Exhausted collisions reject preparation' );
+		$this->assert_same( 16, $attempts, 'Collision retry is bounded' );
+	}
+
+	private function test_creation_settings_objects(): void {
+		$before = $GLOBALS['frontman_test_meta'][47];
+		$callbacks = $GLOBALS['frontman_test_update_meta_callbacks'];
+		$events = [];
+		$GLOBALS['frontman_test_update_meta_callbacks'] = [ static function ( $id, $key ) use ( &$events ): void {
+			if ( 47 === $id && in_array( $key, [ '_elementor_data', '_frontman_elementor_rollbacks' ], true ) ) {
+				$events[] = $key;
+			}
+		} ];
+		try {
+			$button = [ 'elType' => 'widget', 'widgetType' => 'button', 'settings' => [] ];
+			$invalid_root = array_replace( $button, [ 'settings' => [ 'bad' ] ] );
+			$invalid_descendant = [ 'elType' => 'container', 'settings' => [], 'elements' => [ $invalid_root ] ];
+			$cases = [ [ 'wp_elementor_generate_element', [ 'type' => 'row', 'settings' => [ 'bad' ] ] ] ];
+			foreach ( [ $invalid_root, $invalid_descendant ] as $element ) {
+				$cases[] = [ 'wp_elementor_add_element', [ 'element' => $element ] ];
+				$cases[] = [ 'wp_elementor_generate_element', [ 'type' => 'row', 'children' => [ $element ] ] ];
+			}
+			foreach ( $cases as [ $name, $input ] ) {
+				$input['post_id'] = 47;
+				$error = $this->call_error( $name, $input );
+				$this->assert_true( false !== strpos( $error, 'settings must be an object' ), 'Direct creation rejects list-valued settings' );
+				$this->assert_same( $before, $GLOBALS['frontman_test_meta'][47], 'Direct rejection preserves page and snapshots' );
+				$rejected = false;
+				try {
+					$this->tools->sanitize_input( $name, $input );
+				} catch ( Frontman_Tool_Error $error ) {
+					$rejected = true;
+				}
+				$this->assert_true( $rejected, 'Raw guard rejects list-valued settings before sanitization' );
+				$this->assert_same( $before, $GLOBALS['frontman_test_meta'][47], 'Raw rejection preserves page and snapshots' );
+				$this->assert_same( [], $events, 'Malformed settings cause no page or snapshot writes' );
+			}
+			$generated = $this->call_success( 'wp_elementor_generate_element', $this->tools->sanitize_input( 'wp_elementor_generate_element', [ 'type' => 'row', 'settings' => [], 'children' => [ $button ] ] ) );
+			$this->assert_same( [], $generated['elements'][0]['settings'], 'Empty decoded settings objects remain valid in descendants' );
+			$added = $this->call_success( 'wp_elementor_add_element', $this->tools->sanitize_input( 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $button ] ) );
+			$this->assert_same( [], Frontman_Elementor_Data::get_element( Frontman_Elementor_Data::get_page_data( 47 ), $added['element_id'] )['settings'], 'Empty decoded settings objects remain valid for add' );
+		} finally {
+			$GLOBALS['frontman_test_meta'][47] = $before;
+			$GLOBALS['frontman_test_update_meta_callbacks'] = $callbacks;
+		}
 	}
 
 	private function call_success( string $name, array $input ): array {

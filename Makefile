@@ -121,6 +121,7 @@ HELP_release := Create a release PR from pending changesets
 HELP_package-wordpress-plugin := Build WordPress ZIP and WordPress.org bundle
 HELP_publish-wordpress-plugin-svn := Publish WordPress.org bundle to SVN (requires WORDPRESS_ORG_* env vars)
 HELP_test-wordpress-core-tools := Run PHP tests for WordPress tool implementations
+HELP_test-wordpress-elementor := Run focused Elementor PHP tests
 HELP_test-wordpress-runtime := Run plugin integration tests in WordPress containers
 HELP_build-wordpress-dependencies := Bundle the locked PHP SDK (Docker, or CONTAINER_RUNTIME=podman)
 HELP_wordpress-composer-lock := Update PHP dependencies while preserving PHP 7.4 compatibility
@@ -604,6 +605,15 @@ test-wordpress-plugin-export: package-wordpress-plugin
 
 publish-wordpress-plugin-svn: package-wordpress-plugin
 	@VERSION=$(VERSION) bash ./scripts/publish-wordpress-plugin-svn.sh
+
+.PHONY: test-wordpress-elementor
+HELP_REL_TARGETS += test-wordpress-elementor
+test-wordpress-elementor:
+	php -l libs/frontman-wordpress/includes/class-frontman-elementor-data.php
+	php -l libs/frontman-wordpress/includes/class-frontman-tools.php
+	php -l libs/frontman-wordpress/tools/class-tool-elementor.php
+	php -l libs/frontman-wordpress/tests/ElementorToolsTest.php
+	php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/ElementorToolsTest.php
 
 test-wordpress-core-tools: build-wordpress-dependencies
 	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/ToolRegistryTest.php
