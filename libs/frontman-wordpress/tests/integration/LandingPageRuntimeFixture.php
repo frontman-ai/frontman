@@ -1,6 +1,9 @@
 <?php
 
 switch ( $_SERVER['HTTP_X_FRONTMAN_SEO_TEST'] ?? '' ) {
+	case 'elementor-content-guard':
+		require_once WP_PLUGIN_DIR . '/frontman-agentic-ai-editor/includes/class-frontman-elementor-data.php';
+		break;
 	case 'transform-content':
 		add_filter( 'wp_insert_post_data', static function( array $data ): array {
 			$data['post_content'] .= '<p>Plugin transformation</p>';
