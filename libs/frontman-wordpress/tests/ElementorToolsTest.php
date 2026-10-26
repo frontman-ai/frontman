@@ -1149,7 +1149,6 @@ class Frontman_Elementor_Tools_Test_Runner {
 		$decoded = json_decode( $raw['content'][0]['text'] );
 		$this->assert_true( $decoded->pages[0]->element_contexts instanceof stdClass && $decoded->pages[0]->element_contexts->root->stored_settings instanceof stdClass && $decoded->pages[0]->element_contexts->root->container_stored_settings instanceof stdClass, 'Context and empty settings encode as objects' );
 		$this->assert_true( false !== strpos( $this->call_error( 'wp_elementor_list_pages', $listing + [ 'include_context' => true ] ), 'requires text_search' ), 'Context requires search' );
-		// Make the second sibling match, verifying its actual sibling index.
 		$tree[1]['elements'][0]['elements'][1]['settings']['text'] = 'Book Demo';
 		$GLOBALS['frontman_test_meta'][101]['_elementor_data'] = wp_json_encode( $tree );
 		$page = $this->call_success( 'wp_elementor_list_pages', $enabled )['pages'][0];
