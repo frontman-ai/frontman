@@ -1139,9 +1139,10 @@ defmodule FrontmanServer.Tasks.Interaction do
     [message]
   end
 
-  defp to_swarm_message(
-         %AgentResponse{content: nil, metadata: %{"tool_calls" => [_ | _]} = meta} = msg
-       ) do
+  defp to_swarm_message(%AgentResponse{content: nil, metadata: metadata} = msg) do
+    # Ecto stores empty streamed text as nil, including responses without tool calls.
+    meta = metadata || %{}
+
     [
       %SwarmMessage.Assistant{
         content: [],
