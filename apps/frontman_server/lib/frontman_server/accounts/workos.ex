@@ -320,8 +320,8 @@ defmodule FrontmanServer.Accounts.WorkOS do
     |> Oban.insert(:sync_resend_contact, fn %{user: user} ->
       SyncResendContact.new(%{user_id: user.id})
     end)
-    |> Multi.run(:activation_entry, fn _repo, %{user: user} ->
-      EnterActivationCampaign.enqueue_signup(user)
+    |> Oban.insert(:activation_entry, fn %{user: user} ->
+      EnterActivationCampaign.new(%{user_id: user.id})
     end)
     |> Oban.insert(:notify_discord, fn %{user: user} ->
       NotifyDiscordNewUser.new(notify_discord_args(user.id, signup_framework))

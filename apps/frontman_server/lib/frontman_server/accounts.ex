@@ -14,8 +14,6 @@ defmodule FrontmanServer.Accounts do
     exports: [Scope, User, WorkOS.AuthError]
 
   alias FrontmanServer.Repo
-  alias FrontmanServer.Workers.EnterActivationCampaign
-  alias FrontmanServer.Workers.SyncResendContact
 
   alias FrontmanServer.Accounts.{Scope, User, UserNotifier, UserToken, WorkOS}
 
@@ -33,47 +31,15 @@ defmodule FrontmanServer.Accounts do
     |> Map.fetch!(:id)
   end
 
-  @doc "Records the first accepted prompt once, including for a stale scope."
+  @doc "Records the first accepted prompt; returns true only when the stored milestone changes."
   def record_first_message(%Scope{} = scope) do
-    Repo.transact(fn ->
-      {count, nil} =
-        scope
-        |> scope_user_id()
-        |> User.without_first_message()
-        |> Repo.update_all(set: [first_message_at: DateTime.utc_now(:second)])
+    {count, nil} =
+      scope
+      |> scope_user_id()
+      |> User.without_first_message()
+      |> Repo.update_all(set: [first_message_at: DateTime.utc_now(:second)])
 
-      case {count, EnterActivationCampaign.configured?()} do
-        {1, true} ->
-          %{user_id: scope_user_id(scope), activation: true}
-          |> SyncResendContact.new()
-          |> Oban.insert!()
-
-        _ ->
-          :ok
-      end
-
-      {:ok, :ok}
-    end)
-    |> case do
-      {:ok, :ok} -> :ok
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  @doc false
-  def with_contact_sync(user_id, callback) when is_binary(user_id) do
-    Repo.transact(
-      fn ->
-        Repo.query!("SET LOCAL lock_timeout = '5s'")
-        Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [user_id])
-        {:ok, callback.(get_user(user_id))}
-      end,
-      timeout: 60_000
-    )
-    |> case do
-      {:ok, result} -> result
-      {:error, reason} -> {:error, reason}
-    end
+    count == 1
   end
 
   @doc """

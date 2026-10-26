@@ -1,33 +1,17 @@
 defmodule FrontmanServer.Workers.EnterActivationCampaign do
   @moduledoc """
   One-shot signup entry. Never retry this job manually after an uncertain result.
-  Requires an approved UTC deployment cutoff, entry lag bound, registered contact
-  state property, and contact sync enabled. Enrollment defaults off.
-
-  Contact initialization and entry have no automatic retries. A timeout can
-  outlive the local contact lock. No event follows uncertain initialization.
-  Accounts atomically enqueues exit synchronization on activation; it cannot
-  retract an email past its provider condition. Sentry reports require operator
-  review, not automatic replay. No local enrollment or delivery ledger is kept.
+  Requires a UTC cutoff, lag bound, registered state property, and contact sync; defaults off.
+  Initialization and entry never retry. Timeouts may outlive locks; uncertain init prevents entry.
+  Prompt acceptance atomically enqueues exit but cannot retract mail past provider conditions.
+  Sentry requires operator review, not replay. No enrollment or delivery ledger is kept.
   """
   use Oban.Worker, queue: :mailers, max_attempts: 1
 
   alias FrontmanServer.Accounts
-  alias FrontmanServer.Accounts.User
-  alias FrontmanServer.ResendClient
+  alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.ResendContacts
   alias FrontmanServer.Workers.SyncResendContact
-
-  def configured? do
-    match?(%DateTime{time_zone: "Etc/UTC"}, config()[:cutoff])
-  end
-
-  def enqueue_signup(%User{} = user) do
-    if eligible?(user) do
-      %{user_id: user.id} |> new() |> Oban.insert()
-    else
-      {:ok, :excluded}
-    end
-  end
 
   @impl Oban.Worker
   def perform(%Oban.Job{attempt: attempt} = job) when attempt > 1 do
@@ -36,16 +20,22 @@ defmodule FrontmanServer.Workers.EnterActivationCampaign do
   end
 
   def perform(%Oban.Job{args: %{"user_id" => user_id}} = job) do
-    Accounts.with_contact_sync(user_id, fn user ->
-      if eligible?(user), do: enter(user, job), else: :ok
-    end)
-    |> case do
-      {:error, _reason} ->
-        report(job, :coordination_failed)
-        {:discard, :entry_failed_or_uncertain}
+    contact_sync = Application.get_env(:frontman_server, SyncResendContact, [])[:enabled]
+    policy = Keyword.put(config(), :contact_sync_enabled, contact_sync)
 
-      result ->
-        result
+    case Accounts.get_user(user_id) do
+      %Accounts.User{} = user ->
+        case ResendContacts.enter_activation_campaign(Scope.for_user(user), policy) do
+          {:error, reason} ->
+            report(job, reason)
+            {:discard, :entry_failed_or_uncertain}
+
+          result ->
+            result
+        end
+
+      nil ->
+        :ok
     end
   rescue
     _exception ->
@@ -53,37 +43,30 @@ defmodule FrontmanServer.Workers.EnterActivationCampaign do
       {:discard, :entry_uncertain}
   end
 
-  defp enter(user, job) do
-    with :ok <- ResendClient.update_properties(user, %{frontman_activation_state: "inactive"}),
-         true <- eligible?(Accounts.get_user(user.id)),
-         :ok <- ResendClient.send_activation_entry(user) do
-      :ok
-    else
-      false ->
-        :ok
+  defp report(job, reason) do
+    {category, status} = failure(reason)
+    Sentry.Context.clear_all()
 
-      {:error, reason} ->
-        report(job, reason)
-        {:discard, :entry_failed_or_uncertain}
-    end
+    Sentry.capture_message("Activation entry failed or uncertain",
+      level: :error,
+      tags: %{error_type: "activation_entry"},
+      extra: %{
+        failure_category: category,
+        status: status,
+        user_id: job.args["user_id"],
+        job_id: job.id
+      }
+    )
   end
 
-  defp eligible?(%User{confirmed_at: %DateTime{}, first_message_at: nil} = user) do
-    with true <- config()[:enabled] == true,
-         true <- Application.get_env(:frontman_server, SyncResendContact, [])[:enabled] == true,
-         %DateTime{time_zone: "Etc/UTC"} = cutoff <- config()[:cutoff],
-         lag when is_integer(lag) and lag > 0 <- config()[:max_entry_lag_seconds],
-         false <- DateTime.before?(user.inserted_at, cutoff),
-         age when age >= 0 <- DateTime.diff(DateTime.utc_now(), user.inserted_at) do
-      age <= lag
-    else
-      _ -> false
-    end
-  end
+  defp failure({:http_status, status}) when is_integer(status), do: {"http_error", status}
+  defp failure(%Req.TransportError{}), do: {"transport_uncertain", nil}
 
-  defp eligible?(_user), do: false
+  defp failure(reason)
+       when reason in [:transport_uncertain, :exception, :replay_refused, :coordination_failed],
+       do: {Atom.to_string(reason), nil}
 
-  defp report(job, reason), do: ResendClient.report_failure(job, reason, :entry)
+  defp failure(_reason), do: {"contact_sync_failed", nil}
 
   defp config, do: Application.get_env(:frontman_server, __MODULE__, [])
 end

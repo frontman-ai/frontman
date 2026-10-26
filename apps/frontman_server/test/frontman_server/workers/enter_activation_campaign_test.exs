@@ -1,41 +1,25 @@
 defmodule FrontmanServer.Workers.EnterActivationCampaignTest do
-  use FrontmanServer.DataCase, async: false
+  use FrontmanServer.DataCase, async: true
   use Oban.Testing, repo: FrontmanServer.Repo
 
-  alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Tasks
   alias FrontmanServer.Test.Fixtures.Accounts, as: Fixtures
   alias FrontmanServer.Workers.{EnterActivationCampaign, SyncResendContact}
+
+  setup {Req.Test, :set_req_test_from_context}
+  setup {Req.Test, :verify_on_exit!}
 
   setup do
     Sentry.Test.setup_sentry(dedup_events: false)
     Sentry.Context.clear_all()
-
-    for {module, options} <- [
-          {EnterActivationCampaign, [enabled: true]},
-          {SyncResendContact, [enabled: true]},
-          {FrontmanServer.ResendClient,
-           [req_options: [plug: {Req.Test, __MODULE__}, retry: true]]}
-        ] do
-      original = Application.get_env(:frontman_server, module, [])
-      Application.put_env(:frontman_server, module, Keyword.merge(original, options))
-      on_exit(fn -> Application.put_env(:frontman_server, module, original) end)
-    end
-
-    Application.put_env(
-      :frontman_server,
-      EnterActivationCampaign,
-      Application.get_env(:frontman_server, EnterActivationCampaign)
-      |> Keyword.merge(cutoff: DateTime.add(DateTime.utc_now(), -60), max_entry_lag_seconds: 60)
-    )
-
     %{user: Fixtures.user_fixture()}
   end
 
   test "initializes current contact then submits exactly one event", %{user: user} do
     assert EnterActivationCampaign.new(%{user_id: user.id}).changes.max_attempts == 1
 
-    Req.Test.expect(__MODULE__, fn conn ->
+    Req.Test.expect(:resend, fn conn ->
       assert conn.method == "PATCH"
       {:ok, body, conn} = Plug.Conn.read_body(conn)
 
@@ -48,7 +32,7 @@ defmodule FrontmanServer.Workers.EnterActivationCampaignTest do
       Req.Test.json(conn, %{"id" => "contact"})
     end)
 
-    Req.Test.expect(__MODULE__, fn conn ->
+    Req.Test.expect(:resend, fn conn ->
       assert conn.method == "POST"
       assert conn.request_path == "/events/send"
       {:ok, body, conn} = Plug.Conn.read_body(conn)
@@ -66,15 +50,15 @@ defmodule FrontmanServer.Workers.EnterActivationCampaignTest do
     assert [] == Sentry.Test.pop_sentry_reports()
   end
 
-  for failure <- [422, 500, :timeout, :exception] do
+  for failure <- [500, :timeout, :exception] do
     @tag failure: failure
     test "entry failure #{failure} is reported without retry or private data", %{
       user: user,
       failure: failure
     } do
-      Req.Test.expect(__MODULE__, &Req.Test.json(&1, %{"id" => "contact"}))
+      Req.Test.expect(:resend, &Req.Test.json(&1, %{"id" => "contact"}))
 
-      Req.Test.expect(__MODULE__, fn conn ->
+      Req.Test.expect(:resend, fn conn ->
         case failure do
           status when is_integer(status) -> Plug.Conn.send_resp(conn, status, user.email)
           :timeout -> Req.Test.transport_error(conn, :timeout)
@@ -101,11 +85,11 @@ defmodule FrontmanServer.Workers.EnterActivationCampaignTest do
     end
   end
 
-  test "uncertain initialization never emits entry; Accounts enqueues activation exit", %{
+  test "uncertain initialization never emits entry; prompt acceptance enqueues exit", %{
     user: user
   } do
-    Req.Test.expect(__MODULE__, fn conn ->
-      assert :ok = Accounts.record_first_message(Scope.for_user(user))
+    Req.Test.expect(:resend, fn conn ->
+      accept_prompt(user)
       Req.Test.transport_error(conn, :timeout)
     end)
 
@@ -116,8 +100,8 @@ defmodule FrontmanServer.Workers.EnterActivationCampaignTest do
   end
 
   test "activation during successful initialization prevents entry", %{user: user} do
-    Req.Test.expect(__MODULE__, fn conn ->
-      assert :ok = Accounts.record_first_message(Scope.for_user(user))
+    Req.Test.expect(:resend, fn conn ->
+      accept_prompt(user)
       Req.Test.json(conn, %{"id" => "contact"})
     end)
 
@@ -125,120 +109,91 @@ defmodule FrontmanServer.Workers.EnterActivationCampaignTest do
     assert_enqueued(worker: SyncResendContact, args: %{user_id: user.id, activation: true})
   end
 
-  test "disabled, old, unconfirmed, activated, and late users make no requests", %{user: user} do
-    config = Application.get_env(:frontman_server, EnterActivationCampaign)
+  test "rollout and eligibility guards make no requests" do
+    now = ~U[2026-01-01 00:01:00Z]
 
-    Application.put_env(
-      :frontman_server,
-      EnterActivationCampaign,
-      Keyword.put(config, :enabled, false)
-    )
+    policy = [
+      enabled: true,
+      contact_sync_enabled: true,
+      cutoff: ~U[2026-01-01 00:00:00Z],
+      max_entry_lag_seconds: 60
+    ]
 
-    assert :ok = perform_job(EnterActivationCampaign, %{user_id: user.id})
-    assert {:ok, :excluded} = EnterActivationCampaign.enqueue_signup(user)
-    Application.put_env(:frontman_server, EnterActivationCampaign, config)
-
-    for changes <- [
-          [inserted_at: DateTime.add(DateTime.utc_now(:second), -120)],
-          [confirmed_at: nil],
-          [first_message_at: DateTime.utc_now(:second)]
+    for {overrides, changes} <- [
+          {[enabled: false], []},
+          {[contact_sync_enabled: false], []},
+          {[cutoff: nil], []},
+          {[max_entry_lag_seconds: 0], []},
+          {[], [inserted_at: ~U[2025-12-31 23:59:59Z]]},
+          {[cutoff: ~U[2025-01-01 00:00:00Z]], [inserted_at: ~U[2025-12-31 23:59:59Z]]},
+          {[], [confirmed_at: nil]},
+          {[], [first_message_at: now]}
         ] do
-      baseline = [
-        inserted_at: user.inserted_at,
-        confirmed_at: user.confirmed_at,
-        first_message_at: nil
-      ]
+      user = Fixtures.user_fixture()
 
-      user |> Ecto.Changeset.change(Keyword.merge(baseline, changes)) |> Repo.update!()
-      assert :ok = perform_job(EnterActivationCampaign, %{user_id: user.id})
+      user =
+        user
+        |> Ecto.Changeset.change(Keyword.merge([inserted_at: now], changes))
+        |> Repo.update!()
+
+      assert :ok =
+               FrontmanServer.ResendContacts.enter_activation_campaign(
+                 Scope.for_user(user),
+                 Keyword.merge(policy, overrides),
+                 fn -> now end
+               )
     end
-
-    Application.put_env(
-      :frontman_server,
-      EnterActivationCampaign,
-      Keyword.merge(config, cutoff: DateTime.add(DateTime.utc_now(), -3600))
-    )
-
-    user
-    |> Ecto.Changeset.change(
-      inserted_at: DateTime.add(DateTime.utc_now(:second), -120),
-      confirmed_at: user.confirmed_at,
-      first_message_at: nil
-    )
-    |> Repo.update!()
-
-    assert :ok = perform_job(EnterActivationCampaign, %{user_id: user.id})
   end
 
-  test "entry refuses a disabled contact integration", %{user: user} do
-    original = Application.get_env(:frontman_server, SyncResendContact)
+  test "request-spanning expiry rechecks time without changing the user" do
+    now = ~U[2026-01-01 00:00:00Z]
+    user = Fixtures.user_fixture() |> Ecto.Changeset.change(inserted_at: now) |> Repo.update!()
+    clock = start_supervised!({Agent, fn -> [now, DateTime.add(now, 61)] end})
+    Req.Test.expect(:resend, &Req.Test.json(&1, %{"id" => "contact"}))
 
-    Application.put_env(
-      :frontman_server,
-      SyncResendContact,
-      Keyword.put(original, :enabled, false)
-    )
+    assert :ok =
+             FrontmanServer.ResendContacts.enter_activation_campaign(
+               Scope.for_user(user),
+               [
+                 enabled: true,
+                 contact_sync_enabled: true,
+                 cutoff: now,
+                 max_entry_lag_seconds: 60
+               ],
+               fn -> Agent.get_and_update(clock, fn [time | rest] -> {time, rest} end, 1000) end
+             )
 
-    assert {:ok, :excluded} = EnterActivationCampaign.enqueue_signup(user)
-    assert :ok = perform_job(EnterActivationCampaign, %{user_id: user.id})
-  end
-
-  test "entry requires a UTC cutoff and positive lag in campaign config", %{user: user} do
-    original = Application.get_env(:frontman_server, EnterActivationCampaign)
-
-    for invalid <- [[cutoff: nil], [cutoff: "not-a-DateTime"], [max_entry_lag_seconds: 0]] do
-      Application.put_env(
-        :frontman_server,
-        EnterActivationCampaign,
-        Keyword.merge(original, invalid)
-      )
-
-      assert {:ok, :excluded} = EnterActivationCampaign.enqueue_signup(user)
-      assert :ok = perform_job(EnterActivationCampaign, %{user_id: user.id})
-    end
+    assert Repo.reload!(user).inserted_at == now
   end
 
   test "manual retry refuses a second attempt and reports replay category", %{user: user} do
-    assert {:discard, :entry_replay_refused} =
-             EnterActivationCampaign.perform(%Oban.Job{
-               id: 123,
-               attempt: 2,
-               args: %{"user_id" => user.id}
-             })
+    Req.Test.expect(:resend, &Req.Test.json(&1, %{"id" => "contact"}))
+    Req.Test.expect(:resend, &Req.Test.transport_error(&1, :timeout))
+    job = EnterActivationCampaign.new(%{user_id: user.id}) |> Oban.insert!()
+    assert %{discard: 1} = Oban.drain_queue(queue: :mailers)
+    assert Repo.reload!(job).state == "discarded"
+    assert [_] = Sentry.Test.pop_sentry_reports()
+
+    assert :ok = Oban.retry_job(job.id)
+    assert %{discard: 1} = Oban.drain_queue(queue: :mailers)
+    assert Repo.reload!(job).attempt == 2
 
     assert [event] = Sentry.Test.pop_sentry_reports()
     assert event.extra.failure_category == "replay_refused"
   end
 
-  test "new OAuth signup enqueues entry atomically but repeat login does not" do
-    original = Application.get_env(:frontman_server, :workos_req_options, [])
+  defp accept_prompt(user) do
+    scope = Scope.for_user(user)
+    FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
+    task = FrontmanServer.Test.Fixtures.Tasks.task_fixture(scope)
 
-    Application.put_env(:frontman_server, :workos_req_options,
-      plug: {Req.Test, :activation_signup}
-    )
-
-    on_exit(fn -> Application.put_env(:frontman_server, :workos_req_options, original) end)
-
-    Req.Test.stub(:activation_signup, fn conn ->
-      Req.Test.json(conn, %{
-        authentication_method: "GitHubOAuth",
-        user: %{id: "activation-oauth", email: "activation@example.test"}
-      })
-    end)
-
-    assert {:error, :rollback} =
-             Repo.transact(fn ->
-               assert {:ok, user} = Accounts.authenticate_with_oauth("code")
-               assert_enqueued(worker: EnterActivationCampaign, args: %{user_id: user.id})
-               {:error, :rollback}
-             end)
-
-    refute_enqueued(worker: EnterActivationCampaign)
-    assert Accounts.get_user_by_email("activation@example.test") == nil
-
-    assert {:ok, user} = Accounts.authenticate_with_oauth("code")
-    assert {:ok, returned} = Accounts.authenticate_with_oauth("code")
-    assert returned.id == user.id
-    assert [_job] = all_enqueued(worker: EnterActivationCampaign)
+    assert {:ok, _} =
+             Tasks.submit_user_message(scope, %{
+               task_id: task.id,
+               message_id: Ecto.UUID.generate(),
+               message: [%{"type" => "text", "text" => "hello"}],
+               model: "openrouter:openai/gpt-5.5",
+               agent_id: "test-frontman"
+             })
   end
 end

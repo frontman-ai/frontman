@@ -6,16 +6,12 @@
 
 defmodule FrontmanServer.Workers.SyncResendContact do
   @moduledoc """
-  Synchronizes signup contacts and activation exits under the Accounts contact lock.
-  Signup jobs are enqueued atomically with user creation; activation jobs with
-  the first-message transition. Oban uniqueness does not prevent repeated writes.
-
-  Contact writes omit subscription preferences. Duplicate creation alone does not
-  prove that Resend preserves preferences. Activation projection requires an approved
-  UTC cutoff and registered `frontman_activation_state` property, and continues while
-  enrollment is paused. This worker never writes inactive or emits entry events.
-  A provider write can outlive a timeout; this is not cross-system atomicity.
-  Backfilled milestones are safe exclusions, not conversion evidence.
+  Synchronizes signup contacts and activation exits under the integration contact lock.
+  Jobs commit with signup or first-message transitions; uniqueness cannot prevent repeated writes.
+  Writes omit preferences, but duplicate-create preservation remains provider-unverified.
+  Projection requires a UTC cutoff and registered state property, including while entry is paused.
+  Never writes inactive or emits entry. Provider writes may outlive timeouts.
+  Backfilled milestones exclude users; they are not conversion evidence.
   """
 
   use Oban.Worker,
@@ -24,17 +20,26 @@ defmodule FrontmanServer.Workers.SyncResendContact do
     unique: [keys: [:user_id, :activation], period: :infinity]
 
   alias FrontmanServer.Accounts
-  alias FrontmanServer.Accounts.User
-  alias FrontmanServer.ResendClient
+  alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.ResendContacts
   alias FrontmanServer.Workers.EnterActivationCampaign
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"user_id" => user_id}} = job) do
     result =
-      if enabled?(job) do
-        Accounts.with_contact_sync(user_id, &sync(&1, job))
-      else
-        :ok
+      case Accounts.get_user(user_id) do
+        %Accounts.User{} = user ->
+          mode = if job.args["activation"] == true, do: :activation, else: :signup
+
+          policy = [
+            enabled: Application.get_env(:frontman_server, __MODULE__, [])[:enabled],
+            cutoff: Application.get_env(:frontman_server, EnterActivationCampaign, [])[:cutoff]
+          ]
+
+          ResendContacts.sync_contact(Scope.for_user(user), mode, policy)
+
+        nil ->
+          :discard
       end
 
     case result do
@@ -49,34 +54,32 @@ defmodule FrontmanServer.Workers.SyncResendContact do
       reraise exception, __STACKTRACE__
   end
 
-  defp enabled?(job) do
-    with true <- Application.get_env(:frontman_server, __MODULE__, [])[:enabled] == true do
-      case job.args do
-        %{"activation" => true} -> EnterActivationCampaign.configured?()
-        _ -> true
-      end
-    end
-  end
-
-  defp sync(nil, _job), do: :discard
-  defp sync(%User{first_message_at: nil}, %{args: %{"activation" => true}}), do: :discard
-
-  defp sync(%User{} = user, _job) do
-    case {user.first_message_at, EnterActivationCampaign.configured?()} do
-      {%DateTime{}, true} ->
-        ResendClient.update_properties(user, %{frontman_activation_state: "activated"})
-
-      _ ->
-        ResendClient.create_contact(user)
-    end
-  end
-
   defp report_final_failure(
          %Oban.Job{args: %{"activation" => true}, attempt: attempt, max_attempts: max} = job,
          reason
        )
-       when attempt >= max,
-       do: ResendClient.report_failure(job, reason, :exit)
+       when attempt >= max do
+    {category, status} = failure(reason)
+    Sentry.Context.clear_all()
+
+    Sentry.capture_message("Activation exit failed",
+      level: :error,
+      tags: %{error_type: "activation_exit"},
+      extra: %{
+        failure_category: category,
+        status: status,
+        user_id: job.args["user_id"],
+        job_id: job.id
+      }
+    )
+  end
 
   defp report_final_failure(_job, _reason), do: :ok
+
+  defp failure({:http_status, status}) when is_integer(status), do: {"http_error", status}
+  defp failure(%Req.TransportError{}), do: {"transport_uncertain", nil}
+
+  defp failure(:exception), do: {"exception", nil}
+
+  defp failure(_reason), do: {"contact_sync_failed", nil}
 end
