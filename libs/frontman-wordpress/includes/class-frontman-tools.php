@@ -180,7 +180,7 @@ class Frontman_Tools {
 			return Frontman_Tool_Users::validate_input( $input );
 		}
 
-		if ( class_exists( 'Frontman_Tool_Elementor' ) && in_array( $name, [ 'wp_elementor_add_element', 'wp_elementor_generate_element' ], true ) ) {
+		if ( class_exists( 'Frontman_Tool_Elementor' ) && in_array( $name, [ 'wp_elementor_add_element', 'wp_elementor_generate_element', 'wp_elementor_wrap_element' ], true ) ) {
 			Frontman_Tool_Elementor::validate_creation_input( $name, $input );
 		}
 
