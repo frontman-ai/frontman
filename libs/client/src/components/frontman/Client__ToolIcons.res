@@ -39,6 +39,27 @@ module LoaderIcon = {
   }
 }
 
+// Todo progress records unfinished work, not whether the agent is executing.
+module InProgressIcon = {
+  @react.component
+  let make = (~size: int=defaultSize, ~className: string="") => {
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      width={Int.toString(size)}
+      height={Int.toString(size)}
+      className={className}
+      role="img"
+      ariaLabel="Started, not finished"
+    >
+      <title> {React.string("Started, not finished")} </title>
+      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" fill="none" />
+      <path d="M8 2a6 6 0 0 1 0 12z" />
+    </svg>
+  }
+}
+
 module CheckIcon = {
   @react.component
   let make = (~size: int=defaultSize, ~className: string="") => {
