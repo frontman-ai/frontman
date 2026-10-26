@@ -393,7 +393,6 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp report_agent_execution_failure(task_id, reason_str, category, retryable) do
-    # The explicit error event owns reporting; an error log would create a second issue.
     Logger.warning("Execution failed for task #{task_id}, reason: #{reason_str}")
 
     Sentry.capture_message("Agent execution failed",

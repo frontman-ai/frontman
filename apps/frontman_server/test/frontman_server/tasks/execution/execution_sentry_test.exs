@@ -163,8 +163,6 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
   end
 
   defp pop_all_reports do
-    # Logger handlers and Sentry's collecting before_send callback run in the caller.
-    # Flush Logger too so assertions do not race buffered logging.
     Logger.flush()
     Sentry.Test.pop_sentry_reports()
   end
