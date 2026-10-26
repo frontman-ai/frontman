@@ -1,5 +1,13 @@
 # @frontman-ai/frontman-protocol
 
+## 4.1.2
+
+### Patch Changes
+
+- [#1919](https://github.com/frontman-ai/frontman/pull/1919) [`db72760`](https://github.com/frontman-ai/frontman/commit/db72760b282b87d4c20b72a1527ef3be58e99c05) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Use a shared typed record for relay tool definitions. Tool names are required strings, and callers no longer decode them from JSON.
+
+  Preserve vendor metadata and JSON Schema extensions. Unknown top-level tool fields are no longer forwarded.
+
 ## 4.1.1
 
 ### Patch Changes

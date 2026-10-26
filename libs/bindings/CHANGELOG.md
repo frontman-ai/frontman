@@ -1,5 +1,11 @@
 # @frontman/bindings
 
+## 0.3.4
+
+### Patch Changes
+
+- [#1972](https://github.com/frontman-ai/frontman/pull/1972) [`9dedf54`](https://github.com/frontman-ai/frontman/commit/9dedf545051b2744a6b364d08d4f3e7a0801788d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Handle cross-origin preview navigation without WindowProxy option errors. Reload and address-bar navigation now reset the iframe from parent state, and preview tools reject stale documents until a supported page loads.
+
 ## 0.3.3
 
 ### Patch Changes

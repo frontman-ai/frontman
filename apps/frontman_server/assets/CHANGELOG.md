@@ -1,5 +1,13 @@
 # @frontman/frontman-server-assets
 
+## 0.2.1
+
+### Patch Changes
+
+- [#1986](https://github.com/frontman-ai/frontman/pull/1986) [`1f7f45f`](https://github.com/frontman-ai/frontman/commit/1f7f45fca856fb0e629f0223c5aa7ae8602336c3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Bind OAuth sign-in and account linking to browser state, consume matching callbacks once, and return controlled errors for rejected linking and unsupported or absent provider connections.
+- Updated dependencies [[`db72760`](https://github.com/frontman-ai/frontman/commit/db72760b282b87d4c20b72a1527ef3be58e99c05), [`a21ed02`](https://github.com/frontman-ai/frontman/commit/a21ed02aa8c72b395586203c28e96e86dba95780), [`51c42f6`](https://github.com/frontman-ai/frontman/commit/51c42f60bfeccf92ab30866fd6d914b084e5dc7e)]:
+  - @frontman-ai/frontman-client@4.0.5
+
 ## 0.2.0
 
 ### Minor Changes

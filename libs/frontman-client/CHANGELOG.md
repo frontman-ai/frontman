@@ -1,5 +1,17 @@
 # @frontman-ai/frontman-client
 
+## 4.0.5
+
+### Patch Changes
+
+- [#1919](https://github.com/frontman-ai/frontman/pull/1919) [`db72760`](https://github.com/frontman-ai/frontman/commit/db72760b282b87d4c20b72a1527ef3be58e99c05) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Use a shared typed record for relay tool definitions. Tool names are required strings, and callers no longer decode them from JSON.
+
+  Preserve vendor metadata and JSON Schema extensions. Unknown top-level tool fields are no longer forwarded.
+
+- [#1980](https://github.com/frontman-ai/frontman/pull/1980) [`a21ed02`](https://github.com/frontman-ai/frontman/commit/a21ed02aa8c72b395586203c28e96e86dba95780) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update the Phoenix JavaScript client from 1.8.14 to 1.8.15.
+
+- [#1974](https://github.com/frontman-ai/frontman/pull/1974) [`51c42f6`](https://github.com/frontman-ai/frontman/commit/51c42f60bfeccf92ab30866fd6d914b084e5dc7e) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update the Sentry browser SDK from 10.74.0 to 11.0.0.
+
 ## 4.0.4
 
 ### Patch Changes
