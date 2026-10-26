@@ -368,7 +368,10 @@ describe("Task - Plan Entries", () => {
       {content: "Started step", priority: Medium, status: InProgress},
       {content: "Future step", priority: Low, status: Pending},
     ]
-    let (planned, _) = TaskReducer.next(TestHelpers.makeLoadedTask(), PlanReceived({entries}))
+    let (planned, _) = TaskReducer.next(
+      TestHelpers.makeLoadedTask(),
+      PlanReceived({entries: entries}),
+    )
     let (running, _) = TaskReducer.next(planned, ExecutionStateRunning)
     let (cancelled, _) = TaskReducer.next(running, CancelTurn)
     let (idle, _) = TaskReducer.next(cancelled, ExecutionStateIdle)

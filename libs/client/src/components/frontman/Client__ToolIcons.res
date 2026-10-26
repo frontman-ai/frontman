@@ -39,7 +39,6 @@ module LoaderIcon = {
   }
 }
 
-// Todo progress records unfinished work, not whether the agent is executing.
 module InProgressIcon = {
   @react.component
   let make = (~size: int=defaultSize, ~className: string="") => {
