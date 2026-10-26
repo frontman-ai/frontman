@@ -96,15 +96,33 @@ let make = () => {
           </Card.Description>
         </Card.Header>
         <Card.Content className="space-y-4">
-          {switch Billing.cancelAt(status) {
-          | Some(cancelAt) =>
+          {switch (
+            Billing.subscriptionStatus(status),
+            Billing.cancelAt(status),
+            Billing.canceledAt(status),
+          ) {
+          | (Trialing, Some(_), _) | (Trialing, _, Some(_)) =>
+            <Alert>
+              <Alert.Title> {React.string("Trial canceled")} </Alert.Title>
+              <Alert.Description>
+                {React.string(
+                  switch Billing.pretrialRunsRemaining(status) {
+                  | Some(remaining)
+                    if remaining > 0 => "Your trial access has ended. You can still use your remaining free prompts."
+                  | Some(_)
+                  | None => "Your trial access has ended. Manage billing in Stripe to restore access."
+                  },
+                )}
+              </Alert.Description>
+            </Alert>
+          | (_, Some(cancelAt), _) =>
             <Alert>
               <Alert.Title> {React.string("Subscription scheduled to cancel")} </Alert.Title>
               <Alert.Description>
                 {React.string(`Access remains active until ${formatDate(cancelAt)}.`)}
               </Alert.Description>
             </Alert>
-          | None => React.null
+          | (_, None, _) => React.null
           }}
           <div className="divide-y">
             {switch Billing.interval(status) {

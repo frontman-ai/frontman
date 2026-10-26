@@ -39,6 +39,14 @@ defmodule FrontmanServer.Billing.Subscription do
       where: s.status == "trialing" or not is_nil(s.trial_end)
   end
 
+  def allow_access?(%__MODULE__{status: "trialing", cancel_at: cancel_at})
+      when not is_nil(cancel_at),
+      do: false
+
+  def allow_access?(%__MODULE__{status: "trialing", canceled_at: canceled_at})
+      when not is_nil(canceled_at),
+      do: false
+
   def allow_access?(%__MODULE__{status: status})
       when status in ["trialing", "active"],
       do: true

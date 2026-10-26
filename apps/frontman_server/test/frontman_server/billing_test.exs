@@ -322,6 +322,100 @@ defmodule FrontmanServer.BillingTest do
       assert %{status: "active", can_start_turn: true} = Billing.status(scope)
     end
 
+    test "trial cancellation blocks exhausted users immediately and undoing it restores access" do
+      for cancellation <- [
+            %{"cancel_at" => 1_780_243_481},
+            %{"canceled_at" => 1_780_157_081},
+            %{
+              "cancel_at_period_end" => true,
+              "cancel_at" => 1_780_243_481,
+              "canceled_at" => 1_780_157_081
+            }
+          ] do
+        scope = AccountsFixtures.user_scope_fixture()
+        run_allowance_fixture(scope, 5)
+
+        event =
+          subscription_webhook_event(scope.user.id)
+          |> put_in(["data", "object", "status"], "trialing")
+          |> put_in(["data", "object", "trial_end"], 1_780_243_481)
+
+        assert {:ok, :processed} = Webhooks.process_event(event)
+        assert {:ok, :subscription} = Billing.authorize_new_turn(scope)
+        Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope.user.id))
+
+        canceled_event =
+          event
+          |> Map.put("id", event["id"] <> "_cancel")
+          |> Map.put("type", "customer.subscription.updated")
+          |> update_in(["data", "object"], &Map.merge(&1, cancellation))
+
+        assert {:ok, :processed} = Webhooks.process_event(canceled_event)
+        assert_receive :billing_status_changed
+        refute Billing.subscription_allows_runs?(scope)
+        refute Billing.can_start_turn?(scope)
+        assert {:error, :billing_inactive} = Billing.authorize_new_turn(scope)
+
+        assert %{
+                 status: "trialing",
+                 can_start_turn: false,
+                 pretrial_runs_remaining: 0,
+                 trial_eligible: false
+               } = Billing.status(scope)
+
+        resumed_event =
+          event
+          |> Map.put("id", event["id"] <> "_resume")
+          |> Map.put("type", "customer.subscription.updated")
+          |> put_in(["data", "object", "cancel_at_period_end"], false)
+          |> put_in(["data", "object", "cancel_at"], nil)
+          |> put_in(["data", "object", "canceled_at"], nil)
+
+        assert {:ok, :processed} = Webhooks.process_event(resumed_event)
+        assert_receive :billing_status_changed
+        assert {:ok, :subscription} = Billing.authorize_new_turn(scope)
+        assert %{can_start_turn: true, pretrial_runs_remaining: nil} = Billing.status(scope)
+      end
+    end
+
+    test "canceling a trial preserves only the unused free prompts" do
+      scope = AccountsFixtures.user_scope_fixture()
+      run_allowance_fixture(scope, 4)
+
+      event =
+        subscription_webhook_event(scope.user.id)
+        |> Map.put("type", "customer.subscription.updated")
+        |> put_in(["data", "object", "status"], "trialing")
+        |> put_in(["data", "object", "trial_end"], 1_780_243_481)
+        |> put_in(["data", "object", "cancel_at"], 1_780_243_481)
+        |> put_in(["data", "object", "canceled_at"], 1_780_157_081)
+
+      assert {:ok, :processed} = Webhooks.process_event(event)
+      refute Billing.subscription_allows_runs?(scope)
+      assert %{can_start_turn: true, pretrial_runs_remaining: 1} = Billing.status(scope)
+      assert {:ok, :pretrial} = Billing.authorize_new_turn(scope)
+      assert %{can_start_turn: false, pretrial_runs_remaining: 0} = Billing.status(scope)
+      assert {:error, :billing_inactive} = Billing.authorize_new_turn(scope)
+    end
+
+    test "scheduling cancellation of a paid subscription preserves access" do
+      scope = AccountsFixtures.user_scope_fixture()
+      run_allowance_fixture(scope, 5)
+
+      event =
+        subscription_webhook_event(scope.user.id)
+        |> Map.put("type", "customer.subscription.updated")
+        |> put_in(["data", "object", "trial_end"], 1_780_157_081)
+        |> put_in(["data", "object", "cancel_at_period_end"], true)
+        |> put_in(["data", "object", "cancel_at"], 1_780_243_481)
+        |> put_in(["data", "object", "canceled_at"], 1_780_157_081)
+
+      assert {:ok, :processed} = Webhooks.process_event(event)
+      assert Billing.subscription_allows_runs?(scope)
+      assert {:ok, :subscription} = Billing.authorize_new_turn(scope)
+      assert %{status: "active", can_start_turn: true} = Billing.status(scope)
+    end
+
     test "checkout webhook broadcasts billing status change" do
       scope = AccountsFixtures.user_scope_fixture()
 
