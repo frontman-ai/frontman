@@ -932,7 +932,11 @@ defmodule FrontmanServer.TasksTest do
       assert tc_in_msg.name == "calculator"
 
       assert tool_result_msg.tool_call_id == tool_call_id
-      assert [%{type: :text, text: "4"}] = tool_result_msg.content
+
+      assert [%{type: :text, text: "4"}, %{type: :text, text: structured_json}] =
+               tool_result_msg.content
+
+      assert Jason.decode!(structured_json) == %{"answer" => 4}
 
       assert [%{type: :text, text: "The answer is 4."}] = final_assistant.content
     end

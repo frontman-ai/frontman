@@ -7,6 +7,9 @@
 defmodule FrontmanServer.Protocols.MCP.ToolOutput do
   @moduledoc """
   Validated complete tool output. Structured JSON null is distinct from absence.
+
+  Persisted historical results omit the discriminator and are treated as complete.
+  Explicit interim results never become tool output.
   """
 
   alias FrontmanServer.Protocols.MCP.Schema
@@ -22,7 +25,6 @@ defmodule FrontmanServer.Protocols.MCP.ToolOutput do
 
   @spec new(map(), map() | nil) :: {:ok, t()} | :error
   def new(result, output_schema \\ nil) when is_map(result) do
-    # Persisted pre-2026 results omit the discriminator; interims never become output.
     result = Map.put_new(result, "resultType", "complete")
 
     with %{"resultType" => "complete"} <- result,
