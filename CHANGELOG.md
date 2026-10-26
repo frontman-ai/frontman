@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## [Unreleased]
+
+### Added
+
+- Add opt-in activated contact synchronization and default-off, one-shot activation campaign entry through Resend. The campaign uses Elixir configuration for enrollment, the observation cutoff, and the entry lag. Failure reports exclude private payloads. Production enrollment and delivery remain disabled.
+
 ## [5.4.0] - 2026-10-21
 
 
