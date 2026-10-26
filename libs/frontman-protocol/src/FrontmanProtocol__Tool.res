@@ -4,7 +4,7 @@ let textResult = MCP.CallToolResult.makeText
 
 let structuredResult = (value: 'a, schema: S.t<'a>, ~isError=?): MCP.CallToolResult.t => {
   let json = value->S.decodeOrThrow(~from=schema, ~to=S.json->S.noValidation(true))
-  MCP.CallToolResult.makeStructured(json->JSON.Decode.object->Option.getOrThrow, ~isError?)
+  MCP.CallToolResult.makeStructuredJson(json, ~isError?)
 }
 
 let unstructuredResult = (value: 'a, schema: S.t<'a>): MCP.CallToolResult.t => {
