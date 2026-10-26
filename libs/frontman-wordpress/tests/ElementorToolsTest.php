@@ -1463,7 +1463,6 @@ class Frontman_Elementor_Tools_Test_Runner {
 							$this->assert_same( null, Frontman_Elementor_Data::get_element( $before, $new_id ), 'New wrap IDs avoid original page' );
 						}
 					}
-					// Undo only the local wrapper to prove every sibling and ancestor stayed unchanged.
 					$expected = $data;
 					$this->assert_true( Frontman_Elementor_Data::wrap_at_context( $expected, $wrapped, json_decode( wp_json_encode( $context['element'] ), true ) ), 'Resolved replacement helper accepts exact context' );
 					$this->assert_same( json_decode( wp_json_encode( $before ), true ), $expected, 'All other elements and sibling order stay unchanged' );
