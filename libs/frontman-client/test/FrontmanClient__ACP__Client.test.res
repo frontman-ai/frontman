@@ -104,8 +104,10 @@ let loadConnectionWithTransport = (history, result, ~onConnectionLost=_ => ()): 
     clientCapabilities: {fs: None, terminal: None, elicitation: None, _meta: None},
   }
   let state = ref(initializedState)
+  let sessionCleanups = ref([])
   let dispose = () => {
     state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Disconnected))
+    sessionCleanups.contents->Array.forEach(cleanup => cleanup(false))
     ACP.cleanupChannel(transport.channel)
   }
   let connection: ACP.connection = {
@@ -113,6 +115,7 @@ let loadConnectionWithTransport = (history, result, ~onConnectionLost=_ => ()): 
     channel: transport.channel,
     clientConfig,
     state,
+    sessionCleanups,
     dispose,
     fail: error =>
       switch Client.isInitialized(state.contents) {

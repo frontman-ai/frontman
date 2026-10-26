@@ -112,7 +112,12 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   @impl true
   def handle_in("mcp:message", payload, socket) do
-    case JsonRpc.parse_response(payload) do
+    case JsonRpc.parse_server_message(payload) do
+      {:ok, {:notification, method, _params}} ->
+        Logger.warning("Ignoring MCP server notification with no active subscription: #{method}")
+
+        {:noreply, socket}
+
       {:ok, {:success, id, result}} ->
         handle_mcp_response(id, result, socket)
 

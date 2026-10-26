@@ -104,6 +104,23 @@ defmodule FrontmanServer.Protocols.JsonRpc do
 
   def parse_response(_), do: {:error, :invalid_message}
 
+  @doc """
+  Parses MCP server responses and notifications, never server-initiated requests.
+  Notification IDs must be absent, not null, and params must be an object when present.
+  """
+  def parse_server_message(%{"method" => _} = message) do
+    with {:ok, {:notification, _, params}} = notification <- parse(message),
+         false <- Enum.any?(["id", "result", "error"], &Map.has_key?(message, &1)),
+         true <- is_map(params) do
+      notification
+    else
+      {:error, reason} -> {:error, reason}
+      _invalid_envelope -> {:error, :invalid_message}
+    end
+  end
+
+  def parse_server_message(message), do: parse_response(message)
+
   defp extract_id(%{"id" => id}), do: {:ok, id}
   defp extract_id(_), do: {:error, :invalid_message}
 

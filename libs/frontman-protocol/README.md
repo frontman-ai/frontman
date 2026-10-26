@@ -16,6 +16,7 @@ Types for AI agent communication:
 - `server/discover` - Capability and version discovery
 - `tools/list` - List available tools
 - `tools/call` - Execute a tool
+- `subscriptions/listen` - Open a notification stream
 
 #### MCP baseline and deployment prerequisites
 
@@ -37,17 +38,18 @@ Elixir separately requires the browser to advertise both `ai.frontman/execution-
 Browser discovery advertises `tools.listChanged: false`. Discovery and catalogs use `cacheScope: "private"` and `ttlMs: 0`.
 See [shared contracts](src/FrontmanProtocol__MCP.res), [browser dispatch](../frontman-client/src/FrontmanClient__MCP.res), and [Elixir discovery validation](../../apps/frontman_server/lib/frontman_server_web/channels/task_channel/mcp_initializer.ex).
 
-**Pending core work, not optional exemptions:**
-- Elixir validates `input_required` interims before final tool results and explicitly declines retry with a tool error. It rejects input requests for unadvertised capabilities and does not retain opaque state.
-- The browser currently rejects `subscriptions/listen` as an unknown method. Subscription acknowledgment and closure remain pending even with no supported change notifications.
-
-These gaps prevent a claim of complete MCP conformance. Optional client-input features do not exempt implementations from core message patterns.
-Automatic MRTR retry is not implemented. The MCP rules permit a client to decline retry, but recognition of valid interims remains necessary.
+The browser validates `subscriptions/listen` and acknowledges an empty supported filter because it advertises no change events.
+Each attachment permits 128 active subscriptions and reserves typed request IDs, including asynchronous and suspended tool calls.
+`notifications/cancelled` removes a subscription without a response. Intentional teardown sends cancellation and completion before channel leave.
+Transport loss clears streams without replay. Clients must send a new listen request after reconnection.
+Phoenix logs unopened notifications without replying. It opens no subscriptions and exposes no subscription API.
+Elixir validates `input_required` interims and declines MRTR retry with a tool error. It rejects unadvertised input capabilities and retains no opaque state.
 
 ACP retains its independent `initialize` exchange on `acp:message`.
 The framework/WordPress relay uses separate protocol versions `1.0` and `2.0`.
 MCP version changes do not replace either contract or impose Streamable HTTP headers or GET removal on the relay.
-The browser currently ignores MCP notifications, including `notifications/cancelled`. ACP session cancellation does not provide MCP request cancellation.
+Browser MCP cancellation removes active subscriptions. It does not cancel tool execution.
+ACP session cancellation does not provide MCP request cancellation.
 On reconnect, the channel redispatches unresolved tool calls without a read/write guard. External writes can repeat.
 This documentation does not fix replay safety or authorize uncertain-write replay.
 
