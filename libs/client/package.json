@@ -81,7 +81,7 @@
 	},
 	"dependencies": {
 		"@floating-ui/dom": "^1.8.0",
-		"@pierre/diffs": "^1.4.2",
+		"@pierre/diffs": "^1.5.1",
 		"@tiptap/core": "3.31.3",
 		"@tiptap/extension-document": "3.31.3",
 		"@tiptap/extension-paragraph": "3.31.3",

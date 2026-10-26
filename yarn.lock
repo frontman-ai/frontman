@@ -2343,7 +2343,7 @@ __metadata:
     "@frontman/bindings": "workspace:*"
     "@frontman/logs": "workspace:*"
     "@medv/finder": "npm:^4.0.2"
-    "@pierre/diffs": "npm:^1.4.2"
+    "@pierre/diffs": "npm:^1.5.1"
     "@rescript/react": "npm:^0.15.0"
     "@rescript/runtime": "catalog:"
     "@rescript/webapi": "workspace:*"
@@ -4251,9 +4251,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@pierre/diffs@npm:^1.4.2":
-  version: 1.4.2
-  resolution: "@pierre/diffs@npm:1.4.2"
+"@pierre/diffs@npm:^1.5.1":
+  version: 1.5.1
+  resolution: "@pierre/diffs@npm:1.5.1"
   dependencies:
     "@pierre/theme": "npm:2.0.0"
     "@pierre/theming": "npm:1.0.1"
@@ -4270,7 +4270,7 @@ __metadata:
       optional: true
     react-dom:
       optional: true
-  checksum: 10c0/9eb736c8b8f73aa17dcfd79fece6ae612853b1df7b1c89de039e1e148cb7ea5aa3b3027394cda19acd15546e83329b0b98335f75dfda05f09dd91922ae3b57bf
+  checksum: 10c0/55f177d8cacd6d09bdfaa52b853fa1357eae6d04aeec71955bc720b3e807f7c4d2c275da40a4bfbaa6046dfda05d6a64df3544c615dd3646a4ee701335f5774b
   languageName: node
   linkType: hard
 
