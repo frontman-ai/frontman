@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Show safe model-selection guidance when Codex rejects a model with `model_not_found`, instead of a generic bad-request error.
 - Clarify that `wp_update_option` supports only allowlisted core WordPress options, not arbitrary plugin-private options.
 - Include nested changeset validation errors in Sentry reports. Preserve the original exception diagnostics and convert unsupported error metadata to JSON-safe values.
 

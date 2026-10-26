@@ -16,12 +16,51 @@ defmodule FrontmanServer.Tasks.ExecutionClassifyErrorTest do
           body <- [
             %{"detail" => "The 'private-input' field is invalid"},
             %{"detail" => ["private-input"]},
+            %{"code" => "invalid_request_error", "message" => "private-input"},
             %{"error" => %{"message" => "private-input"}},
             %{"error" => %{"code" => "token_invalidated", "message" => "private-input"}},
             nil
           ] do
         assert {^message, ^category, false} =
                  classify_request(status: status, reason: "private-input", response_body: body)
+      end
+    end
+
+    test "model-not-found codes and legacy detail return safe guidance through wrappers" do
+      reason =
+        "The 'gpt-6-astra' model is not supported when using Codex with a ChatGPT account."
+
+      for attributes <- [
+            [
+              provider_code: "model_not_found",
+              response_body: %{
+                "code" => "model_not_found",
+                "message" => reason,
+                "type" => "invalid_request_error"
+              }
+            ],
+            [provider_code: "model_not_found"],
+            [response_body: %{"code" => "model_not_found", "message" => "private-input"}],
+            [
+              response_body: %{
+                "error" => %{"code" => "model_not_found", "message" => "private-input"}
+              }
+            ],
+            [response_body: %{"detail" => reason}]
+          ] do
+        request = Request.exception([status: 400, reason: reason] ++ attributes)
+        stream = ReqLLM.Error.API.Stream.exception(cause: request, reason: reason)
+
+        for failure <- [
+              request,
+              stream,
+              {:exception, request},
+              {:llm_error, request},
+              {:exception, {:llm_error, stream}}
+            ] do
+          assert ErrorClassifier.classify_error(failure) ==
+                   ErrorClassifier.classify_error(:unknown_model)
+        end
       end
     end
 
