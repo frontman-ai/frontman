@@ -25,6 +25,43 @@ defmodule FrontmanServerWeb.OAuthController do
       else: complete_sign_in(conn, %{})
   end
 
+  defp complete_sign_in(conn, %{"code" => code}) do
+    require Logger
+
+    signup_framework = get_session(conn, :signup_framework)
+
+    case Accounts.authenticate_with_oauth(code, signup_framework) do
+      {:ok, user} ->
+        conn
+        |> put_flash(:info, "Welcome!")
+        |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
+
+      {:error, %AuthError{code: "email_verification_required"} = error} ->
+        Logger.info("Email verification required, redirecting to verify-email page")
+
+        conn
+        |> put_session(:pending_auth_token, error.pending_authentication_token)
+        |> put_session(:pending_auth_email, error.email)
+        |> redirect(to: ~p"/auth/verify-email")
+
+      {:error, reason} ->
+        Logger.debug("OAuth error: #{inspect(reason)}")
+        complete_sign_in(conn, %{})
+    end
+  end
+
+  defp complete_sign_in(conn, %{"error" => "access_denied"}) do
+    conn
+    |> put_flash(:error, "Sign in was cancelled.")
+    |> redirect(to: ~p"/users/log-in")
+  end
+
+  defp complete_sign_in(conn, _params) do
+    conn
+    |> put_flash(:error, "Authentication failed. Please try again.")
+    |> redirect(to: ~p"/users/log-in")
+  end
+
   def verify_email_form(conn, _params) do
     case get_session(conn, :pending_auth_token) do
       nil ->
@@ -78,57 +115,6 @@ defmodule FrontmanServerWeb.OAuthController do
       else: complete_link(conn, %{})
   end
 
-  def unlink(conn, %{"provider" => provider}) do
-    user = Accounts.scope_user(conn.assigns.current_scope)
-
-    case Accounts.unlink_oauth_provider(user, provider) do
-      {:ok, _identity} ->
-        conn
-        |> put_flash(:info, "#{provider_display_name(provider)} disconnected.")
-        |> redirect(to: ~p"/users/settings")
-
-      {:error, reason} when reason in [:not_found, :unsupported_provider] ->
-        send_resp(conn, :not_found, "Not Found")
-    end
-  end
-
-  defp complete_sign_in(conn, %{"code" => code}) do
-    require Logger
-
-    signup_framework = get_session(conn, :signup_framework)
-
-    case Accounts.authenticate_with_oauth(code, signup_framework) do
-      {:ok, user} ->
-        conn
-        |> put_flash(:info, "Welcome!")
-        |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
-
-      {:error, %AuthError{code: "email_verification_required"} = error} ->
-        Logger.info("Email verification required, redirecting to verify-email page")
-
-        conn
-        |> put_session(:pending_auth_token, error.pending_authentication_token)
-        |> put_session(:pending_auth_email, error.email)
-        |> redirect(to: ~p"/auth/verify-email")
-
-      {:error, reason} ->
-        Logger.debug("OAuth error: #{inspect(reason)}")
-        complete_sign_in(conn, %{})
-    end
-  end
-
-  defp complete_sign_in(conn, %{"error" => "access_denied"}) do
-    conn
-    |> put_flash(:error, "Sign in was cancelled.")
-    |> redirect(to: ~p"/users/log-in")
-  end
-
-  defp complete_sign_in(conn, _params) do
-    conn
-    |> put_flash(:error, "Authentication failed. Please try again.")
-    |> redirect(to: ~p"/users/log-in")
-  end
-
   defp complete_link(conn, %{"code" => code}) do
     user = Accounts.scope_user(conn.assigns.current_scope)
 
@@ -162,6 +148,20 @@ defmodule FrontmanServerWeb.OAuthController do
     conn
     |> put_flash(:error, "Connection failed. Please try again.")
     |> redirect(to: ~p"/users/settings")
+  end
+
+  def unlink(conn, %{"provider" => provider}) do
+    user = Accounts.scope_user(conn.assigns.current_scope)
+
+    case Accounts.unlink_oauth_provider(user, provider) do
+      {:ok, _identity} ->
+        conn
+        |> put_flash(:info, "#{provider_display_name(provider)} disconnected.")
+        |> redirect(to: ~p"/users/settings")
+
+      {:error, reason} when reason in [:not_found, :unsupported_provider] ->
+        send_resp(conn, :not_found, "Not Found")
+    end
   end
 
   defp authorize(conn, provider, redirect_uri, key) do

@@ -92,6 +92,7 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
 
       conn = conn |> get(~p"/users/log-in?framework=nextjs") |> sign_in()
       assert redirected_to(conn) == ~p"/auth/verify-email"
+      refute get_session(conn, :oauth_signin_state)
       assert get_session(conn, :pending_auth_token) == "pending"
       assert get_session(conn, :pending_auth_email) == "signup@example.com"
       assert_no_signup(conn)
@@ -153,10 +154,16 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
       @tag status: status, response: response
       test "#{label} leaves no account, identity, jobs, or session", context do
         expect_auth(oauth_body(), context.status, context.response)
-        conn = sign_in(context.conn)
+        started = get(context.conn, ~p"/auth/github")
+        state = get_session(started, :oauth_signin_state)
+        conn = get(started, ~p"/auth/callback", %{"code" => "code", "state" => state})
         assert redirected_to(conn) == ~p"/users/log-in"
         assert Phoenix.Flash.get(conn.assigns.flash, :error)
         assert_no_signup(conn)
+        refute get_session(conn, :oauth_signin_state)
+        replay = get(conn, ~p"/auth/callback", %{"code" => "code", "state" => state})
+        assert redirected_to(replay) == ~p"/users/log-in"
+        assert_no_signup(replay)
       end
     end
 
@@ -165,6 +172,7 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
       Req.Test.expect(__MODULE__, &Req.Test.transport_error(&1, :timeout))
       conn = sign_in(conn)
       assert redirected_to(conn) == ~p"/users/log-in"
+      refute get_session(conn, :oauth_signin_state)
       assert_no_signup(conn)
     end
 
@@ -318,15 +326,7 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
   defp sign_in(conn, provider \\ "github") do
     conn = get(conn, "/auth/#{provider}")
     state = get_session(conn, :oauth_signin_state)
-    conn = get(conn, ~p"/auth/callback", %{"code" => "code", "state" => state})
-    refute get_session(conn, :oauth_signin_state)
-
-    if redirected_to(conn) == ~p"/users/log-in" do
-      replay = get(conn, ~p"/auth/callback", %{"code" => "code", "state" => state})
-      assert redirected_to(replay) == ~p"/users/log-in"
-    end
-
-    conn
+    get(conn, ~p"/auth/callback", %{"code" => "code", "state" => state})
   end
 
   defp oauth_body, do: %{"grant_type" => "authorization_code", "code" => "code"}
