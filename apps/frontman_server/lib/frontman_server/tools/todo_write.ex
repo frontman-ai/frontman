@@ -33,7 +33,9 @@ defmodule FrontmanServer.Tools.TodoWrite do
 
     RULES:
     - Send the COMPLETE list every time — omitted items are removed
-    - Keep exactly ONE item as "in_progress" while working
+    - Use "pending" for work that has not started
+    - "in_progress" means started but unfinished, not that the agent is currently executing
+    - Preserve "in_progress" after an interruption so the next turn can resume unfinished work
     - Mark items "completed" only when fully done (tests pass, no errors)
     - Use "content" for imperative form and "active_form" for present continuous
 
@@ -82,7 +84,8 @@ defmodule FrontmanServer.Tools.TodoWrite do
               "status" => %{
                 "type" => "string",
                 "enum" => ["pending", "in_progress", "completed"],
-                "description" => "Current status of this todo item"
+                "description" =>
+                  "Work progress: pending = not started, in_progress = started but unfinished (even after execution stops), completed = finished"
               },
               "priority" => %{
                 "type" => "string",

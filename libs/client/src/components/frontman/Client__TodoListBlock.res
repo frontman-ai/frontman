@@ -25,7 +25,7 @@ let make = (~todos: array<TodoUtils.todoItem>, ~isLoading: bool=false, ~messageI
         </svg>,
         "text-zinc-500",
       )
-    | #in_progress => (<Icons.LoaderIcon size=12 />, "text-blue-400")
+    | #in_progress => (<Icons.InProgressIcon size=12 />, "text-blue-400")
     | #completed => (<Icons.CheckIcon size=12 />, "text-teal-400")
     | #cancelled => (<Icons.XIcon size=12 />, "text-red-400")
     }
