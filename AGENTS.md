@@ -19,7 +19,15 @@ cd .worktrees/feature/my-feature
 
 - Keep PRs below 500 net-new lines. Prefer smaller changes.
 - Reuse existing execution paths. Prefer a small guard over a new abstraction.
-- Prefer integration tests over unit tests, and always read the full test file before adding a new test.
+
+## Testing (Mandatory)
+
+- Always prefer writing end-to-end (E2E) and integration tests over unit tests for new behavior and bug fixes.
+- Exercise real application paths and dependencies. Assert observable outcomes, not implementation details.
+- Add unit tests only for cases that E2E or integration tests cannot reasonably cover. Explain that gap before writing them.
+- Do not introduce or use mocks, stubs, fakes, or other test doubles without explicit user permission for the task.
+- If a real dependency is unavailable, report the blocker and ask the user before substituting a test double.
+- Always read the full test file before adding a new test.
 
 ## ReScript
 

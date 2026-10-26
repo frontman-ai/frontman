@@ -53,7 +53,7 @@ module PlanItem = {
         {isCompleted
           ? <Icons.CheckIcon size=12 />
           : isInProgress
-          ? <Icons.LoaderIcon size=12 />
+          ? <Icons.InProgressIcon size=12 />
           : <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 16 16"
@@ -94,9 +94,7 @@ let make = (~entries: array<ACPTypes.planEntry>) => {
                 : "-rotate-90"}`}
           />
           <span className="text-xs font-medium text-zinc-300">
-            {React.string(
-              `Agent is working (${completedCount->Int.toString}/${totalCount->Int.toString})`,
-            )}
+            {React.string(`Plan (${completedCount->Int.toString}/${totalCount->Int.toString})`)}
           </span>
         </div>
         <div className="flex items-center gap-2">

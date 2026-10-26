@@ -1,7 +1,4 @@
-import draftUrl from "draft-fixture-editor-umd?url";
-import immutableUrl from "draft-fixture-immutable-umd?url";
-import reactDomUrl from "draft-fixture-react-dom-umd?url";
-import reactUrl from "draft-fixture-react-umd?url";
+import runtimeUrl from "draft-fixture-runtime?url";
 import draftCss from "draft-js/dist/Draft.css?inline";
 
 function loadScript(doc, src) {
@@ -16,12 +13,12 @@ function loadScript(doc, src) {
 }
 
 export async function mountDraft(doc, initial, save, mode) {
-	for (const url of [reactUrl, reactDomUrl, immutableUrl, draftUrl])
-		await loadScript(doc, url);
+	await loadScript(doc, runtimeUrl);
 	const style = doc.createElement("style");
 	style.textContent = draftCss;
 	doc.head.append(style);
-	const { React, ReactDOM, Draft } = doc.defaultView;
+	const { React, ReactDOM, Draft, createRoot } =
+		doc.defaultView.FrontmanDraftFixture;
 	let accepted = Draft.EditorState.createWithContent(
 		Draft.ContentState.createFromText(initial),
 	);
@@ -72,7 +69,7 @@ export async function mountDraft(doc, initial, save, mode) {
 			),
 		);
 	}
-	const root = ReactDOM.createRoot(doc.querySelector("#app"));
+	const root = createRoot(doc.querySelector("#app"));
 	ReactDOM.flushSync(() => root.render(React.createElement(App)));
 	return {
 		get state() {

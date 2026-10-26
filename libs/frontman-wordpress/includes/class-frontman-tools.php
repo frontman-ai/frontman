@@ -123,6 +123,9 @@ class Frontman_Tools {
 	 * Register a tool definition.
 	 */
 	public function add( Frontman_Tool_Definition $tool ): void {
+		if ( isset( $this->tools[ $tool->name ] ) ) {
+			throw new \LogicException( 'Duplicate tool registration: ' . $tool->name );
+		}
 		$this->tools[ $tool->name ] = $tool;
 	}
 
@@ -283,6 +286,9 @@ class Frontman_Tools {
 				return (float) $value;
 
 			case 'boolean':
+				if ( 'wp_get_site_info' === $tool_name && 'include_installation_paths' === $field_name && ! is_bool( $value ) ) {
+					throw new Frontman_Tool_Error( 'include_installation_paths must be a boolean.' );
+				}
 				if ( $preserve_input_strings && in_array( $field_name, [ 'confirm', 'replaceAll' ], true ) && ! is_bool( $value ) ) {
 					return $value;
 				}

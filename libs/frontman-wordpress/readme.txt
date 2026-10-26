@@ -51,7 +51,7 @@ Use Frontman to:
 * Update WooCommerce products and other supported store data
 * Change navigation menus, templates, template parts, and supported widgets
 * Update Additional CSS and allowlisted site settings
-* Read or update supported SEO title and description overrides when a tested provider is available
+* Read or update supported SEO title and description overrides when a compatible provider is available
 * Inspect a page and explain which supported WordPress structure can control it
 
 == How Frontman Works ==
@@ -61,6 +61,16 @@ Frontman puts an AI editor beside a live view of your site. Select mode adds con
 Frontman then uses WordPress, Elementor, or WooCommerce tools that match the request. The preview refreshes after a supported change, so you can review the page in the same workspace.
 
 Frontman works with WordPress content and structures that its current tools support. Custom themes, custom plugins, hosting controls, and unsupported page builders can require a different workflow.
+
+== Installation Location ==
+
+`wp_get_site_info` omits installation paths by default. For a user-requested location check, `include_installation_paths: true` adds an `installation` object.
+
+`installation.abspath` reports WordPress's configured `ABSPATH`. `installation.resolved_abspath` resolves symbolic links with `realpath`, or returns null if resolution fails. Both paths use forward slashes and a trailing slash. The tool accepts no path input and grants no file-content or directory-listing access.
+
+These paths describe the PHP runtime, not necessarily the host path or public document root. Multisite sites can share a root. Separate containers can report identical paths. These fields do not provide a unique installation identity.
+
+Paths can reveal hosting details or account names. Requested path results can enter the selected AI provider's request context and stored task history.
 
 == Native Post Authors ==
 
@@ -76,15 +86,17 @@ Consider the remaining pages before selecting an account. If multiple accounts c
 
 == Optional SEO Tools ==
 
-`wp_read_seo` reads stored SEO title and description overrides. `wp_update_seo` updates one or both overrides. The tested versions are Yoast SEO Free 28.4 and 19.9. Frontman does not install Yoast.
+`wp_read_seo` reads stored SEO title and description overrides. `wp_update_seo` updates one or both overrides. Eligibility depends on Yoast SEO Free runtime capabilities, not an exact version list. Frontman does not install Yoast.
 
-The route requires WordPress 6.9 or later. Tests cover Yoast 28.4 on WordPress 7.0.2 with PHP 7.4 and 8.4. Tests also cover Yoast 19.9 on WordPress 6.9.9 with PHP 8.2. Premium and active Rank Math, All in One SEO, or The SEO Framework disable these tools. Frontman cannot detect every custom SEO owner.
+Both tools also support one `focus_keyphrase`, stored through Yoast Free as `focuskw`. A focus-only update preserves title and description. Omission preserves the keyphrase; an empty string clears it. Reads and mutation snapshots include it. This is an analysis input, not a rendered keywords tag. Secondary keywords, synonyms, related keyphrases, and Premium support are not included.
+
+The route requires WordPress 6.9 or later, initialized Yoast metadata methods, and registered metadata sanitizers. The integration-test matrix includes Yoast 28.6 on WordPress 7.0.2 with PHP 8.4, Yoast 28.4 on WordPress 7.0.2 with PHP 7.4 and 8.4, and Yoast 19.9 on WordPress 6.9.9 with PHP 8.2. These pins define test coverage, not production eligibility. Future Yoast versions must pass the same runtime contract. Premium and active Rank Math, All in One SEO, or The SEO Framework disable these tools. Frontman cannot detect every custom SEO owner.
 
 `wp_get_site_info` returns `seo_unavailable_reason`. A nonempty reason explains why Frontman does not register the SEO tools. A null reason means the compatibility checks pass. Each post still requires edit permissions.
 
 Supported objects are posts, pages, and editable non-attachment custom post types with an admin interface, including authorized drafts and private content. Revisions, autosaves, attachments, and internal WordPress object types are not supported.
 
-The post ID must be a positive integer. An update must include a title or description. Omitted fields stay unchanged. Empty strings clear overrides and restore Yoast templates or defaults, not necessarily empty rendered tags.
+The post ID must be a positive integer. An update must include a title, description, or focus_keyphrase. Omitted fields stay unchanged. Empty strings clear overrides and restore Yoast templates or defaults, not necessarily empty rendered tags.
 
 Results confirm stored overrides, not rendered HTML or search-engine indexing. Yoast expands variables on later requests. External full-page caches and CDNs have separate refresh behavior.
 

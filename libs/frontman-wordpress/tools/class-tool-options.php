@@ -87,7 +87,7 @@ class Frontman_Tool_Options {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_update_option',
-			'Updates a WordPress option value. Only allows modifying a safe allowlist of options.',
+			'Updates only allowlisted core WordPress options. Arbitrary plugin-private options are not supported.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,

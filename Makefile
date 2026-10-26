@@ -110,7 +110,7 @@ HELP_infra-down := Tear down all pods, volumes, and Caddy
 HELP_infra-build := Rebuild the frontman-dev container image
 
 HELP_REL_TITLE := Release
-HELP_REL_TARGETS := publish publish-astro publish-vite publish-nextjs publish-react-statestore publish-swarm-ai release package-wordpress-plugin publish-wordpress-plugin-svn build-wordpress-dependencies wordpress-composer-lock test-wordpress-core-tools test-wordpress-sentry test-wordpress-runtime
+HELP_REL_TARGETS := publish publish-astro publish-vite publish-nextjs publish-react-statestore publish-swarm-ai release package-wordpress-plugin publish-wordpress-plugin-svn build-wordpress-dependencies wordpress-composer-lock test-wordpress-core-tools test-wordpress-sentry test-wordpress-runtime test-wordpress-301-runtime
 HELP_publish := Publish all npm packages (pass OTP=<code> for 2FA)
 HELP_publish-astro := Publish @frontman-ai/astro to npm (pass OTP=<code> for 2FA)
 HELP_publish-vite := Publish @frontman-ai/vite to npm (pass OTP=<code> for 2FA)
@@ -122,6 +122,7 @@ HELP_package-wordpress-plugin := Build WordPress ZIP and WordPress.org bundle
 HELP_publish-wordpress-plugin-svn := Publish WordPress.org bundle to SVN (requires WORDPRESS_ORG_* env vars)
 HELP_test-wordpress-core-tools := Run PHP tests for WordPress tool implementations
 HELP_test-wordpress-runtime := Run plugin integration tests in WordPress containers
+HELP_test-wordpress-301-runtime := Test pinned redirect plugins and tool coexistence in WordPress containers
 HELP_build-wordpress-dependencies := Bundle the locked PHP SDK (Docker, or CONTAINER_RUNTIME=podman)
 HELP_wordpress-composer-lock := Update PHP dependencies while preserving PHP 7.4 compatibility
 HELP_test-wordpress-sentry := Test PHP diagnostics and SDK coexistence (PHP_VERSION=7.4 or 8.4)
@@ -606,6 +607,7 @@ publish-wordpress-plugin-svn: package-wordpress-plugin
 	@VERSION=$(VERSION) bash ./scripts/publish-wordpress-plugin-svn.sh
 
 test-wordpress-core-tools: build-wordpress-dependencies
+	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/ToolRegistryTest.php
 	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/AuthDiagnosticsTest.php
 	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/PostAuthorsTest.php
 	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/NoFilesystemToolsTest.php
@@ -623,6 +625,7 @@ test-wordpress-core-tools: build-wordpress-dependencies
 test-wordpress-runtime:
 	@bash scripts/test-wordpress-plugin-runtime.sh
 
+include libs/frontman-wordpress/tests/redirects301.mk
 
 
 

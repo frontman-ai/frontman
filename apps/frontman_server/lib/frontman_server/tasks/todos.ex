@@ -10,6 +10,9 @@ defmodule FrontmanServer.Tasks.Todos do
 
   The LLM sends the complete list each time. This prevents ID and state drift
   between turns.
+
+  Todo status records work progress, not execution state. `in_progress` means
+  started but unfinished and remains unchanged when execution stops.
   """
 
   alias FrontmanServer.Tasks.Interaction

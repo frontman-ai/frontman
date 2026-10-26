@@ -15,6 +15,7 @@ function check( bool $condition, string $message ): void {
 }
 
 require_once __DIR__ . '/../includes/class-frontman-ui.php';
+require_once __DIR__ . '/../includes/class-frontman-sentry.php';
 $ui = new Frontman_UI();
 $ui->register();
 check( isset( $hooks['wp_enqueue_scripts'] ), 'Register the frontend bridge hook' );
