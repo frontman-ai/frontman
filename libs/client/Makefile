@@ -34,10 +34,10 @@ test: build
 
 test-screenshots: build
 	$(MAKE) build-lib
-	yarn vitest run --config test/Client__BrowserTestConfig.res.mjs $(BROWSER_TEST_FILTER)
+	yarn vitest run --config vitest.browser.config.js $(BROWSER_TEST_FILTER)
 
 test-browser-forms: build
-	yarn vitest run --config test/Client__BrowserTestConfig.res.mjs test/browser/Client__Tool__Form
+	yarn vitest run --config vitest.browser.config.js test/browser/Client__Tool__Form
 
 test-coverage: build
 	yarn vitest run --coverage

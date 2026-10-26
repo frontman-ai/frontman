@@ -8,9 +8,9 @@ let get = (): option<t> => {
   let previewFrame = Client__State__StateReducer.Selectors.previewFrame(state)
   switch (previewFrame.contentDocument, previewFrame.contentWindow) {
   | (Some(doc), Some(window)) =>
-    switch Client__PreviewFrame.validate(~doc, ~window) {
-    | Some(context) => Some(context)
-    | None =>
+    switch Client__PreviewFrame.isCurrent(~doc, ~window) {
+    | true => Some({doc, win: window.window})
+    | false =>
       Client__State.Actions.setPreviewFrame(
         ~clientId=Client__State.Selectors.currentTaskClientId(state),
         ~navigationKey=previewFrame.navigationKey,
