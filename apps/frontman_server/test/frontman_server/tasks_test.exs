@@ -1330,16 +1330,33 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "rolls back valid rules when one rule is too large", %{scope: scope} do
-      task_id = task_fixture(scope).id
+      for oversized <- [String.duplicate("x", 65_537), String.duplicate("é", 32_769)],
+          field <- [:path, :content] do
+        task_id = task_fixture(scope).id
+        Phoenix.PubSub.subscribe(FrontmanServer.PubSub, "task:#{task_id}")
+        invalid = if field == :path, do: {oversized, "content"}, else: {"oversized", oversized}
 
-      assert_raise Ecto.InvalidChangesetError, fn ->
-        Tasks.add_discovered_project_rules(scope, task_id, [
-          {"valid", "content"},
-          {"oversized", String.duplicate("x", 65_537)}
-        ])
+        assert {:error, {:invalid_project_rule, %Ecto.Changeset{valid?: false}}} =
+                 Tasks.add_discovered_project_rules(scope, task_id, [
+                   {"valid", "content"},
+                   invalid
+                 ])
+
+        refute Repo.exists?(InteractionSchema.for_task(task_id))
+        refute_receive {:interaction, _}
       end
+    end
 
-      refute Repo.exists?(InteractionSchema.for_task(task_id))
+    test "accepts exact byte boundaries without truncation", %{scope: scope} do
+      for content <- [String.duplicate("x", 65_536), String.duplicate("é", 32_768)] do
+        task_id = task_fixture(scope).id
+
+        assert {:ok, [row]} =
+                 Tasks.add_discovered_project_rules(scope, task_id, [{content, content}])
+
+        assert row.data.path == content
+        assert row.data.content == content
+      end
     end
   end
 

@@ -221,7 +221,7 @@ defmodule FrontmanServer.Tasks do
             task
             |> Ecto.build_assoc(:interaction_rows)
             |> InteractionSchema.changeset(attrs)
-            |> Repo.insert!()
+            |> insert_project_rule()
           end)
 
         {1, _} =
@@ -230,6 +230,13 @@ defmodule FrontmanServer.Tasks do
           |> Repo.update_all(set: [updated_at: DateTime.utc_now(:second)])
 
         {:ok, {task, rows}}
+    end
+  end
+
+  defp insert_project_rule(changeset) do
+    case Repo.insert(changeset) do
+      {:ok, row} -> row
+      {:error, changeset} -> Repo.rollback({:invalid_project_rule, changeset})
     end
   end
 

@@ -1,10 +1,13 @@
 defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
-  use ExUnit.Case, async: false
+  use FrontmanServer.DataCase, async: false
 
   import ExUnit.CaptureLog
+  import FrontmanServer.Test.Fixtures.Accounts
+  import FrontmanServer.Test.Fixtures.Tasks
   import FrontmanServer.Test.Fixtures.Tools, only: [mcp_tool: 1, mcp_tool: 2]
 
   alias FrontmanServer.Protocols.MCP
+  alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServerWeb.ChannelCase
   alias FrontmanServerWeb.TaskChannel.MCPInitializer
 
@@ -328,5 +331,45 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
         )
       end
     end)
+  end
+
+  test "reports rejected rules without crashing or persisting a partial batch" do
+    scope = user_scope_fixture()
+    task = task_fixture(scope)
+    state = Map.merge(rules_state(1), %{scope: scope, task_id: task.id})
+
+    for content <- [String.duplicate("x", 65_537), String.duplicate("é", 32_769)] do
+      result =
+        MCP.tool_result_text(
+          Jason.encode!([
+            %{"fullPath" => "valid", "content" => "content"},
+            %{"fullPath" => "oversized", "content" => content}
+          ])
+        )
+
+      log =
+        capture_log(fn ->
+          assert {%{status: :loading_project_structure, project_rules_request_id: nil},
+                  [{:push_mcp, _request}]} =
+                   MCPInitializer.handle_response(state, 1, result)
+        end)
+
+      assert log =~ "Failed to persist project rules; no rules loaded"
+      refute log =~ "Initialized"
+      refute log =~ content
+      refute Repo.exists?(InteractionSchema.for_task(task.id))
+    end
+  end
+
+  test "persists valid rules and continues initialization" do
+    scope = user_scope_fixture()
+    task = task_fixture(scope)
+    state = Map.merge(rules_state(1), %{scope: scope, task_id: task.id})
+    result = MCP.tool_result_text(Jason.encode!([%{"fullPath" => "rule", "content" => "text"}]))
+
+    assert {%{status: :loading_project_structure}, [{:push_mcp, _request}]} =
+             MCPInitializer.handle_response(state, 1, result)
+
+    assert Repo.exists?(InteractionSchema.for_task(task.id))
   end
 end
