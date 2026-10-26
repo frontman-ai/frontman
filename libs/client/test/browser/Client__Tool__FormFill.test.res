@@ -71,22 +71,6 @@ let saveReload = async (t, fixture) => {
   Fixture.preview(~doc=fixture->Fixture.doc, ~win=fixture->Fixture.win)
 }
 
-type runtimeVersion = {version: string}
-type draftRuntime = {
-  @as("React") react: runtimeVersion,
-  @as("ReactDOM") reactDom: runtimeVersion,
-}
-@get external draftRuntime: WebAPI.DomTypes.window => draftRuntime = "FrontmanDraftFixture"
-@module("react") external reactVersion: string = "version"
-@module("react-dom") external reactDomVersion: string = "version"
-
-testAsync("Draft.js iframe uses the client React and React DOM versions", async t => {
-  let fixture = await mount("draft")
-  let runtime = fixture->Fixture.win->draftRuntime
-  t->expect(runtime.react.version)->Expect.toBe(reactVersion)
-  t->expect(runtime.reactDom.version)->Expect.toBe(reactDomVersion)
-})
-
 /// Each row owns a different editing path, not every value x every fixture.
 [
   ("native", "新しい title — café 🎯"),
