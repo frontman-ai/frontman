@@ -103,7 +103,25 @@ describe("ACP message identity", () => {
     module App = Client__State__StateReducer
     module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
     Buffer.reset()
-    let loading = makeLoadingTask()
+    let cached =
+      makeLoadingTask()
+      ->apply(LoadComplete)
+      ->apply(
+        UserMessageReceived({
+          id: "stale-cache",
+          content: [UserContentPart.text("Do not restore")],
+          annotations: [],
+          agentId: "executor-id",
+          pending: true,
+        }),
+      )
+      ->apply(ExecutionStateRunning)
+    let loading = cached->apply(LoadStarted({previewUrl: "http://localhost:3000"}))
+    switch loading {
+    | Task.Loading({isAgentRunning, queuedUserMessages}) =>
+      t->expect((isAgentRunning, queuedUserMessages))->Expect.toEqual((false, []))
+    | _ => failwith("Reactivation must discard cached execution state")
+    }
     let store = StateStore.make(
       module(App),
       {
@@ -170,7 +188,7 @@ describe("ACP message identity", () => {
     Buffer.reset()
   })
 
-  test("load results reject abandoned requests", t => {
+  test("reactivation uses regular load and fences abandoned requests", t => {
     module App = Client__State__StateReducer
     module Connection = Client__ConnectionReducer
     let initial = {...App.defaultState, tasks: Dict.fromArray([("task-1", makeLoadingTask())])}
@@ -191,14 +209,11 @@ describe("ACP message identity", () => {
       | _ => false
       }
     ))->Expect.toBe(true)
+    let (unchanged, effects) = App.next(loading, SwitchTask({taskId: "task-1"}))
+    t->expect((unchanged, effects))->Expect.toEqual((loading, []))
     let released = App.next(loading, ClearCurrentTask)->Pair.first
     let retried = App.next(released, SwitchTask({taskId: "task-1"}))->Pair.first
-    let oldId = effects->Array.findMap(effect =>
-      switch effect {
-      | ConnectionEffect(ActivateSessionEffect({requestId})) => Some(requestId)
-      | _ => None
-      }
-    )->Option.getOrThrow
+    let oldId = loading.connection->Option.getOrThrow->Connection.Selectors.sessionRequestId->Option.getOrThrow
     let stale = App.next(retried, ConnectionAction(SessionResultReceived({
       requestId: oldId,
       sessionId: "task-1",

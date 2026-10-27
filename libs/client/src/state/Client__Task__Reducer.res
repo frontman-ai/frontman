@@ -46,7 +46,9 @@ module Lens = {
     | Task.New(data) => Task.New({...data, previewFrame: fn(data.previewFrame)})
     | Task.Loading(data) => Task.Loading({...data, previewFrame: fn(data.previewFrame)})
     | Task.Loaded(data) => Task.Loaded({...data, previewFrame: fn(data.previewFrame)})
-    | Task.Unloaded(_) =>
+    | Task.Unloaded({retained: Some(view)} as data) =>
+      Task.Unloaded({...data, retained: Some({...view, previewFrame: fn(view.previewFrame)})})
+    | Task.Unloaded({retained: None}) =>
       failwith("[Lens.updatePreviewFrame] Cannot update preview frame on Unloaded task")
     }
 
@@ -137,7 +139,7 @@ module Lens = {
 
   let updateTaskData = (task: Task.t, fn: Task.loadedData => Task.loadedData): Task.t =>
     switch task {
-    | Task.Unloaded(_) => failwith("[Lens.updateTaskData] Cannot update Unloaded task")
+    | Task.Unloaded({retained: None}) => failwith("[Lens.updateTaskData] Cannot update Unloaded task")
     | _ => Task.updateLoadedData(task, fn)
     }
 
@@ -196,17 +198,14 @@ module Selectors = {
 
   let annotations = (task: Task.t): option<array<Annotation.t>> => {
     switch task {
-    | Task.Unloaded(_) => None
-    | Task.New({annotations})
-    | Task.Loading({annotations})
-    | Task.Loaded({annotations}) =>
-      Some(annotations)
+    | Task.Unloaded({retained: None}) => None
+    | _ => Some(Task.getAnnotations(task))
     }
   }
 
   let webPreviewIsSelecting = (task: Task.t): option<bool> => {
     switch task {
-    | Task.Unloaded(_) => None
+    | Task.Unloaded({retained: None}) => None
     | _ => Some(Task.getWebPreviewIsSelecting(task))
     }
   }
@@ -219,7 +218,7 @@ module Selectors = {
 
   let activePopupAnnotationId = (task: Task.t): option<option<string>> => {
     switch task {
-    | Task.Unloaded(_) => None
+    | Task.Unloaded({retained: None}) => None
     | _ => Some(Task.getActivePopupAnnotationId(task))
     }
   }
@@ -246,19 +245,11 @@ module Selectors = {
   }
 
   let deviceMode = (task: Task.t): Client__DeviceMode.deviceMode => {
-    switch task {
-    | Task.Unloaded(_) => Client__DeviceMode.defaultDeviceMode
-    | Task.New({previewFrame}) | Task.Loading({previewFrame}) | Task.Loaded({previewFrame}) =>
-      previewFrame.deviceMode
-    }
+    Task.getPreviewFrame(task, ~defaultUrl="").deviceMode
   }
 
   let orientation = (task: Task.t): Client__DeviceMode.orientation => {
-    switch task {
-    | Task.Unloaded(_) => Client__DeviceMode.defaultOrientation
-    | Task.New({previewFrame}) | Task.Loading({previewFrame}) | Task.Loaded({previewFrame}) =>
-      previewFrame.orientation
-    }
+    Task.getPreviewFrame(task, ~defaultUrl="").orientation
   }
 
   let turnError = (task: Task.t): option<Task.turnErrorInfo> => {
@@ -393,6 +384,7 @@ type action =
   | QuestionSubmitted
   | QuestionAllSkipped
   | QuestionCancelled
+  | QuestionDetached({resolveOk: JSON.t => unit})
 
 type effect =
   | FetchAnnotationDetails({
@@ -459,6 +451,7 @@ let actionToString = (action: action): string =>
   | QuestionSubmitted => "QuestionSubmitted"
   | QuestionAllSkipped => "QuestionAllSkipped"
   | QuestionCancelled => "QuestionCancelled"
+  | QuestionDetached(_) => "QuestionDetached"
   }
 
 let normalizeUrl = (url: string): string => {
@@ -575,8 +568,8 @@ let resolveQuestion = (task: Task.t, ~skippedAll: bool, ~cancelled: bool): (
 
 let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   switch (task, action) {
-  | (Task.Unloaded(_), NavigatePreview(_)) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), NavigatePreview({url})) =>
+  | (Task.Unloaded({retained: None}), NavigatePreview(_)) => (task, [])
+  | (_, NavigatePreview({url})) =>
     let updated = Lens.updatePreviewFrame(task, pf => {
       ...pf,
       url,
@@ -588,8 +581,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     let updated = Lens.setActivePopupAnnotationId(updated, None)
     (updated, [SyncBrowserUrl(url)])
 
-  | (Task.Unloaded(_), PreviewUrlObserved(_)) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), PreviewUrlObserved({url})) =>
+  | (Task.Unloaded({retained: None}), PreviewUrlObserved(_)) => (task, [])
+  | (_, PreviewUrlObserved({url})) =>
     let currentUrl = Task.getPreviewFrame(task, ~defaultUrl="").url
     let urlChanged = normalizeUrl(currentUrl) != normalizeUrl(url)
     let updated = Lens.setPreviewUrl(task, url)
@@ -602,11 +595,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     | false => (updated, [])
     }
 
-  | (Task.Unloaded(_), SetPreviewFrame(_)) => (task, [])
-  | (
-      Task.New(_) | Task.Loading(_) | Task.Loaded(_),
-      SetPreviewFrame({contentDocument, contentWindow}),
-    ) =>
+  | (Task.Unloaded({retained: None}), SetPreviewFrame(_)) => (task, [])
+  | (_, SetPreviewFrame({contentDocument, contentWindow})) =>
     let previous = Task.getPreviewFrame(task, ~defaultUrl="")
     let updated = Lens.setPreviewFrame(task, ~contentDocument, ~contentWindow)
     switch previous.contentDocument === contentDocument {
@@ -1152,18 +1142,57 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         createdAt,
         updatedAt,
         messages: MessageStore.make(),
-        previewFrame: {
-          url: previewUrl,
-          navigationKey: 0,
-          contentDocument: None,
-          contentWindow: None,
-          deviceMode: Client__DeviceMode.defaultDeviceMode,
-          orientation: Client__DeviceMode.defaultOrientation,
-        },
-        annotationMode: Annotation.Off,
-        annotations: [],
-        activePopupAnnotationId: None,
+        previewFrame: Task.getPreviewFrame(task, ~defaultUrl=previewUrl),
+        annotationMode: Task.getAnnotationMode(task),
+        annotations: Task.getAnnotations(task),
+        activePopupAnnotationId: Task.getActivePopupAnnotationId(task),
         isAgentRunning: false,
+        pendingQuestion: None,
+        imageAttachments: Task.getImageAttachments(task),
+        queuedUserMessages: [],
+        planEntries: [],
+      }),
+      [],
+    )
+
+  | (
+      Task.Loaded({
+        id,
+        title,
+        createdAt,
+        updatedAt,
+        previewFrame,
+        annotationMode,
+        annotations,
+        activePopupAnnotationId,
+        imageAttachments,
+      })
+      | Task.Loading({
+        id,
+        title,
+        createdAt,
+        updatedAt,
+        previewFrame,
+        annotationMode,
+        annotations,
+        activePopupAnnotationId,
+        imageAttachments,
+      }),
+      LoadStarted(_),
+    ) => (
+      Task.Loading({
+        id,
+        title,
+        createdAt,
+        updatedAt,
+        messages: MessageStore.make(),
+        previewFrame,
+        annotationMode,
+        annotations,
+        activePopupAnnotationId,
+        isAgentRunning: false,
+        pendingQuestion: None,
+        imageAttachments,
         queuedUserMessages: [],
         planEntries: [],
       }),
@@ -1183,6 +1212,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         annotations,
         activePopupAnnotationId,
         isAgentRunning,
+        pendingQuestion,
+        imageAttachments,
         queuedUserMessages,
         planEntries,
       }) => (
@@ -1204,8 +1235,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           pendingUserMessageIds: [],
           turnError: None,
           retryStatus: None,
-          imageAttachments: Dict.make(),
-          pendingQuestion: None,
+          imageAttachments,
+          pendingQuestion,
           completedFileChanges: Client__FileChanges.aggregateCompleted(
             ~revision=1,
             ~isAgentRunning,
@@ -1218,12 +1249,50 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       failwith("[TaskReducer] LoadComplete: unexpected task state after completeStreamingMessage")
     }
 
-  | (Task.Loading({id, title, createdAt, updatedAt}), LoadError({error})) =>
+  | (
+      Task.Loading({
+        id,
+        title,
+        createdAt,
+        updatedAt,
+        previewFrame,
+        annotations,
+        imageAttachments,
+      }),
+      LoadError({error}),
+    ) =>
     Log.error(~ctx={"error": error}, "Task load failed")
-    (Task.Unloaded({id, title, createdAt, updatedAt}), [])
+    (
+      Task.Unloaded({
+        id,
+        title,
+        createdAt,
+        updatedAt,
+        retained: Some({
+          previewFrame,
+          annotationMode: Annotation.Off,
+          annotations,
+          activePopupAnnotationId: None,
+          imageAttachments,
+        }),
+      }),
+      [],
+    )
 
-  | (Task.Loaded({pendingQuestion: Some(pq)}), QuestionReceived({toolCallId, resolveError}))
-    if pq.toolCallId != toolCallId => (
+  | (_, QuestionDetached({resolveOk})) => (
+      Task.updateLoadedData(task, data =>
+        switch data.pendingQuestion {
+        | Some(question) if question.resolveOk === resolveOk => {...data, pendingQuestion: None}
+        | _ => data
+        }
+      ),
+      [],
+    )
+
+  | (
+      Task.Loaded({pendingQuestion: Some(pq)}) | Task.Loading({pendingQuestion: Some(pq)}),
+      QuestionReceived({toolCallId, resolveError}),
+    ) if pq.toolCallId != toolCallId => (
       task,
       [
         RejectQuestionToolEffect({
@@ -1232,8 +1301,11 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         }),
       ],
     )
-  | (Task.Loaded(data), QuestionReceived({questions, toolCallId, resolveOk, resolveError})) => (
-      Task.Loaded({
+  | (
+      Task.Loaded(_) | Task.Loading(_),
+      QuestionReceived({questions, toolCallId, resolveOk, resolveError}),
+    ) => (
+      Task.updateLoadedData(task, data => {
         ...data,
         pendingQuestion: Some({
           Client__Question__Types.questions,
@@ -1381,7 +1453,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         )} task ${getTaskIdForError(task)}`,
     )
 
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), LoadStarted(_)) =>
+  | (Task.New(_), LoadStarted(_)) =>
     failwith(
       `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
           task,

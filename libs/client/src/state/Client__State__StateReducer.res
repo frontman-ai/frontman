@@ -1271,6 +1271,7 @@ module ConnectionEffects = {
       switch isCurrentSessionRequest(state, requestId) {
       | false => ()
       | true =>
+        Client__TextDeltaBuffer.reset()
         let pending = ref(true)
         let creationError = ref(None)
         let result = await activate(
@@ -1404,7 +1405,7 @@ module ConnectionEffects = {
       }
     | ActivateSessionEffect({requestId, connection, mcpServer, operation}) =>
       let sessionId = switch operation {
-      | #load(sessionId) | #join(sessionId) | #create(sessionId) => sessionId
+      | #load(sessionId) | #create(sessionId) => sessionId
       }
       activateSession(~requestId, ~sessionId, async (onUpdate, onTitleUpdated, onParseError) => {
         let mcpServerInterface = MCPServer.toInterface(mcpServer)
@@ -1420,6 +1421,7 @@ module ConnectionEffects = {
           )
           result->Result.map(((session, result)) => (session, result.configOptions))
         | #load(_) =>
+          Log.info(~ctx={"sessionId": sessionId}, "Loading task session and replaying history")
           let result = await ACP.loadSession(
             connection,
             sessionId,
@@ -1431,18 +1433,6 @@ module ConnectionEffects = {
           )
           result
           ->Result.map(((session, result)) => (session, result.configOptions))
-          ->Result.mapError(ACP.requestErrorFromMessage)
-        | #join(_) =>
-          let result = await ACP.joinSession(
-            connection,
-            sessionId,
-            ~onUpdate=ACP.validatedUpdateHandler(connection, sessionId, onUpdate),
-            ~onTitleUpdated,
-            ~onParseError,
-            ~mcpServerInterface,
-          )
-          result
-          ->Result.map(session => (session, None))
           ->Result.mapError(ACP.requestErrorFromMessage)
         }
       })->ignore
@@ -2052,18 +2042,23 @@ let startCustomProviderMutation = (state: state, request) => {
   }
 }
 
-let clearConnectionState = (state: state) => {
+let clearPendingQuestions = (state: state) => {
   let updatedTasks = state.tasks->Dict.copy
   updatedTasks->Dict.forEachWithKey((task, taskId) => {
     switch task {
     | Task.Loaded(data) =>
       updatedTasks->Dict.set(taskId, Task.Loaded({...data, pendingQuestion: None}))
-    | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => ()
+    | Task.Loading(data) =>
+      updatedTasks->Dict.set(taskId, Task.Loading({...data, pendingQuestion: None}))
+    | Task.New(_) | Task.Unloaded(_) => ()
     }
   })
+  {...state, tasks: updatedTasks}
+}
+
+let clearConnectionState = (state: state) => {
   {
-    ...state,
-    tasks: updatedTasks,
+    ...clearPendingQuestions(state),
     billingStatus: Client__Billing.NotLoaded,
     billingFlow: Client__Billing.Idle,
     billingAbortController: None,
@@ -2104,6 +2099,10 @@ let rec next = (state: state, action) => {
   | ConnectionAction(LoadTask({taskId})) if state.connection->Option.isNone =>
     next(state, TaskLoadFinished({taskId, result: Error("No active ACP session")}))
   | ConnectionAction(action) =>
+    let state = switch action {
+    | ClearSession => clearPendingQuestions(state)
+    | _ => state
+    }
     let (updated, effects) = switch state.connection {
     | None => (state, [])
     | Some(previous) =>
@@ -2256,6 +2255,36 @@ let rec next = (state: state, action) => {
     | true => state->Lens.delegateToTask(CurrentTask, action)
     | false => StateReducer.update(state)
     }
+  | TaskAction({target, action: QuestionReceived({resolveError}) as taskAction}) =>
+    let taskId = switch target {
+    | ForTask(taskId) => Some(taskId)
+    | CurrentTask => Selectors.currentTaskId(state)
+    }
+    let canRegister = switch (taskId, state.connection) {
+    | (Some(taskId), Some(connection)) =>
+      Connection.Selectors.sessionTaskId(connection) == Some(taskId) &&
+      Connection.Selectors.sessionRequestId(connection)->Option.mapOr(false, requestId =>
+        Connection.isCurrentSessionRequest(connection, requestId)
+      ) &&
+      state.tasks->Dict.get(taskId)->Option.mapOr(false, task =>
+        Task.isLoaded(task) || Task.isLoading(task)
+      )
+    | _ => false
+    }
+    switch canRegister {
+    | true => state->Lens.delegateToTask(target, taskAction)
+    | false =>
+      state->StateReducer.update(~sideEffect=TaskEffect({
+        target,
+        effect: RejectQuestionToolEffect({
+          resolveError,
+          message: "Question session is no longer active",
+        }),
+      }))
+    }
+  | TaskAction({target: ForTask(taskId), action: QuestionDetached(_)})
+    if !(state.tasks->Dict.has(taskId)) =>
+    state->StateReducer.update
   | TaskAction({target, action: taskAction}) => state->Lens.delegateToTask(target, taskAction)
 
   | PromptFailed({requestId, taskId, id, error}) =>
@@ -2386,20 +2415,20 @@ let rec next = (state: state, action) => {
       )
     | _ => state->StateReducer.update
     }
+  | SwitchTask({taskId})
+    if Selectors.currentTaskId(state) == Some(taskId) &&
+      state.connection->Option.mapOr(false, connection =>
+        Connection.Selectors.sessionTaskId(connection) == Some(taskId) &&
+          Connection.Selectors.sessionRequestId(connection)->Option.isSome
+      ) =>
+    state->StateReducer.update
   | SwitchTask({taskId}) => {
-      let (state, connectionEffects) = switch Selectors.currentTaskId(state) == Some(taskId) {
-      | true => (state, [])
-      | false => next(state, ConnectionAction(ClearSession))
-      }
-      let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
-      let needsLoad = Task.isUnloaded(task)
-      let (updatedState, taskEffects) = if needsLoad {
+      let (state, connectionEffects) = next(state, ConnectionAction(ClearSession))
+      let (updatedState, taskEffects) = {
         state->Lens.delegateToTask(
           ForTask(taskId),
           TaskReducer.LoadStarted({previewUrl: getInitialUrl()}),
         )
-      } else {
-        (state, [])
       }
       let (updatedState, loadEffects) = next(
         {
@@ -2407,7 +2436,7 @@ let rec next = (state: state, action) => {
           currentTask: Task.Selected(taskId),
           highlightedAnnotation: None,
         },
-        ConnectionAction(LoadTask({taskId, needsHistory: !Task.isLoaded(task)})),
+        ConnectionAction(LoadTask({taskId: taskId})),
       )
       updatedState->StateReducer.update(
         ~sideEffects=Array.concat(connectionEffects, loadEffects)->Array.concat(taskEffects),

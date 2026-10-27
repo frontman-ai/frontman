@@ -22,7 +22,7 @@ let effectKinds = effects =>
     | Reducer.CleanupConnectionEffect(_) => #cleanupConnection
     | Reducer.LogoutEffect(_) => #logout
     | Reducer.ActivateSessionEffect({operation: #create(_)}) => #createSession
-    | Reducer.ActivateSessionEffect({operation: #load(_) | #join(_)}) => #loadTask
+    | Reducer.ActivateSessionEffect({operation: #load(_)}) => #loadTask
     | Reducer.SessionCommandEffect(_) => #sessionCommand
     | Reducer.FetchSessionsEffect(_) => #fetchSessions
     | Reducer.DeleteSessionEffect(_) => #deleteSession
@@ -112,7 +112,7 @@ let complete = (state, result) =>
       result,
     }),
   )
-let loadTask = taskId => Reducer.LoadTask({taskId, needsHistory: true})
+let loadTask = taskId => Reducer.LoadTask({taskId: taskId})
 
 describe("Connection Reducer", () => {
   describe("login URL", () => {
