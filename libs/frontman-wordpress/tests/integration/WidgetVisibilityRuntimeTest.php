@@ -25,17 +25,17 @@ $admin = get_user_by( 'login', 'admin' );
 wp_set_current_user( $admin->ID );
 $tool = new Frontman_Tool_Widgets();
 register_sidebar( [ 'id' => 'frontman-visibility', 'name' => 'Visibility test' ] );
-$id = 'woocommerce_recently_viewed_products-2';
+$widget_id = 'woocommerce_recently_viewed_products-2';
 $original = [ 'title' => 'Original', 'number' => 4, 'extension_metadata' => 'retained' ];
 update_option( 'widget_woocommerce_recently_viewed_products', [ 2 => $original, 3 => $original, '_multiwidget' => 1 ] );
-wp_set_sidebars_widgets( [ 'frontman-visibility' => [ $id ] ] );
+wp_set_sidebars_widgets( [ 'frontman-visibility' => [ $widget_id ] ] );
 $wp_widget_factory->widgets['WC_Widget_Recently_Viewed']->_register();
-$identity = static function( $instance, $new, $old, $widget ) use ( $id ) {
-	widget_check( $id === $widget->id && 2 === $widget->number, 'Native callback must receive the target instance, not the last registered instance' );
+$identity = static function( $instance, $new, $old, $widget ) use ( $widget_id ) {
+	widget_check( $widget_id === $widget->id && 2 === $widget->number, 'Native callback must receive the target instance, not the last registered instance' );
 	return $instance;
 };
 add_filter( 'widget_update_callback', $identity, 10, 4 );
-$input = [ 'widget_id' => $id, 'sidebar_id' => 'frontman-visibility' ];
+$input = [ 'widget_id' => $widget_id, 'sidebar_id' => 'frontman-visibility' ];
 $result = $tool->update_widget( $input + [ 'settings' => '{"title":"<b>Viewed</b>","number":1}' ] );
 remove_filter( 'widget_update_callback', $identity, 10 );
 widget_check( 'Viewed' === $result['settings']['title'], 'Native title sanitation' );
@@ -85,24 +85,24 @@ $render = static function( int $page ): string {
 	return trim( implode( "\n", $output ) );
 };
 $_COOKIE['woocommerce_recently_viewed'] = (string) $product_id;
-$tool->set_widget_visibility( [ 'widget_id' => $id, 'visibility' => 'exclude_checkout' ] );
+$tool->set_widget_visibility( [ 'widget_id' => $widget_id, 'visibility' => 'exclude_checkout' ] );
 widget_check( false !== strpos( $render( $cart ), 'History product' ), 'History renders on semantic cart' );
 $checkout_output = $render( $checkout );
 widget_check( '' === $checkout_output, 'Checkout suppressed: ' . $checkout_output );
 widget_check( false !== strpos( $render( $other ), 'History product' ), 'Exclusion preserves unrelated routes' );
-$tool->set_widget_visibility( [ 'widget_id' => $id, 'visibility' => 'cart_only' ] );
+$tool->set_widget_visibility( [ 'widget_id' => $widget_id, 'visibility' => 'cart_only' ] );
 widget_check( false !== strpos( $render( $cart ), 'History product' ), 'Cart-only preserves populated history on cart' );
 widget_check( '' === $render( $checkout ), 'Cart-only suppresses checkout' );
 widget_check( '' === $render( $other ), 'Cart-only suppresses unrelated routes' );
 widget_check( 'all' === $tool->read_widget( [ 'widget_id' => 'woocommerce_recently_viewed_products-3' ] )['visibility'], 'Sibling visibility remains unrestricted' );
 unset( $_COOKIE['woocommerce_recently_viewed'] );
 widget_check( '' === $render( $cart ), 'Empty history intentionally produces no output' );
-$tool->set_widget_visibility( [ 'widget_id' => $id, 'visibility' => 'all' ] );
-widget_check( 'all' === $tool->read_widget( [ 'widget_id' => $id ] )['visibility'], 'Rule is reversible' );
+$tool->set_widget_visibility( [ 'widget_id' => $widget_id, 'visibility' => 'all' ] );
+widget_check( 'all' === $tool->read_widget( [ 'widget_id' => $widget_id ] )['visibility'], 'Rule is reversible' );
 $_COOKIE['woocommerce_recently_viewed'] = (string) $product_id;
 widget_check( false !== strpos( $render( $checkout ), 'History product' ), 'Clearing the rule restores checkout rendering' );
 wp_set_current_user( 0 );
-foreach ( [ 'set_widget_visibility' => [ 'widget_id' => $id, 'visibility' => 'cart_only' ], 'update_widget' => $input + [ 'settings' => '{"number":2}' ] ] as $method => $args ) {
+foreach ( [ 'set_widget_visibility' => [ 'widget_id' => $widget_id, 'visibility' => 'cart_only' ], 'update_widget' => $input + [ 'settings' => '{"number":2}' ] ] as $method => $args ) {
 	try {
 		$tool->$method( $args );
 		throw new RuntimeException( 'Unauthorized mutation accepted' );
