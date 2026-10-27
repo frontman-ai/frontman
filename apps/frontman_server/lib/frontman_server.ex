@@ -31,6 +31,7 @@ defmodule FrontmanServer do
     PublicURL,
     Mailer,
     Release,
+    FirstUseActivation,
     Encrypted.Binary,
     {Tools, []},
     Observability.ConsoleHandler,

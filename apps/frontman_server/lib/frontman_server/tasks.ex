@@ -45,6 +45,7 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Agents
   alias FrontmanServer.Billing
+  alias FrontmanServer.FirstUseActivation
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Protocols.MCP
@@ -65,7 +66,6 @@ defmodule FrontmanServer.Tasks do
 
   alias FrontmanServer.Tools
   alias FrontmanServer.Workers.GenerateTitle
-  alias FrontmanServer.Workers.SyncResendContact
   alias SwarmAi.{Loop, Message}
   alias SwarmAi.Message.ContentPart
   alias SwarmAi.Message.Tool
@@ -527,12 +527,7 @@ defmodule FrontmanServer.Tasks do
 
   defp accept_user_message(scope, task, attrs) do
     Repo.transact(fn ->
-      if Accounts.record_first_message(scope) do
-        %{user_id: Accounts.scope_user_id(scope), activation: true}
-        |> SyncResendContact.new()
-        |> Oban.insert!()
-      end
-
+      :ok = FirstUseActivation.record(scope)
       insert_interaction_row(task, attrs)
     end)
     |> case do
