@@ -427,12 +427,7 @@ defmodule FrontmanServer.Tasks do
       end
 
     results =
-      Enum.map(interrupted, fn {call, _dispatch} ->
-        {:ok, {row, true}} =
-          store_tool_result(task, turn_number, call, MCP.tool_result_error(reason))
-
-        row
-      end)
+      Enum.flat_map(interrupted, &interrupt_tool_call(task, turn_number, &1, kind, reason))
 
     case preserved do
       [] ->
@@ -458,6 +453,34 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  defp interrupt_tool_call(_, _, {_, %Interaction.ToolCall{cancel_requested: true}}, _, _),
+    do: []
+
+  defp interrupt_tool_call(
+         task,
+         turn,
+         {call, %Interaction.ToolCall{attempt_id: id}},
+         :cancelled,
+         _
+       )
+       when is_binary(id) do
+    row =
+      InteractionSchema.for_task(task.id)
+      |> InteractionSchema.for_turn(turn)
+      |> InteractionSchema.of_type(:tool_call)
+      |> InteractionSchema.data_equals("tool_call_id", call.id)
+      |> Repo.one!()
+
+    {:ok, data} = tool_attempt_transition(row.data, id, :cancel)
+    {:ok, _} = row |> Ecto.Changeset.change(data: data) |> Repo.update()
+    []
+  end
+
+  defp interrupt_tool_call(task, turn, {call, _dispatch}, _kind, reason) do
+    {:ok, {row, true}} = store_tool_result(task, turn, call, MCP.tool_result_error(reason))
+    [row]
+  end
+
   defp publish_outcome({:ok, rows}, task_id) do
     Enum.each(rows, fn row ->
       broadcast_task(task_id, {:interaction, row})
@@ -474,6 +497,9 @@ defmodule FrontmanServer.Tasks do
   defp publish_outcome({:error, reason}, _task_id), do: {:error, reason}
 
   defp keeps_turn_open_after_restart?({_tool_call, nil}), do: false
+
+  defp keeps_turn_open_after_restart?({_, %Interaction.ToolCall{cancel_requested: true}}),
+    do: false
 
   defp keeps_turn_open_after_restart?({_tool_call, %Interaction.ToolCall{} = dispatch}),
     do: Interaction.ToolCall.execution_mode(dispatch) == :interactive
@@ -971,7 +997,7 @@ defmodule FrontmanServer.Tasks do
           turn_number: turn_number
         }
 
-        with ^turn_number <- History.active_turn_number(history),
+        with true <- tool_result_allowed?(history, turn_number, tool_call.id),
              {:ok, row} <- insert_interaction_row(task, attrs) do
           {:ok, {row, true}}
         else
@@ -981,13 +1007,25 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp publish_tool_result(task_id, row, true) do
-    broadcast_task(task_id, {:interaction, row})
-    ToolExecutor.notify_tool_result(task_id, row.data)
+  defp tool_result_allowed?(history, turn, logical_id) do
+    case History.active_turn_number(history) do
+      ^turn -> true
+      _ -> History.cancelled_tool_call?(history, turn, logical_id)
+    end
   end
 
-  defp publish_tool_result(task_id, row, false),
-    do: ToolExecutor.notify_tool_result(task_id, row.data)
+  defp publish_tool_result(task_id, row, inserted?) do
+    {:ok, history} = load_history(task_id)
+
+    case History.cancelled_tool_call?(history, row.turn_number, row.data.tool_call_id) do
+      true ->
+        :reconciled
+
+      false ->
+        if inserted?, do: broadcast_task(task_id, {:interaction, row})
+        ToolExecutor.notify_tool_result(task_id, row.data)
+    end
+  end
 
   defp tool_result_turn_number(task_id, tool_call_id, opts) do
     case Keyword.fetch(opts, :turn_number) do
