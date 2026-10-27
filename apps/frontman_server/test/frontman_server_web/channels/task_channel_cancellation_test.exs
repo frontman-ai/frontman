@@ -7,6 +7,7 @@ defmodule FrontmanServerWeb.TaskChannelCancellationTest do
   alias FrontmanServer.Protocols.JsonRpc
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Test.Fixtures.{LLMProvider, Tools}
 
   @moduletag :capture_log
 
@@ -49,10 +50,10 @@ defmodule FrontmanServerWeb.TaskChannelCancellationTest do
        %{scope: scope} do
     FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
     {socket, task_id} = join_task_channel(scope)
-    tool = FrontmanServer.Test.Fixtures.Tools.mcp_tool("write_file")
+    tool = Tools.mcp_tool("write_file")
     complete_mcp_handshake(socket, tools: [tool])
     call = SwarmAi.Testing.tool_call("write_file", %{}, id: "reused-id")
-    FrontmanServer.Test.Fixtures.LLMProvider.expect_llm_responses([{:tool_calls, [call], ""}])
+    LLMProvider.expect_llm_responses([{:tool_calls, [call], ""}])
     ref = push(socket, "acp:message", build_prompt_request())
     assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
 
