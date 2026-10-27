@@ -30,23 +30,49 @@ jobs:
     outputs:
       swarm: ${{ steps.detect.outputs.swarm }}
       server: ${{ steps.detect.outputs.server }}
+    env:
+      EVENT_NAME: ${{ github.event_name }}
+      FULL_VERIFICATION: ${{ contains(toJSON(inputs), '"full-verification"') }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Setup Node.js for policy tests
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24.9.0'
 
       - name: Verify selection policy
         run: make test-ci-scope
 
+      - name: Find PR merge base
+        if: github.event_name == 'pull_request' && !contains(toJSON(inputs), '"full-verification"')
+        id: base
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash .github/self-hosted-checks.sh base
+
+      - name: Filter self-hosted paths
+        if: github.event_name == 'pull_request' && !contains(toJSON(inputs), '"full-verification"')
+        id: paths
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
+        with:
+          token: ''
+          base: ${{ steps.base.outputs.sha }}
+          filters: .github/self-hosted-paths.yml
+          predicate-quantifier: every
+
       - name: Detect changes
         id: detect
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          FULL_VERIFICATION: ${{ contains(toJSON(inputs), '"full-verification"') }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: python3 .github/self_hosted_checks.py detect
+          FILTER_RESULT: ${{ steps.paths.outcome }}
+          SHARED: ${{ steps.paths.outputs.shared }}
+          SERVER: ${{ steps.paths.outputs.server }}
+        run: bash .github/self-hosted-checks.sh select
 
   self-hosted-checks:
     name: Self-hosted checks
@@ -63,8 +89,13 @@ jobs:
 
       - name: Require selected checks to succeed
         env:
-          NEEDS: ${{ toJSON(needs) }}
-        run: python3 .github/self_hosted_checks.py aggregate
+          DETECTION_RESULT: ${{ needs.self-hosted-changes.result }}
+          SWARM: ${{ needs.self-hosted-changes.outputs.swarm }}
+          SERVER: ${{ needs.self-hosted-changes.outputs.server }}
+          SWARM_RESULT: ${{ needs.test-swarm-ai.result }}
+          SERVER_RESULT: ${{ needs.test-frontman-server.result }}
+          LINT_RESULT: ${{ needs.lint-frontman-server.result }}
+        run: bash .github/self-hosted-checks.sh aggregate
 
   source-comments:
     name: Check source comments

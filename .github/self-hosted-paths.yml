@@ -1,0 +1,9 @@
+server:
+  - 'apps/frontman_server/**'
+shared:
+  - '**'
+  - '!apps/frontman_server/**'
+  - '!apps/marketing/**'
+  - '!docs/**'
+  - '!.changeset/**'
+  - '!*.md'

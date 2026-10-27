@@ -268,7 +268,7 @@ check-source-comments:
 
 .PHONY: test-ci-scope
 test-ci-scope:
-	PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s test/ci-scope -p '*_test.py' -v
+	bash test/ci-scope/scope.test.sh
 
 clean:
 	@printf "$(YELLOW)Cleaning build artifacts...$(RESET)\n"
