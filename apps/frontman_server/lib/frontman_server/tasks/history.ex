@@ -109,7 +109,7 @@ defmodule FrontmanServer.Tasks.History do
 
   def active_turn_number(%__MODULE__{active_turn: active_turn}), do: active_turn
 
-  def cancelled_mcp_call?(history, turn, logical_id) do
+  def cancelled_tool_call?(history, turn, logical_id) do
     Enum.any?(history.rows, fn
       %{
         turn_number: ^turn,
@@ -318,7 +318,7 @@ defmodule FrontmanServer.Tasks.History do
          %InteractionSchema{type: :tool_result, turn_number: turn, data: result} = row,
          state
        ) do
-    case cancelled_mcp_call?(history, turn, result.tool_call_id) do
+    case cancelled_tool_call?(history, turn, result.tool_call_id) do
       true -> turn_context(history, row, state)
       false -> {:error, {:inactive_turn, :tool_result, turn, state.active_turn}}
     end
