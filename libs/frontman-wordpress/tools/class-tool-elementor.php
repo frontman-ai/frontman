@@ -128,30 +128,38 @@ class Frontman_Tool_Elementor {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_elementor_add_element',
-			'Adds a new Elementor element at the root or inside a parent container after saving the previous page tree as a private rollback snapshot. Prefer wp_elementor_generate_element and pass its returned object as element. Do not call with element: {}.',
+			'Adds a new Elementor subtree in one save with a private rollback. Use after_element_id: "book-demo" to insert immediately after a unique sibling, excluding any explicit parent_id or position. Alternatively use parent_id and position. Prefer wp_elementor_generate_element; do not pass element: {}.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
 				'properties'           => [
 					'post_id'    => [ 'type' => 'integer' ],
-					'element'    => [
-						'type'                 => 'object',
-						'description'          => 'Complete Elementor subtree. IDs can be omitted at every depth and are generated automatically. Prefer wp_elementor_generate_element; never pass an empty object.',
-						'additionalProperties' => true,
-						'properties'           => [
-							'elType'     => [ 'type' => 'string', 'enum' => [ 'container', 'section', 'column', 'widget' ], 'description' => 'Elementor element type. Use widget for widgets and include widgetType.' ],
-							'widgetType' => [ 'type' => 'string', 'description' => 'Required when elType is widget.' ],
-							'settings'   => [ 'type' => 'object', 'additionalProperties' => true, 'properties' => new \stdClass() ],
-							'elements'   => [ 'type' => 'array', 'items' => [ 'type' => 'object', 'additionalProperties' => true, 'properties' => new \stdClass() ] ],
-						],
-						'required'             => [ 'elType' ],
-					],
+					'element'    => $this->new_element_schema(),
+					'after_element_id' => [ 'type' => 'string' ],
 					'parent_id'  => [ 'type' => 'string' ],
-					'position'   => [ 'type' => 'integer', 'default' => -1 ],
+					'position'   => [ 'type' => 'integer' ],
 				],
 				'required'             => [ 'post_id', 'element' ],
 			],
 			[ $this, 'add_element' ]
+		) );
+
+		$tools->add( new Frontman_Tool_Definition(
+			'wp_elementor_wrap_element',
+			'Wraps a modern widget or container at its exact position in a new row, optionally adding element_after. Supports root or container parents only, not legacy layouts. Preserves the original subtree IDs; saves one rollback and one final page tree. settings override row defaults. Check rendered desktop/mobile layout after wrapping.',
+			[
+				'type' => 'object',
+				'additionalProperties' => false,
+				'properties' => [
+					'post_id' => [ 'type' => 'integer' ],
+					'element_id' => [ 'type' => 'string' ],
+					'settings' => [ 'type' => 'object', 'additionalProperties' => true, 'properties' => new \stdClass() ],
+					'element_after' => $this->new_element_schema(),
+				],
+				'required' => [ 'post_id', 'element_id' ],
+			],
+			[ $this, 'wrap_element' ],
+			'read-write'
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -196,8 +204,12 @@ class Frontman_Tool_Elementor {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_elementor_duplicate_element',
-			'Duplicates an Elementor element next to the original after saving the previous page tree as a private rollback snapshot, assigning new IDs to the clone and its children.',
-			$this->element_id_schema(),
+			'Duplicates an Elementor element next to the original in one save with a private rollback. Optional settings override only the cloned root with a shallow merge: settings: {text: "Try It Now", link: {url: "/try/"}} replaces the complete link object. HTML widget settings.html overrides are forbidden.',
+			array_replace_recursive( $this->element_id_schema(), [
+				'properties' => [
+					'settings' => [ 'type' => 'object', 'additionalProperties' => true, 'properties' => new \stdClass(), 'minProperties' => 1 ],
+				],
+			] ),
 			[ $this, 'duplicate_element' ]
 		) );
 
@@ -683,6 +695,64 @@ class Frontman_Tool_Elementor {
 		], $save_result );
 	}
 
+	private function new_element_schema(): array {
+		return [
+			'type' => 'object',
+			'description' => 'Elementor subtree: elType is required, and widgets require widgetType. IDs can be omitted at every depth and are generated automatically.',
+			'additionalProperties' => true,
+			'properties' => [
+				'elType' => [ 'type' => 'string', 'enum' => [ 'container', 'section', 'column', 'widget' ] ],
+				'widgetType' => [ 'type' => 'string' ],
+				'settings' => [ 'type' => 'object', 'additionalProperties' => true, 'properties' => new \stdClass() ],
+				'elements' => [ 'type' => 'array', 'items' => [ 'type' => 'object', 'additionalProperties' => true, 'properties' => new \stdClass() ] ],
+			],
+			'required' => [ 'elType' ],
+		];
+	}
+
+	public function wrap_element( array $input ): array {
+		self::validate_creation_input( 'wp_elementor_wrap_element', $input );
+		$post_id = $this->require_post_id( $input );
+		$element_id = $this->require_element_id( $input );
+		$data = $this->require_page_data( $post_id );
+		$before = $data;
+		$context = Frontman_Elementor_Data::get_element_context( $data, $element_id );
+		if ( null === $context ) {
+			throw new Frontman_Tool_Error( 'Element not found: ' . $element_id );
+		}
+		if ( ! in_array( $context['element']['elType'] ?? '', [ 'widget', 'container' ], true ) ||
+			( null !== $context['parent_id'] && 'container' !== $context['parent_el_type'] ) ) {
+			throw new Frontman_Tool_Error( 'Wrap supports widget/container targets with root/container parents only.' );
+		}
+		$companion = null;
+		$reserved = $data;
+		if ( array_key_exists( 'element_after', $input ) ) {
+			$companion = $this->prepare_new_subtree( $input['element_after'], $data );
+			$reserved[] = $companion;
+		}
+		$wrapper = Frontman_Elementor_Data::generate_element( [ 'type' => 'row', 'settings' => $input['settings'] ?? [] ] );
+		unset( $wrapper['id'] );
+		$wrapper = $this->prepare_new_subtree( $wrapper, $reserved );
+		$wrapper['isInner'] = null !== $context['parent_id'];
+		$wrapper['elements'] = [ $context['element'] ];
+		if ( null !== $companion ) {
+			$wrapper['elements'][] = $companion;
+		}
+		if ( ! Frontman_Elementor_Data::wrap_at_context( $data, $context, $wrapper ) ) {
+			throw new Frontman_Tool_Error( 'Wrap target no longer occupies its resolved position.' );
+		}
+		$this->validate_full_element_tree( $data );
+		$rollback = Frontman_Elementor_Data::make_page_rollback( 'wrapped_element', $before );
+		Frontman_Elementor_Data::save_rollback( $post_id, $rollback );
+		$save_result = $this->save_elementor_data( $post_id, $data );
+		return $this->append_save_result( [
+			'success' => true, 'post_id' => $post_id, 'element_id' => $element_id,
+			'wrapper_id' => $wrapper['id'], 'added_element_id' => $companion['id'] ?? null,
+			'parent_id' => $context['parent_id'], 'position' => $context['position'],
+			'rollback_id' => $rollback['rollback_id'],
+		], $save_result );
+	}
+
 	public function add_element( array $input ): array {
 		self::validate_creation_input( 'wp_elementor_add_element', $input );
 		$post_id = $this->require_post_id( $input );
@@ -699,6 +769,17 @@ class Frontman_Tool_Elementor {
 		$rollback  = Frontman_Elementor_Data::make_page_rollback( 'added_element', $data );
 		$parent_id = isset( $input['parent_id'] ) ? sanitize_text_field( $input['parent_id'] ) : null;
 		$position  = (int) ( $input['position'] ?? -1 );
+		if ( array_key_exists( 'after_element_id', $input ) ) {
+			if ( array_key_exists( 'parent_id', $input ) || array_key_exists( 'position', $input ) ) {
+				throw new Frontman_Tool_Error( 'after_element_id excludes explicit parent_id and position.' );
+			}
+			$anchor = Frontman_Elementor_Data::get_element_context( $data, (string) $input['after_element_id'] );
+			if ( null === $anchor ) {
+				throw new Frontman_Tool_Error( 'Anchor element not found.' );
+			}
+			$parent_id = $anchor['parent_id'];
+			$position = $anchor['position'] + 1;
+		}
 		if ( ! Frontman_Elementor_Data::insert_element( $data, $element, $parent_id, $position ) ) {
 			throw new Frontman_Tool_Error( 'Parent element not found: ' . $parent_id );
 		}
@@ -706,7 +787,8 @@ class Frontman_Tool_Elementor {
 
 		Frontman_Elementor_Data::save_rollback( $post_id, $rollback );
 		$save_result = $this->save_elementor_data( $post_id, $data );
-		return $this->append_save_result( [ 'success' => true, 'post_id' => $post_id, 'element_id' => $element['id'] ?? '', 'rollback_id' => $rollback['rollback_id'] ], $save_result );
+		$inserted = Frontman_Elementor_Data::get_element_context( $data, $element['id'] );
+		return $this->append_save_result( [ 'success' => true, 'post_id' => $post_id, 'element_id' => $element['id'] ?? '', 'parent_id' => $inserted['parent_id'], 'position' => $inserted['position'], 'rollback_id' => $rollback['rollback_id'] ], $save_result );
 	}
 
 	public function remove_element( array $input ): array {
@@ -761,10 +843,26 @@ class Frontman_Tool_Elementor {
 		$element_id = $this->require_element_id( $input );
 		$data       = $this->require_page_data( $post_id );
 		$rollback   = Frontman_Elementor_Data::make_page_rollback( 'duplicated_element', $data );
+		$context = Frontman_Elementor_Data::get_element_context( $data, $element_id );
+		if ( null === $context ) {
+			throw new Frontman_Tool_Error( 'Element not found: ' . $element_id );
+		}
+		if ( array_key_exists( 'settings', $input ) ) {
+			if ( ! is_array( $input['settings'] ) || [] === $input['settings'] || array_values( $input['settings'] ) === $input['settings'] ) {
+				throw new Frontman_Tool_Error( 'settings must be a nonempty object.' );
+			}
+			if ( 'html' === ( $context['element']['widgetType'] ?? '' ) && array_key_exists( 'html', $input['settings'] ) ) {
+				throw new Frontman_Tool_Error( 'Use old_html and new_html on wp_elementor_update_element to edit an Elementor HTML widget settings.html fragment.' );
+			}
+		}
 		$new_id     = Frontman_Elementor_Data::duplicate_element( $data, $element_id );
 		if ( null === $new_id ) {
 			throw new Frontman_Tool_Error( 'Element not found: ' . $element_id );
 		}
+		if ( isset( $input['settings'] ) ) {
+			Frontman_Elementor_Data::update_element_settings( $data, $new_id, $input['settings'] );
+		}
+		$this->validate_full_element_tree( $data );
 
 		Frontman_Elementor_Data::save_rollback( $post_id, $rollback );
 		$save_result = $this->save_elementor_data( $post_id, $data );
@@ -802,6 +900,18 @@ class Frontman_Tool_Elementor {
 
 	public static function validate_creation_input( string $name, array $input ): void {
 		$seen = [];
+		if ( 'wp_elementor_wrap_element' === $name ) {
+			if ( array_key_exists( 'settings', $input ) ) {
+				self::validate_settings_object( $input['settings'], 'settings' );
+			}
+			if ( array_key_exists( 'element_after', $input ) ) {
+				self::validate_element_tree( [ $input['element_after'] ], 'element_after', $seen, true, true );
+				if ( ! in_array( $input['element_after']['elType'], [ 'widget', 'container' ], true ) ) {
+					throw new Frontman_Tool_Error( 'element_after must be a widget or container.' );
+				}
+			}
+			return;
+		}
 		if ( 'wp_elementor_add_element' === $name ) {
 			self::validate_element_tree( [ $input['element'] ?? null ], 'element', $seen, true, true );
 			return;
