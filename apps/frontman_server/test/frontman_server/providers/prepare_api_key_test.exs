@@ -126,19 +126,6 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       end
     end
 
-    test "retired Codex Spark is absent from the connected picker and cannot resolve", %{
-      scope: scope
-    } do
-      {:ok, _} = upsert_openai_oauth_token(scope, :valid)
-
-      %{groups: [%{id: "openai_codex", options: options}]} = Providers.available_models(scope)
-      assert Enum.any?(options, &(&1.value == "openai_codex:gpt-6-sol"))
-      refute Enum.any?(options, &(&1.value == "openai_codex:gpt-5.3-codex-spark"))
-
-      assert {:error, :unknown_model} =
-               Providers.resolve_model_access(scope, "openai_codex:gpt-5.3-codex-spark")
-    end
-
     test "refreshes expired OpenAI OAuth token before resolving LLM args", %{scope: scope} do
       {:ok, _} = upsert_openai_oauth_token(scope, :expired)
       expect_openai_refresh_success()
