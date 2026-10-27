@@ -63,7 +63,12 @@ module type BrowserTool = {
   type input
   let inputSchema: S.t<input>
   let outputJsonSchema: option<JSONSchema.t>
-  let execute: (input, ~taskId: string, ~toolCallId: string) => promise<MCP.CallToolResult.t>
+  let execute: (
+    input,
+    ~taskId: string,
+    ~toolCallId: string,
+    ~signal: WebAPI.EventTypes.abortSignal=?,
+  ) => promise<MCP.CallToolResult.t>
   let visibleToAgent: bool
   let executionMode: executionMode
 }

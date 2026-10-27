@@ -130,10 +130,12 @@ let executeInWindow: (
   }
 `)
 
+@live
 let execute = async (
   input: input,
   ~taskId as _: string,
   ~toolCallId as _: string,
+  ~signal as _=?,
 ): Tool.MCP.CallToolResult.t => {
   await Client__Tool__PreviewContext.withPreview(
     ~onUnavailable=async () =>

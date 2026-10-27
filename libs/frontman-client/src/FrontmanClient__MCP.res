@@ -11,7 +11,7 @@ type mcpHandler<'server> = {
   channel: Channel.t,
   sessionId: string,
   subscriptions: ref<array<JsonRpc.Id.t>>,
-  toolCalls: ref<array<(JsonRpc.Id.t, ref<bool>)>>,
+  toolCalls: ref<array<(JsonRpc.Id.t, ref<bool>, WebAPI.EventTypes.abortController)>>,
   transportListeners: ref<array<(Channel.channelEvent, int)>>,
 }
 
@@ -186,14 +186,15 @@ let handleToolsCall = async (
   params: option<JSON.t>,
 ): unit => {
   let active = ref(true)
-  handler.toolCalls := handler.toolCalls.contents->Array.concat([(id, active)])
+  let controller = WebAPI.AbortController.make()
+  handler.toolCalls := handler.toolCalls.contents->Array.concat([(id, active, controller)])
   let finish = send =>
     switch active.contents {
     | false => ()
     | true =>
       active := false
       handler.toolCalls :=
-        handler.toolCalls.contents->Array.filter(((_, token)) => token !== active)
+        handler.toolCalls.contents->Array.filter(((_, token, _)) => token !== active)
       send()
     }
   let sendResponse = (handler, id, result) => finish(() => sendResponse(handler, id, result))
@@ -221,7 +222,11 @@ let handleToolsCall = async (
     | Ok(authorizedToolCall) =>
       try {
         let {serverInterface} = handler
-        let result = await serverInterface.executeTool(serverInterface.server, authorizedToolCall)
+        let result = await serverInterface.executeTool(
+          serverInterface.server,
+          authorizedToolCall,
+          ~signal=controller.signal,
+        )
         switch result {
         | Completed(callToolResult) =>
           let resultJson =
@@ -249,7 +254,7 @@ let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit 
     switch parse(payload) {
     | Ok(Request({id}))
       if handler.subscriptions.contents->Array.some(active => active == id) ||
-        handler.toolCalls.contents->Array.some(((active, _)) => active == id) =>
+        handler.toolCalls.contents->Array.some(((active, _, _)) => active == id) =>
       sendError(handler, id, Types.ErrorCode.invalidRequest, "Request ID already active")
     | Ok(Request({id, method, params})) =>
       switch parseParams(params, Types.discoverParamsSchema, "Missing request params") {
@@ -274,6 +279,12 @@ let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit 
       | Ok(id) =>
         handler.subscriptions :=
           handler.subscriptions.contents->Array.filter(active => active != id)
+        handler.toolCalls.contents->Array.forEach(((requestId, _, controller)) =>
+          switch requestId == id {
+          | true => WebAPI.AbortController.abort(controller)
+          | false => ()
+          }
+        )
       | Error(_) => Log.error("Invalid MCP cancellation params")
       }
     | Ok(Notification(_)) => ()
@@ -293,7 +304,10 @@ let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit 
 
 let dropRequests = handler => {
   handler.subscriptions := []
-  handler.toolCalls.contents->Array.forEach(((_, active)) => active := false)
+  handler.toolCalls.contents->Array.forEach(((_, active, controller)) => {
+    active := false
+    WebAPI.AbortController.abort(controller)
+  })
   handler.toolCalls := []
 }
 
