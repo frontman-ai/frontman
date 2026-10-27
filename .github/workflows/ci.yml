@@ -683,11 +683,6 @@ jobs:
           CLOAK_KEY: "dGVzdC1rZXktZm9yLWNpLXRoaXMtaXMtMzJieXRlc3M="
           MIX_TEST_DB_SUFFIX: "_run_${{ github.run_id }}"
 
-      - name: Run isolated integration suite
-        run: make -C apps/frontman_server test-isolated
-        env:
-          CLOAK_KEY: "dGVzdC1rZXktZm9yLWNpLXRoaXMtaXMtMzJieXRlc3M="
-
       - name: Coverage report
         uses: clearlyip/code-coverage-report-action@3fd916c98ed8369fa58edd4159558009f4bde010
         with:

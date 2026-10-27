@@ -4,12 +4,12 @@
 
 
 .DEFAULT_GOAL := help
-.PHONY: help install test test-isolated test-record test-coverage format lint dev dev-container build clean check setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy precommit strict-compile credo debug-task
+.PHONY: help install test test-record test-coverage format lint dev dev-container build clean check setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy precommit strict-compile credo debug-task
 
 SHELL := /bin/bash
 OP_RUN := op run --env-file=envs/.dev.secrets.env --
 
-HELP_TARGETS := help install setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy test test-isolated test-record test-coverage format lint dev dev-container build clean precommit credo check debug-task
+HELP_TARGETS := help install setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy test test-record test-coverage format lint dev dev-container build clean precommit credo check debug-task
 HELP_help := Display this help message
 HELP_install := Install project dependencies
 HELP_setup := Complete project setup (deps, database, assets)
@@ -21,7 +21,6 @@ HELP_assets-setup := Install asset build tools (tailwind, esbuild)
 HELP_assets-build := Build assets for development
 HELP_assets-deploy := Build and minify assets for production
 HELP_test := Run test suite
-HELP_test-isolated := Run isolated integration suite in a disposable database
 HELP_test-record := Record new LLM fixtures (makes real API calls)
 HELP_test-coverage := Run tests with coverage report
 HELP_format := Auto-format Elixir files
@@ -82,19 +81,24 @@ test:
 	MIX_ENV=test mix ecto.create --quiet
 	MIX_ENV=test mix ecto.migrate --quiet
 	mix test $(TEST_ARGS)
-
-test-isolated:
 	bash test_isolated/run.sh
 
 test-record:
 	MIX_ENV=test mix ecto.create --quiet
 	MIX_ENV=test mix ecto.migrate --quiet
 	REQ_LLM_FIXTURES_MODE=record mix test
+	bash test_isolated/run.sh
 
 test-coverage:
+	mkdir -p cover
+	rm -f cover/cobertura.xml
 	MIX_ENV=test mix ecto.create --quiet
 	MIX_ENV=test mix ecto.migrate --quiet
-	MIX_ENV=test mix coveralls.cobertura
+	@set -eu; \
+		coverage_dir=$$(mktemp -d cover/isolated.XXXXXXXX); \
+		trap 'rm -r "$$coverage_dir"' EXIT; \
+		ISOLATED_COVERAGE_DIR="$$coverage_dir" bash test_isolated/run.sh; \
+		MIX_ENV=test mix coveralls.cobertura --import-cover "$$coverage_dir"
 
 format:
 	mix format $(FORMAT_ARGS)

@@ -68,6 +68,14 @@ defmodule FrontmanServer.IsolatedSuite do
     System.put_env("PAPER_TIGER_START", "false")
     ExUnit.start(autorun: false, timeout: 30_000)
 
+    coverage_dir = System.get_env("ISOLATED_COVERAGE_DIR")
+
+    if coverage_dir do
+      Mix.Project.compile_path()
+      |> ExCoveralls.Cover.compile()
+      |> Enum.each(fn {:ok, _module} -> :ok end)
+    end
+
     Mox.defmock(
       FrontmanServer.Tasks.Execution.LLMProviderMock,
       for: FrontmanServer.Tasks.Execution.LLMProvider
@@ -83,6 +91,11 @@ defmodule FrontmanServer.IsolatedSuite do
     Code.require_file("application_restart_test.exs", __DIR__)
     %{failures: failures} = ExUnit.run()
     :ok = Application.stop(:frontman_server)
+
+    if coverage_dir do
+      :ok = ExCoveralls.Cover.export(Path.join(coverage_dir, "application_restart.coverdata"))
+    end
+
     System.halt(if failures == 0, do: 0, else: 1)
   end
 
