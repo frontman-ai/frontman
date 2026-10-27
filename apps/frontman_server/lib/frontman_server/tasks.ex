@@ -1260,29 +1260,19 @@ defmodule FrontmanServer.Tasks do
   defp row_to_messages(
          %InteractionSchema{
            turn_number: turn,
-           data: %Interaction.ToolCall{cancel_requested: true} = call
+           data: %Interaction.AgentError{kind: "cancelled"}
          },
          history,
          _skills
        ) do
-    resolved? =
-      Enum.any?(history.rows, fn
-        %{turn_number: ^turn, data: %Interaction.ToolResult{tool_call_id: id}} ->
-          id == call.tool_call_id
-
-        _ ->
-          false
-      end)
-
-    case resolved? do
-      true ->
-        []
-
-      false ->
+    history.rows
+    |> History.unresolved_tool_calls(turn)
+    |> Enum.flat_map(fn
+      {call, %Interaction.ToolCall{cancel_requested: true}} ->
         [
           %Tool{
-            tool_call_id: call.tool_call_id,
-            name: call.tool_name,
+            tool_call_id: call.id,
+            name: call.name,
             content: [
               ContentPart.text(
                 "Outcome unknown after cancellation; do not assume failure or repeat the operation."
@@ -1290,7 +1280,10 @@ defmodule FrontmanServer.Tasks do
             ]
           }
         ]
-    end
+
+      _ ->
+        []
+    end)
   end
 
   defp row_to_messages(%InteractionSchema{turn_number: nil}, _history, _skills), do: []
