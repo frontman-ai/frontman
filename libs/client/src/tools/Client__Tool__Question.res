@@ -49,6 +49,7 @@ let execute = async (
   input: input,
   ~taskId: string,
   ~toolCallId: string,
+  ~signal as _=?,
 ): Tool.MCP.CallToolResult.t => {
   let result = await Promise.make((resolve, _reject) => {
     let resolveOk = (json: JSON.t) => {

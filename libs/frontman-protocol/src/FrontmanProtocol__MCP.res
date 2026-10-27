@@ -451,5 +451,9 @@ type serverInterface<'server> = {
   server: 'server,
   buildDiscoverResult: 'server => discoverResult,
   buildToolsListResult: 'server => toolsListResult,
-  executeTool: ('server, AuthorizedToolCall.t) => promise<executeToolResult>,
+  executeTool: (
+    'server,
+    AuthorizedToolCall.t,
+    ~signal: WebAPI.EventTypes.abortSignal,
+  ) => promise<executeToolResult>,
 }

@@ -61,7 +61,7 @@ let create = connection =>
       server: (),
       buildDiscoverResult: _ => failwith("Unexpected discovery"),
       buildToolsListResult: _ => failwith("Unexpected listing"),
-      executeTool: async (_, _) => Suspended,
+      executeTool: async (_, _, ~signal as _) => Suspended,
     },
   )
 
