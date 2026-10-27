@@ -67,10 +67,17 @@ defmodule FrontmanServerWeb.TaskChannelCancellationTest do
     {socket, task_id} = join_task_channel(scope)
     tool = Tools.mcp_tool("write_file")
     complete_mcp_handshake(socket, tools: [tool])
+
+    assert %{assigns: %{mcp_status: :ready, active_turn: nil}} =
+             :sys.get_state(socket.channel_pid)
+
     call = SwarmAi.Testing.tool_call("write_file", %{}, id: "reused-id")
     LLMProvider.expect_llm_responses([{:tool_calls, [call], ""}])
     ref = push(socket, "acp:message", build_prompt_request())
     assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
+    :sys.get_state(socket.channel_pid)
+    assert {:ok, started} = Tasks.get_task_with_history(scope, task_id)
+    assert Enum.any?(Tasks.interactions(started), &match?(%Interaction.TurnStarted{}, &1))
 
     assert_push(
       "mcp:message",
