@@ -106,6 +106,8 @@ The owner can vary. Managed hosting can cover backups, platform updates, and inf
 
 Use this procedure for WordPress Core, plugin, theme, PHP, configuration, database, or global-template changes.
 
+For an Avada template import, also [review the Studio import settings and replacement warning](/blog/avada-theme-customization/#import-an-avada-studio-template-into-a-blank-page) before replacing existing page content.
+
 This is Frontman's change-control procedure, synthesized from WordPress backup and update guidance. WordPress does not publish this exact workflow for every listed change type.
 
 1. Record the current WordPress, PHP, theme, and affected plugin versions.

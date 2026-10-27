@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_DIR="$ROOT_DIR/apps/frontman_server/envs"
+ENV_DIR="${STRIPE_WEBHOOK_ENV_DIR:-$ROOT_DIR/apps/frontman_server/envs}"
 GENERATED_ENV_FILE="$ENV_DIR/.dev.stripe-webhook.env"
 
 FORWARD_URL="${STRIPE_WEBHOOK_FORWARD_URL:-https://localhost:4000/api/stripe/webhook}"
@@ -42,7 +42,7 @@ mise exec -- stripe "${stripe_listen_args[@]}" 2>&1 |
       if [[ "$secret" != "$stored_secret" ]]; then
         printf 'STRIPE_WEBHOOK_SECRET=%s\n' "$secret" > "$GENERATED_ENV_FILE"
         chmod 600 "$GENERATED_ENV_FILE"
-        printf 'Stored STRIPE_WEBHOOK_SECRET in apps/frontman_server/envs/.dev.stripe-webhook.env\n'
+        printf 'Stored STRIPE_WEBHOOK_SECRET in %s\n' "$GENERATED_ENV_FILE"
         stored_secret="$secret"
       fi
 

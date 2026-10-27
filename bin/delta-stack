@@ -1,0 +1,260 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+cd "$ROOT"
+ID="$(printf '%s' "$ROOT" | sha256sum | cut -c1-12)"
+POD="delta-frontman-$ID"
+DEV="$POD-dev"
+IMAGE="${DEV_IMAGE:-frontman-dev:latest}"
+ACTION="${1:-status}"
+TLS_DIR="$ROOT/.certs/delta"
+case "$ACTION" in
+  dev)
+    exec python3 "$ROOT/infra/local/delta-lifecycle.py" own "$POD" \
+      env DELTA_LIFECYCLE_LOCKED=1 bash "$ROOT/bin/delta-stack" up
+    ;;
+  prepare|create|tls|up|start|stop|remove)
+    if [[ "${DELTA_LIFECYCLE_LOCKED:-}" != 1 ]]; then
+      exec python3 "$ROOT/infra/local/delta-lifecycle.py" guard "$POD" \
+        env DELTA_LIFECYCLE_LOCKED=1 bash "$0" "$ACTION"
+    fi
+    ;;
+esac
+fail() { printf '%s\n' "$*" >&2; exit 1; }
+exists() { podman pod exists "$POD"; }
+port() { podman port "$(podman pod inspect "$POD" --format '{{.InfraContainerID}}')" 443/tcp | cut -d: -f2; }
+tls_prerequisites() {
+  command -v openssl >/dev/null || fail "Install OpenSSL first."
+  if command -v mkcert >/dev/null; then
+    MKCERT="$(command -v mkcert)"
+  else
+    command -v mise >/dev/null || fail "Install mkcert using the repository's mise configuration."
+    MKCERT="$(MISE_TRUSTED_CONFIG_PATHS="$ROOT" mise which mkcert)" ||
+      fail "Install the repository's mkcert tool first."
+  fi
+  CA_ROOT="$("$MKCERT" -CAROOT)"
+  [[ -r "$CA_ROOT/rootCA.pem" && -r "$CA_ROOT/rootCA-key.pem" ]] ||
+    fail "Host mkcert CA not found. Run the existing make ssl-setup once."
+  openssl verify "$CA_ROOT/rootCA.pem" >/dev/null 2>&1 ||
+    fail "The host mkcert CA is not trusted. Complete the existing make ssl-setup first."
+}
+ensure_tls() {
+  tls_prerequisites
+  local service cert_public key_public valid=true
+  TLS_CHANGED=false
+  git check-ignore -q .certs/delta/tls-key.pem ||
+    fail "Certificate keys must remain ignored by the repository."
+  if git ls-files --error-unmatch .certs/delta/tls-key.pem >/dev/null 2>&1; then
+    fail "Refusing to write a private key to a tracked path."
+  fi
+  [[ -s "$TLS_DIR/tls-key.pem" ]] || valid=false
+  cert_public="$(openssl x509 -in "$TLS_DIR/tls.pem" -pubkey -noout 2>/dev/null)" || valid=false
+  key_public="$(openssl pkey -in "$TLS_DIR/tls-key.pem" -pubout -passin pass: 2>/dev/null)" || valid=false
+  [[ -n "$cert_public" && "$cert_public" == "$key_public" ]] || valid=false
+  openssl x509 -in "$TLS_DIR/tls.pem" -checkend 604800 -noout >/dev/null 2>&1 || valid=false
+  openssl verify -CAfile "$CA_ROOT/rootCA.pem" "$TLS_DIR/tls.pem" >/dev/null 2>&1 || valid=false
+  local names=()
+  for service in api vite nextjs marketing wordpress; do
+    names+=("$ID.$service.frontman.local")
+    openssl x509 -in "$TLS_DIR/tls.pem" -checkhost "$ID.$service.frontman.local" -noout >/dev/null 2>&1 || valid=false
+  done
+  if [[ "$valid" != true ]]; then
+    mkdir -p "$TLS_DIR"
+    (umask 077; "$MKCERT" -cert-file "$TLS_DIR/tls.pem" -key-file "$TLS_DIR/tls-key.pem" "${names[@]}")
+    chmod 600 "$TLS_DIR/tls-key.pem"
+    TLS_CHANGED=true
+  fi
+}
+start_proxy() {
+  podman run -d --pod "$POD" --name "$POD-proxy" \
+    -v "$ROOT/infra/local/delta.Caddyfile:/etc/caddy/Caddyfile:ro" \
+    -v "$TLS_DIR:/etc/caddy/tls:ro" \
+    -v "$POD-caddy:/data" -e "STACK_ID=$ID" \
+    docker.io/library/caddy:2-alpine
+}
+urls() {
+  local p
+  p="$(port)"
+  for service in api vite nextjs marketing wordpress; do
+    printf '%-12s https://%s.%s.frontman.local:%s\n' "$service" "$ID" "$service" "$p"
+  done
+}
+preflight() {
+  command -v podman >/dev/null || fail "Install Podman first."
+  command -v python3 >/dev/null || fail "Install Python 3 for terminal-owned stack lifecycle management."
+  podman info >/dev/null
+  podman image exists "$IMAGE" || fail "Build the dev image with make infra-build (does not configure host DNS)."
+  command -v op >/dev/null || fail "Install and authenticate 1Password CLI first."
+  tls_prerequisites
+  for service in api vite nextjs marketing wordpress; do
+    getent ahostsv4 "$ID.$service.frontman.local" | grep -qE '^127\.0\.0\.1 ' ||
+      fail "Configure wildcard *.frontman.local DNS to IPv4 127.0.0.1 first (see docs/delta-stacks.md)."
+  done
+  printf 'Checkout: %s\nIdentity: %s\nPreflight passed; no resources changed.\n' "$ROOT" "$POD"
+}
+dev_exec() {
+  podman exec -w /workspaces/frontman "$DEV" bash infra/local/delta-dev.sh "$@"
+}
+wait_ready() {
+  local p deadline service path ready response accept
+  p="$(port)"
+  deadline=$((SECONDS + 180))
+  while ((SECONDS < deadline)); do
+    podman exec "$DEV" bash -c \
+      'test -s /tmp/frontman-supervisor.pid && kill -0 "$(cat /tmp/frontman-supervisor.pid)"' 2>/dev/null ||
+      fail "Dev supervisor stopped. Inspect make delta-logs, then retry make delta-up."
+    ready=true
+    while read -r service path; do
+      accept='*/*'
+      [[ "$path" != *.css ]] || accept='text/css'
+      if ((SECONDS >= deadline)) ||
+        ! response="$(curl --fail --silent --max-time 3 \
+          --header "Accept: $accept" \
+          --output /dev/null --write-out '%{content_type} %{size_download}' \
+          "https://$ID.$service.frontman.local:$p$path")"; then
+        ready=false
+        break
+      fi
+      case "$path" in
+        *.js|*.mjs)
+          [[ "$response" == *javascript* && "$response" != *" 0" ]] || { ready=false; break; }
+          ;;
+        *.css)
+          [[ "$response" == text/css* && "$response" != *" 0" ]] || { ready=false; break; }
+          ;;
+      esac
+    done <<'ENDPOINTS'
+api /health
+vite /src/Main.res.mjs
+vite /dist/frontman.es.js
+vite /dist/frontman.css
+nextjs /frontman
+marketing /frontman
+wordpress /
+wordpress /wp-content/plugins/frontman-agentic-ai-editor/assets/bridge.js
+ENDPOINTS
+    if [[ "$ready" == true ]]; then
+      podman exec "$POD-wordpress" php /opt/frontman-wordpress-setup.php check
+      printf 'Stack endpoints, assets, and host TLS trust are ready. OAuth still requires verification.\n'
+      return
+    fi
+    sleep 1
+  done
+  fail "Stack did not become ready within 180 seconds ($service $path). Inspect make delta-logs and make delta-logs SERVICE=proxy."
+}
+
+case "$ACTION" in
+  identity) printf '%s\n%s\n' "$ROOT" "$POD" ;;
+  preflight) preflight ;;
+  prepare)
+    preflight
+    if ! exists; then
+      op run --env-file=apps/frontman_server/envs/.dev.secrets.env -- \
+        bash "$0" create
+    fi
+    podman pod start "$POD" >/dev/null
+    dev_exec prepare
+    CONTAINER_RUNTIME=podman make build-wordpress-dependencies
+    podman exec -e "STACK_ID=$ID" -e "STACK_PORT=$(port)" "$POD-wordpress" php /opt/frontman-wordpress-setup.php
+    urls
+    ;;
+  create)
+    [[ -n "${WORKOS_API_KEY:-}" && -n "${STRIPE_SECRET_KEY:-}" ]] ||
+      fail "Internal create requires op run; use make delta-prepare."
+    [[ "$STRIPE_SECRET_KEY" == sk_test_* || "$STRIPE_SECRET_KEY" == rk_test_* ]] ||
+      fail "Local stacks require a Stripe test-mode key, not a live key."
+    exists && fail "Stack already exists."
+    ensure_tls
+    complete=false
+    created=false
+    trap 'if [[ "$complete" != true && "$created" == true ]]; then podman pod rm --force "$POD" >/dev/null 2>&1 || true; echo "Creation failed; pod removed, volumes preserved. Retry make delta-prepare." >&2; fi' EXIT
+    podman pod create --name "$POD" --label "frontman.checkout=$ROOT" -p 127.0.0.1::443
+    created=true
+    podman run -d --pod "$POD" --name "$POD-pg" \
+      -e POSTGRES_PASSWORD=postgres -v "$POD-pgdata:/var/lib/postgresql/data" docker.io/library/postgres:16
+    podman run -d --pod "$POD" --name "$POD-db" \
+      -e MARIADB_DATABASE=wordpress -e MARIADB_USER=wordpress \
+      -e MARIADB_PASSWORD=wordpress -e MARIADB_ROOT_PASSWORD=wordpress \
+      -v "$POD-mysql:/var/lib/mysql" docker.io/library/mariadb:11
+    git_dir="$(git rev-parse --absolute-git-dir)"
+    common_dir="$(git rev-parse --path-format=absolute --git-common-dir)"
+    git_mounts=(-v "$git_dir:$git_dir:ro")
+    if [[ "$common_dir" != "$git_dir" ]]; then
+      git_mounts+=(-v "$common_dir:$common_dir:ro")
+    fi
+    podman run -d --pod "$POD" --name "$DEV" --user root \
+      -e HOME=/home/vscode -e WORKOS_API_KEY -e WORKOS_CLIENT_ID -e STRIPE_SECRET_KEY \
+      -e "WORKTREE_HASH=$ID" -e "WORKTREE_BRANCH=$ROOT" -e DELTA_STACK=true \
+      "${git_mounts[@]}" \
+      -v "$ROOT:$ROOT:ro" \
+      -v "$ROOT:/workspaces/frontman" \
+      -v "$POD-home:/home/vscode/.local/share/mise" -v "$POD-certs:/workspaces/frontman/.certs" \
+      -v "$POD-node:/workspaces/frontman/node_modules" \
+      -v "$POD-build:/workspaces/frontman/apps/frontman_server/_build" \
+      -v "$POD-deps:/workspaces/frontman/apps/frontman_server/deps" \
+      "$IMAGE" sleep infinity
+    podman run -d --pod "$POD" --name "$POD-wordpress" \
+      -e WORDPRESS_DB_HOST=127.0.0.1 -e WORDPRESS_DB_USER=wordpress \
+      -e WORDPRESS_DB_PASSWORD=wordpress -e WORDPRESS_DB_NAME=wordpress \
+      -v "$POD-wordpress:/var/www/html" \
+      -v "$POD-wordpress-state:/var/lib/frontman" \
+      -v "$ROOT/libs/frontman-wordpress:/var/www/html/wp-content/plugins/frontman-agentic-ai-editor:ro" \
+      -v "$ROOT/infra/local/delta-wordpress-setup.php:/opt/frontman-wordpress-setup.php:ro" \
+      docker.io/library/wordpress:7.0.2-php8.3-apache
+    start_proxy
+    complete=true
+    ;;
+  tls)
+    exists || fail "Run make delta-prepare first."
+    ensure_tls
+    podman run --rm --network none -e "STACK_ID=$ID" \
+      -v "$ROOT/infra/local/delta.Caddyfile:/etc/caddy/Caddyfile:ro" \
+      -v "$TLS_DIR:/etc/caddy/tls:ro" \
+      docker.io/library/caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+    podman rm --force "$POD-proxy"
+    start_proxy
+    urls
+    ;;
+  up|start)
+    exists || fail "Run make delta-prepare first."
+    ensure_tls
+    [[ "$(podman inspect "$POD-proxy" --format '{{range .Mounts}}{{if eq .Destination "/etc/caddy/tls"}}{{.Source}}{{end}}{{end}}')" == "$TLS_DIR" ]] ||
+      fail "Migrate this existing proxy to host mkcert certificates with make delta-tls."
+    podman pod start "$POD"
+    [[ "$TLS_CHANGED" != true ]] || podman restart "$POD-proxy"
+    dev_exec start "$(port)"
+    wait_ready
+    urls
+    ;;
+  stop)
+    if [[ "$(podman inspect "$DEV" --format '{{.State.Running}}')" == true ]]; then
+      if ! dev_exec stop; then
+        printf 'Graceful supervisor shutdown failed; stopping the pod to finish cleanup.\n' >&2
+      fi
+    fi
+    podman pod stop "$POD"
+    ;;
+  status) podman ps -a --pod --filter "pod=$POD" ;;
+  urls) urls ;;
+  preview) dev_exec preview ;;
+  logs) podman logs --follow "$POD-${SERVICE:-dev}" ;;
+  check)
+    wait_ready
+    urls
+    ;;
+  remove)
+    [[ "${CONFIRM:-}" == "$POD" ]] ||
+      fail "Destructive: removes all databases/uploads/plugin state. Repeat with CONFIRM=$POD"
+    podman pod rm --force --ignore "$POD"
+    for volume in pgdata mysql home certs node build deps wordpress wordpress-state caddy; do
+      if podman volume exists "$POD-$volume"; then
+        podman volume rm "$POD-$volume"
+      else
+        status=$?
+        [[ "$status" == 1 ]] || exit "$status"
+      fi
+    done
+    ;;
+  *) fail "Unknown action: $ACTION" ;;
+esac
