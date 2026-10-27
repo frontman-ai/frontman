@@ -71,6 +71,35 @@ Cancellation without a live worker and concurrent continuation admission remain 
 Reconnect still redispatches unresolved synchronous calls. Abrupt process loss can therefore repeat external writes.
 The client still supports one pending question form.
 
+## Restart test isolation
+
+`make test` and `make test-coverage` exclude the `application_restart` tag.
+These ordinary suites do not stop the application.
+CI runs the real restart scenario separately:
+
+```bash
+mise exec -- make -C apps/frontman_server test-application-restart
+```
+
+The target requires Python 3 and PostgreSQL at the test address in `config/test.exs`.
+It starts a fresh BEAM with a generated `_restart_` database suffix.
+It ignores inherited database suffixes and partition identifiers.
+The test process group has a 300-second limit.
+Cleanup drops only the generated database, with a 60-second limit.
+A test failure retains its exit status even if cleanup fails.
+Cleanup failure also fails an otherwise successful run.
+
+PaperTiger reserves an available test port.
+After startup, the test helper points the Stripe client at that instance.
+The initial Stripe URL uses loopback port zero to prevent requests before initialization.
+The application restart does not stop PaperTiger, so its URL remains valid.
+
+Run the subprocess and database cleanup checks with:
+
+```bash
+mise exec -- make -C apps/frontman_server test-application-restart-runner
+```
+
 ## Learn more
 
 * Official website: https://www.phoenixframework.org/

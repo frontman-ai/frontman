@@ -82,6 +82,14 @@ test:
 	MIX_ENV=test mix ecto.migrate --quiet
 	mix test $(TEST_ARGS)
 
+.PHONY: test-application-restart
+test-application-restart:
+	python3 test/support/run_application_restart.py
+
+.PHONY: test-application-restart-runner
+test-application-restart-runner:
+	python3 -B test/support/application_restart_runner_test.py
+
 test-record:
 	MIX_ENV=test mix ecto.create --quiet
 	MIX_ENV=test mix ecto.migrate --quiet
