@@ -399,6 +399,7 @@ type action =
   | QuestionSubmitted
   | QuestionAllSkipped
   | QuestionCancelled
+  | QuestionExecutionCancelled({toolCallId: string, resolveError: string => unit})
 
 type effect =
   | FetchAnnotationDetails({
@@ -463,6 +464,7 @@ let actionToString = (action: action): string =>
   | QuestionSubmitted => "QuestionSubmitted"
   | QuestionAllSkipped => "QuestionAllSkipped"
   | QuestionCancelled => "QuestionCancelled"
+  | QuestionExecutionCancelled(_) => "QuestionExecutionCancelled"
   }
 
 let normalizeUrl = (url: string): string => {
@@ -1282,6 +1284,15 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (Task.Loaded(_), QuestionCancelled) =>
     let (task, questionEffects) = resolveQuestion(task, ~skippedAll=false, ~cancelled=true)
     (task, Array.concat(questionEffects, [SessionCommand(ACP.Cancel)]))
+
+  | (
+      Task.Loaded({pendingQuestion: Some(pq)} as data),
+      QuestionExecutionCancelled({toolCallId, resolveError}),
+    ) if pq.toolCallId == toolCallId && pq.resolveError === resolveError => (
+      Task.Loaded({...data, pendingQuestion: None}),
+      [RejectQuestionToolEffect({resolveError, message: "Question execution cancelled"})],
+    )
+  | (_, QuestionExecutionCancelled(_)) => (task, [])
 
   | (
       Task.New(_) | Task.Unloaded(_),
