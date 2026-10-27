@@ -94,7 +94,7 @@ defmodule FrontmanServer.Protocols.MCP.Schema do
          true <- valid_request_state?(result),
          true <- valid_input_requests?(result),
          true <- valid_result_meta?(result) do
-      {:ok,
+      {:ok, :local_failure,
        MCP.tool_result_error(
          "MCP tool requires additional input (input_required); Frontman declines MRTR retry."
        )}
@@ -105,7 +105,7 @@ defmodule FrontmanServer.Protocols.MCP.Schema do
 
   def resolve_call_tool_result(result, output_schema) do
     case validate_call_tool_result(result, output_schema) do
-      :ok -> {:ok, result}
+      :ok -> {:ok, :peer_final, result}
       :error -> :error
     end
   end
