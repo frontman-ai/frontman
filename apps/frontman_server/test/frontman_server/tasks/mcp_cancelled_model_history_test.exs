@@ -26,7 +26,9 @@ defmodule FrontmanServer.Tasks.MCPCancelledModelHistoryTest do
             call,
             %{
               "content" => [%{"type" => "text", "text" => "actual success"}]
-            }, turn_number: turn)
+            },
+            turn_number: turn
+          )
       end
 
       parent = self()
