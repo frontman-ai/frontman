@@ -1,4 +1,5 @@
 ---
+"@frontman-ai/frontman-wordpress": patch
 ---
 
 Add checkout-isolated local development stacks for Delta, including WordPress,

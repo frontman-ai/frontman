@@ -178,6 +178,7 @@ You can repeat an interrupted removal with the same confirmation.
 `make delta-syntax` checks shell syntax without provisioning anything.
 `make delta-test-processes` starts real shell children and grandchildren and
 checks that supervisor cleanup terminates their entire process group.
+It also checks that early service exits stop siblings during builds, bundle readiness, and normal operation.
 `make delta-test-lifecycle` uses disposable Podman pods and persistent volume sentinels.
 It checks TERM, HUP, process-group termination, owner SIGKILL, parent SIGKILL, and checkout removal.
 Each scenario also checks duplicate-owner rejection, unrelated-pod isolation, and volume preservation.
@@ -189,5 +190,8 @@ poll as `make delta-up`, including client JavaScript, CSS, and preview-bridge as
 The asset checks require nonempty responses with the expected content types.
 It also checks WordPress activation and the local URLs in the rendered Frontman page.
 It does not exercise OAuth, model calls, or browser UI.
+For Next.js preview routing, set `NEXTJS_URL` to the Next.js URL from `make delta-urls`.
+Run `make -C test/sites/blog-starter test-preview` against the running stack.
+This checks root and nested-page entrypoints, with and without trailing slashes.
 For isolation validation, prepare two checkouts and compare identities, mounts,
 URLs and WordPress content; stop/start one and confirm its content persists.

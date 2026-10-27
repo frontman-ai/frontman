@@ -92,25 +92,36 @@ case "${1:?}" in
     unset STRIPE_WEBHOOK_SECRET
     rm -f "$RELEASE_ROOT/.dev.stripe-webhook.env"
     STRIPE_WEBHOOK_ENV_DIR="$RELEASE_ROOT" make stripe-webhooks &
-    listener=$!
+    services=("$!")
     for attempt in $(seq 1 60); do
-      kill -0 "$listener"
+      delta_check_processes "${services[@]}"
       [[ -s "$RELEASE_ROOT/.dev.stripe-webhook.env" ]] && break
       sleep 1
     done
     [[ -s "$RELEASE_ROOT/.dev.stripe-webhook.env" ]]
-    make rescript-build
+    make rescript-build &
+    build=$!
+    while kill -0 "$build" 2>/dev/null; do
+      delta_check_processes "${services[@]}"
+      sleep 0.1
+    done
+    wait "$build"
+    delta_check_processes "${services[@]}"
     make rescript-watch &
+    services+=("$!")
     (cd apps/frontman_server && make dev-container) &
+    services+=("$!")
     make dev-client &
+    services+=("$!")
     (cd libs/client && yarn vite build --config vite.config.standalone.ts --watch) &
+    services+=("$!")
     touch /tmp/frontman-bundles-started
     (cd libs/frontman-nextjs && yarn tsup --watch) &
-    next_bundle=$!
+    services+=("$!")
     (cd libs/frontman-astro && yarn tsup --watch) &
-    astro_bundle=$!
+    services+=("$!")
     for attempt in $(seq 1 60); do
-      kill -0 "$next_bundle" "$astro_bundle"
+      delta_check_processes "${services[@]}"
       if [[ libs/frontman-nextjs/dist/index.js -nt /tmp/frontman-bundles-started ]] &&
         [[ libs/frontman-nextjs/dist/instrumentation.js -nt /tmp/frontman-bundles-started ]] &&
         [[ libs/frontman-astro/dist/index.js -nt /tmp/frontman-bundles-started ]] &&
@@ -121,8 +132,12 @@ case "${1:?}" in
     done
     [[ "$attempt" -lt 60 ]] || exit 1
     make dev-nextjs-prebuilt &
+    services+=("$!")
     (cd apps/marketing && yarn dev --host 0.0.0.0 --ignore-lock) &
-    wait -n
-    exit 1
+    services+=("$!")
+    while true; do
+      delta_check_processes "${services[@]}"
+      sleep 0.1
+    done
     ;;
 esac
