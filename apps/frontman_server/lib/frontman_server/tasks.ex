@@ -979,6 +979,8 @@ defmodule FrontmanServer.Tasks do
 
   Returns `{:ok, interaction, :notified}` when a live executor received the result,
   and `{:ok, interaction, :no_executor}` when no executor was waiting (e.g., server restart).
+  Fenced duplicates return `:already_resolved` without republishing; newly reconciled
+  cancelled results return `:reconciled`. Unfenced executor recovery retains delivery.
   """
   def resolve_tool_request(
         scope,
@@ -999,7 +1001,7 @@ defmodule FrontmanServer.Tasks do
     end)
     |> case do
       {:ok, {row, inserted?}} ->
-        status = publish_tool_result(task_id, row, inserted?)
+        status = publish_tool_result(task_id, row, inserted?, Keyword.has_key?(opts, :attempt_id))
         {:ok, row.data, status}
 
       {:error, reason} ->
@@ -1089,7 +1091,9 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp publish_tool_result(task_id, row, inserted?) do
+  defp publish_tool_result(_task_id, _row, false, true), do: :already_resolved
+
+  defp publish_tool_result(task_id, row, inserted?, _fenced?) do
     {:ok, history} = load_history(task_id)
 
     case History.cancelled_mcp_call?(history, row.turn_number, row.data.tool_call_id) do
