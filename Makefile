@@ -5,6 +5,39 @@
 
 .DEFAULT_GOAL := help
 
+HELP_delta-preflight := Check local checkout stack prerequisites without creating resources
+HELP_delta-prepare := Install/build/migrate this checkout in an isolated local pod
+HELP_delta-up := Start this checkout's full local dev stack in the background
+HELP_delta-dev := Own the stack in the foreground; stop it when the terminal ends
+HELP_delta-stop := Stop this checkout's stack and preserve all state
+HELP_delta-status := Show this checkout's containers
+HELP_delta-urls := Print this checkout's service URLs
+HELP_delta-logs := Follow container logs (SERVICE=dev,wordpress,proxy,db,pg)
+HELP_delta-preview := Rebuild the WordPress preview bridge after source changes
+HELP_delta-check := Check all live endpoints and rendered WordPress local configuration
+HELP_delta-tls := Configure this checkout's proxy with the existing host mkcert CA
+HELP_delta-remove := Destroy this checkout's stack (requires exact CONFIRM identity)
+
+.PHONY: delta-dev delta-preflight delta-prepare delta-up delta-start delta-stop delta-status delta-urls delta-logs delta-check delta-remove delta-identity delta-preview delta-syntax delta-tls
+delta-dev delta-preflight delta-prepare delta-up delta-start delta-stop delta-status delta-urls delta-logs delta-check delta-remove delta-identity delta-preview delta-tls:
+	@DEV_IMAGE="$(DEV_IMAGE)" SERVICE="$(SERVICE)" CONFIRM="$(CONFIRM)" bash bin/delta-stack $(@:delta-%=%)
+
+delta-syntax:
+	@for script in bin/delta-stack infra/local/delta-dev.sh infra/local/delta-processes.sh infra/local/delta-processes.test.sh infra/local/worktree-setup.sh .agents/prepare; do bash -n "$$script" || exit; done
+	@python3 -c 'import ast, pathlib; [ast.parse(pathlib.Path(p).read_text()) for p in ("infra/local/delta-lifecycle.py", "infra/local/delta-lifecycle.test.py", "infra/local/delta-cleanup.test.py")]'
+
+.PHONY: delta-test-processes
+delta-test-processes:
+	bash infra/local/delta-processes.test.sh
+
+.PHONY: delta-test-lifecycle
+delta-test-lifecycle:
+	python3 infra/local/delta-lifecycle.test.py
+
+.PHONY: delta-test-cleanup
+delta-test-cleanup:
+	python3 infra/local/delta-cleanup.test.py
+
 
 CYAN := \033[36m
 GREEN := \033[32m
@@ -63,7 +96,7 @@ endef
 HELP_SECTIONS := DEVELOPMENT BUILD SSL WT INFRA REL E2E UTIL
 
 HELP_DEVELOPMENT_TITLE := Development
-HELP_DEVELOPMENT_TARGETS := dev dev-client dev-server dev-nextjs dev-nextjs-prebuilt dev-marketing
+HELP_DEVELOPMENT_TARGETS := dev dev-client dev-server dev-nextjs dev-nextjs-prebuilt dev-marketing delta-preflight delta-prepare delta-dev delta-up delta-stop delta-status delta-urls delta-logs delta-preview delta-check delta-tls delta-remove
 HELP_dev := Start all core services (client + server + nextjs)
 HELP_dev-client := Start development server for client app
 HELP_dev-server := Start development server for server app

@@ -7,12 +7,21 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 	}
 
 	const { createMiddleware } = await import("@frontman-ai/nextjs");
+	const entrypoint = process.env.NEXTJS_URL
+		? new URL(process.env.NEXTJS_URL)
+		: undefined;
+	if (entrypoint) {
+		entrypoint.pathname = request.nextUrl.pathname.replace(/\/frontman\/?$/i, "/");
+		entrypoint.search = "";
+		entrypoint.hash = "";
+	}
 	const frontman = createMiddleware({
 		isDev: true,
 		projectRoot: process.cwd(),
 		basePath: "frontman",
 		serverName: "blog-starter",
 		serverVersion: "1.0.0",
+		entrypointUrl: entrypoint?.href,
 	});
 
 	const response = await frontman(request);
