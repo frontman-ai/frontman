@@ -661,6 +661,23 @@ class Frontman_Elementor_Data {
         return true;
     }
 
+    public static function get_element_context( array $elements, string $element_id ): ?array {
+        $matches = self::element_contexts( $elements, $element_id );
+        if ( count( $matches ) > 1 ) {
+            throw new Frontman_Tool_Error( 'Context is ambiguous for element: ' . $element_id );
+        }
+        return $matches[0] ?? null;
+    }
+
+    public static function wrap_at_context( array &$elements, array $context, array $wrapper ): bool {
+        $id = (string) $context['element']['id'];
+        $current = self::get_element_context( $elements, $id );
+        if ( null === $current || $current !== $context ) {
+            return false;
+        }
+        return self::replace_element_at_context( $elements, $id, $context['parent_id'], (int) $context['position'], $wrapper );
+    }
+
     private static function element_contexts( array $elements, string $element_id, ?string $parent_id = null, ?array $parent = null ): array {
         $matches = [];
         foreach ( $elements as $index => $element ) {
