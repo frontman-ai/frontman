@@ -26,7 +26,7 @@ describe("ToolRegistry", _t => {
   test("registers core browser tools for non-Astro frameworks", t => {
     let names = toolNames(Client__RuntimeConfig.Nextjs)
 
-    t->expect(names->Array.length)->Expect.toBe(9)
+    t->expect(names->Array.length)->Expect.toBe(10)
     t->expect(names->Array.includes("take_screenshot"))->Expect.toBe(true)
     t->expect(names->Array.includes("execute_js"))->Expect.toBe(true)
     t->expect(names->Array.includes("set_device_mode"))->Expect.toBe(true)
@@ -50,7 +50,7 @@ describe("ToolRegistry", _t => {
         t->expect(names->Array.filter(name => name == "get_dom")->Array.length)->Expect.toBe(1)
         t->expect(names->Array.includes("get_astro_audit"))->Expect.toBe(isAstro)
         switch isAstro {
-        | true => t->expect(names->Array.length)->Expect.toBe(10)
+        | true => t->expect(names->Array.length)->Expect.toBe(11)
         | false => t->expect(registry.tools)->Expect.toEqual(ToolRegistry.coreBrowserTools)
         }
         let (description, properties) =
