@@ -1209,6 +1209,7 @@ defmodule FrontmanServer.Tasks do
 
     history.rows
     |> Enum.filter(&(is_nil(&1.turn_number) or &1.turn_number <= turn_number))
+    |> Enum.sort_by(&{&1.turn_number || 0, &1.sequence})
     |> Enum.flat_map(fn row ->
       row
       |> row_to_messages(history, skill_used_by_user_message_id)
@@ -1229,6 +1230,35 @@ defmodule FrontmanServer.Tasks do
       user_interaction = History.user_row(history, user_message_id).data
 
       Interaction.to_swarm_messages(skill_interactions ++ [user_interaction])
+    end)
+  end
+
+  defp row_to_messages(
+         %InteractionSchema{
+           turn_number: turn,
+           data: %Interaction.AgentError{kind: "cancelled"}
+         },
+         history,
+         _skills
+       ) do
+    history.rows
+    |> History.unresolved_tool_calls(turn)
+    |> Enum.flat_map(fn
+      {call, %Interaction.ToolCall{cancel_requested: true}} ->
+        [
+          %Tool{
+            tool_call_id: call.id,
+            name: call.name,
+            content: [
+              ContentPart.text(
+                "Outcome unknown after cancellation; do not assume failure or repeat the operation."
+              )
+            ]
+          }
+        ]
+
+      _ ->
+        []
     end)
   end
 
