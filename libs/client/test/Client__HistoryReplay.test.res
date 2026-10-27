@@ -18,6 +18,7 @@ let user = (~id, ~text): TaskReducer.action => TaskReducer.UserMessageReceived({
   content: [UserContentPart.text(text)],
   annotations: [],
   agentId: "executor-id",
+  pending: false,
 })
 
 let delta = (
@@ -75,7 +76,7 @@ let summary = task =>
 let replay = actions => {
   let task = ref(makeLoadingTask())
   let buffer = Buffer.make(
-    ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks as _, ~agentId as _) => (),
+    ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks as _, ~agentId as _, ~pending as _) => (),
     ~onFlush=(~taskId as _, ~messageId, ~text, ~agentId) =>
       task := task.contents->apply(TextDeltaReceived({messageId, text, agentId})),
   )
@@ -98,13 +99,80 @@ let replay = actions => {
 }
 
 describe("ACP message identity", () => {
-  test("load results reject stale requests, flush history, and preserve cached tasks", t => {
+  test("wire replay restores server queue, exact claims, running state and removals", t => {
     module App = Client__State__StateReducer
-    module Store = StateStore
-    module Connection = Client__ConnectionReducer
+    module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
     Buffer.reset()
-    let requests: array<Connection.action> = []
-    let operations = []
+    let loading = makeLoadingTask()
+    let store = StateStore.make(
+      module(App),
+      {
+        ...App.defaultState,
+        tasks: Dict.fromArray([("task-1", loading)]),
+        currentTask: Task.Selected("task-1"),
+      },
+    )
+    let dispatch = action => store->StateStore.dispatch(action)
+    let receive = update => {
+      let notification =
+        JSON.parseOrThrow(
+          `{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"task-1","update":${update}}}`,
+        )->S.parseOrThrow(~to=ACP.sessionUpdateNotificationSchema)
+      dispatch(
+        AcpSessionUpdateReceived({
+          taskId: notification.params.sessionId,
+          update: notification.params.update,
+        }),
+      )
+    }
+    let userChunk = (id, pending, text) =>
+      receive(
+        `{"sessionUpdate":"user_message_chunk","messageId":"${id}","pending":${Bool.toString(
+            pending,
+          )},"content":{"type":"text","text":"${text}"},"_meta":{"frontman.dev/agentId":"executor-id","frontman.dev/timestamp":"2026-07-14T12:30:01Z"}}`,
+      )
+    userChunk("claimed", false, "Current turn")
+    userChunk("queued", true, "Follow-up")
+    receive(`{"sessionUpdate":"state_update","state":"running"}`)
+    receive(`{"sessionUpdate":"plan","entries":[{"content":"Server plan","priority":"high","status":"in_progress"}]}`)
+    dispatch(TaskAction({target: ForTask("task-1"), action: LoadComplete}))
+    let task = () => (store->StateStore.getState).tasks->Dict.get("task-1")->Option.getOrThrow
+    t->expect(task()->summary)->Expect.toEqual([("claimed", "Current turn")])
+    t->expect(TaskReducer.Selectors.isAgentRunning(task()))->Expect.toEqual(Some(true))
+    t
+    ->expect(TaskReducer.Selectors.planEntries(task())->Option.getOrThrow->Array.length)
+    ->Expect.toBe(1)
+    t
+    ->expect(
+      TaskReducer.Selectors.queuedUserMessages(task())->Option.getOrThrow->Array.map(Message.getId),
+    )
+    ->Expect.toEqual(["queued"])
+    let (_, effects) = TaskReducer.next(task(), UnqueueMessage({messageId: "queued"}))
+    t
+    ->expect(effects)
+    ->Expect.toEqual([
+      TaskReducer.SessionCommand(
+        FrontmanAiFrontmanClient.FrontmanClient__ACP.UnqueueMessage("queued"),
+      ),
+    ])
+    userChunk("later", true, "Keep queued")
+    receive(`{"sessionUpdate":"state_update","state":"running","claimedMessageIds":["queued"]}`)
+    t
+    ->expect(task()->summary)
+    ->Expect.toEqual([("claimed", "Current turn"), ("queued", "Follow-up")])
+    receive(`{"sessionUpdate":"message_unqueued","messageId":"later"}`)
+    t->expect(TaskReducer.Selectors.queuedUserMessages(task()))->Expect.toEqual(Some([]))
+    userChunk("removed-before-flush", true, "Remove immediately")
+    receive(`{"sessionUpdate":"message_unqueued","messageId":"removed-before-flush"}`)
+    t->expect(TaskReducer.Selectors.queuedUserMessages(task()))->Expect.toEqual(Some([]))
+    receive(`{"sessionUpdate":"state_update","state":"idle"}`)
+    t->expect(TaskReducer.Selectors.isAgentRunning(task()))->Expect.toEqual(Some(false))
+    Buffer.reset()
+  })
+
+  test("load results reject abandoned requests", t => {
+    module App = Client__State__StateReducer
+    module Connection = Client__ConnectionReducer
     let initial = {...App.defaultState, tasks: Dict.fromArray([("task-1", makeLoadingTask())])}
     let getTask = (state: App.state) => state.tasks->Dict.get("task-1")->Option.getOrThrow
     let rejected = App.next(initial, SwitchTask({taskId: "task-1"}))->Pair.first
@@ -112,56 +180,31 @@ describe("ACP message identity", () => {
     let cancelled =
       App.next(initial, TaskLoadFinished({taskId: "task-1", result: Ok(ref())}))->Pair.first
     t->expect(getTask(cancelled)->Task.isLoading)->Expect.toBe(false)
-    let store = Client__ConnectionTestHelpers.makeStore(
+    let (loading, effects) = App.next(
       {...initial, connection: Client__ConnectionTestHelpers.ready()},
-      (effect, state, dispatch) =>
-        switch effect {
-        | ConnectionEffect(ActivateSessionEffect({
-            requestId,
-            operation: (#load(sessionId) | #join(sessionId)) as operation,
-          })) =>
-          operations->Array.push(operation)
-          requests->Array.push(
-            Connection.SessionResultReceived({
-              requestId,
-              sessionId,
-              result: Ok((Client__ConnectionTestHelpers.session(sessionId), None)),
-            }),
-          )
-        | _ => App.handleEffect(effect, state, dispatch)
-        },
+      SwitchTask({taskId: "task-1"}),
     )
-    let switchTask = () => store->Store.dispatch(SwitchTask({taskId: "task-1"}))
-    let finish = index =>
-      store->Store.dispatch(ConnectionAction(requests->Array.get(index)->Option.getOrThrow))
-    switchTask()
-    switchTask()
-    t->expect(store->Store.getState->getTask->Task.isLoading)->Expect.toBe(true)
-    finish(0)
-    t->expect(store->Store.getState->getTask->Task.isLoading)->Expect.toBe(true)
-    let dispatch = action => store->Store.dispatch(action)
-    App.getSessionTextBuffer(dispatch).add(
-      ~taskId="task-1",
-      ~messageId="assistant-1",
-      ~text="History",
-      ~agentId="executor-id",
-    )
-    finish(1)
-    let loaded = store->Store.getState->getTask
-    t->expect(Task.isLoaded(loaded))->Expect.toBe(true)
-    t->expect(summary(loaded))->Expect.toEqual([("assistant-1", "History")])
-    switch Task.getMessages(loaded)->Array.get(0) {
-    | Some(Assistant(Completed(_))) => ()
-    | _ => failwith("History must flush before LoadComplete")
-    }
-    switchTask()
-    t->expect(requests->Array.length)->Expect.toBe(2)
-    store->Store.dispatch(ClearCurrentTask)
-    switchTask()
-    finish(2)
-    t->expect(operations)->Expect.toEqual([#load("task-1"), #load("task-1"), #join("task-1")])
-    t->expect(store->Store.getState->getTask)->Expect.toBe(loaded)
-    Buffer.reset()
+    t->expect(getTask(loading)->Task.isLoading)->Expect.toBe(true)
+    t->expect(effects->Array.some(effect =>
+      switch effect {
+      | ConnectionEffect(ActivateSessionEffect({operation: #load("task-1")})) => true
+      | _ => false
+      }
+    ))->Expect.toBe(true)
+    let released = App.next(loading, ClearCurrentTask)->Pair.first
+    let retried = App.next(released, SwitchTask({taskId: "task-1"}))->Pair.first
+    let oldId = effects->Array.findMap(effect =>
+      switch effect {
+      | ConnectionEffect(ActivateSessionEffect({requestId})) => Some(requestId)
+      | _ => None
+      }
+    )->Option.getOrThrow
+    let stale = App.next(retried, ConnectionAction(SessionResultReceived({
+      requestId: oldId,
+      sessionId: "task-1",
+      result: Error(Connection.ACP.requestErrorFromMessage("Abandoned load")),
+    })))->Pair.first
+    t->expect(stale)->Expect.toEqual(retried)
   })
 
   test("replay execution state survives LoadComplete", t => {
@@ -222,6 +265,22 @@ describe("ACP message identity", () => {
       ("tool-1", "tool"),
       ("assistant-2", "After"),
     ])
+  })
+
+  test("a replayed pending tool accepts its result after loading", t => {
+    let loaded = makeLoadingTask()->apply(tool("preview-1"))->apply(LoadComplete)
+    let completed = loaded->apply(
+      ToolResultReceived({
+        id: "preview-1",
+        rawOutput: None,
+        content: None,
+        complete: true,
+      }),
+    )
+    switch Task.getMessages(completed)->Array.get(0) {
+    | Some(ToolCall({state})) => t->expect(state)->Expect.toBe(OutputAvailable)
+    | _ => failwith("Replayed tool must complete")
+    }
   })
 
   test("message role and agent are immutable", t => {

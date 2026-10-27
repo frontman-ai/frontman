@@ -603,6 +603,10 @@
             "frontman.dev/agentId",
             "frontman.dev/timestamp"
           ]
+        },
+        "pending": {
+          "default": true,
+          "type": "boolean"
         }
       },
       "required": [
@@ -1583,6 +1587,13 @@
             "refusal",
             "cancelled"
           ]
+        },
+        "claimedMessageIds": {
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": "array"
         }
       },
       "required": [

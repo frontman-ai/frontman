@@ -40,7 +40,11 @@ defmodule FrontmanServer.Protocols.ACP.History do
     notifications =
       Enum.flat_map(rows, &encode_row(&1, session_id, standalone_tool_call_ids))
 
-    {:ok, %{notifications: notifications}}
+    {:ok,
+     %{
+       notifications: notifications,
+       state_update: ACP.build_state_update_notification(session_id, execution_state(history))
+     }}
   end
 
   def encode_row(context, session_id), do: encode_row(context, session_id, MapSet.new())
@@ -118,7 +122,8 @@ defmodule FrontmanServer.Protocols.ACP.History do
             row.id,
             content,
             context.agent_id,
-            message.timestamp
+            message.timestamp,
+            is_nil(context.turn_row)
           )
         end)
 
@@ -164,5 +169,17 @@ defmodule FrontmanServer.Protocols.ACP.History do
       _unsupported ->
         raise FunctionClauseError, module: __MODULE__, function: :encode_row, arity: 2
     end
+  end
+
+  defp execution_state(%TaskHistory{active_turn: turn}) when is_integer(turn), do: "running"
+
+  defp execution_state(%TaskHistory{rows: rows}) do
+    rows
+    |> Enum.reverse()
+    |> Enum.find_value("idle", fn
+      %{type: :agent_paused} -> "requires_action"
+      %{type: type} when type in [:agent_completed, :agent_error] -> "idle"
+      _row -> nil
+    end)
   end
 end

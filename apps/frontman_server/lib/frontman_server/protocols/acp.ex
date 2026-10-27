@@ -294,12 +294,20 @@ defmodule FrontmanServer.Protocols.ACP do
   Used when a user message is persisted as accepted session history. `message_id` is the
   client-generated UUID accepted as the interaction row ID.
   """
-  def build_user_message_chunk_notification(session_id, message_id, content, agent_id, timestamp)
+  def build_user_message_chunk_notification(
+        session_id,
+        message_id,
+        content,
+        agent_id,
+        timestamp,
+        pending \\ true
+      )
       when is_binary(agent_id) and agent_id != "" do
     session_update_notification(session_id, %{
       "sessionUpdate" => "user_message_chunk",
       "messageId" => message_id,
       "content" => content,
+      "pending" => pending,
       "_meta" => message_metadata(agent_id, timestamp)
     })
   end
@@ -326,7 +334,7 @@ defmodule FrontmanServer.Protocols.ACP do
   @doc """
   Builds a state_update session/update notification.
   """
-  def build_state_update_notification(session_id, state, stop_reason \\ nil) do
+  def build_state_update_notification(session_id, state, stop_reason \\ nil, claimed_ids \\ nil) do
     update = %{
       "sessionUpdate" => "state_update",
       "state" => state
@@ -336,6 +344,12 @@ defmodule FrontmanServer.Protocols.ACP do
       case stop_reason do
         nil -> update
         stop_reason -> Map.put(update, "stopReason", stop_reason)
+      end
+
+    update =
+      case claimed_ids do
+        nil -> update
+        ids when is_list(ids) -> Map.put(update, "claimedMessageIds", ids)
       end
 
     session_update_notification(session_id, update)

@@ -223,6 +223,7 @@ module Fixtures = {
       Dict.fromArray([
         ("sessionUpdate", JSON.Encode.string(sessionUpdate)),
         ("messageId", JSON.Encode.string(messageId)),
+        ("pending", JSON.Encode.bool(true)),
         (
           "content",
           JSON.Encode.object(
@@ -305,15 +306,15 @@ describe("sessionUpdate schema parsing", () => {
     [
       (
         Fixtures.makeStateUpdate(~state="running"),
-        Types.StateUpdate({state: Types.Running, stopReason: None}),
+        Types.StateUpdate({state: Types.Running, stopReason: None, claimedMessageIds: None}),
       ),
       (
         Fixtures.makeStateUpdate(~state="idle", ~stopReason="end_turn"),
-        Types.StateUpdate({state: Types.Idle, stopReason: Some(Types.EndTurn)}),
+        Types.StateUpdate({state: Types.Idle, stopReason: Some(Types.EndTurn), claimedMessageIds: None}),
       ),
       (
         Fixtures.makeStateUpdate(~state="requires_action"),
-        Types.StateUpdate({state: Types.RequiresAction, stopReason: None}),
+        Types.StateUpdate({state: Types.RequiresAction, stopReason: None, claimedMessageIds: None}),
       ),
     ]->Array.forEach(
       ((json, expected)) =>

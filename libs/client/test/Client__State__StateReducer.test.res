@@ -133,7 +133,7 @@ module TestHelpers = {
       state,
       TaskAction({
         target: ForTask(taskId),
-        action: UserMessageReceived({id, content, annotations, agentId: "executor-id"}),
+        action: UserMessageReceived({id, content, annotations, agentId: "executor-id", pending: true}),
       }),
     )->Pair.first
   }
@@ -732,6 +732,13 @@ describe("Client State Reducer", () => {
       ~content=[UserContentPart.text("Hi")],
     )
 
+    let (state, _) = Reducer.next(
+      state,
+      TaskAction({
+        target: ForTask(taskId),
+        action: UserMessagesClaimed({messageIds: [testUserMessageId->UserMessageId.toString]}),
+      }),
+    )
     let (state, _) = Reducer.next(
       state,
       TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}),

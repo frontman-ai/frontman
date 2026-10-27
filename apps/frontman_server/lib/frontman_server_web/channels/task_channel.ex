@@ -204,18 +204,14 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   def handle_info(
         {:interaction,
-         %{
-           id: turn_started_id,
-           data: %Tasks.Interaction.TurnStarted{} = interaction,
-           turn_number: turn_number
-         }},
+         %{id: id, data: %Tasks.Interaction.TurnStarted{} = turn, turn_number: number}},
         socket
       ) do
-    handle_turn_started(interaction, turn_started_id, turn_number, socket)
+    handle_turn_started(turn, id, number, socket)
   end
 
   def handle_info(
-        {:interaction, %{id: message_id, data: %Tasks.Interaction.UserMessage{} = message}},
+        {:interaction, %{id: id, data: %Tasks.Interaction.UserMessage{} = message}},
         socket
       ) do
     message
@@ -224,7 +220,7 @@ defmodule FrontmanServerWeb.TaskChannel do
       notification =
         ACP.build_user_message_chunk_notification(
           socket.assigns.task_id,
-          message_id,
+          id,
           content,
           message.agent_id,
           message.timestamp
@@ -236,8 +232,8 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, socket}
   end
 
-  def handle_info({:interaction, %{data: interaction, turn_number: turn_number}}, socket) do
-    handle_interaction(interaction, turn_number, socket)
+  def handle_info({:interaction, %{data: interaction, turn_number: number}}, socket) do
+    handle_interaction(interaction, number, socket)
   end
 
   def handle_info({:message_unqueued, message_id}, socket) when is_binary(message_id) do
@@ -269,7 +265,10 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_turn_started(turn, turn_started_id, turn_number, socket) do
     task_id = socket.assigns.task_id
-    notification = ACP.build_state_update_notification(task_id, "running")
+
+    notification =
+      ACP.build_state_update_notification(task_id, "running", nil, turn.user_message_ids)
+
     push(socket, @acp_message, notification)
 
     context = %{
@@ -704,6 +703,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         {:ok, history} = TaskHistory.new(task.interaction_rows)
         {:ok, replay} = ACPHistory.build(history, task.id, Agents.list_agents(scope))
         Enum.each(replay.notifications, &push(socket, @acp_message, &1))
+        push(socket, @acp_message, replay.state_update)
 
         reply(socket_ref(socket), {
           :ok,
