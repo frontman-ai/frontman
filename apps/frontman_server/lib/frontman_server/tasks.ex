@@ -854,9 +854,26 @@ defmodule FrontmanServer.Tasks do
       )
       when is_integer(turn_number) and turn_number > 0 and
              execution_mode in [:synchronous, :interactive] do
-    with {:ok, schema} <- get_task(scope, task_id),
-         {:ok, attrs} <- Interaction.ToolCall.attrs(tool_call_data, execution_mode) do
-      record_interaction(schema, :tool_call, attrs, turn_number)
+    Repo.transact(fn ->
+      with %TaskSchema{} = task <- get_task_by_id_for_update(scope, task_id),
+           {:ok, history} <- load_history(task_id),
+           true <- History.active_turn_number(history) == turn_number,
+           {:ok, attrs} <- Interaction.ToolCall.attrs(tool_call_data, execution_mode) do
+        insert_interaction_row(task, %{
+          id: Ecto.UUID.generate(), type: :tool_call, data: attrs, turn_number: turn_number
+        })
+      else
+        nil -> {:error, :not_found}
+        false -> {:error, :not_running}
+        {:error, reason} -> {:error, reason}
+      end
+    end)
+    |> case do
+      {:ok, row} ->
+        broadcast_task(task_id, {:interaction, row})
+        {:ok, row.data}
+
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -1200,23 +1217,35 @@ defmodule FrontmanServer.Tasks do
   Verifies the task exists and belongs to the user before cancelling.
   """
   def cancel_execution(scope, task_id) do
-    with {:ok, _schema} <- get_task(scope, task_id) do
-      case SwarmAi.cancel(FrontmanServer.AgentRuntime, task_id) do
-        {:error, :not_running} -> cancel_parked_turn(scope, task_id)
-        result -> result
+    Repo.transact(fn ->
+      with %TaskSchema{} = task <- get_task_by_id_for_update(scope, task_id),
+           {:ok, history} <- load_history(task_id) do
+        cancel_active_turn(task, history)
+      else
+        nil -> {:error, :not_found}
+        {:error, reason} -> {:error, reason}
       end
+    end)
+    |> publish_outcome(task_id)
+    |> case do
+      {:ok, _} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
-  defp cancel_parked_turn(scope, task_id) do
-    {:ok, history} = load_history(task_id)
-
+  defp cancel_active_turn(task, history) do
     case History.active_turn_number(history) do
       nil ->
-        {:error, :not_running}
+        with :ok <- SwarmAi.cancel(FrontmanServer.AgentRuntime, task.id), do: {:ok, []}
 
       turn ->
-        with {:ok, _} <- record_execution_outcome(scope, task_id, turn, :cancelled), do: :ok
+        with {:ok, rows} <- finish_turn(task, history, turn, :cancelled) do
+          # Kill the registered runtime while the task lock still prevents a new turn.
+          case SwarmAi.cancel(FrontmanServer.AgentRuntime, task.id) do
+            :ok -> {:ok, rows}
+            {:error, :not_running} -> {:ok, rows}
+          end
+        end
     end
   end
 
