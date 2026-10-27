@@ -488,7 +488,7 @@ defmodule FrontmanServerWeb.TaskChannel do
           raise "Invalid MCP tools/call result for task #{socket.assigns.task_id}, tool #{tool_call.tool_name}, call #{tool_call.tool_call_id}"
       end
 
-    {:noreply, persist_tool_call_result(tool_call, result, socket, attempt, evidence)}
+    {:noreply, persist_tool_call_result(tool_call, {evidence, result}, socket, attempt)}
   end
 
   defp normalize_tool_call_result(evidence, %{"content" => content} = result) do
@@ -508,13 +508,8 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp supported_tool_result_content?(%{"type" => "resource_link"}), do: false
   defp supported_tool_result_content?(%{"type" => "resource"}), do: false
 
-  defp persist_tool_call_result(
-         tool_call,
-         result,
-         socket,
-         {turn_number, request_id},
-         evidence \\ :local_failure
-       ) do
+  defp persist_tool_call_result(tool_call, {evidence, result}, socket, attempt) do
+    {turn_number, request_id} = attempt
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
 
@@ -644,7 +639,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     Logger.error("MCP tool execution failed", metadata)
 
     result = MCP.tool_result_error(error_message)
-    {:noreply, persist_tool_call_result(tool_call, result, socket, attempt)}
+    {:noreply, persist_tool_call_result(tool_call, {:local_failure, result}, socket, attempt)}
   end
 
   defp handle_prompt(id, params, socket) do
