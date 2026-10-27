@@ -465,7 +465,7 @@ defmodule FrontmanServer.Tasks do
       |> InteractionSchema.data_equals("tool_call_id", call.id)
       |> Repo.one!()
 
-    {:ok, data} = mcp_attempt_transition(row.data, id, :cancel)
+    {:ok, data} = tool_attempt_transition(row.data, id, :cancel)
     {:ok, _} = row |> Ecto.Changeset.change(data: data) |> Repo.update()
     []
   end
@@ -887,19 +887,19 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  @doc "Durably fences the first MCP dispatch; a previous attempt is never implicitly replayable."
-  def start_mcp_attempt(%Scope{} = scope, task_id, logical_id, attempt_id)
-      when is_binary(attempt_id) or is_integer(attempt_id),
-      do: transition_mcp_attempt(scope, task_id, logical_id, Jason.encode!(attempt_id), :start)
+  @doc "Fences a tool attempt using an opaque key; previous attempts are not implicitly replayable."
+  def start_tool_attempt(%Scope{} = scope, task_id, logical_id, attempt_id)
+      when is_binary(attempt_id) and byte_size(attempt_id) > 0,
+      do: transition_tool_attempt(scope, task_id, logical_id, attempt_id, :start)
 
   @doc "Records cancellation intent and uncertainty, not proof that an external effect stopped."
-  def request_mcp_cancellation(%Scope{} = scope, task_id, logical_id, attempt_id)
-      when is_binary(attempt_id) or is_integer(attempt_id),
-      do: transition_mcp_attempt(scope, task_id, logical_id, Jason.encode!(attempt_id), :cancel)
+  def request_tool_cancellation(%Scope{} = scope, task_id, logical_id, attempt_id)
+      when is_binary(attempt_id) and byte_size(attempt_id) > 0,
+      do: transition_tool_attempt(scope, task_id, logical_id, attempt_id, :cancel)
 
   @doc "Finds an attempt in its original turn, including after cancellation closed that turn."
-  def get_mcp_tool_call(%Scope{} = scope, task_id, {turn, logical_id}, attempt_id)
-      when is_integer(turn) and turn > 0 do
+  def get_tool_attempt(%Scope{} = scope, task_id, {turn, logical_id}, attempt_id)
+      when is_integer(turn) and turn > 0 and is_binary(attempt_id) and byte_size(attempt_id) > 0 do
     with {:ok, _} <- get_task(scope, task_id),
          %InteractionSchema{data: call} <-
            InteractionSchema.for_task(task_id)
@@ -907,7 +907,7 @@ defmodule FrontmanServer.Tasks do
            |> InteractionSchema.of_type(:tool_call)
            |> InteractionSchema.data_equals("tool_call_id", logical_id)
            |> Repo.one(),
-         true <- call.attempt_id == Jason.encode!(attempt_id) do
+         true <- call.attempt_id == attempt_id do
       {:ok, call}
     else
       nil -> {:error, :not_found}
@@ -916,7 +916,7 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp transition_mcp_attempt(scope, task_id, {turn, logical_id}, attempt_id, event)
+  defp transition_tool_attempt(scope, task_id, {turn, logical_id}, attempt_id, event)
        when is_integer(turn) and turn > 0 do
     Repo.transact(fn ->
       with %TaskSchema{} <- get_task_by_id_for_update(scope, task_id),
@@ -933,10 +933,10 @@ defmodule FrontmanServer.Tasks do
              |> InteractionSchema.data_equals("tool_call_id", logical_id)
              |> Repo.exists?(),
            {:ok, history} <- load_history(task_id),
-           true <- mcp_attempt_turn_open?(event, history, row.turn_number),
-           {:ok, data} <- mcp_attempt_transition(row.data, attempt_id, event),
-           {:ok, _} <- row |> Ecto.Changeset.change(data: data) |> Repo.update() do
-        {:ok, :ok}
+           true <- tool_attempt_turn_open?(event, history, row.turn_number),
+           {:ok, data} <- tool_attempt_transition(row.data, attempt_id, event),
+           {:ok, row} <- row |> Ecto.Changeset.change(data: data) |> Repo.update() do
+        {:ok, row.data}
       else
         nil -> {:error, :not_found}
         true -> {:error, :already_resolved}
@@ -944,30 +944,26 @@ defmodule FrontmanServer.Tasks do
         {:error, reason} -> {:error, reason}
       end
     end)
-    |> case do
-      {:ok, :ok} -> :ok
-      {:error, reason} -> {:error, reason}
-    end
   end
 
-  defp mcp_attempt_turn_open?(:cancel, _history, _turn), do: true
+  defp tool_attempt_turn_open?(:cancel, _history, _turn), do: true
 
-  defp mcp_attempt_turn_open?(:start, history, turn),
+  defp tool_attempt_turn_open?(:start, history, turn),
     do: History.active_turn_number(history) == turn
 
-  defp mcp_attempt_transition(%Interaction.ToolCall{cancel_requested: true}, _, :start),
+  defp tool_attempt_transition(%Interaction.ToolCall{cancel_requested: true}, _, :start),
     do: {:error, :cancelled}
 
-  defp mcp_attempt_transition(%Interaction.ToolCall{attempt_id: nil} = call, attempt_id, :start),
+  defp tool_attempt_transition(%Interaction.ToolCall{attempt_id: nil} = call, attempt_id, :start),
     do: {:ok, %{call | attempt_id: attempt_id, outcome: :in_flight}}
 
-  defp mcp_attempt_transition(%Interaction.ToolCall{}, _, :start),
+  defp tool_attempt_transition(%Interaction.ToolCall{}, _, :start),
     do: {:error, :outcome_unknown}
 
-  defp mcp_attempt_transition(%Interaction.ToolCall{attempt_id: id} = call, id, :cancel),
+  defp tool_attempt_transition(%Interaction.ToolCall{attempt_id: id} = call, id, :cancel),
     do: {:ok, %{call | cancel_requested: true, outcome: :outcome_unknown}}
 
-  defp mcp_attempt_transition(%Interaction.ToolCall{}, _, :cancel),
+  defp tool_attempt_transition(%Interaction.ToolCall{}, _, :cancel),
     do: {:error, :stale_attempt}
 
   @doc """
@@ -1010,14 +1006,14 @@ defmodule FrontmanServer.Tasks do
   defp resolve_task_tool_result(scope, task, call, result, opts) do
     turn = tool_result_turn_number(task.id, call.id, opts)
 
-    with {:ok, _} <- validate_mcp_result_attempt(scope, task.id, {turn, call.id}, opts) do
+    with {:ok, _} <- validate_tool_result_attempt(scope, task.id, {turn, call.id}, opts) do
       store_tool_result(task, turn, call, result)
     end
   end
 
-  defp validate_mcp_result_attempt(scope, task_id, logical_id, opts) do
+  defp validate_tool_result_attempt(scope, task_id, logical_id, opts) do
     case Keyword.fetch(opts, :attempt_id) do
-      {:ok, attempt_id} -> get_mcp_tool_call(scope, task_id, logical_id, attempt_id)
+      {:ok, attempt_id} -> get_tool_attempt(scope, task_id, logical_id, attempt_id)
       :error -> validate_unfenced_tool_result(task_id, logical_id)
     end
   end
@@ -1025,7 +1021,7 @@ defmodule FrontmanServer.Tasks do
   defp validate_unfenced_tool_result(task_id, {turn, logical_id}) do
     {:ok, history} = load_history(task_id)
 
-    case History.cancelled_mcp_call?(history, turn, logical_id) do
+    case History.cancelled_tool_call?(history, turn, logical_id) do
       true -> {:error, :outcome_unknown}
       false -> {:ok, nil}
     end
@@ -1066,14 +1062,14 @@ defmodule FrontmanServer.Tasks do
   defp tool_result_allowed?(history, turn, logical_id) do
     case History.active_turn_number(history) do
       ^turn -> true
-      _ -> History.cancelled_mcp_call?(history, turn, logical_id)
+      _ -> History.cancelled_tool_call?(history, turn, logical_id)
     end
   end
 
   defp publish_tool_result(task_id, row, inserted?) do
     {:ok, history} = load_history(task_id)
 
-    case History.cancelled_mcp_call?(history, row.turn_number, row.data.tool_call_id) do
+    case History.cancelled_tool_call?(history, row.turn_number, row.data.tool_call_id) do
       true ->
         :reconciled
 
