@@ -862,9 +862,9 @@ defmodule FrontmanServer.Tasks do
              execution_mode in [:synchronous, :interactive] do
     Repo.transact(fn ->
       with %TaskSchema{} = task <- get_task_by_id_for_update(scope, task_id),
+           {:ok, attrs} <- Interaction.ToolCall.attrs(tool_call_data, execution_mode),
            {:ok, history} <- load_history(task_id),
-           true <- History.active_turn_number(history) == turn_number,
-           {:ok, attrs} <- Interaction.ToolCall.attrs(tool_call_data, execution_mode) do
+           true <- History.active_turn_number(history) == turn_number do
         insert_interaction_row(task, %{
           id: Ecto.UUID.generate(),
           type: :tool_call,
