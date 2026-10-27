@@ -231,10 +231,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     })
   end
 
-  defp assert_tool_result_crash(context, content, reason) do
+  defp assert_tool_result_crash(context, content, reason, structured \\ %{"logged" => true}) do
     %{socket: socket, task_id: task_id, scope: scope} = context
     result = %{"resultType" => "complete", "content" => content}
-    result = Map.put(result, "structuredContent", %{"logged" => true})
+    result = Map.put(result, "structuredContent", structured)
     tool_call = tool_call("call_invalid_result", "testTool")
     register_tool_receiver(task_id, tool_call.tool_call_id)
 
@@ -1046,6 +1046,105 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
     end
 
+    test "explicitly declines state-only input_required without a final success", %{
+      socket: socket,
+      task_id: task_id,
+      scope: scope
+    } do
+      tool_call = tool_call("call_input_required", "testTool")
+      tool_call_id = tool_call.tool_call_id
+      turn_number = start_turn_fixture(scope, task_id)
+      register_tool_receiver(task_id, tool_call_id)
+      {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
+
+      assert_push("mcp:message", %{
+        "method" => "tools/call",
+        "id" => mcp_request_id,
+        "params" => %{
+          "name" => "testTool",
+          "_meta" => %{"ai.frontman/execution-context" => %{"callId" => ^tool_call_id}}
+        }
+      })
+
+      result = %{"resultType" => "input_required", "requestState" => "opaque-server-state"}
+
+      log =
+        capture_log(fn ->
+          push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, result))
+          :sys.get_state(socket.channel_pid)
+        end)
+
+      refute log =~ "opaque-server-state"
+
+      assert Process.alive?(socket.channel_pid)
+
+      assert_receive {:tool_result, ^tool_call_id,
+                      [%SwarmAi.Message.ContentPart{type: :text, text: message}], true}
+
+      assert is_binary(message)
+      assert String.trim(message) != ""
+      assert message =~ "declines MRTR retry"
+      refute message =~ "opaque-server-state"
+      refute_receive {:tool_result, ^tool_call_id, _, false}
+
+      assert {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+
+      assert [
+               %Interaction.ToolResult{
+                 tool_call_id: ^tool_call_id,
+                 is_error: true,
+                 result:
+                   %{
+                     "isError" => true,
+                     "content" => [%{"type" => "text", "text" => ^message}]
+                   } = persisted_result
+               }
+             ] = Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
+
+      refute Map.has_key?(persisted_result, "resultType")
+      refute Map.has_key?(persisted_result, "requestState")
+
+      assert_push("acp:message", %{
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{
+            "sessionUpdate" => "tool_call_update",
+            "toolCallId" => ^tool_call_id,
+            "status" => "failed",
+            "content" => [%{"type" => "content", "content" => %{"text" => ^message}}]
+          }
+        }
+      })
+
+      refute_push("acp:message", %{
+        "params" => %{"update" => %{"toolCallId" => ^tool_call_id, "status" => "completed"}}
+      })
+
+      refute_push("mcp:message", %{"method" => "tools/call"})
+    end
+
+    test "validates state-only interims without applying the final output schema" do
+      result = %{"resultType" => "input_required", "requestState" => "opaque-state"}
+
+      assert :ok = MCP.Schema.validate_call_tool_result(result)
+      assert :ok = MCP.Schema.validate_call_tool_result(result, @logged_output_schema)
+
+      for invalid <- [
+            Map.delete(result, "requestState"),
+            Map.put(result, "requestState", nil),
+            Map.put(result, "requestState", %{}),
+            Map.put(result, "_meta", "invalid"),
+            Map.put(result, "inputRequests", %{}),
+            Map.put(result, "inputRequests", nil),
+            Map.put(result, "inputRequests", %{"roots" => %{"method" => "roots/list"}}),
+            Map.put(result, "resultType", "unknown")
+          ] do
+        assert :error = MCP.Schema.validate_call_tool_result(invalid)
+        assert :error = MCP.Schema.validate_call_tool_result(invalid, @logged_output_schema)
+      end
+    end
+
     test "validates structured content only when tool errors provide it" do
       result = %{
         "resultType" => "complete",
@@ -1320,74 +1419,54 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:ok, socket: socket, task_id: task_id, scope: scope}
     end
 
-    test "rejects response missing jsonrpc field", %{socket: socket} do
-      log =
-        capture_log(fn ->
-          push(socket, "mcp:message", %{
-            "id" => 999,
-            "result" => %{"_meta" => %{"envApiKey" => "sk-fake-invalid-mcp-marker"}}
-          })
+    test "rejects malformed response and notification envelopes without logging payloads", %{
+      socket: socket
+    } do
+      response =
+        JsonRpc.success_response(999, %{"_meta" => %{"envApiKey" => "sk-fake-invalid-mcp-marker"}})
 
-          :sys.get_state(socket.channel_pid)
+      notification = JsonRpc.notification("notifications/cancelled", %{"requestId" => 1})
 
-          assert_push("mcp:message", %{
-            "jsonrpc" => "2.0",
-            "method" => "error",
-            "params" => %{
-              "message" => "Invalid JSON-RPC response",
-              "reason" => "invalid_message"
-            }
-          })
-        end)
+      invalid_notifications =
+        for {field, value} <- [
+              {"id", nil},
+              {"id", %{}},
+              {"id", 1},
+              {"params", nil},
+              {"params", []},
+              {"method", 1},
+              {"result", %{}},
+              {"error", %{}}
+            ],
+            do: {Map.put(notification, field, value), "invalid_message"}
 
-      assert log =~ "Invalid MCP response"
-      refute log =~ "sk-fake-invalid-mcp-marker"
-      refute log =~ "envApiKey"
-    end
+      for {message, reason} <-
+            [
+              {Map.delete(response, "jsonrpc"), "invalid_message"},
+              {Map.put(response, "jsonrpc", "1.0"), "invalid_version"},
+              {Map.delete(response, "id"), "invalid_message"},
+              {Map.put(response, "error", %{"code" => -32_601, "message" => "Error"}),
+               "invalid_message"},
+              {Map.put(notification, "jsonrpc", "1.0"), "invalid_version"},
+              {%{}, "invalid_message"},
+              {nil, "invalid_message"}
+            ] ++ invalid_notifications do
+        log =
+          capture_log(fn ->
+            push(socket, "mcp:message", message)
+            :sys.get_state(socket.channel_pid)
 
-    test "rejects response with wrong jsonrpc version", %{socket: socket} do
-      log =
-        capture_log(fn ->
-          push(socket, "mcp:message", %{"jsonrpc" => "1.0", "id" => 999, "result" => %{}})
-          :sys.get_state(socket.channel_pid)
+            assert_push("mcp:message", %{
+              "jsonrpc" => "2.0",
+              "method" => "error",
+              "params" => %{"message" => "Invalid JSON-RPC response", "reason" => ^reason}
+            })
+          end)
 
-          assert_push("mcp:message", %{
-            "method" => "error",
-            "params" => %{"reason" => "invalid_version"}
-          })
-        end)
-
-      assert log =~ "Invalid MCP response"
-    end
-
-    test "rejects response missing id", %{socket: socket} do
-      log =
-        capture_log(fn ->
-          push(socket, "mcp:message", %{"jsonrpc" => "2.0", "result" => %{}})
-          :sys.get_state(socket.channel_pid)
-
-          assert_push("mcp:message", %{"method" => "error"})
-        end)
-
-      assert log =~ "Invalid MCP response"
-    end
-
-    test "rejects response with both result and error", %{socket: socket} do
-      log =
-        capture_log(fn ->
-          push(socket, "mcp:message", %{
-            "jsonrpc" => "2.0",
-            "id" => 999,
-            "result" => %{},
-            "error" => %{"code" => -32_601, "message" => "Error"}
-          })
-
-          :sys.get_state(socket.channel_pid)
-
-          assert_push("mcp:message", %{"method" => "error"})
-        end)
-
-      assert log =~ "Invalid MCP response"
+        assert log =~ "Invalid MCP response"
+        refute log =~ "sk-fake-invalid-mcp-marker"
+        refute log =~ "envApiKey"
+      end
     end
 
     test "accepts valid MCP response", %{socket: socket, task_id: task_id, scope: scope} do
@@ -1449,10 +1528,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
                           type: :image,
                           data: decoded_image_data,
                           media_type: "image/png"
-                        }
+                        },
+                        %SwarmAi.Message.ContentPart{type: :text, text: structured_json}
                       ], false}
 
       assert decoded_image_data == Base.decode64!(image_data)
+      assert Jason.decode!(structured_json) == %{"logged" => true}
 
       assert_push("acp:message", %{
         "method" => "session/update",
@@ -1502,6 +1583,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert_tool_result_crash(context, "invalid", "Invalid MCP tools/call result")
     end
 
+    test "rejects structured-only output that violates the discovered schema", context do
+      assert_tool_result_crash(context, [], "Invalid MCP tools/call result", %{})
+    end
+
     test "rejects invalid image data before persistence", context do
       assert_tool_result_crash(
         context,
@@ -1510,7 +1595,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       )
     end
 
-    test "ignores MCP responses with string IDs instead of crashing", %{socket: socket} do
+    test "ignores uncorrelated MCP responses and unopened notifications", %{socket: socket} do
+      channel_socket = :sys.get_state(socket.channel_pid)
+
       log =
         capture_log(fn ->
           push(socket, "mcp:message", JsonRpc.success_response("unknown-success", %{}))
@@ -1521,10 +1608,27 @@ defmodule FrontmanServerWeb.TaskChannelTest do
             JsonRpc.error_response("unknown-error", -32_000, "Tool failed")
           )
 
+          for id <- [1, "1"],
+              method <- ["notifications/subscriptions/acknowledged", "notifications/cancelled"] do
+            params = %{
+              "_meta" => %{"io.modelcontextprotocol/subscriptionId" => id},
+              "requestId" => id
+            }
+
+            assert {:noreply, ^channel_socket} =
+                     FrontmanServerWeb.TaskChannel.handle_in(
+                       "mcp:message",
+                       JsonRpc.notification(method, params),
+                       channel_socket
+                     )
+          end
+
           :sys.get_state(socket.channel_pid)
         end)
 
       assert Process.alive?(socket.channel_pid)
+      assert log =~ "Ignoring MCP server notification with no active subscription"
+      refute_push("mcp:message", %{"method" => "error"})
       assert log =~ "Received MCP response for unknown request"
       assert log =~ "Received MCP error for unknown request"
       refute log =~ "unknown-success"
@@ -1819,6 +1923,61 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert update["rawInput"] == %{}
       refute Map.has_key?(update, "content")
     end
+  end
+
+  test "characterizes ambiguous write replay after losing its response", %{scope: scope} do
+    {socket, task_id} = join_task_channel(scope, framework: "wordpress")
+    complete_mcp_handshake(socket, load_project_context: false)
+    turn_number = start_turn_fixture(scope, task_id)
+    call = tool_call("lost-write-response", "write_file", %{"content" => "test only"})
+    {:ok, _} = persist_tool_call_fixture(scope, task_id, turn_number, call)
+
+    assert_push("mcp:message", %{
+      "method" => "tools/call",
+      "id" => first_attempt,
+      "params" => %{
+        "name" => "write_file",
+        "_meta" => %{"ai.frontman/execution-context" => %{"callId" => logical_id}}
+      }
+    })
+
+    # The fake executor commits its effect but never delivers its response.
+    {:ok, effects} = Agent.start_link(fn -> 0 end)
+    on_exit(fn -> if Process.alive?(effects), do: Agent.stop(effects) end)
+    Agent.update(effects, &(&1 + 1))
+    monitor = Process.monitor(socket.channel_pid)
+    leave_ref = leave(socket)
+    assert_reply(leave_ref, :ok)
+    assert_receive {:DOWN, ^monitor, :process, _, _}
+
+    {:ok, _reply, reconnected} =
+      UserSocket
+      |> socket("user_id", %{scope: scope})
+      |> subscribe_and_join("task:#{task_id}", %{})
+
+    complete_mcp_handshake(reconnected, load_project_context: false)
+
+    push(
+      reconnected,
+      "acp:message",
+      build_acp_request("session/load", 92, %{"sessionId" => task_id})
+    )
+
+    :sys.get_state(reconnected.channel_pid)
+
+    assert_push("mcp:message", %{
+      "method" => "tools/call",
+      "id" => second_attempt,
+      "params" => %{
+        "name" => "write_file",
+        "_meta" => %{"ai.frontman/execution-context" => %{"callId" => ^logical_id}}
+      }
+    })
+
+    Agent.update(effects, &(&1 + 1))
+    assert first_attempt != second_attempt
+    assert Agent.get(effects, & &1) == 2
+    assert {:ok, ^turn_number, [_]} = Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
   end
 
   describe "reconnect re-executes unresolved tool calls" do

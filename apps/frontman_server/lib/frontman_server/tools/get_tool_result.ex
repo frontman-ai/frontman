@@ -12,6 +12,7 @@ defmodule FrontmanServer.Tools.GetToolResult do
   @behaviour FrontmanServer.Tools.Backend
 
   alias FrontmanServer.Protocols.MCP
+  alias FrontmanServer.Protocols.MCP.ToolOutput
   alias FrontmanServer.Tasks.Interaction.ToolResult
   alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tools.Backend.Context
@@ -71,12 +72,15 @@ defmodule FrontmanServer.Tools.GetToolResult do
     end
   end
 
-  defp page_result(%{"content" => content} = result, args) do
+  defp page_result(result, args) do
     offset = Map.get(args, "offset", 0)
     limit = Map.get(args, "limit", 8000)
     index = Map.get(args, "content_index", 0)
 
-    with true <- is_integer(offset),
+    with {:ok, output} <- ToolOutput.new(result),
+         content = ToolOutput.content_blocks(output),
+         result = Map.put(result, "content", content),
+         true <- is_integer(offset),
          true <- offset >= 0,
          true <- is_integer(limit),
          true <- limit in 4..8000,

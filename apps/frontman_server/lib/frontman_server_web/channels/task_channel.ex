@@ -112,7 +112,12 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   @impl true
   def handle_in("mcp:message", payload, socket) do
-    case JsonRpc.parse_response(payload) do
+    case JsonRpc.parse_server_message(payload) do
+      {:ok, {:notification, method, _params}} ->
+        Logger.warning("Ignoring MCP server notification with no active subscription: #{method}")
+
+        {:noreply, socket}
+
       {:ok, {:success, id, result}} ->
         handle_mcp_response(id, result, socket)
 
@@ -476,8 +481,8 @@ defmodule FrontmanServerWeb.TaskChannel do
       Enum.find(tools, %{output_schema: nil}, &(&1.name == tool_call.tool_name))
 
     result =
-      case MCPSchema.validate_call_tool_result(result, output_schema) do
-        :ok ->
+      case MCPSchema.resolve_call_tool_result(result, output_schema) do
+        {:ok, result} ->
           normalize_tool_call_result(result)
 
         :error ->

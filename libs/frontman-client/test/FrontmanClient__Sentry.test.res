@@ -5,6 +5,13 @@ module SentryTypes = FrontmanBindings.Sentry__Types
 module SentryFilter = FrontmanBindings.Sentry__Filter
 module SentryTestkit = FrontmanBindings.Bindings__Test__SentryTestkit
 
+module SentryBrowser = FrontmanBindings.Sentry__Browser
+
+let breadcrumbDetails = (report: SentryTestkit.report) =>
+  report.breadcrumbs
+  ->Option.getOrThrow
+  ->Array.map(breadcrumb => (breadcrumb.category, breadcrumb.message, breadcrumb.level))
+
 describe("FrontmanClient Sentry", () => {
   let testkit = ref(None)
   let transport = ref(None)
@@ -16,36 +23,29 @@ describe("FrontmanClient Sentry", () => {
   })
 
   beforeEach(() => {
-    switch testkit.contents {
-    | Some(tk) => tk.reset()
-    | None => ()
-    }
+    let tk = testkit.contents->Option.getOrThrow
+    tk.reset()
 
     Sentry.initialized.contents = false
-    switch transport.contents {
-    | Some(t) => Sentry.initialize(~transport=t)
-    | None => ()
-    }
+    let transport = transport.contents->Option.getOrThrow
+    Sentry.initialize(~transport)
+    SentryBrowser.getCurrentScope()->SentryBrowser.clearBreadcrumbs
+    SentryBrowser.getIsolationScope()->SentryBrowser.clearBreadcrumbs
   })
 
   describe("initialization", () => {
     test(
       "initializes only once",
       t => {
-        let initialReportCount = switch testkit.contents {
-        | Some(tk) => tk.reports()->Array.length
-        | None => 0
-        }
+        let initialClient = SentryBrowser.getClient()->Option.getOrThrow
+        let transport = transport.contents->Option.getOrThrow
 
-        Sentry.initialize()
-        Sentry.initialize()
+        Sentry.initialize(~transport)
+        t->expect(SentryBrowser.getClient()->Option.getOrThrow)->Expect.toBe(initialClient)
 
+        Sentry.initialize(~transport)
+        t->expect(SentryBrowser.getClient()->Option.getOrThrow)->Expect.toBe(initialClient)
         t->expect(Sentry.isEnabled())->Expect.toBe(true)
-
-        switch testkit.contents {
-        | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.toBe(initialReportCount)
-        | None => ()
-        }
       },
     )
 
@@ -209,23 +209,12 @@ describe("FrontmanClient Sentry", () => {
 
         Sentry.captureConnectionError("Later error", ~endpoint="wss://example.com")
 
-        switch testkit.contents {
-        | Some(tk) => {
-            let reports = tk.reports()
-            t->expect(reports->Array.length)->Expect.toBe(1)
-
-            switch reports->Array.get(0) {
-            | Some(report) =>
-              switch report.breadcrumbs {
-              | Some(breadcrumbs) =>
-                t->expect(breadcrumbs->Array.length)->Expect.Int.toBeGreaterThanOrEqual(1)
-              | None => ()
-              }
-            | None => ()
-            }
-          }
-        | None => t->expect(false)->Expect.toBe(true)
-        }
+        let reports = (testkit.contents->Option.getOrThrow).reports()
+        t->expect(reports->Array.length)->Expect.toBe(1)
+        let report = reports->Array.get(0)->Option.getOrThrow
+        t
+        ->expect(breadcrumbDetails(report))
+        ->Expect.toEqual([(Some("connection"), Some("Socket connected"), Some("info"))])
       },
     )
 
@@ -237,7 +226,19 @@ describe("FrontmanClient Sentry", () => {
         Sentry.addBreadcrumb(~category=#mcp, ~message="mcp event")
         Sentry.addBreadcrumb(~category=#session, ~message="session event")
 
-        t->expect(true)->Expect.toBe(true)
+        Sentry.captureConnectionError("After all categories", ~endpoint="wss://example.com")
+
+        let reports = (testkit.contents->Option.getOrThrow).reports()
+        t->expect(reports->Array.length)->Expect.toBe(1)
+        let report = reports->Array.get(0)->Option.getOrThrow
+        t
+        ->expect(breadcrumbDetails(report))
+        ->Expect.toEqual([
+          (Some("connection"), Some("connection event"), Some("info")),
+          (Some("acp"), Some("acp event"), Some("info")),
+          (Some("mcp"), Some("mcp event"), Some("info")),
+          (Some("session"), Some("session event"), Some("info")),
+        ])
       },
     )
   })
@@ -265,13 +266,16 @@ describe("FrontmanClient Sentry", () => {
         Sentry.addBreadcrumb(~category=#session, ~message="Step 3")
         Sentry.captureConnectionError("Final error", ~endpoint="wss://example.com")
 
-        switch testkit.contents {
-        | Some(tk) => {
-            let reports = tk.reports()
-            t->expect(reports->Array.length)->Expect.toBe(1)
-          }
-        | None => t->expect(false)->Expect.toBe(true)
-        }
+        let reports = (testkit.contents->Option.getOrThrow).reports()
+        t->expect(reports->Array.length)->Expect.toBe(1)
+        let report = reports->Array.get(0)->Option.getOrThrow
+        t
+        ->expect(breadcrumbDetails(report))
+        ->Expect.toEqual([
+          (Some("connection"), Some("Step 1"), Some("info")),
+          (Some("acp"), Some("Step 2"), Some("info")),
+          (Some("session"), Some("Step 3"), Some("info")),
+        ])
       },
     )
   })

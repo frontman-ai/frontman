@@ -140,10 +140,12 @@ let inspect = (input: input, {doc, win}: Tool.previewContext, ~additionalAttribu
   }
 }
 
+@live
 let execute = async (
   input: input,
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
+  ~signal as _=?,
 ): Tool.MCP.CallToolResult.t =>
   switch Client__Tool__PreviewContext.get() {
   | None => Tool.MCP.CallToolResult.makeError("Preview frame not available")

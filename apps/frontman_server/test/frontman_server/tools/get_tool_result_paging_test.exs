@@ -10,45 +10,66 @@ defmodule FrontmanServer.Tools.GetToolResultPagingTest do
   alias SwarmAi.Message
   alias SwarmAi.Message.ContentPart
 
-  defp context(text) do
+  defp context(text) when is_binary(text) do
     result = %{"content" => [%{"type" => "text", "text" => text}], "isError" => true}
+    context(result)
+  end
+
+  defp context(result) when is_map(result) do
     row = %InteractionSchema{data: %ToolResult{tool_call_id: "source", result: result}}
     %Context{task: %{interaction_rows: [row]}}
   end
 
   test "pages reconstruct large UTF-8 output and survive preflight truncation" do
     text = String.duplicate("abc😀\n\"", 10_000)
-    context = context(text)
+    structured = %{"text" => text}
+    serialized = Jason.encode!(structured)
+    summary = %{"type" => "text", "text" => "Summary"}
+    equivalent = %{"type" => "text", "text" => serialized}
 
-    {chunks, offset} =
-      Enum.reduce(1..20, {[], 0}, fn
-        _, {chunks, nil} ->
-          {chunks, nil}
+    for {context, index, count, expected, is_error} <- [
+          {context(text), 0, 1, text, true},
+          {context(%{"content" => [], "structuredContent" => structured}), 0, 1, serialized,
+           false},
+          {context(%{"content" => [summary], "structuredContent" => structured}), 1, 2,
+           serialized, false},
+          {context(%{"content" => [equivalent], "structuredContent" => structured}), 0, 1,
+           serialized, false}
+        ] do
+      {chunks, offset} =
+        Enum.reduce(1..20, {[], 0}, fn
+          _, {chunks, nil} ->
+            {chunks, nil}
 
-        _, {chunks, offset} ->
-          result =
-            GetToolResult.execute(%{"tool_call_id" => "source", "offset" => offset}, context)
+          _, {chunks, offset} ->
+            result =
+              GetToolResult.execute(
+                %{"tool_call_id" => "source", "offset" => offset, "content_index" => index},
+                context
+              )
 
-          assert MCP.error?(result)
-          payload = MCP.extract_content_text(result)
-          assert byte_size(payload) < 51_200
-          page = Jason.decode!(payload)
-          assert String.valid?(page["text"])
-          assert page["content_count"] == 1
-          assert page["total_bytes"] == byte_size(text)
+            assert MCP.error?(result) == is_error
+            payload = MCP.extract_content_text(result)
+            assert byte_size(payload) < 51_200
+            page = Jason.decode!(payload)
+            assert String.valid?(page["text"])
+            assert page["content_index"] == index
+            assert page["content_count"] == count
+            assert page["total_bytes"] == byte_size(expected)
 
-          message = %Message.Tool{
-            name: "get_tool_result",
-            tool_call_id: "paged",
-            content: [ContentPart.text(payload)]
-          }
+            message = %Message.Tool{
+              name: "get_tool_result",
+              tool_call_id: "paged",
+              content: [ContentPart.text(payload)]
+            }
 
-          assert [^message] = LLMRequestPreflight.run([message])
-          {[page["text"] | chunks], page["next_offset"]}
-      end)
+            assert [^message] = LLMRequestPreflight.run([message])
+            {[page["text"] | chunks], page["next_offset"]}
+        end)
 
-    assert offset == nil
-    assert chunks |> Enum.reverse() |> Enum.join() == text
+      assert offset == nil
+      assert chunks |> Enum.reverse() |> Enum.join() == expected
+    end
   end
 
   test "escaped control characters stay below the default preflight limit" do

@@ -23,12 +23,15 @@ defmodule FrontmanServer.Protocols.JsonRpcTest do
 
       assert {:ok, {:notification, "session/update", %{"sessionId" => "sess_123"}}} =
                JsonRpc.parse(message)
+
+      assert JsonRpc.parse_server_message(message) == JsonRpc.parse(message)
     end
 
     test "parses notification without params" do
       message = notification_message_without_params(method: "ping")
 
       assert {:ok, {:notification, "ping", %{}}} = JsonRpc.parse(message)
+      assert JsonRpc.parse_server_message(message) == JsonRpc.parse(message)
     end
 
     test "returns error for wrong jsonrpc version" do

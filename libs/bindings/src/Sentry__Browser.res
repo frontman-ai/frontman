@@ -33,6 +33,11 @@ external captureMessage: (string, ~level: severity=?) => string = "captureMessag
 @module("@sentry/browser") external isInitialized: unit => bool = "isInitialized"
 
 type scope
+type client
+@module("@sentry/browser") external getClient: unit => option<client> = "getClient"
+@module("@sentry/browser") external getCurrentScope: unit => scope = "getCurrentScope"
+@module("@sentry/browser") external getIsolationScope: unit => scope = "getIsolationScope"
+@send external clearBreadcrumbs: scope => unit = "clearBreadcrumbs"
 @module("@sentry/browser") external withScope: (scope => 'a) => 'a = "withScope"
 @send external scopeSetTag: (scope, string, string) => unit = "setTag"
 @send external scopeSetExtra: (scope, string, JSON.t) => unit = "setExtra"

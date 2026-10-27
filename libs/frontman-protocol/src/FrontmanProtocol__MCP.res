@@ -81,6 +81,41 @@ type requestMeta = {
 type discoverParams = {_meta: requestMeta}
 
 @schema
+type notificationFilter = {
+  toolsListChanged?: bool,
+  promptsListChanged?: bool,
+  resourcesListChanged?: bool,
+  resourceSubscriptions?: array<string>,
+}
+
+let notificationFilterWireSchema =
+  S.json
+  ->S.refine(json => json->JSON.Decode.object->Option.isSome, ~error="Expected notification object")
+  ->S.transform(_ => {
+    parser: json => json->S.parseOrThrow(~to=notificationFilterSchema),
+    serializer: filter => filter->S.decodeOrThrow(~from=notificationFilterSchema, ~to=S.json),
+  })
+  ->S.extendJSONSchema(notificationFilterSchema->S.toJSONSchema)
+
+@schema
+type subscriptionsListenParams = {
+  _meta: requestMeta,
+  notifications: @s.matches(notificationFilterWireSchema) notificationFilter,
+}
+
+@schema
+type subscriptionMeta = {
+  @as("io.modelcontextprotocol/subscriptionId")
+  subscriptionId: @s.matches(FrontmanProtocol__JsonRpc.Id.schema) FrontmanProtocol__JsonRpc.Id.t,
+}
+
+@schema
+type subscriptionsAcknowledgedParams = {
+  _meta: subscriptionMeta,
+  notifications: notificationFilter,
+}
+
+@schema
 type toolsCapability = {listChanged: bool}
 
 @schema
@@ -247,9 +282,16 @@ module CallToolResult: {
   type t
   let schema: S.t<t>
   let jsonSchema: S.t<t>
+  let make: (
+    ~content: array<FrontmanProtocol__ContentBlock.t>,
+    ~structuredContent: JSON.t=?,
+    ~isError: bool=?,
+  ) => t
   let makeText: string => t
   let makeTextWithStructured: (string, Dict.t<JSON.t>) => t
+  let makeTextWithStructuredJson: (string, JSON.t) => t
   let makeStructured: (Dict.t<JSON.t>, ~isError: bool=?) => t
+  let makeStructuredJson: (JSON.t, ~isError: bool=?) => t
   let makeImage: (~data: string, ~mimeType: string) => t
   let makeError: string => t
 } = {
@@ -271,25 +313,38 @@ module CallToolResult: {
     _meta: ?s.field("_meta", S.option(S.dict(S.json))),
   })
 
+  let make = (~content, ~structuredContent=?, ~isError=?) => {
+    resultType: "complete",
+    content,
+    ?structuredContent,
+    ?isError,
+  }
+
   let makeText = text => {
     resultType: "complete",
     content: [TextContent({text, _meta: None, annotations: None})],
   }
 
-  let makeStructured = (json, ~isError=?) => {
+  let makeStructuredJson = (json, ~isError=?) => {
     resultType: "complete",
     ?isError,
     content: [
-      TextContent({text: JSON.stringify(JSON.Encode.object(json)), _meta: None, annotations: None}),
+      TextContent({text: JSON.stringify(json), _meta: None, annotations: None}),
     ],
-    structuredContent: JSON.Encode.object(json),
+    structuredContent: json,
   }
 
-  let makeTextWithStructured = (text, structuredContent) => {
+  let makeStructured = (json, ~isError=?) =>
+    makeStructuredJson(JSON.Encode.object(json), ~isError?)
+
+  let makeTextWithStructuredJson = (text, structuredContent) => {
     resultType: "complete",
     content: [TextContent({text, _meta: None, annotations: None})],
-    structuredContent: JSON.Encode.object(structuredContent),
+    structuredContent,
   }
+
+  let makeTextWithStructured = (text, structuredContent) =>
+    makeTextWithStructuredJson(text, JSON.Encode.object(structuredContent))
 
   let makeImage = (~data, ~mimeType) => {
     resultType: "complete",
@@ -396,5 +451,9 @@ type serverInterface<'server> = {
   server: 'server,
   buildDiscoverResult: 'server => discoverResult,
   buildToolsListResult: 'server => toolsListResult,
-  executeTool: ('server, AuthorizedToolCall.t) => promise<executeToolResult>,
+  executeTool: (
+    'server,
+    AuthorizedToolCall.t,
+    ~signal: WebAPI.EventTypes.abortSignal,
+  ) => promise<executeToolResult>,
 }
