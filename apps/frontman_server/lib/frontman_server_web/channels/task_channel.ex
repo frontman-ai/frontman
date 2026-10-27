@@ -522,7 +522,7 @@ defmodule FrontmanServerWeb.TaskChannel do
            attempt_id: request_id,
            evidence: evidence
          ) do
-      {:ok, _interaction, :reconciled} ->
+      {:ok, _interaction, status} when status in [:reconciled, :already_resolved] ->
         socket
 
       {:ok, interaction, executor_status} ->
