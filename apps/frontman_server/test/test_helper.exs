@@ -11,7 +11,7 @@ Application.put_env(
   Keyword.put(stripe_config, :api_base_url, PaperTiger.Test.base_url("/v1"))
 )
 
-ExUnit.start(exclude: [:application_restart])
+ExUnit.start(exclude: [:application_restart, :restart_runner_probe])
 
 Mox.defmock(
   FrontmanServer.Tasks.Execution.LLMProviderMock,

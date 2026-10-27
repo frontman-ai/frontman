@@ -75,17 +75,20 @@ The client still supports one pending question form.
 
 `make test` and `make test-coverage` exclude the `application_restart` tag.
 These ordinary suites do not stop the application.
+They also exclude the `restart_runner_probe` cases that verify child failure and interruption.
 CI runs the real restart scenario separately:
 
 ```bash
 mise exec -- make -C apps/frontman_server test-application-restart
 ```
 
-The target requires Python 3 and PostgreSQL at the test address in `config/test.exs`.
+The Mix task requires PostgreSQL at the test address in `config/test.exs`.
 It starts a fresh BEAM with a generated `_restart_` database suffix.
 It ignores inherited database suffixes and partition identifiers.
-The test process group has a 300-second limit.
-Cleanup drops only the generated database, with a 60-second limit.
+The child BEAM has a 300-second limit.
+The Bash wrapper owns the database identity, timeout, and signal cleanup.
+SIGINT and SIGTERM terminate only the owned child BEAM, never an inherited process group.
+After the child exits, cleanup drops only the generated database, with a 60-second limit.
 A test failure retains its exit status even if cleanup fails.
 Cleanup failure also fails an otherwise successful run.
 

@@ -84,11 +84,11 @@ test:
 
 .PHONY: test-application-restart
 test-application-restart:
-	python3 test/support/run_application_restart.py
+	bash test/support/application_restart.sh
 
 .PHONY: test-application-restart-runner
 test-application-restart-runner:
-	python3 -B test/support/application_restart_runner_test.py
+	$(MAKE) test TEST_ARGS="test/frontman_server/application_restart_runner_test.exs"
 
 test-record:
 	MIX_ENV=test mix ecto.create --quiet
