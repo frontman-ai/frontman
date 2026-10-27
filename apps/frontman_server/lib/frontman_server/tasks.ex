@@ -421,12 +421,7 @@ defmodule FrontmanServer.Tasks do
       end
 
     results =
-      Enum.map(interrupted, fn {call, _dispatch} ->
-        {:ok, {row, true}} =
-          store_tool_result(task, turn_number, call, MCP.tool_result_error(reason))
-
-        row
-      end)
+      Enum.flat_map(interrupted, &interrupt_tool_call(task, turn_number, &1, kind, reason))
 
     case preserved do
       [] ->
@@ -450,6 +445,24 @@ defmodule FrontmanServer.Tasks do
            }) do
       {:ok, [row]}
     end
+  end
+
+  defp interrupt_tool_call(task, _turn, {call, %Interaction.ToolCall{attempt_id: id}}, :cancelled, _)
+       when is_binary(id) do
+    row =
+      InteractionSchema.for_task(task.id)
+      |> InteractionSchema.of_type(:tool_call)
+      |> InteractionSchema.data_equals("tool_call_id", call.id)
+      |> Repo.one!()
+
+    {:ok, data} = mcp_attempt_transition(row.data, id, :cancel)
+    {:ok, _} = row |> Ecto.Changeset.change(data: data) |> Repo.update()
+    []
+  end
+
+  defp interrupt_tool_call(task, turn, {call, _dispatch}, _kind, reason) do
+    {:ok, {row, true}} = store_tool_result(task, turn, call, MCP.tool_result_error(reason))
+    [row]
   end
 
   defp publish_outcome({:ok, rows}, task_id) do
@@ -964,13 +977,20 @@ defmodule FrontmanServer.Tasks do
           turn_number: turn_number
         }
 
-        with ^turn_number <- History.active_turn_number(history),
+        with true <- tool_result_allowed?(history, turn_number, tool_call.id),
              {:ok, row} <- insert_interaction_row(task, attrs) do
           {:ok, {row, true}}
         else
           {:error, reason} -> {:error, reason}
           _inactive -> {:error, :not_running}
         end
+    end
+  end
+
+  defp tool_result_allowed?(history, turn, logical_id) do
+    case History.active_turn_number(history) do
+      ^turn -> true
+      _ -> History.cancelled_mcp_call?(history, turn, logical_id)
     end
   end
 
