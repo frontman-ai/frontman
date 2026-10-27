@@ -126,6 +126,7 @@ defmodule FrontmanServer.Tasks.MCPAttemptTest do
     call = %SwarmAi.ToolCall{id: "queued", name: "write_file", arguments: "{}"}
     {:ok, _} = Tasks.request_client_tool(scope, id, turn, call, :synchronous)
     assert :ok = Tasks.cancel_execution(scope, id)
+
     assert {:error, :already_resolved} =
              Tasks.start_tool_attempt(scope, id, {turn, call.id}, "queued")
 
