@@ -231,4 +231,12 @@ module Actions = {
 
   let questionCancelled = (~taskId) =>
     Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: QuestionCancelled}))
+
+  let questionExecutionCancelled = (~taskId, ~toolCallId, ~resolveError) =>
+    Client__State__Store.dispatch(
+      TaskAction({
+        target: ForTask(taskId),
+        action: QuestionExecutionCancelled({toolCallId, resolveError}),
+      }),
+    )
 }

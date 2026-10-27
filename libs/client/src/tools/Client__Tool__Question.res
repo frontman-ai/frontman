@@ -49,32 +49,50 @@ let execute = async (
   input: input,
   ~taskId: string,
   ~toolCallId: string,
-  ~signal as _=?,
+  ~signal=?,
 ): Tool.MCP.CallToolResult.t => {
-  let result = await Promise.make((resolve, _reject) => {
-    let resolveOk = (json: JSON.t) => {
-      resolve(Ok(json))
-    }
-    let resolveError = (msg: string) => {
-      resolve(Error(msg))
-    }
+  let signal = signal->Option.getOr(WebAPI.AbortController.make().signal)
+  let cancelled = () =>
+    Tool.structuredResult({answers: [], skippedAll: false, cancelled: true}, outputSchema)
+  switch signal.aborted {
+  | true => cancelled()
+  | false =>
+    let listeners = WebAPI.AbortController.make()
+    let result = await Promise.make((resolve, _reject) => {
+      let resolveOk = (json: JSON.t) => {
+        resolve(Ok(json))
+      }
+      let resolveError = (msg: string) => {
+        resolve(Error(msg))
+      }
+      let onAbort = _ =>
+        Client__State.Actions.questionExecutionCancelled(~taskId, ~toolCallId, ~resolveError)
+      WebAPI.AbortSignal.addEventListener(
+        signal,
+        WebAPI.EventTypes.Abort,
+        onAbort,
+        ~options={once: true, signal: listeners.signal},
+      )
 
-    Client__State.Actions.questionReceived(
-      ~taskId,
-      ~questions=input.questions,
-      ~toolCallId,
-      ~resolveOk,
-      ~resolveError,
-    )
-  })
+      Client__State.Actions.questionReceived(
+        ~taskId,
+        ~questions=input.questions,
+        ~toolCallId,
+        ~resolveOk,
+        ~resolveError,
+      )
+    })
+    WebAPI.AbortController.abort(listeners)
 
-  switch result {
-  | Ok(json) =>
-    try {
-      Tool.structuredResult(json->S.parseOrThrow(~to=outputSchema), outputSchema)
-    } catch {
-    | _ => Tool.MCP.CallToolResult.makeError("Failed to parse question tool output")
+    switch result {
+    | Ok(json) =>
+      try {
+        Tool.structuredResult(json->S.parseOrThrow(~to=outputSchema), outputSchema)
+      } catch {
+      | _ => Tool.MCP.CallToolResult.makeError("Failed to parse question tool output")
+      }
+    | Error(_) if signal.aborted => cancelled()
+    | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
     }
-  | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
   }
 }
