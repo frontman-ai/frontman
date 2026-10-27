@@ -221,7 +221,7 @@ let executeTool = async (
       switch resolvedArgs {
       | Error(msg) => Completed(toolError(msg))
       | Ok(finalArgs) =>
-        let result = await server.relay->Relay.executeTool(~name, ~arguments=?finalArgs)
+        let result = await server.relay->Relay.executeTool(~name, ~arguments=?finalArgs, ~signal)
         switch result {
         | Ok(toolResult) => Completed(toolResult)
         | Error(msg) => Completed(toolError(msg))

@@ -172,7 +172,7 @@ case "$WORDPRESS_VERSION" in
   WOOCOMMERCE_SHA256="3b1bbe109a0ab653863a6c8b4ccbdf75c519fd5ebf51151c54b8ca37b325f242"
   ;;
 esac
-if [[ -n "$WOOCOMMERCE_VERSION" ]]; then
+if [[ -n "${WOOCOMMERCE_VERSION:-}" ]]; then
 curl -fsSL "https://downloads.wordpress.org/plugin/woocommerce.${WOOCOMMERCE_VERSION}.zip" -o "$BUILD_DIR/woocommerce.zip"
 printf '%s  %s\n' "$WOOCOMMERCE_SHA256" "$BUILD_DIR/woocommerce.zip" | sha256sum --check --status
 unzip -q "$BUILD_DIR/woocommerce.zip" -d "$BUILD_DIR/woocommerce"
