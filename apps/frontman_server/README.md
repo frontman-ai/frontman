@@ -75,33 +75,25 @@ The client still supports one pending question form.
 
 `make test` and `make test-coverage` exclude the `application_restart` tag.
 These ordinary suites do not stop the application.
-They also exclude the `restart_runner_probe` cases that verify child failure and interruption.
 CI runs the real restart scenario separately:
 
 ```bash
 mise exec -- make -C apps/frontman_server test-application-restart
 ```
 
-The Mix task requires PostgreSQL at the test address in `config/test.exs`.
-It starts a fresh BEAM with a generated `_restart_` database suffix.
-It ignores inherited database suffixes and partition identifiers.
-The child BEAM has a 300-second limit.
-The Bash wrapper owns the database identity, timeout, and signal cleanup.
-SIGINT and SIGTERM terminate only the owned child BEAM, never an inherited process group.
-After the child exits, cleanup drops only the generated database, with a 60-second limit.
+The target requires PostgreSQL at the test address in `config/test.exs`.
+It uses existing Mix commands to create and migrate a generated `_restart_` test database.
+It clears inherited partition identifiers and replaces inherited database suffixes.
+The `mix test` invocation starts a fresh BEAM and runs only the restart tag with seed zero.
+An EXIT trap drops only the generated database.
 A test failure retains its exit status even if cleanup fails.
 Cleanup failure also fails an otherwise successful run.
+Execution uses the existing ExUnit and CI job timeouts.
 
 PaperTiger reserves an available test port.
 After startup, the test helper points the Stripe client at that instance.
 The initial Stripe URL uses loopback port zero to prevent requests before initialization.
 The application restart does not stop PaperTiger, so its URL remains valid.
-
-Run the subprocess and database cleanup checks with:
-
-```bash
-mise exec -- make -C apps/frontman_server test-application-restart-runner
-```
 
 ## Learn more
 

@@ -684,9 +684,7 @@ jobs:
           MIX_TEST_DB_SUFFIX: "_run_${{ github.run_id }}"
 
       - name: Run isolated application restart tests
-        run: |
-          make -C apps/frontman_server test-application-restart-runner
-          make -C apps/frontman_server test-application-restart
+        run: make -C apps/frontman_server test-application-restart
         env:
           CLOAK_KEY: "dGVzdC1rZXktZm9yLWNpLXRoaXMtaXMtMzJieXRlc3M="
           MIX_TEST_DB_SUFFIX: "_run_${{ github.run_id }}"
