@@ -64,7 +64,7 @@ defmodule FrontmanServer.Tasks.MCPAttemptTest do
                evidence: :peer_final
              )
 
-    assert {:ok, ^winner, :reconciled} =
+    assert {:ok, ^winner, :already_resolved} =
              Tasks.resolve_tool_request(scope, id, call, %{"content" => []},
                turn_number: turn,
                attempt_id: "late",
@@ -148,5 +148,39 @@ defmodule FrontmanServer.Tasks.MCPAttemptTest do
              Tasks.request_client_tool(scope, id, turn, %{call | id: "too-late"}, :synchronous)
 
     assert {:ok, :no_active_turn} = Tasks.get_active_turn_unresolved_tool_calls(scope, id)
+  end
+
+  test "fenced late completion cannot republish a canonical timeout into a reused provider id" do
+    scope = user_scope_fixture()
+    id = task_fixture(scope).id
+    turn = start_turn_fixture(scope, id)
+    call = %SwarmAi.ToolCall{id: "reused", name: "write_file", arguments: "{}"}
+    {:ok, _} = Tasks.request_client_tool(scope, id, turn, call, :synchronous)
+    {:ok, _} = Tasks.start_tool_attempt(scope, id, {turn, call.id}, "late-7")
+    timeout = %{"content" => [%{"type" => "text", "text" => "timeout"}], "isError" => true}
+
+    {:ok, canonical, :no_executor} =
+      Tasks.resolve_tool_request(scope, id, call, timeout, turn_number: turn)
+
+    {:ok, _} = Tasks.record_execution_outcome(scope, id, turn, :completed)
+    next_turn = start_turn_fixture(scope, id)
+    {:ok, _} = Tasks.request_client_tool(scope, id, next_turn, call, :synchronous)
+
+    Registry.register(FrontmanServer.ProcessRegistry, {:tool_call, id, call.id}, %{
+      caller_pid: self()
+    })
+
+    Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(id))
+
+    assert {:ok, ^canonical, :already_resolved} =
+             Tasks.resolve_tool_request(scope, id, call, %{"content" => []},
+               turn_number: turn,
+               attempt_id: "late-7",
+               evidence: :peer_final
+             )
+
+    refute_receive {:tool_result, _, _, _}
+    refute_receive {:interaction, %{type: :tool_result}}
+    assert {:ok, ^next_turn, [_]} = Tasks.get_active_turn_unresolved_tool_calls(scope, id)
   end
 end
