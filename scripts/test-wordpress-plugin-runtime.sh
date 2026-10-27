@@ -124,6 +124,22 @@ fi
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ThemeModsAndSearchRuntimeTest.php" "$WORDPRESS:/tmp/ThemeModsAndSearchRuntimeTest.php"
 "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/ThemeModsAndSearchRuntimeTest.php
 
+case "$WORDPRESS_VERSION" in
+6.[0-8].*) printf 'Skipping SureRank SEO tools: SureRank 1.10.2 requires WordPress 6.7+, and Frontman SEO tools require 6.9+.\n' ;;
+*)
+  curl -fsSL 'https://downloads.wordpress.org/plugin/surerank.1.10.2.zip' -o "$BUILD_DIR/surerank.zip"
+  printf '%s  %s\n' '2ed0ada73535e8c22498e4354b13ca5aa15e45e06fe2bc4e0f78afea0b840287' "$BUILD_DIR/surerank.zip" | sha256sum --check --status
+  unzip -q "$BUILD_DIR/surerank.zip" -d "$BUILD_DIR/surerank"
+  "$RUNTIME" cp "$BUILD_DIR/surerank/surerank" "$WORDPRESS:/var/www/html/wp-content/plugins/surerank"
+  "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/SureRankRuntimeTest.php" "$WORDPRESS:/tmp/SureRankRuntimeTest.php"
+  "$RUNTIME" exec "$WORDPRESS" php /tmp/SureRankRuntimeTest.php --setup
+  if [[ -n "$YOAST_VERSION" ]]; then
+    "$RUNTIME" exec "$WORDPRESS" php /tmp/SureRankRuntimeTest.php --coexist
+  fi
+  "$RUNTIME" exec -e EXPECTED_YOAST_VERSION="$YOAST_VERSION" "$WORDPRESS" php /tmp/SureRankRuntimeTest.php
+  ;;
+esac
+
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/WidgetWithoutWooRuntimeTest.php" "$WORDPRESS:/tmp/WidgetWithoutWooRuntimeTest.php"
 "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/WidgetWithoutWooRuntimeTest.php
 case "$WORDPRESS_VERSION" in

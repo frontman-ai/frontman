@@ -685,11 +685,28 @@ foreach ( [
 	$reason = Frontman_Tool_Seo::unavailable_reason();
 	frontman_runtime_assert( is_string( $reason ) && false !== strpos( $reason, $fragment ) && $reason === ( new Frontman_Tool_Templates() )->get_site_info( [] )['seo_unavailable_reason'], "Site info disagrees with the $blocker compatibility reason." );
 	foreach ( [ 'read_seo', 'update_seo' ] as $handler ) {
+		$handler_reason = 'read_seo' === $handler ? Frontman_Tool_Seo::read_unavailable_reason() : $reason;
+		if ( null === $handler_reason ) {
+			$read_only_tools = new Frontman_Tools();
+			( new Frontman_Tool_Seo() )->register( $read_only_tools );
+			frontman_runtime_assert( null !== $read_only_tools->get( 'wp_read_seo' ) && null === $read_only_tools->get( 'wp_update_seo' ), 'Yoast without write sanitizers must register only reads.' );
+			$read_only_info = ( new Frontman_Tool_Templates() )->get_site_info( [] );
+			frontman_runtime_assert( [
+				'provider' => 'yoast', 'read' => true, 'write' => false,
+				'supported_fields' => [ 'title', 'description', 'focus_keyphrase' ],
+				'read_unavailable_reason' => null, 'write_unavailable_reason' => $reason,
+			] === $read_only_info['seo_capabilities'] && $reason === $read_only_info['seo_unavailable_reason'], 'Yoast read-only capabilities disagree with registration.' );
+			wp_set_current_user( $admin->ID );
+			$readable = ( new Frontman_Tool_Seo() )->read_seo( [ 'id' => $post_id ] );
+			frontman_runtime_assert( 'yoast' === $readable['provider'], 'Missing write sanitizers must not block Yoast reads.' );
+			wp_set_current_user( 0 );
+			continue;
+		}
 		try {
 			( new Frontman_Tool_Seo() )->$handler( [ 'id' => 1 ] + ( 'update_seo' === $handler ? [ 'title' => 'Must not write' ] : [] ) );
 			throw new RuntimeException( 'Unavailable handler accessed post state.' );
 		} catch ( Frontman_Tool_Error $error ) {
-			frontman_runtime_assert( $reason === $error->getMessage(), "Handler disagrees with the $blocker compatibility reason." );
+			frontman_runtime_assert( $handler_reason === $error->getMessage(), "Handler disagrees with the $blocker compatibility reason." );
 		}
 	}
 	if ( 'sanitizer' === $blocker ) {
