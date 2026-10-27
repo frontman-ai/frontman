@@ -447,6 +447,9 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  defp interrupt_tool_call(_, _, {_, %Interaction.ToolCall{cancel_requested: true}}, _, _),
+    do: []
+
   defp interrupt_tool_call(
          task,
          turn,
@@ -488,6 +491,9 @@ defmodule FrontmanServer.Tasks do
   defp publish_outcome({:error, reason}, _task_id), do: {:error, reason}
 
   defp keeps_turn_open_after_restart?({_tool_call, nil}), do: false
+
+  defp keeps_turn_open_after_restart?({_, %Interaction.ToolCall{cancel_requested: true}}),
+    do: false
 
   defp keeps_turn_open_after_restart?({_tool_call, %Interaction.ToolCall{} = dispatch}),
     do: Interaction.ToolCall.execution_mode(dispatch) == :interactive
@@ -854,9 +860,30 @@ defmodule FrontmanServer.Tasks do
       )
       when is_integer(turn_number) and turn_number > 0 and
              execution_mode in [:synchronous, :interactive] do
-    with {:ok, schema} <- get_task(scope, task_id),
-         {:ok, attrs} <- Interaction.ToolCall.attrs(tool_call_data, execution_mode) do
-      record_interaction(schema, :tool_call, attrs, turn_number)
+    Repo.transact(fn ->
+      with %TaskSchema{} = task <- get_task_by_id_for_update(scope, task_id),
+           {:ok, history} <- load_history(task_id),
+           true <- History.active_turn_number(history) == turn_number,
+           {:ok, attrs} <- Interaction.ToolCall.attrs(tool_call_data, execution_mode) do
+        insert_interaction_row(task, %{
+          id: Ecto.UUID.generate(),
+          type: :tool_call,
+          data: attrs,
+          turn_number: turn_number
+        })
+      else
+        nil -> {:error, :not_found}
+        false -> {:error, :not_running}
+        {:error, reason} -> {:error, reason}
+      end
+    end)
+    |> case do
+      {:ok, row} ->
+        broadcast_task(task_id, {:interaction, row})
+        {:ok, row.data}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -991,7 +1018,16 @@ defmodule FrontmanServer.Tasks do
   defp validate_mcp_result_attempt(scope, task_id, logical_id, opts) do
     case Keyword.fetch(opts, :attempt_id) do
       {:ok, attempt_id} -> get_mcp_tool_call(scope, task_id, logical_id, attempt_id)
-      :error -> {:ok, nil}
+      :error -> validate_unfenced_tool_result(task_id, logical_id)
+    end
+  end
+
+  defp validate_unfenced_tool_result(task_id, {turn, logical_id}) do
+    {:ok, history} = load_history(task_id)
+
+    case History.cancelled_mcp_call?(history, turn, logical_id) do
+      true -> {:error, :outcome_unknown}
+      false -> {:ok, nil}
     end
   end
 
@@ -1191,23 +1227,38 @@ defmodule FrontmanServer.Tasks do
   Verifies the task exists and belongs to the user before cancelling.
   """
   def cancel_execution(scope, task_id) do
-    with {:ok, _schema} <- get_task(scope, task_id) do
-      case SwarmAi.cancel(FrontmanServer.AgentRuntime, task_id) do
-        {:error, :not_running} -> cancel_parked_turn(scope, task_id)
-        result -> result
+    Repo.transact(fn ->
+      with %TaskSchema{} = task <- get_task_by_id_for_update(scope, task_id),
+           {:ok, history} <- load_history(task_id) do
+        cancel_active_turn(task, history)
+      else
+        nil -> {:error, :not_found}
+        {:error, reason} -> {:error, reason}
       end
+    end)
+    |> publish_outcome(task_id)
+    |> case do
+      {:ok, _} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
-  defp cancel_parked_turn(scope, task_id) do
-    {:ok, history} = load_history(task_id)
-
+  defp cancel_active_turn(task, history) do
     case History.active_turn_number(history) do
       nil ->
-        {:error, :not_running}
+        with :ok <- SwarmAi.cancel(FrontmanServer.AgentRuntime, task.id), do: {:ok, []}
 
       turn ->
-        with {:ok, _} <- record_execution_outcome(scope, task_id, turn, :cancelled), do: :ok
+        with {:ok, rows} <- finish_turn(task, history, turn, :cancelled) do
+          stop_cancelled_runtime(task.id, rows)
+        end
+    end
+  end
+
+  defp stop_cancelled_runtime(task_id, rows) do
+    case SwarmAi.cancel(FrontmanServer.AgentRuntime, task_id) do
+      :ok -> {:ok, rows}
+      {:error, :not_running} -> {:ok, rows}
     end
   end
 
@@ -1308,7 +1359,7 @@ defmodule FrontmanServer.Tasks do
   defp row_to_messages(
          %InteractionSchema{
            turn_number: turn,
-           data: %Interaction.AgentError{kind: "cancelled"}
+           data: %Interaction.AgentError{}
          },
          history,
          _skills
