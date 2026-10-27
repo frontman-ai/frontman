@@ -436,6 +436,7 @@ let toolsListResultWireSchema = preservingJson(toolsListResultWireShapeSchema)
 type executeToolResult =
   | Completed(CallToolResult.t)
   | Suspended
+  | OutcomeUnknown
   | ProtocolError({code: int, message: string})
 
 module ErrorCode = {

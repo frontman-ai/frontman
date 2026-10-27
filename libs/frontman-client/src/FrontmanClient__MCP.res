@@ -235,7 +235,7 @@ let handleToolsCall = async (
               ~to=S.json->S.noValidation(true),
             )
           sendResponse(handler, id, resultJson)
-        | Suspended => ()
+        | Suspended | OutcomeUnknown => ()
         | ProtocolError({code, message}) => sendError(handler, id, code, message)
         }
       } catch {
