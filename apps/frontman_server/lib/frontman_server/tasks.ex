@@ -447,10 +447,17 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp interrupt_tool_call(task, _turn, {call, %Interaction.ToolCall{attempt_id: id}}, :cancelled, _)
+  defp interrupt_tool_call(
+         task,
+         turn,
+         {call, %Interaction.ToolCall{attempt_id: id}},
+         :cancelled,
+         _
+       )
        when is_binary(id) do
     row =
       InteractionSchema.for_task(task.id)
+      |> InteractionSchema.for_turn(turn)
       |> InteractionSchema.of_type(:tool_call)
       |> InteractionSchema.data_equals("tool_call_id", call.id)
       |> Repo.one!()
@@ -994,13 +1001,15 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp publish_tool_result(task_id, row, true) do
-    broadcast_task(task_id, {:interaction, row})
-    ToolExecutor.notify_tool_result(task_id, row.data)
-  end
+  defp publish_tool_result(task_id, row, inserted?) do
+    {:ok, history} = load_history(task_id)
+    if inserted?, do: broadcast_task(task_id, {:interaction, row})
 
-  defp publish_tool_result(task_id, row, false),
-    do: ToolExecutor.notify_tool_result(task_id, row.data)
+    case History.cancelled_mcp_call?(history, row.turn_number, row.data.tool_call_id) do
+      true -> :reconciled
+      false -> ToolExecutor.notify_tool_result(task_id, row.data)
+    end
+  end
 
   defp tool_result_turn_number(task_id, tool_call_id, opts) do
     case Keyword.fetch(opts, :turn_number) do
