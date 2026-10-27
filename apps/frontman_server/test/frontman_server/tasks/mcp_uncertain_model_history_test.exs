@@ -63,9 +63,15 @@ defmodule FrontmanServer.Tasks.MCPUncertainModelHistoryTest do
     record_interaction(id, turn, :agent_retry, %{retried_error_id: error.data.id})
 
     assert {:ok, _, _} =
-             Tasks.resolve_tool_request(scope, id, call, %{
-               "content" => [%{"type" => "text", "text" => "Write completed"}]
-             })
+             Tasks.resolve_tool_request(
+               scope,
+               id,
+               call,
+               %{"content" => [%{"type" => "text", "text" => "Write completed"}]},
+               turn_number: turn,
+               attempt_id: "attempt",
+               evidence: :peer_final
+             )
 
     record_error(id, turn)
     messages = continue_history(scope, id)

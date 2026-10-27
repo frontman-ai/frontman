@@ -3,6 +3,7 @@ defmodule FrontmanServer.Tasks.MCPAttemptTest do
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Execution.ToolExecutor
 
   test "cancellation is durable, attempt-fenced, and does not fabricate a result" do
     scope = user_scope_fixture()
@@ -24,7 +25,10 @@ defmodule FrontmanServer.Tasks.MCPAttemptTest do
     assert stored.cancel_requested
     assert stored.outcome == :outcome_unknown
     assert stored.attempt_id == "first"
-    {:ok, _, _} = Tasks.resolve_tool_request(scope, id, call, %{"content" => []})
+
+    {:ok, _, _} =
+      Tasks.resolve_tool_request(scope, id, call, %{"content" => []}, attempt_id: "first")
+
     {:ok, _} = Tasks.record_execution_outcome(scope, id, turn, :completed)
     next_turn = start_turn_fixture(scope, id)
     {:ok, _} = Tasks.request_client_tool(scope, id, next_turn, call, :synchronous)
@@ -51,10 +55,16 @@ defmodule FrontmanServer.Tasks.MCPAttemptTest do
     result = %{"content" => [%{"type" => "text", "text" => "actual success"}]}
 
     assert {:ok, winner, :reconciled} =
-             Tasks.resolve_tool_request(scope, id, call, result, turn_number: turn)
+             Tasks.resolve_tool_request(scope, id, call, result,
+               turn_number: turn,
+               attempt_id: "late"
+             )
 
     assert {:ok, ^winner, :reconciled} =
-             Tasks.resolve_tool_request(scope, id, call, %{"content" => []}, turn_number: turn)
+             Tasks.resolve_tool_request(scope, id, call, %{"content" => []},
+               turn_number: turn,
+               attempt_id: "late"
+             )
 
     refute_receive {:tool_result, _, _, _}
     assert {:ok, ^next_turn, []} = Tasks.get_active_turn_unresolved_tool_calls(scope, id)
@@ -83,6 +93,29 @@ defmodule FrontmanServer.Tasks.MCPAttemptTest do
              Tasks.resolve_tool_request(scope, id, call, %{"content" => []},
                turn_number: turn,
                attempt_id: "parked"
+             )
+  end
+
+  test "internal timeout cannot masquerade as actual evidence after cancellation intent" do
+    scope = user_scope_fixture()
+    id = task_fixture(scope).id
+    turn = start_turn_fixture(scope, id)
+    call = %SwarmAi.ToolCall{id: "timeout", name: "write_file", arguments: "{}"}
+    {:ok, _} = Tasks.request_client_tool(scope, id, turn, call, :synchronous)
+    {:ok, _} = Tasks.start_tool_attempt(scope, id, {turn, call.id}, "timeout")
+    {:ok, _} = Tasks.request_tool_cancellation(scope, id, {turn, call.id}, "timeout")
+
+    ExUnit.CaptureLog.capture_log(fn ->
+      ToolExecutor.handle_error(scope, id, turn, :timeout, call)
+    end)
+
+    {:ok, task} = Tasks.get_task_with_history(scope, id)
+    refute Enum.any?(Tasks.interactions(task), &match?(%Tasks.Interaction.ToolResult{}, &1))
+
+    assert {:ok, _, :reconciled} =
+             Tasks.resolve_tool_request(scope, id, call, %{"content" => []},
+               turn_number: turn,
+               attempt_id: "timeout"
              )
   end
 end
