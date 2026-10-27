@@ -17,7 +17,10 @@ defmodule FrontmanServer.Protocols.MCPTest do
           %{"inputRequests" => %{}, "requestState" => ""}
         ] do
       result = Map.put(fields, "resultType", "input_required")
-      assert {:ok, declined} = Schema.resolve_call_tool_result(result, output_schema)
+
+      assert {:ok, :local_failure, declined} =
+               Schema.resolve_call_tool_result(result, output_schema)
+
       assert declined["isError"] == true
       assert MCP.extract_content_text(declined) =~ "declines MRTR retry"
       refute Jason.encode!(declined) =~ "opaque-private-state"
@@ -61,13 +64,13 @@ defmodule FrontmanServer.Protocols.MCPTest do
   test "normal complete results retain final validation and are returned unchanged" do
     result = Map.put(MCP.tool_result_text("done"), "structuredContent", %{"final" => true})
     schema = %{"type" => "object", "required" => ["final"]}
-    assert {:ok, ^result} = Schema.resolve_call_tool_result(result, schema)
+    assert {:ok, :peer_final, ^result} = Schema.resolve_call_tool_result(result, schema)
 
     assert :error =
              Schema.resolve_call_tool_result(Map.delete(result, "structuredContent"), schema)
 
     error = MCP.tool_result_error("failed")
-    assert {:ok, ^error} = Schema.resolve_call_tool_result(error, schema)
+    assert {:ok, :peer_final, ^error} = Schema.resolve_call_tool_result(error, schema)
     assert :error = Schema.resolve_call_tool_result(%{"resultType" => "unknown"})
   end
 
