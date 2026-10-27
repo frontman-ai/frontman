@@ -415,10 +415,10 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_tool_call_response_by_id(id, result, socket) when is_integer(id) do
     case pop_mcp_tool_request(socket, id) do
-      {:ok, {turn_number, tool_call_id} = logical_call, socket} ->
-        case find_mcp_tool_call(socket, logical_call, id) do
+      {:ok, {{turn_number, tool_call_id} = logical_call, key}, socket} ->
+        case find_mcp_tool_call(socket, logical_call, key) do
           {:ok, tool_call} ->
-            handle_tool_call_response(tool_call, result, socket, {turn_number, id})
+            handle_tool_call_response(tool_call, result, socket, {turn_number, key})
 
           {:error, reason} when reason in [:not_found, :stale_attempt] ->
             Logger.warning(
@@ -440,8 +440,8 @@ defmodule FrontmanServerWeb.TaskChannel do
       {nil, _pending} ->
         :error
 
-      {tool_call_id, pending} ->
-        {:ok, tool_call_id, assign(socket, :pending_mcp_tool_requests, pending)}
+      {attempt, pending} ->
+        {:ok, attempt, assign(socket, :pending_mcp_tool_requests, pending)}
     end
   end
 
@@ -464,12 +464,12 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, socket}
   end
 
-  defp find_mcp_tool_call(socket, logical_call, request_id) do
-    Tasks.get_mcp_tool_call(
+  defp find_mcp_tool_call(socket, logical_call, key) do
+    Tasks.get_tool_attempt(
       socket.assigns.scope,
       socket.assigns.task_id,
       logical_call,
-      request_id
+      key
     )
   end
 
@@ -509,7 +509,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp supported_tool_result_content?(%{"type" => "resource"}), do: false
 
   defp persist_tool_call_result(tool_call, {evidence, result}, socket, attempt) do
-    {turn_number, request_id} = attempt
+    {turn_number, key} = attempt
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
 
@@ -519,7 +519,7 @@ defmodule FrontmanServerWeb.TaskChannel do
            %{id: tool_call.tool_call_id, name: tool_call.tool_name},
            result,
            turn_number: turn_number,
-           attempt_id: request_id,
+           attempt_id: key,
            evidence: evidence
          ) do
       {:ok, _interaction, status} when status in [:reconciled, :already_resolved] ->
@@ -599,10 +599,10 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_tool_call_error_by_id(id, error, socket) when is_integer(id) do
     case pop_mcp_tool_request(socket, id) do
-      {:ok, {turn_number, tool_call_id} = logical_call, socket} ->
-        case find_mcp_tool_call(socket, logical_call, id) do
+      {:ok, {{turn_number, tool_call_id} = logical_call, key}, socket} ->
+        case find_mcp_tool_call(socket, logical_call, key) do
           {:ok, tool_call} ->
-            handle_tool_call_error(tool_call, error, socket, {turn_number, id})
+            handle_tool_call_error(tool_call, error, socket, {turn_number, key})
 
           {:error, reason} when reason in [:not_found, :stale_attempt] ->
             Logger.warning(
@@ -704,14 +704,14 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp request_mcp_cancellation(socket) do
-    Enum.each(socket.assigns.pending_mcp_tool_requests, fn {request_id, logical_call} ->
-      case Tasks.request_mcp_cancellation(
+    Enum.each(socket.assigns.pending_mcp_tool_requests, fn {request_id, {logical_call, key}} ->
+      case Tasks.request_tool_cancellation(
              socket.assigns.scope,
              socket.assigns.task_id,
              logical_call,
-             request_id
+             key
            ) do
-        :ok ->
+        {:ok, _call} ->
           push(
             socket,
             "mcp:message",
@@ -1210,16 +1210,17 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp mcp_tool_request_pending?(socket, logical_call) do
     socket.assigns.pending_mcp_tool_requests
     |> Map.values()
-    |> Enum.member?(logical_call)
+    |> Enum.any?(fn {pending_call, _key} -> pending_call == logical_call end)
   end
 
   defp route_to_mcp(tool_call, turn_number, socket) do
     task_id = socket.assigns.task_id
     request_id = System.unique_integer([:positive])
+    key = MCP.request_attempt_key(request_id)
     logical_call = {turn_number, tool_call.tool_call_id}
 
-    case Tasks.start_mcp_attempt(socket.assigns.scope, task_id, logical_call, request_id) do
-      :ok ->
+    case Tasks.start_tool_attempt(socket.assigns.scope, task_id, logical_call, key) do
+      {:ok, _call} ->
         request =
           MCP.build_tool_execution(%MCP.ToolCallParams{
             request_id: request_id,
@@ -1238,7 +1239,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         push(socket, @acp_message, in_progress_notification)
 
-        socket = remember_mcp_tool_request(socket, request_id, logical_call)
+        socket = remember_mcp_tool_request(socket, request_id, {logical_call, key})
 
         push(socket, "mcp:message", request)
         {:noreply, socket}
