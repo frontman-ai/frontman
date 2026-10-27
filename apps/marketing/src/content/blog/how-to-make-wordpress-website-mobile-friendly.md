@@ -42,6 +42,8 @@ WordPress provides built-in responsive controls in some editors and themes. Depe
 
 These are starting points, not universal settings. Gutenberg, Elementor, and individual themes expose different controls.
 
+For Avada pages, inspect the [Containers, Columns, and Design Elements in Avada Live Builder](/blog/avada-theme-customization/#edit-page-layouts-with-avada-live-builder) before applying an editor-specific fix.
+
 ## Fix cramped Gutenberg columns without another plugin
 
 If the section uses WordPress’s core **Columns** block, check **Stack on mobile** first. WordPress enables this setting by default. A disabled setting can leave columns side by side on a narrow screen.
