@@ -82,6 +82,18 @@ test:
 	MIX_ENV=test mix ecto.migrate --quiet
 	mix test $(TEST_ARGS)
 
+.PHONY: test-application-restart
+test-application-restart:
+	@set -eu; \
+	export MIX_ENV=test MIX_TEST_PARTITION=""; \
+	MIX_TEST_DB_SUFFIX="_restart_$$(elixir -e 'IO.write(Base.encode16(:crypto.strong_rand_bytes(16), case: :lower))')"; \
+	export MIX_TEST_DB_SUFFIX; \
+	trap 'status=$$?; trap - EXIT; mix ecto.drop --quiet || { cleanup=$$?; [ "$$status" -ne 0 ] || status=$$cleanup; }; exit "$$status"' EXIT; \
+	echo "Owned test database: frontman_server_test$$MIX_TEST_DB_SUFFIX"; \
+	mix ecto.create --quiet; \
+	mix ecto.migrate --quiet; \
+	mix test --only application_restart --seed 0
+
 test-record:
 	MIX_ENV=test mix ecto.create --quiet
 	MIX_ENV=test mix ecto.migrate --quiet

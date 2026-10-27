@@ -71,6 +71,30 @@ Cancellation without a live worker and concurrent continuation admission remain 
 Reconnect still redispatches unresolved synchronous calls. Abrupt process loss can therefore repeat external writes.
 The client still supports one pending question form.
 
+## Restart test isolation
+
+`make test` and `make test-coverage` exclude the `application_restart` tag.
+These ordinary suites do not stop the application.
+CI runs the real restart scenario separately:
+
+```bash
+mise exec -- make -C apps/frontman_server test-application-restart
+```
+
+The target requires PostgreSQL at the test address in `config/test.exs`.
+It uses existing Mix commands to create and migrate a generated `_restart_` test database.
+It clears inherited partition identifiers and replaces inherited database suffixes.
+The `mix test` invocation starts a fresh BEAM and runs only the restart tag with seed zero.
+An EXIT trap drops only the generated database.
+A test failure retains its exit status even if cleanup fails.
+Cleanup failure also fails an otherwise successful run.
+Execution uses the existing ExUnit and CI job timeouts.
+
+PaperTiger reserves an available test port.
+After startup, the test helper points the Stripe client at that instance.
+The initial Stripe URL uses loopback port zero to prevent requests before initialization.
+The application restart does not stop PaperTiger, so its URL remains valid.
+
 ## Learn more
 
 * Official website: https://www.phoenixframework.org/

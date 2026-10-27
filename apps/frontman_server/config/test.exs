@@ -30,7 +30,7 @@ config :frontman_server,
   billing_client: FrontmanServer.Billing.StripeClient
 
 config :frontman_server, :stripe,
-  api_base_url: "http://localhost:59001/v1",
+  api_base_url: "http://127.0.0.1:0/v1",
   secret_key: "sk_test_paper_tiger",
   webhook_secret: "whsec_test_123",
   extra_headers: {PaperTiger.Test, :sandbox_headers, []},
@@ -40,7 +40,6 @@ config :frontman_server, :stripe,
 
 config :paper_tiger,
   start: true,
-  port: 59_001,
   init_data: %{
     products: [
       %{
