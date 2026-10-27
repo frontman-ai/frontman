@@ -887,6 +887,25 @@ defmodule FrontmanServer.Tasks do
       when is_binary(attempt_id) and byte_size(attempt_id) > 0,
       do: transition_tool_attempt(scope, task_id, logical_id, attempt_id, :cancel)
 
+  @doc "Finds an attempt in its original turn, including after cancellation closed that turn."
+  def get_tool_attempt(%Scope{} = scope, task_id, {turn, logical_id}, attempt_id)
+      when is_integer(turn) and turn > 0 and is_binary(attempt_id) and byte_size(attempt_id) > 0 do
+    with {:ok, _} <- get_task(scope, task_id),
+         %InteractionSchema{data: call} <-
+           InteractionSchema.for_task(task_id)
+           |> InteractionSchema.for_turn(turn)
+           |> InteractionSchema.of_type(:tool_call)
+           |> InteractionSchema.data_equals("tool_call_id", logical_id)
+           |> Repo.one(),
+         true <- call.attempt_id == attempt_id do
+      {:ok, call}
+    else
+      nil -> {:error, :not_found}
+      false -> {:error, :stale_attempt}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   defp transition_tool_attempt(scope, task_id, {turn, logical_id}, attempt_id, event)
        when is_integer(turn) and turn > 0 do
     Repo.transact(fn ->
@@ -950,7 +969,7 @@ defmodule FrontmanServer.Tasks do
   def resolve_tool_request(
         scope,
         task_id,
-        %{id: tool_call_id, name: _} = tool_call_data,
+        %{id: _, name: _} = tool_call_data,
         result,
         opts \\ []
       )
@@ -958,8 +977,7 @@ defmodule FrontmanServer.Tasks do
     Repo.transact(fn ->
       case get_task_by_id_for_update(scope, task_id) do
         %TaskSchema{} = task ->
-          turn_number = tool_result_turn_number(task_id, tool_call_id, opts)
-          store_tool_result(task, turn_number, tool_call_data, result)
+          resolve_task_tool_result(scope, task, tool_call_data, result, opts)
 
         nil ->
           {:error, :not_found}
@@ -972,6 +990,21 @@ defmodule FrontmanServer.Tasks do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  defp resolve_task_tool_result(scope, task, call, result, opts) do
+    turn = tool_result_turn_number(task.id, call.id, opts)
+
+    with {:ok, _} <- validate_tool_result_attempt(scope, task.id, {turn, call.id}, opts) do
+      store_tool_result(task, turn, call, result)
+    end
+  end
+
+  defp validate_tool_result_attempt(scope, task_id, logical_id, opts) do
+    case Keyword.fetch(opts, :attempt_id) do
+      {:ok, attempt_id} -> get_tool_attempt(scope, task_id, logical_id, attempt_id)
+      :error -> {:ok, nil}
     end
   end
 
@@ -1172,7 +1205,22 @@ defmodule FrontmanServer.Tasks do
   """
   def cancel_execution(scope, task_id) do
     with {:ok, _schema} <- get_task(scope, task_id) do
-      SwarmAi.cancel(FrontmanServer.AgentRuntime, task_id)
+      case SwarmAi.cancel(FrontmanServer.AgentRuntime, task_id) do
+        {:error, :not_running} -> cancel_parked_turn(scope, task_id)
+        result -> result
+      end
+    end
+  end
+
+  defp cancel_parked_turn(scope, task_id) do
+    {:ok, history} = load_history(task_id)
+
+    case History.active_turn_number(history) do
+      nil ->
+        {:error, :not_running}
+
+      turn ->
+        with {:ok, _} <- record_execution_outcome(scope, task_id, turn, :cancelled), do: :ok
     end
   end
 

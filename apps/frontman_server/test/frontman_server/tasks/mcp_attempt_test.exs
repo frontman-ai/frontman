@@ -59,4 +59,30 @@ defmodule FrontmanServer.Tasks.MCPAttemptTest do
     refute_receive {:tool_result, _, _, _}
     assert {:ok, ^next_turn, []} = Tasks.get_active_turn_unresolved_tool_calls(scope, id)
   end
+
+  test "parked cancellation closes the turn but retains attempt-fenced late lookup" do
+    scope = user_scope_fixture()
+    id = task_fixture(scope).id
+    turn = start_turn_fixture(scope, id)
+    call = %SwarmAi.ToolCall{id: "parked", name: "write_file", arguments: "{}"}
+    {:ok, _} = Tasks.request_client_tool(scope, id, turn, call, :synchronous)
+    {:ok, _} = Tasks.start_tool_attempt(scope, id, {turn, call.id}, "parked")
+    assert :ok = Tasks.cancel_execution(scope, id)
+    assert {:ok, :no_active_turn} = Tasks.get_active_turn_unresolved_tool_calls(scope, id)
+
+    assert {:ok, %{cancel_requested: true}} =
+             Tasks.get_tool_attempt(scope, id, {turn, call.id}, "parked")
+
+    assert {:error, :stale_attempt} =
+             Tasks.resolve_tool_request(scope, id, call, %{"content" => []},
+               turn_number: turn,
+               attempt_id: "other"
+             )
+
+    assert {:ok, _, :reconciled} =
+             Tasks.resolve_tool_request(scope, id, call, %{"content" => []},
+               turn_number: turn,
+               attempt_id: "parked"
+             )
+  end
 end
