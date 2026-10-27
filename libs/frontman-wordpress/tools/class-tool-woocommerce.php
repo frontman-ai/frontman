@@ -212,9 +212,95 @@ class Frontman_Tool_WooCommerce {
 	}
 
 	private function register_settings( Frontman_Tools $tools ): void {
+		$catalog = $this->object_schema( [
+			'name' => [
+				'type' => 'string',
+				'description' => 'The shop page or product category archive display setting.',
+				'enum' => [ 'woocommerce_shop_page_display', 'woocommerce_category_archive_display' ],
+			],
+		], [ 'name' ] );
+		$this->add_custom_tool( $tools, 'get_catalog_display', 'Reads a WooCommerce catalog display setting. Empty string means products; subcategories means categories; both means categories and products.', $catalog,
+			function( array $input ) { return $this->catalog_display( $input, false ); }, false
+		);
+		$catalog['properties']['value'] = [
+			'type' => 'string',
+			'description' => 'Empty string shows products directly; subcategories shows categories; both shows both.',
+			'enum' => [ '', 'subcategories', 'both' ],
+		];
+		$catalog['required'][] = 'value';
+		$this->add_custom_tool( $tools, 'update_catalog_display', 'Updates only a WooCommerce catalog display setting through its native Customizer save path. Ask the user for confirmation before calling with confirm=true.', $this->with_confirm( $catalog ),
+			function( array $input ) { return $this->catalog_display( $input, true ); }, false
+		);
 		$this->add_endpoint_tool( $tools, 'get_settings', 'Retrieves WooCommerce setting groups.', 'GET', '/settings', $this->empty_schema() );
 		$this->add_endpoint_tool( $tools, 'get_setting_options', 'Retrieves options in one WooCommerce setting group.', 'GET', '/settings/{group}', $this->object_schema( [ 'group' => $this->string_prop( 'The WooCommerce setting group ID.' ) ], [ 'group' ] ) );
 		$this->add_endpoint_tool( $tools, 'update_setting_option', 'Updates one WooCommerce setting option.', 'PUT', '/settings/{group}/{id}', $this->data_schema( 'settingData', 'Setting fields to update.', [ 'group', 'id', 'settingData' ], [ 'group' => $this->string_prop( 'The WooCommerce setting group ID.' ), 'id' => $this->string_prop( 'The WooCommerce setting ID.' ) ] ), [ 'body' => 'settingData' ] );
+	}
+
+	public static function validate_catalog_display_input( array $input, bool $write ): void {
+		$name = $input['name'] ?? null;
+		if ( ! in_array( $name, [ 'woocommerce_shop_page_display', 'woocommerce_category_archive_display' ], true ) ) {
+			throw new Frontman_Tool_Error( 'Unsupported WooCommerce catalog display setting.' );
+		}
+		if ( $write && true !== ( $input['confirm'] ?? false ) ) {
+			throw new Frontman_Tool_Error( 'Catalog display update requires confirm=true after user approval.' );
+		}
+		if ( $write && ! in_array( $input['value'] ?? null, [ '', 'subcategories', 'both' ], true ) ) {
+			throw new Frontman_Tool_Error( 'value must be an empty string, subcategories, or both.' );
+		}
+	}
+
+	private function catalog_display( array $input, bool $write ): array {
+		self::validate_catalog_display_input( $input, $write );
+		$name = $input['name'];
+		if ( ! class_exists( 'WooCommerce' ) || ! class_exists( 'WC_Shop_Customizer' ) ) {
+			throw new Frontman_Tool_Error( 'WooCommerce is not active.' );
+		}
+		if ( ! current_user_can( 'manage_woocommerce' ) || ! current_user_can( 'edit_theme_options' ) ) {
+			throw new Frontman_Tool_Error( 'You cannot manage WooCommerce catalog display settings.' );
+		}
+
+		global $wp_customize;
+		if ( ! ( $wp_customize instanceof \WP_Customize_Manager ) ) {
+			require_once ABSPATH . WPINC . '/class-wp-customize-manager.php';
+			$wp_customize = new \WP_Customize_Manager( [ 'settings_previewed' => false ] );
+			remove_action( 'customize_register', [ $wp_customize, 'register_controls' ] );
+			$wp_customize->register_controls();
+		}
+		// Frontman runs after frontend theme bootstrap. Replaying customize_register
+		// here is unsafe: themes may only load its dependencies during a real
+		// Customizer request. Register only these two WooCommerce-owned settings;
+		// reuse theme-altered settings when a real manager already registered them.
+		if ( ! $wp_customize->get_setting( $name ) ) {
+			$customizer = new \WC_Shop_Customizer();
+			$customizer->add_product_catalog_section( $wp_customize );
+		}
+		$setting = $wp_customize->get_setting( $name );
+		if ( ! $setting || 'option' !== $setting->type || ! empty( $setting->id_data()['keys'] ) || ! $setting->check_capabilities() ) {
+			throw new Frontman_Tool_Error( 'Catalog display Customizer setting is unavailable or not permitted.' );
+		}
+		$before = get_option( $name, $setting->default );
+		if ( ! $write ) {
+			return [ 'name' => $name, 'value' => $before, 'supported_values' => [ '', 'subcategories', 'both' ] ];
+		}
+		$valid = $setting->validate( $input['value'] );
+		if ( is_wp_error( $valid ) ) {
+			throw new Frontman_Tool_Error( $valid->get_error_message() );
+		}
+		$value = $setting->sanitize( $input['value'] );
+		if ( ! in_array( $value, [ '', 'subcategories', 'both' ], true ) ) {
+			throw new Frontman_Tool_Error( 'Catalog display Customizer sanitizer rejected the value.' );
+		}
+		$wp_customize->set_post_value( $name, $input['value'] );
+		do_action( 'customize_save', $wp_customize );
+		if ( false === $setting->save() ) {
+			throw new Frontman_Tool_Error( 'Catalog display setting could not be saved.' );
+		}
+		do_action( 'customize_save_after', $wp_customize );
+		$after = get_option( $name, $setting->default );
+		if ( $after !== $value ) {
+			throw new Frontman_Tool_Error( 'Catalog display write could not be verified. Read current state before retrying.' );
+		}
+		return [ 'name' => $name, 'before' => $before, 'after' => $after, 'updated' => $before !== $after ];
 	}
 
 	private function register_system_status( Frontman_Tools $tools ): void {
@@ -251,10 +337,10 @@ class Frontman_Tool_WooCommerce {
 		);
 	}
 
-	private function add_custom_tool( Frontman_Tools $tools, string $source_method, string $description, array $schema, callable $handler ): void {
+	private function add_custom_tool( Frontman_Tools $tools, string $source_method, string $description, array $schema, callable $handler, bool $mirrors_rest = true ): void {
 		$tools->add( new Frontman_Tool_Definition(
 			'wc_' . $source_method,
-			$description . ' Mirrors woocommerce-mcp-server method `' . $source_method . '` using local WordPress authentication; no WooCommerce REST API keys are required.',
+			$description . ( $mirrors_rest ? ' Mirrors woocommerce-mcp-server method `' . $source_method . '`' : ' Uses the native WooCommerce Customizer setting' ) . ' using local WordPress authentication; no WooCommerce REST API keys are required.',
 			$schema,
 			$handler,
 			null,

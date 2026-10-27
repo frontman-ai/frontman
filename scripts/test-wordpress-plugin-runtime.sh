@@ -7,6 +7,22 @@ RUNTIME="${CONTAINER_RUNTIME:-docker}"
 WORDPRESS_VERSION="${WORDPRESS_VERSION:-7.0.2}"
 PHP_VERSION="${PHP_VERSION:-8.4}"
 YOAST_VERSION="${YOAST_VERSION:-}"
+FIXTURE="${WORDPRESS_FIXTURE:-}"
+FIXTURE_PORT="${WORDPRESS_FIXTURE_PORT:-8887}"
+case "$FIXTURE" in
+  ""|astra) ;;
+  *) printf 'Unknown WORDPRESS_FIXTURE: %s\n' "$FIXTURE" >&2; exit 1 ;;
+esac
+if [[ "$FIXTURE" == astra && "$WORDPRESS_VERSION" != 7.0.2 ]]; then
+  printf 'The Astra fixture requires WordPress 7.0.2.\n' >&2; exit 1
+fi
+PUBLISH=()
+DB_PASSWORD=wordpress
+if [[ "$FIXTURE" == astra ]]; then
+  [[ "$FIXTURE_PORT" =~ ^[0-9]+$ ]] && (( FIXTURE_PORT > 1024 && FIXTURE_PORT < 65536 ))
+  PUBLISH=(-p "127.0.0.1:${FIXTURE_PORT}:80")
+  DB_PASSWORD="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
+fi
 MEGAMENU_VERSION="3.10.7"
 MEGAMENU_SHA256="6cfe5fc2484bccbcc6782364b38e16fde55a496bfaf86d123d1d46b0684c5e7e"
 case "$WORDPRESS_VERSION" in
@@ -29,10 +45,13 @@ DATABASE="${RUN_ID}-database"
 WORDPRESS="${RUN_ID}-wordpress"
 IMAGE="${RUN_ID}-image"
 BUILD_DIR="$(mktemp -d)"
+NETWORK_CREATED=false
 
 cleanup() {
-  "$RUNTIME" rm -f "$WORDPRESS" "$DATABASE" >/dev/null 2>&1 || true
-  "$RUNTIME" network rm "$NETWORK" >/dev/null 2>&1 || true
+  # Podman must release the shared network namespace before removing its owner.
+  "$RUNTIME" rm -f "$WORDPRESS" >/dev/null 2>&1 || true
+  "$RUNTIME" rm -f "$DATABASE" >/dev/null 2>&1 || true
+  if "$NETWORK_CREATED"; then "$RUNTIME" network rm "$NETWORK" >/dev/null 2>&1 || true; fi
   "$RUNTIME" image rm "$IMAGE" >/dev/null 2>&1 || true
   rm -rf "$BUILD_DIR"
 }
@@ -55,18 +74,34 @@ fi
   -t "$IMAGE" \
   "$BUILD_DIR" >/dev/null
 
-"$RUNTIME" network create "$NETWORK" >/dev/null
-"$RUNTIME" run -d --name "$DATABASE" --network "$NETWORK" \
+if "$RUNTIME" --version | grep -qi podman; then
+  DB_NETWORK=pasta
+  WP_NETWORK="container:$DATABASE"
+  DB_HOST=127.0.0.1
+  DB_PUBLISH=("${PUBLISH[@]}")
+  WP_PUBLISH=()
+else
+  "$RUNTIME" network create "$NETWORK" >/dev/null
+  NETWORK_CREATED=true
+  DB_NETWORK="$NETWORK"
+  WP_NETWORK="$NETWORK"
+  DB_HOST="$DATABASE"
+  DB_PUBLISH=()
+  WP_PUBLISH=("${PUBLISH[@]}")
+fi
+"$RUNTIME" run -d --name "$DATABASE" --network "$DB_NETWORK" \
+  "${DB_PUBLISH[@]}" \
   -e MARIADB_DATABASE=wordpress \
   -e MARIADB_USER=wordpress \
-  -e MARIADB_PASSWORD=wordpress \
-  -e MARIADB_ROOT_PASSWORD=wordpress \
+  -e MARIADB_PASSWORD="$DB_PASSWORD" \
+  -e MARIADB_ROOT_PASSWORD="$DB_PASSWORD" \
   docker.io/library/mariadb:11 >/dev/null
 
-"$RUNTIME" run -d --name "$WORDPRESS" --network "$NETWORK" \
-  -e WORDPRESS_DB_HOST="$DATABASE" \
+"$RUNTIME" run -d --name "$WORDPRESS" --network "$WP_NETWORK" \
+  "${WP_PUBLISH[@]}" \
+  -e WORDPRESS_DB_HOST="$DB_HOST" \
   -e WORDPRESS_DB_USER=wordpress \
-  -e WORDPRESS_DB_PASSWORD=wordpress \
+  -e WORDPRESS_DB_PASSWORD="$DB_PASSWORD" \
   -e WORDPRESS_DB_NAME=wordpress \
   "$IMAGE" >/dev/null
 
@@ -104,7 +139,7 @@ if [[ -n "$YOAST_VERSION" ]]; then
   "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/SeoRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-seo-runtime.php"
 fi
 
-"$RUNTIME" exec "$WORDPRESS" php -r 'define("WP_INSTALLING", true); define("WP_SITEURL", "http://frontman-runtime.example.test"); require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/upgrade.php"; if (!is_blog_installed()) { wp_install("Frontman Runtime", "admin", "admin@example.test", true, "", "frontman-runtime-password"); }'
+"$RUNTIME" exec "$WORDPRESS" php -r 'define("WP_INSTALLING", true); define("WP_SITEURL", "http://frontman-runtime.example.test"); require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/upgrade.php"; if (!is_blog_installed()) { wp_install("Frontman Runtime", "admin", "admin@example.test", true, "", bin2hex(random_bytes(32))); }'
 "$RUNTIME" exec "$WORDPRESS" php -r '$db = new mysqli(getenv("WORDPRESS_DB_HOST"), getenv("WORDPRESS_DB_USER"), getenv("WORDPRESS_DB_PASSWORD"), getenv("WORDPRESS_DB_NAME")); $result = $db->query("SELECT option_value FROM wp_options WHERE option_name = '\''siteurl'\''"); $row = $result ? $result->fetch_row() : false; if (!$row || !$row[0]) { throw new RuntimeException("WordPress installation did not persist a site URL."); }'
 "$RUNTIME" exec -e EXPECTED_YOAST_VERSION="$YOAST_VERSION" "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/ActivateWordPressPlugin.php
 if TEST_OUTPUT="$("$RUNTIME" exec \
@@ -123,6 +158,60 @@ fi
 
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ThemeModsAndSearchRuntimeTest.php" "$WORDPRESS:/tmp/ThemeModsAndSearchRuntimeTest.php"
 "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/ThemeModsAndSearchRuntimeTest.php
+
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/WidgetWithoutWooRuntimeTest.php" "$WORDPRESS:/tmp/WidgetWithoutWooRuntimeTest.php"
+"$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/WidgetWithoutWooRuntimeTest.php
+# Share one WooCommerce installation; keep widget coverage on WordPress 6.7.
+WOOCOMMERCE_VERSION=""
+case "$WORDPRESS_VERSION" in
+6.[0-6].*) printf 'Skipping WooCommerce: requires WordPress 6.7+.\n' ;;
+6.7.*)
+  WOOCOMMERCE_VERSION="9.9.5"
+  WOOCOMMERCE_SHA256="9afd8ef47ce5286412053083cd74c3d5abf0388e8e4a723902162259977241c2"
+  ;;
+*)
+  WOOCOMMERCE_VERSION="10.4.3"
+  WOOCOMMERCE_SHA256="3b1bbe109a0ab653863a6c8b4ccbdf75c519fd5ebf51151c54b8ca37b325f242"
+  ;;
+esac
+if [[ -n "$WOOCOMMERCE_VERSION" ]]; then
+curl -fsSL "https://downloads.wordpress.org/plugin/woocommerce.${WOOCOMMERCE_VERSION}.zip" -o "$BUILD_DIR/woocommerce.zip"
+printf '%s  %s\n' "$WOOCOMMERCE_SHA256" "$BUILD_DIR/woocommerce.zip" | sha256sum --check --status
+unzip -q "$BUILD_DIR/woocommerce.zip" -d "$BUILD_DIR/woocommerce"
+"$RUNTIME" cp "$BUILD_DIR/woocommerce/woocommerce" "$WORDPRESS:/var/www/html/wp-content/plugins/woocommerce"
+"$RUNTIME" exec "$WORDPRESS" php -r 'require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/plugin.php"; $result = activate_plugin("woocommerce/woocommerce.php"); if (is_wp_error($result)) { throw new RuntimeException($result->get_error_message()); }'
+printf 'Testing WooCommerce %s on WordPress %s\n' "$WOOCOMMERCE_VERSION" "$WORDPRESS_VERSION"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/WidgetVisibilityRuntimeTest.php" "$WORDPRESS:/tmp/WidgetVisibilityRuntimeTest.php"
+"$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/WidgetVisibilityRuntimeTest.php
+if [[ "$WOOCOMMERCE_VERSION" == "10.4.3" ]]; then
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/WooCommerceCatalogRuntimeTest.php" "$WORDPRESS:/tmp/WooCommerceCatalogRuntimeTest.php"
+"$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/WooCommerceCatalogRuntimeTest.php
+else
+printf 'Skipping catalog runtime tests: WooCommerce 10.4.3 requires WordPress 6.8+.\n'
+fi
+if [[ "$FIXTURE" == astra ]]; then
+  curl -fsSL 'https://downloads.wordpress.org/theme/astra.4.12.3.zip' -o "$BUILD_DIR/astra.zip"
+  printf '%s  %s\n' '18b0b13f23b7ea793235b3ef8e9c62a032cff81646fca562aed2db2a83945a12' "$BUILD_DIR/astra.zip" | sha256sum --check --status
+  unzip -q "$BUILD_DIR/astra.zip" -d "$BUILD_DIR/astra"
+  "$RUNTIME" cp "$BUILD_DIR/astra/astra" "$WORDPRESS:/var/www/html/wp-content/themes/astra"
+  "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/AstraFixture.php" "$WORDPRESS:/tmp/AstraFixture.php"
+  "$RUNTIME" exec -e FIXTURE_URL="http://127.0.0.1:$FIXTURE_PORT" "$WORDPRESS" php /tmp/AstraFixture.php setup
+  "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/AstraRouting.htaccess" "$WORDPRESS:/var/www/html/.htaccess"
+  "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/AstraSafety.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/astra-safety.php"
+  FRONTMAN_ASTRA_URL="http://127.0.0.1:$FIXTURE_PORT" FRONTMAN_ASTRA_CONTAINER="$WORDPRESS" CONTAINER_RUNTIME="$RUNTIME" \
+    FRONTMAN_ASTRA_EVIDENCE_DIR="$ROOT_DIR/dist/astra-fixture" \
+    make -C "$ROOT_DIR/libs/client" test TEST_FILTER=test/Client__Astra.test.res.mjs
+  printf 'Synthetic Astra fixture verified: http://127.0.0.1:%s (no customer configuration tested).\n' "$FIXTURE_PORT"
+  printf 'Fixture container: %s; browser evidence: dist/astra-fixture/\n' "$WORDPRESS"
+  if [[ "${WORDPRESS_FIXTURE_KEEP_ALIVE:-0}" == 1 ]]; then
+    printf 'Fixture is disposable. Stop with Ctrl+C; only this run’s containers/image/temp directory are removed.\n'
+    trap 'exit 0' INT TERM
+    while :; do sleep 1; done
+  fi
+  exit 0
+fi
+"$RUNTIME" exec "$WORDPRESS" php -r 'require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/plugin.php"; deactivate_plugins("woocommerce/woocommerce.php");'
+fi
 
 "$RUNTIME" exec "$WORDPRESS" cp -a /var/www/html /tmp/frontman-multisite
 "$RUNTIME" exec "$WORDPRESS" php -r '$path = "/tmp/frontman-multisite/wp-config.php"; $config = file_get_contents($path); $config = str_replace("\x27wp_\x27", "\x27fm_multi_\x27", $config); file_put_contents($path, $config);'

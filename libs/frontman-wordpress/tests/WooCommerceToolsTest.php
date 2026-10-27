@@ -310,6 +310,8 @@ class Frontman_WooCommerce_Tools_Test_Runner {
 			'wc_get_settings',
 			'wc_get_setting_options',
 			'wc_update_setting_option',
+			'wc_get_catalog_display',
+			'wc_update_catalog_display',
 			'wc_get_system_status',
 			'wc_get_system_status_tools',
 			'wc_run_system_status_tool',
