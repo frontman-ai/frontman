@@ -123,6 +123,8 @@ fi
 
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ThemeModsAndSearchRuntimeTest.php" "$WORDPRESS:/tmp/ThemeModsAndSearchRuntimeTest.php"
 "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/ThemeModsAndSearchRuntimeTest.php
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/InstallationPathsRuntimeTest.php" "$WORDPRESS:/tmp/InstallationPathsRuntimeTest.php"
+"$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/InstallationPathsRuntimeTest.php
 
 case "$WORDPRESS_VERSION" in
 6.[0-8].*) printf 'Skipping SureRank SEO tools: SureRank 1.10.2 requires WordPress 6.7+, and Frontman SEO tools require 6.9+.\n' ;;

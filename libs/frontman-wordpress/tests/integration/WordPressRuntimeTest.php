@@ -200,6 +200,8 @@ $runtime_call = static function ( string $name, array $arguments ) use ( $cookie
 	return $data;
 };
 $site_info = $runtime_call( 'wp_get_site_info', [] );
+$path_property = Frontman_Tools::instance()->get( 'wp_get_site_info' )->input_schema['properties']['include_installation_paths'];
+frontman_runtime_assert( 'boolean' === $path_property['type'] && false === $path_property['default'], 'Installation paths require a boolean opt-in.' );
 frontman_runtime_assert( ! array_key_exists( 'installation', $site_info ) && $site_info === $runtime_call( 'wp_get_site_info', [ 'include_installation_paths' => false ] ), 'Site info must omit paths unless requested.' );
 $installation_info = $runtime_call( 'wp_get_site_info', [ 'include_installation_paths' => true ] );
 frontman_runtime_assert( [
@@ -215,8 +217,10 @@ foreach ( [ [ '', null, 401 ], [ $subscriber_cookie, null, 403 ], [ $cookie, nul
 	$error_json = wp_json_encode( json_decode( $denied['body'], true, 512, JSON_THROW_ON_ERROR ), JSON_UNESCAPED_SLASHES );
 	frontman_runtime_assert( $expected_status === $denied['status'] && false === strpos( $error_json, ABSPATH ), 'Installation paths bypassed authentication, administrator access, or nonce validation.' );
 }
-$invalid_location = frontman_runtime_tool( $cookie, $slug_nonce, [ 'name' => 'wp_get_site_info', 'arguments' => [ 'include_installation_paths' => 'true' ] ] );
-frontman_runtime_assert( true === $invalid_location['body']['isError'], 'HTTP path opt-in must reject coerced booleans.' );
+foreach ( [ null, 0, 1, 'true', 'false', [], (object) [] ] as $invalid_path_opt_in ) {
+	$invalid_location = frontman_runtime_tool( $cookie, $slug_nonce, [ 'name' => 'wp_get_site_info', 'arguments' => [ 'include_installation_paths' => $invalid_path_opt_in ] ] );
+	frontman_runtime_assert( true === $invalid_location['body']['isError'] && 'include_installation_paths must be a boolean.' === $invalid_location['body']['content'][0]['text'], 'HTTP path opt-in must reject coerced booleans and identify the field.' );
+}
 
 $media_image = imagecreatetruecolor( 320, 240 );
 ob_start();
