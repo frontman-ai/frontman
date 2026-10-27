@@ -156,7 +156,7 @@ defmodule FrontmanServer.Tasks.MCPAttemptTest do
     turn = start_turn_fixture(scope, id)
     call = %SwarmAi.ToolCall{id: "reused", name: "write_file", arguments: "{}"}
     {:ok, _} = Tasks.request_client_tool(scope, id, turn, call, :synchronous)
-    :ok = Tasks.start_mcp_attempt(scope, id, {turn, call.id}, 7)
+    {:ok, _} = Tasks.start_tool_attempt(scope, id, {turn, call.id}, "late-7")
     timeout = %{"content" => [%{"type" => "text", "text" => "timeout"}], "isError" => true}
 
     {:ok, canonical, :no_executor} =
@@ -175,7 +175,7 @@ defmodule FrontmanServer.Tasks.MCPAttemptTest do
     assert {:ok, ^canonical, :already_resolved} =
              Tasks.resolve_tool_request(scope, id, call, %{"content" => []},
                turn_number: turn,
-               attempt_id: 7,
+               attempt_id: "late-7",
                evidence: :peer_final
              )
 
