@@ -148,7 +148,7 @@ let execute = async (
   ~signal as _=?,
 ): Tool.MCP.CallToolResult.t =>
   switch Client__Tool__PreviewContext.get() {
-  | None => Tool.MCP.CallToolResult.makeError("Preview frame not available")
+  | None => Tool.MCP.CallToolResult.makeError("Preview frame not available. Use navigate_preview with a known same-origin storefront URL such as /shop/ to recover without refreshing Frontman.")
   | Some(preview) =>
     switch inspect(input, preview) {
     | Ok((output, _element)) => Tool.structuredResult(output, outputSchema)
