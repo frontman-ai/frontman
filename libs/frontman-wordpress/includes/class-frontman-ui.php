@@ -112,7 +112,7 @@ class Frontman_UI {
 	 * Render the full Frontman client page.
 	 *
 	 * Called directly by the router — this outputs a complete HTML document
-	 * (no wp-admin chrome). The client is loaded from the production CDN.
+	 * (no wp-admin chrome). The client defaults to the production CDN.
 	 *
 	 * @param string|null $preview_path Path to load in the web preview iframe.
 	 *                                  null or '/' means homepage. '/about' previews /about.
@@ -120,9 +120,9 @@ class Frontman_UI {
 	 */
 	public function render_page( ?string $preview_path = null ): void {
 		$logo_url    = FRONTMAN_PLUGIN_URL . 'assets/frontman-logo.svg';
-		$host        = 'api.frontman.sh';
-		$base_js_url = 'https://app.frontman.sh/frontman.es.js';
-		$client_css  = 'https://app.frontman.sh/frontman.css';
+		$host        = defined( 'FRONTMAN_HOST' ) ? FRONTMAN_HOST : 'api.frontman.sh';
+		$base_js_url = defined( 'FRONTMAN_CLIENT_URL' ) ? FRONTMAN_CLIENT_URL : 'https://app.frontman.sh/frontman.es.js';
+		$client_css  = defined( 'FRONTMAN_CLIENT_CSS' ) ? FRONTMAN_CLIENT_CSS : 'https://app.frontman.sh/frontman.css';
 
 		$client_url = add_query_arg(
 			[

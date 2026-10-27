@@ -13,6 +13,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 		basePath: "frontman",
 		serverName: "blog-starter",
 		serverVersion: "1.0.0",
+		entrypointUrl: process.env.NEXTJS_URL,
 	});
 
 	const response = await frontman(request);
