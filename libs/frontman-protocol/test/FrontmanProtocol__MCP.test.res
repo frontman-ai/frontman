@@ -81,6 +81,83 @@ describe("MCP wire contracts", () => {
     )
   })
 
+  test("preserves input schema composition, references, dialect and extension keywords", t => {
+    let inputs = [
+      `{"type":"object","allOf":[{"properties":{"q":{"type":"string"}}},{"required":["q"]}]}`,
+      `{"type":"object","$defs":{"query":{"type":"string"}},"properties":{"q":{"$ref":"#/$defs/query"}}}`,
+      `{"type":"object","$schema":"https://json-schema.org/draft/2020-12/schema","unevaluatedProperties":false}`,
+      `{"type":"object","x-frontman":{"nested":[0,false,null]}}`,
+    ]
+    let roundTrips = [
+      json => typedRoundTrip(MCP.toolJsonSchema, json),
+      json => typedRoundTrip(FrontmanProtocol__Relay.remoteToolSchema, json),
+    ]
+    inputs->Array.forEach(
+      input => {
+        let json = `{"name":"search","inputSchema":${input},"_meta":{"ai.frontman/tool-metadata":{"visibleToAgent":true,"access":"read"}}}`
+        roundTrips->Array.forEach(
+          roundTrip => t->expect(roundTrip(json))->Expect.toEqual(JSON.parseOrThrow(json)),
+        )
+      },
+    )
+  })
+
+  test("requires an explicit object input root in MCP and modern relay", t => {
+    let invalid = [
+      `{}`,
+      `{"allOf":[{"type":"object"}]}`,
+      `{"type":"string"}`,
+      `{"type":["object","null"]}`,
+      `null`,
+      `true`,
+      `[]`,
+      `0`,
+      `"object"`,
+    ]
+    invalid->Array.forEach(
+      input => {
+        let json = `{"name":"search","inputSchema":${input},"_meta":{"ai.frontman/tool-metadata":{"visibleToAgent":true,"access":"read"}}}`
+        t->expect(parses(MCP.toolInputSchema, input))->Expect.toBe(false)
+        t->expect(parses(MCP.toolJsonSchema, json))->Expect.toBe(false)
+        t->expect(parses(FrontmanProtocol__Relay.remoteToolSchema, json))->Expect.toBe(false)
+      },
+    )
+  })
+
+  test("preserves object output schema documents describing arbitrary JSON values", t => {
+    let valid = [
+      `{}`,
+      `{"type":"object"}`,
+      `{"type":"array","items":{"type":"string"}}`,
+      `{"type":"string"}`,
+      `{"type":"number"}`,
+      `{"type":"boolean"}`,
+      `{"type":"null"}`,
+      `{"anyOf":[{"type":"null"},{"type":"string"}],"x-frontman":true}`,
+    ]
+    let invalid = [`null`, `true`, `[]`, `0`, `"object"`]
+    let roundTrips = [
+      json => typedRoundTrip(MCP.toolJsonSchema, json),
+      json => typedRoundTrip(FrontmanProtocol__Relay.remoteToolSchema, json),
+    ]
+    roundTrips->Array.forEach(
+      roundTrip => {
+        valid->Array.forEach(
+          output => {
+            let json = `{"name":"search","inputSchema":{"type":"object"},"outputSchema":${output},"_meta":{"ai.frontman/tool-metadata":{"visibleToAgent":true,"access":"read"}}}`
+            t->expect(roundTrip(json))->Expect.toEqual(JSON.parseOrThrow(json))
+          },
+        )
+        invalid->Array.forEach(
+          output => {
+            let json = `{"name":"search","inputSchema":{"type":"object"},"outputSchema":${output},"_meta":{"ai.frontman/tool-metadata":{"visibleToAgent":true,"access":"read"}}}`
+            t->expect(() => roundTrip(json))->Expect.toThrow
+          },
+        )
+      },
+    )
+  })
+
   test("round-trips official content annotations", t => {
     let json = `{
       "resultType":"complete",

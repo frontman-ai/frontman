@@ -29,6 +29,7 @@ defmodule FrontmanServer.Protocols.MCP.Schema do
            Enum.flat_map(tools, fn tool ->
              tool |> Map.take(["inputSchema", "outputSchema"]) |> Map.values()
            end),
+         true <- Enum.all?(schemas, &(schema_nodes_remaining(&1, 64, 10_000) != :error)),
          true <-
            Enum.all?(
              schemas,
@@ -49,6 +50,7 @@ defmodule FrontmanServer.Protocols.MCP.Schema do
   def validate_call_tool_result(result, output_schema) when is_map(output_schema) do
     with :ok <- validate_call_tool_result(result),
          {:ok, structured_content} <- Map.fetch(result, "structuredContent"),
+         remaining when is_integer(remaining) <- schema_nodes_remaining(output_schema, 64, 10_000),
          {:ok, schema} <- JSV.build(output_schema, atoms: false, warnings: :silent),
          {:ok, _validated_data} <- JSV.validate(structured_content, schema, cast: false) do
       :ok
@@ -58,6 +60,32 @@ defmodule FrontmanServer.Protocols.MCP.Schema do
   end
 
   def validate_call_tool_result(result, nil), do: validate_call_tool_result(result)
+
+  defp schema_nodes_remaining(_value, _depth, 0), do: :error
+
+  defp schema_nodes_remaining(scalar, _depth, nodes) when not (is_map(scalar) or is_list(scalar)),
+    do: nodes - 1
+
+  defp schema_nodes_remaining(_container, depth, _nodes) when depth < 0, do: :error
+
+  defp schema_nodes_remaining(value, depth, nodes) when is_map(value) do
+    Enum.reduce_while(value, nodes - 1, fn {_key, child}, remaining ->
+      schema_child_budget(child, depth - 1, remaining)
+    end)
+  end
+
+  defp schema_nodes_remaining(value, depth, nodes) when is_list(value) do
+    Enum.reduce_while(value, nodes - 1, fn child, remaining ->
+      schema_child_budget(child, depth - 1, remaining)
+    end)
+  end
+
+  defp schema_child_budget(child, depth, nodes) do
+    case schema_nodes_remaining(child, depth, nodes) do
+      :error -> {:halt, :error}
+      remaining -> {:cont, remaining}
+    end
+  end
 
   defp validate(data, schema) do
     case JSV.validate(data, schema) do

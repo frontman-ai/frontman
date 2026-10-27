@@ -43,13 +43,13 @@ let makeToolCall = (
 @schema
 type frontmanErrorMeta = {
   @as("frontman.dev/agentErrorId")
-  agentErrorId: string,
+  agentErrorId: @s.nullable option<string>,
 }
 
 let agentErrorId = meta => {
   let json = switch meta {
   | Some(json) => json
-  | None => failwith("Frontman error update missing _meta.frontman.dev/agentErrorId")
+  | None => failwith("Frontman error update missing _meta")
   }
   S.parseOrThrow(json, ~to=frontmanErrorMetaSchema).agentErrorId
 }

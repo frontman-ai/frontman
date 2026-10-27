@@ -2,8 +2,8 @@
 title: 'WordPress 7.1: New Features, Breaking Changes, and Upgrade Checklist'
 seoTitle: 'WordPress 7.1 Features, Breaking Changes, and Upgrade Checklist'
 pubDate: 2026-08-12T00:00:00Z
-updatedDate: 2026-10-06T00:00:00Z
-description: 'WordPress 7.1 released August 19, 2026. Review its features, compatibility risks, 7.1.2 security update, and staging upgrade checklist.'
+updatedDate: 2026-10-23T00:00:00Z
+description: 'WordPress 7.1 released August 19, 2026. Review its features, compatibility risks, 7.1.3 security update, and staging upgrade checklist.'
 author: 'Danni Friedland'
 articleSection: 'Operational Audit'
 image: '/blog/wordpress-7-1-new-features-breaking-changes-cover.png'
@@ -11,7 +11,7 @@ imageAlt: 'WordPress 7.1 new features, breaking changes, and upgrade checklist c
 tags: ['wordpress', 'tutorial']
 faq:
   - question: 'When was WordPress 7.1 released?'
-    answer: 'WordPress 7.1 was released on August 19, 2026. WordPress 7.1.2 followed on September 22 with a security fix. Review official release notes and test your theme and plugins on staging.'
+    answer: 'WordPress 7.1 was released on August 19, 2026. WordPress 7.1.3 followed on October 6 with seven security fixes. Review current official release notes and test your theme and plugins on staging.'
   - question: 'What is new in WordPress 7.1?'
     answer: 'The largest user-facing changes include responsive block styles, configurable breakpoints, client-side media processing, a persistent editor toolbar, improved Notes, and accessibility improvements. Developers also get expanded Abilities, SVG Icon, and editor APIs.'
   - question: 'Does WordPress 7.1 have breaking changes?'
@@ -26,21 +26,24 @@ The iframe change deserves more attention than the headline features. Most sites
 
 **Quick answer:** Do not treat WordPress 7.1 as a routine maintenance update. Back up the site, clone production to staging, and test the editor, media uploads, custom admin interfaces, forms, checkout, login, and publishing before updating production.
 
-The feature audit below uses the [WordPress 7.1 Field Guide](https://make.wordpress.org/core/2026/08/05/wordpress-7-1-field-guide/) and developer notes checked on **August 12, 2026**. Release status and the 7.1.2 security notice were checked against official release pages on **October 6, 2026**. This update does not establish compatibility for any particular theme, plugin, or Frontman installation.
+The feature audit below uses the [WordPress 7.1 Field Guide](https://make.wordpress.org/core/2026/08/05/wordpress-7-1-field-guide/) and developer notes first checked on **August 12, 2026**. The release guidance now includes the official 7.1.3 security notice, published October 6 and updated October 8. The iframe and media guidance was also rechecked against current official developer notes. This update does not establish compatibility for any particular theme, plugin, or Frontman installation.
 
 ## WordPress 7.1 Release Status
 
-| Item | Release status checked October 6, 2026 |
+| Item | Verified release status |
 |---|---|
 | WordPress 7.1 | Released August 19, 2026 |
 | WordPress 7.1.2 | Security release, September 22, 2026 |
+| WordPress 7.1.3 | Security release, October 6, 2026; seven security fixes |
 | Production use | Review security notices and verify theme and plugin compatibility |
 | Safe testing | Staging, local development, or a disposable test site |
 | This article | Release status verified; site-specific compatibility is not established |
 
-### WordPress 7.1.2 Security Update
+### WordPress 7.1 Security Updates: Do Not Stop at 7.1.2
 
-[WordPress 7.1.2](https://wordpress.org/documentation/wordpress-version/version-7-1-2/) fixes a path-traversal vulnerability in page-template resolution that can lead to conditional remote code execution. The official notice recommends an immediate update. Treat this as a security update, not another feature release. Check the current [release archive](https://wordpress.org/download/release-archive/) before choosing an update target, and prioritize a backup and focused compatibility checks.
+[WordPress 7.1.2](https://wordpress.org/documentation/wordpress-version/version-7-1-2/) fixed a path-traversal vulnerability in page-template resolution that can lead to conditional remote code execution. It is no longer the last security release in the 7.1 series.
+
+[WordPress 7.1.3](https://wordpress.org/documentation/wordpress-version/version-7-1-3/) adds seven security fixes, including stored XSS in Comments administration, a denial-of-service issue, SQL injection in WXR export, and disclosure of comments on private or unpublished posts. The official notice recommends updating immediately and states that only the most recent WordPress version is actively supported. Check the current [release archive](https://wordpress.org/download/release-archive/) before choosing an update target. Prioritize a backup and focused compatibility checks; do not stay on 7.1 or 7.1.2 because the feature migration already passed staging.
 
 The Field Guide reports more than 310 closed Core tickets, including more than 180 bug fixes. It also points to hundreds of Gutenberg enhancements and fixes. Those totals describe release scope, not reasons to update blindly. Site compatibility still depends on the active theme, plugins, custom blocks, and admin extensions.
 
@@ -57,6 +60,8 @@ The default breakpoints are:
 | Mobile | Up to 480px |
 | Tablet | Above 480px and up to 782px |
 | Base style | All widths unless overridden |
+
+To turn release-specific behavior into an actual page check, [verify an existing site's mobile layout](/blog/how-to-make-wordpress-website-mobile-friendly/#diagnose-the-mobile-problem-first).
 
 This is useful, but it creates another place where responsive behavior can live. A theme's CSS, page-builder settings, Global Styles, and individual block overrides can all affect the same element. Test existing pages at real viewport widths after upgrading. The official [responsive styles dev note](https://make.wordpress.org/core/2026/08/05/responsive-block-styles-and-configurable-viewports-in-wordpress-7-1/) documents the generated media queries and `theme.json` format.
 
@@ -125,6 +130,8 @@ Plugins using Emotion-specific styling need another targeted check. The `css` pr
 Client-side media processing uses a cross-origin-isolated editor on supported Chromium versions. Sites with strict CSP need `blob:` in `worker-src` for the processing worker. External resources and plugins that import media through browser-side cross-origin requests also need testing.
 
 The feature has automatic fallbacks, so one failed capability check should not stop uploads. A transparent fallback can still hide that expected optimization or plugin behavior did not run. Test one upload in a supported Chromium browser and one in Firefox or Safari to exercise both paths.
+
+For plugins using `wp_generate_attachment_metadata`, verify both passes: `'create'` runs before client-generated sub-sizes exist, and `'update'` runs after the finalize endpoint completes. The official media guide says finalize failures are logged without failing the upload. A successful upload alone therefore does not prove that watermarking, CDN synchronization, or custom metadata work completed. Check the generated files and plugin output, and make hook handlers safe to run more than once.
 
 ### Test Risk: Responsive Style Collisions
 
@@ -256,6 +263,12 @@ Release-status sources checked on October 6, 2026:
 - [WordPress 7.1 release record](https://wordpress.org/documentation/wordpress-version/version-7-1/)
 - [WordPress 7.1.2 security release record](https://wordpress.org/documentation/wordpress-version/version-7-1-2/)
 
+Security and compatibility sources checked on October 23, 2026:
+
+- [WordPress 7.1.3 security release record](https://wordpress.org/documentation/wordpress-version/version-7-1-3/) — seven fixes and immediate-update guidance.
+- [Current release archive](https://wordpress.org/download/release-archive/) — check the update target rather than pinning to the original feature release.
+- The iframe and client-side media developer notes below — reconfirmed iframe behavior and clarified metadata-hook finalization checks.
+
 Feature-audit sources checked on August 12, 2026:
 
 - [WordPress 7.1 Field Guide](https://make.wordpress.org/core/2026/08/05/wordpress-7-1-field-guide/)
@@ -272,3 +285,4 @@ Feature-audit sources checked on August 12, 2026:
 
 - **August 12, 2026:** Published pre-release audit from the Field Guide and release-candidate documentation.
 - **October 6, 2026:** Corrected release status, updated the release FAQ, and added the official 7.1.2 security notice. No new Frontman compatibility test is claimed.
+- **October 23, 2026:** Added the subsequent 7.1.3 security notice and media finalization checks. Preserved the pre-test Frontman assessment; no new compatibility result is claimed.

@@ -22,6 +22,10 @@ class Frontman_Tool_Posts {
 	 * Register all post tools.
 	 */
 	public function register( Frontman_Tools $tools ): void {
+		$template_schema = [
+			'type' => 'string',
+			'description' => 'Pages only: an available native page-template slug/file, or default to reset. Omit on update to preserve. Read the actual assignment in wp_read_post.template.',
+		];
 		$categories_schema = [
 			'type' => 'array',
 			'items' => [ 'type' => 'integer', 'minimum' => 1 ],
@@ -83,7 +87,7 @@ class Frontman_Tool_Posts {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_read_post',
-			'Reads a single post by ID, returning stored post_content (including any block markup), basic post fields, and categories/tags with IDs, names and slugs. Does not return custom post metadata or plugin snippet source. Empty content does not mean a plugin-managed snippet has no code.',
+			'Reads a single post by ID, returning stored post_content (including any block markup), content_sha256 for wp_update_post edit mode, basic post fields, and categories/tags with IDs, names and slugs. Does not return custom post metadata or plugin snippet source. Empty content does not mean a plugin-managed snippet has no code.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -124,6 +128,7 @@ class Frontman_Tool_Posts {
 					],
 					'categories' => $categories_schema,
 					'tags' => $tags_schema,
+					'template' => $template_schema,
 					'post_type' => [
 						'type'        => 'string',
 						'description' => 'Post type slug.',
@@ -185,6 +190,25 @@ class Frontman_Tool_Posts {
 						'type'        => 'string',
 						'description' => 'New post content as HTML or block markup.',
 					],
+					'mode' => [
+						'type' => 'string',
+						'enum' => [ 'replace', 'edit' ],
+						'default' => 'replace',
+						'description' => 'replace accepts full content. For user-authorized fragment changes, use edit after a fresh wp_read_post: supply oldText, newText and content_sha256 as expected_current_sha256, never content. Requires exactly one exact byte match. Supports drafts, freeform HTML and block HTML without parsing or reserializing blocks. Conflict detection is best-effort, not an atomic lock. Elementor content is not supported.',
+					],
+					'oldText' => [
+						'type' => 'string',
+						'description' => 'Required in edit mode only: nonempty exact fragment from stored content, occurring exactly once.',
+					],
+					'newText' => [
+						'type' => 'string',
+						'description' => 'Required in edit mode only: replacement bytes, different from oldText. Empty deletes the fragment.',
+					],
+					'expected_current_sha256' => [
+						'type' => 'string',
+						'pattern' => '^[a-f0-9]{64}$',
+						'description' => 'Required in edit mode only: lowercase SHA256 from the fresh wp_read_post.content_sha256. Any content change requires reading again.',
+					],
 					'status'  => [
 						'type'        => 'string',
 						'description' => 'New post status.',
@@ -197,6 +221,7 @@ class Frontman_Tool_Posts {
 					],
 					'categories' => $categories_schema,
 					'tags' => $tags_schema,
+					'template' => $template_schema,
 					'excerpt' => [
 						'type'        => 'string',
 						'description' => 'New post excerpt.',
@@ -290,6 +315,7 @@ class Frontman_Tool_Posts {
 			'id'        => $post->ID,
 			'title'     => $post->post_title,
 			'content'   => $post->post_content,
+			'content_sha256' => hash( 'sha256', $post->post_content ),
 			'excerpt'   => $post->post_excerpt,
 			'status'    => $post->post_status,
 			'type'      => $post->post_type,
@@ -297,6 +323,7 @@ class Frontman_Tool_Posts {
 			'modified'  => $post->post_modified,
 			'author'    => (int) $post->post_author,
 			'slug'      => $post->post_name,
+			'template'  => 'page' === $post->post_type ? $this->page_template( $post->ID ) : null,
 			'permalink' => get_permalink( $post ),
 			'categories' => $this->read_terms( $post, 'category' ),
 			'tags'       => $this->read_terms( $post, 'post_tag' ),
@@ -430,16 +457,76 @@ class Frontman_Tool_Posts {
 		}
 	}
 
+	/** Retain raw values until validated, including null versus omission. */
+	public static function validate_template_input( array $input ): void {
+		if ( array_key_exists( 'template', $input ) && ! is_string( $input['template'] ) ) {
+			throw new Frontman_Tool_Error( 'template must be a string.' );
+		}
+	}
+
+	private function check_page_template( array $input, string $type, ?\WP_Post $post = null ): void {
+		self::validate_template_input( $input );
+		if ( ! array_key_exists( 'template', $input ) ) {
+			return;
+		}
+		if ( 'page' !== $type ) {
+			throw new Frontman_Tool_Error( 'template assignment is only supported for pages.' );
+		}
+		if ( 'default' !== $input['template'] && ! array_key_exists( $input['template'], wp_get_theme()->get_page_templates( $post, 'page' ) ) ) {
+			throw new Frontman_Tool_Error( 'Requested template is not available for pages in the active theme. No changes were saved.' );
+		}
+	}
+
+	private function page_template( int $id ): string {
+		$template = get_page_template_slug( $id );
+		return '' === $template ? 'default' : $template;
+	}
+
+	private function verify_page_template( int $id, string $expected ): void {
+		if ( $this->page_template( $id ) !== $expected ) {
+			throw new Frontman_Tool_Error( "Post {$id} was saved, but page template readback differs from the requested assignment. Partial writes may remain; no rollback was performed. Use wp_read_post before retrying." );
+		}
+	}
+
+	/** Reject destructive sanitization before any write; native save filters remain enabled. */
+	private function check_content( array $input ): void {
+		if ( ! array_key_exists( 'content', $input ) ) {
+			return;
+		}
+		if ( ! is_string( $input['content'] ) ) {
+			throw new Frontman_Tool_Error( 'content must be a string.' );
+		}
+		if ( ! current_user_can( 'unfiltered_html' ) && wp_kses_post( $input['content'] ) !== $input['content'] ) {
+			throw new Frontman_Tool_Error( 'Content contains HTML not permitted without unfiltered_html. No changes were saved; remove the denied HTML or use an authorized account.' );
+		}
+	}
+
+	/** Verify the actual stored content, including changes made by native/plugin filters. */
+	private function verify_content( int $id, string $expected ): void {
+		$post = get_post( $id );
+		if ( ! $post || $post->post_content !== $expected ) {
+			throw new Frontman_Tool_Error( "Post {$id} was saved, but content readback did not match the requested content. Partial writes may remain; no rollback was performed. Use wp_read_post before retrying." );
+		}
+	}
+
 	/**
 	 * wp_create_post handler.
 	 */
 	public function create_post( array $input ): array {
+		if ( in_array( sanitize_key( $input['post_type'] ?? 'post' ), [ 'wp_template', 'wp_template_part' ], true ) ) {
+			throw new Frontman_Tool_Error( 'Use wp_create_template to create theme-linked templates or parts.' );
+		}
 		self::validate_taxonomy_input( $input );
 		$this->check_write_permissions( $input, sanitize_key( $input['post_type'] ?? 'post' ) );
+		if ( ! array_key_exists( 'content', $input ) ) {
+			throw new Frontman_Tool_Error( 'content is required when creating a post and must be a string.' );
+		}
+		$this->check_content( $input );
+		$this->check_page_template( $input, sanitize_key( $input['post_type'] ?? 'post' ) );
 		$assignments = $this->check_taxonomies( $input, sanitize_key( $input['post_type'] ?? 'post' ), sanitize_key( $input['status'] ?? 'draft' ) );
 		$post_data = [
 			'post_title'   => sanitize_text_field( $input['title'] ),
-			'post_content' => wp_kses_post( $input['content'] ),
+			'post_content' => $input['content'],
 			'post_type'    => sanitize_key( $input['post_type'] ?? 'post' ),
 			'post_status'  => sanitize_key( $input['status'] ?? 'draft' ),
 		];
@@ -453,11 +540,19 @@ class Frontman_Tool_Posts {
 		if ( array_key_exists( 'author', $input ) ) {
 			$post_data['post_author'] = $input['author'];
 		}
+		if ( array_key_exists( 'template', $input ) ) {
+			$post_data['page_template'] = $input['template'];
+		}
 		$post_id = wp_insert_post( wp_slash( $post_data ), true );
 
 		if ( is_wp_error( $post_id ) ) {
 			throw new Frontman_Tool_Error( $post_id->get_error_message() );
 		}
+
+		if ( 'page' === $post_data['post_type'] ) {
+			$this->verify_page_template( (int) $post_id, $input['template'] ?? 'default' );
+		}
+		$this->verify_content( (int) $post_id, $post_data['post_content'] );
 
 		return [
 			'id'        => $post_id,
@@ -480,6 +575,9 @@ class Frontman_Tool_Posts {
 			throw new Frontman_Tool_Error( "Post not found: {$source_id}" );
 		}
 
+		if ( in_array( $source->post_type, [ 'wp_template', 'wp_template_part' ], true ) ) {
+			throw new Frontman_Tool_Error( 'Use wp_create_template instead of duplicating templates or parts.' );
+		}
 		$title  = isset( $input['title'] ) ? sanitize_text_field( $input['title'] ) : trim( (string) $source->post_title ) . ' Copy';
 
 		$post_data = [
@@ -524,6 +622,9 @@ class Frontman_Tool_Posts {
 		}
 
 		$this->check_write_permissions( $input, $post->post_type, $post );
+		$input = $this->prepare_content_edit( $input, $post );
+		$this->check_content( $input + [ 'content' => $post->post_content ] );
+		$this->check_page_template( $input, $post->post_type, $post );
 		$assignments = $this->check_taxonomies( $input, $post->post_type, sanitize_key( $input['status'] ?? $post->post_status ) );
 		$before = $this->read_post( [ 'id' => $id ] );
 
@@ -545,7 +646,7 @@ class Frontman_Tool_Posts {
 			$post_data['post_title'] = sanitize_text_field( $input['title'] );
 		}
 		if ( isset( $input['content'] ) ) {
-			$post_data['post_content'] = wp_kses_post( $input['content'] );
+			$post_data['post_content'] = $input['content'];
 		}
 		if ( isset( $input['status'] ) ) {
 			$post_data['post_status'] = sanitize_key( $input['status'] );
@@ -554,16 +655,64 @@ class Frontman_Tool_Posts {
 			$post_data['post_excerpt'] = sanitize_textarea_field( $input['excerpt'] );
 		}
 
+		if ( array_key_exists( 'template', $input ) ) {
+			$post_data['page_template'] = $input['template'];
+		}
 		$result = wp_update_post( wp_slash( $post_data ), true );
 
 		if ( is_wp_error( $result ) ) {
 			throw new Frontman_Tool_Error( $result->get_error_message() );
 		}
 
+		if ( 'page' === $post->post_type ) {
+			$this->verify_page_template( $id, $input['template'] ?? $before['template'] );
+		}
+		$this->verify_content( $id, $input['content'] ?? $before['content'] );
+
 		return [
 			'before' => $before,
 			'after'  => $this->assign_and_read( $id, $assignments ),
 		];
+	}
+
+	/** Prepare exact bytes before any write; the existing writer owns persistence. */
+	private function prepare_content_edit( array $input, \WP_Post $post ): array {
+		$mode = array_key_exists( 'mode', $input ) ? $input['mode'] : 'replace';
+		if ( ! is_string( $mode ) || ! in_array( $mode, [ 'replace', 'edit' ], true ) ) {
+			throw new Frontman_Tool_Error( 'mode must be replace or edit.' );
+		}
+		$fields = [ 'oldText', 'newText', 'expected_current_sha256' ];
+		if ( 'replace' === $mode ) {
+			foreach ( $fields as $field ) {
+				if ( array_key_exists( $field, $input ) ) {
+					throw new Frontman_Tool_Error( "{$field} is only allowed in edit mode." );
+				}
+			}
+			return $input;
+		}
+		if ( array_key_exists( 'content', $input ) ) {
+			throw new Frontman_Tool_Error( 'content is not allowed in edit mode.' );
+		}
+		foreach ( $fields as $field ) {
+			if ( ! array_key_exists( $field, $input ) || ! is_string( $input[ $field ] ) ) {
+				throw new Frontman_Tool_Error( "{$field} is required in edit mode and must be a string." );
+			}
+		}
+		if ( '' === $input['oldText'] || $input['oldText'] === $input['newText'] ) {
+			throw new Frontman_Tool_Error( 'oldText must be nonempty and different from newText.' );
+		}
+		if ( ! preg_match( '/\A[a-f0-9]{64}\z/', $input['expected_current_sha256'] ) ) {
+			throw new Frontman_Tool_Error( 'expected_current_sha256 must be a lowercase SHA256 hash.' );
+		}
+		if ( hash( 'sha256', $post->post_content ) !== $input['expected_current_sha256'] ) {
+			throw new Frontman_Tool_Error( 'Stale content hash. Read wp_read_post before retrying; no changes were saved.' );
+		}
+		$offset = strpos( $post->post_content, $input['oldText'] );
+		if ( false === $offset || false !== strpos( $post->post_content, $input['oldText'], $offset + 1 ) ) {
+			throw new Frontman_Tool_Error( 'oldText must match exactly once. No changes were saved.' );
+		}
+		$input['content'] = substr_replace( $post->post_content, $input['newText'], $offset, strlen( $input['oldText'] ) );
+		return $input;
 	}
 
 	/**

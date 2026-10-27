@@ -38,7 +38,7 @@ config :frontman_server, :stripe,
   webhook_secret: "e2e-unused-webhook-secret",
   monthly_price_id: "price_e2e_monthly",
   yearly_price_id: "price_e2e_yearly",
-  trial_days: 14
+  trial_days: 7
 
 config :workos, WorkOS.Client,
   api_key: "sk_test_workos_e2e",

@@ -1,10 +1,11 @@
 import type { APIRoute } from 'astro'
+import { markdownResponse } from '../content/markdownResponse'
 
 const body = `# Frontman
 
-Ship WordPress updates faster. Frontman is an AI editor for existing WordPress sites: describe one update, inspect the page, and refine it. WordPress-native writes persist to the connected installation. Published content on a live site can change immediately; preview is not a universal approval gate. Frontman for WordPress is production-ready. Start with staging and backups; recovery depends on the changed surface.
+Your WordPress site. Your changes. No agency handoff. Frontman is an AI editor for marketing leads who know what their existing site needs but lack WordPress expertise or agency availability. Describe one update, inspect the page, and refine it. WordPress-native writes persist to the connected installation. Published content on a live site can change immediately; preview is not a universal approval gate. Frontman for WordPress is production-ready. Start with staging and backups; recovery depends on the changed surface.
 
-## Choose Your Workflow
+## WordPress First, Frameworks Second
 
 - WordPress: https://frontman.sh/
 - Install the WordPress plugin: https://wordpress.org/plugins/frontman-agentic-ai-editor/
@@ -17,7 +18,8 @@ Framework integrations require a running supported Next.js, Astro, or Vite devel
 ## Core Capabilities
 
 - Select rendered elements and ask Frontman to change copy, spacing, color, layout, menus, or page content.
-- Use runtime context from Next.js, Astro, Vite, React, Vue, Svelte, and WordPress.
+- Edit Gutenberg blocks, Elementor sections, and navigation on your existing WordPress site.
+- Separate Next.js, Astro, and Vite integrations use browser and source context for developer-reviewed changes.
 - Connect a supported AI provider account or save a supported provider key; provider access and costs are separate.
 - Keep developers in control with local development edits and normal git diffs for code-backed sites.
 - Run Frontman Pro hosted or self-host from the source-available repository.
@@ -30,10 +32,13 @@ Framework integrations require a running supported Next.js, Astro, or Vite devel
 - Configuration: https://frontman.sh/docs/reference/configuration/
 - Architecture: https://frontman.sh/docs/reference/architecture/
 - Self-hosting: https://frontman.sh/docs/reference/self-hosting/
-- Agent card: https://frontman.sh/.well-known/agent-card.json
-- MCP server card: https://frontman.sh/.well-known/mcp/server-card.json
+- Pricing: https://frontman.sh/pricing.md
+- Authentication and public access: https://frontman.sh/auth.md
+- Framework Markdown: https://frontman.sh/frameworks.md
 - Agent skills index: https://frontman.sh/.well-known/agent-skills/index.json
 - API catalog: https://frontman.sh/.well-known/api-catalog
+- OpenAPI description of public read-only resources: https://frontman.sh/openapi.json
+- Agent Resource Directory (evolving proposal, not MCP/A2A): https://frontman.sh/.well-known/ard.json
 - GitHub: https://github.com/frontman-ai/frontman
 
 ## Authentication And Access
@@ -47,12 +52,6 @@ WordPress requires WordPress 6.0+, PHP 7.4+, and administrator access. Open Fron
 - Terms: https://frontman.sh/terms/
 `
 
-export const GET: APIRoute = () => {
-	return new Response(body, {
-		headers: {
-			'Content-Type': 'text/markdown; charset=utf-8',
-		},
-	})
-}
+export const GET: APIRoute = () => markdownResponse(body, '/')
 
 export const prerender = true

@@ -773,7 +773,7 @@ class Frontman_Elementor_Data {
     }
 
     private static function normalize_element( array $element ): array {
-        if ( empty( $element['id'] ) ) {
+        if ( ! array_key_exists( 'id', $element ) || ( is_string( $element['id'] ) && '' === trim( $element['id'] ) ) ) {
             $element['id'] = self::generate_id();
         }
         if ( ! isset( $element['elements'] ) || ! is_array( $element['elements'] ) ) {

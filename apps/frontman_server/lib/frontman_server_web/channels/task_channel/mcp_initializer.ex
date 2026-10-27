@@ -279,9 +279,13 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       rules =
         Enum.map(rules, fn %{"fullPath" => path, "content" => content} -> {path, content} end)
 
-      {:ok, _rules} = Tasks.add_discovered_project_rules(state.scope, state.task_id, rules)
+      case Tasks.add_discovered_project_rules(state.scope, state.task_id, rules) do
+        {:ok, loaded_rules} ->
+          Logger.info("MCPInitializer: Initialized #{length(loaded_rules)} project rules")
 
-      Logger.info("MCPInitializer: Initialized #{length(rules)} project rules")
+        {:error, _reason} ->
+          Logger.warning("MCPInitializer: Failed to persist project rules; no rules loaded")
+      end
     else
       "" ->
         Logger.info("MCPInitializer: Initialized 0 project rules")

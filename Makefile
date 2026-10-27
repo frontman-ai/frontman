@@ -51,7 +51,11 @@ endef
 
 define run_e2e
 	@test -f test/e2e/.env || { printf "$(YELLOW)Error: test/e2e/.env not found. Copy test/e2e/.env.example and fill in values.$(RESET)\n"; exit 1; }
-	set -a && . test/e2e/.env && set +a && cd test/e2e && npx vitest run $(1)
+	@set -eu; set -a; . test/e2e/.env; set +a; \
+	CA_CERT="$${NODE_EXTRA_CA_CERTS:-$$(mkcert -CAROOT)/rootCA.pem}"; \
+	test -r "$$CA_CERT" || { printf "Error: test CA not readable: %s. Run make ssl-setup.\n" "$$CA_CERT"; exit 1; }; \
+	export NODE_EXTRA_CA_CERTS="$$(realpath "$$CA_CERT")"; \
+	cd test/e2e && npx vitest run $(1)
 endef
 
 .PHONY: help
@@ -106,7 +110,7 @@ HELP_infra-down := Tear down all pods, volumes, and Caddy
 HELP_infra-build := Rebuild the frontman-dev container image
 
 HELP_REL_TITLE := Release
-HELP_REL_TARGETS := publish publish-astro publish-vite publish-nextjs publish-react-statestore publish-swarm-ai release package-wordpress-plugin publish-wordpress-plugin-svn build-wordpress-dependencies wordpress-composer-lock test-wordpress-core-tools test-wordpress-sentry test-wordpress-runtime
+HELP_REL_TARGETS := publish publish-astro publish-vite publish-nextjs publish-react-statestore publish-swarm-ai release package-wordpress-plugin publish-wordpress-plugin-svn build-wordpress-dependencies wordpress-composer-lock test-wordpress-core-tools test-wordpress-sentry test-wordpress-runtime test-wordpress-301-runtime
 HELP_publish := Publish all npm packages (pass OTP=<code> for 2FA)
 HELP_publish-astro := Publish @frontman-ai/astro to npm (pass OTP=<code> for 2FA)
 HELP_publish-vite := Publish @frontman-ai/vite to npm (pass OTP=<code> for 2FA)
@@ -116,8 +120,9 @@ HELP_publish-swarm-ai := Publish swarm_ai to Hex (dry run by default, HEX_PUBLIS
 HELP_release := Create a release PR from pending changesets
 HELP_package-wordpress-plugin := Build WordPress ZIP and WordPress.org bundle
 HELP_publish-wordpress-plugin-svn := Publish WordPress.org bundle to SVN (requires WORDPRESS_ORG_* env vars)
-HELP_test-wordpress-core-tools := Run PHP tests for WordPress tool implementations
+HELP_test-wordpress-core-tools := Run PHP tests (select basenames with WORDPRESS_TESTS="ToolRegistryTest ElementorToolsTest")
 HELP_test-wordpress-runtime := Run plugin integration tests in WordPress containers
+HELP_test-wordpress-301-runtime := Test pinned redirect plugins and tool coexistence in WordPress containers
 HELP_build-wordpress-dependencies := Bundle the locked PHP SDK (Docker, or CONTAINER_RUNTIME=podman)
 HELP_wordpress-composer-lock := Update PHP dependencies while preserving PHP 7.4 compatibility
 HELP_test-wordpress-sentry := Test PHP diagnostics and SDK coexistence (PHP_VERSION=7.4 or 8.4)
@@ -193,6 +198,10 @@ dev-marketing:
 
 .PHONY: install build rescript-watch rescript-build rescript-format reanalyze clean hooks-install setup-elixir-tools verify-toolchain-pins check-source-comments
 
+.PHONY: security-dependencies
+security-dependencies:
+	yarn up -R next sharp js-yaml svgo browserslist postcss-selector-parser qs vitest @vitest/browser-playwright @vitest/coverage-v8 mermaid
+
 install:
 	@printf "$(YELLOW)Installing dependencies...$(RESET)\n"
 	yarn install
@@ -236,7 +245,7 @@ verify-toolchain-pins:
 
 build:
 	@printf "$(YELLOW)Building ReScript project...$(RESET)\n"
-	yarn rescript
+	yarn rescript build $(RESCRIPT_FLAGS)
 
 rescript-watch:
 	@printf "$(YELLOW)Starting ReScript watch mode...$(RESET)\n"
@@ -569,7 +578,14 @@ release:
 	@printf "$(GREEN)Release workflow triggered.$(RESET)\n"
 	@echo "Watch for the PR at: https://github.com/frontman-ai/frontman/pulls"
 
-.PHONY: build-wordpress-dependencies wordpress-composer-lock test-wordpress-sentry
+.PHONY: build-wordpress-dependencies wordpress-composer-lock test-wordpress-sentry build-wordpress-preview test-wordpress-preview
+
+test-wordpress-preview: build-wordpress-preview
+	@$(or $(CONTAINER_RUNTIME),docker) run --rm -v "$(CURDIR):/workspace:ro" -w /workspace docker.io/library/php:$(or $(PHP_VERSION),8.4)-cli php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/PreviewBridgeTest.php
+
+build-wordpress-preview:
+	$(MAKE) -C libs/frontman-preview-bridge build
+	cp libs/frontman-preview-bridge/dist/bridge.js libs/frontman-preview-bridge/dist/bridge-licenses.txt libs/frontman-wordpress/assets/
 
 build-wordpress-dependencies:
 	@bash ./scripts/build-wordpress-dependencies.sh
@@ -590,23 +606,23 @@ test-wordpress-plugin-export: package-wordpress-plugin
 publish-wordpress-plugin-svn: package-wordpress-plugin
 	@VERSION=$(VERSION) bash ./scripts/publish-wordpress-plugin-svn.sh
 
+WORDPRESS_TESTS ?= ToolRegistryTest AuthDiagnosticsTest PostAuthorsTest NoFilesystemToolsTest PublicFilesTest ElementorToolsTest MediaToolsTest WooCommerceToolsTest MutationSnapshotsTest PluginDependenciesTest SeoToolsTest RouterTest SentryTest SentryUnavailableTest
+
 test-wordpress-core-tools: build-wordpress-dependencies
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/PostAuthorsTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/NoFilesystemToolsTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/PublicFilesTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/ElementorToolsTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/MediaToolsTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/WooCommerceToolsTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/MutationSnapshotsTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/PluginDependenciesTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/SeoToolsTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/RouterTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/SentryTest.php
-	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/SentryUnavailableTest.php
+	@set -eu; \
+	set -- $(WORDPRESS_TESTS); \
+	if [ "$$#" -eq 0 ]; then echo "WORDPRESS_TESTS must select at least one test." >&2; exit 1; fi; \
+	for test in "$$@"; do \
+		if [ ! -f "libs/frontman-wordpress/tests/$$test.php" ]; then echo "WordPress test file not found: $$test.php" >&2; exit 1; fi; \
+	done; \
+	for test in "$$@"; do \
+		php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php "libs/frontman-wordpress/tests/$$test.php"; \
+	done
 
 test-wordpress-runtime:
 	@bash scripts/test-wordpress-plugin-runtime.sh
 
+include libs/frontman-wordpress/tests/redirects301.mk
 
 
 

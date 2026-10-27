@@ -25,7 +25,7 @@ This guide owns WordPress installation and use. For the cross-platform support m
 Install Frontman from the [WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/) in wp-admin. WordPress handles the normal plugin install and update flow.
 
 1. In your WordPress admin, go to **Plugins → Add New Plugin**.
-2. Search for **Frontman Agentic AI Editor**, or open the [Frontman plugin page](https://wordpress.org/plugins/frontman-agentic-ai-editor/).
+2. Search for **Frontman - AI Website Editor**, or open the [Frontman plugin page](https://wordpress.org/plugins/frontman-agentic-ai-editor/).
 3. Click **Install Now**.
 4. Click **Activate Plugin**.
 

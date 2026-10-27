@@ -4,7 +4,7 @@
  * The Frontman UI is a React app mounted directly into <div id="root">.
  * Key selectors:
  *   - Message input: div[role="textbox"] (contentEditable)
- *   - Send button: button[type="submit"]
+ *   - Send button: button[title="Send (Enter)"]
  *   - Stop button: button[title="Stop generation"]
  */
 
@@ -139,7 +139,7 @@ export async function openFrontmanUI(
  * The input is a contentEditable div with role="textbox".
  * After typing, we press Enter to submit.
  * We wait for the agent to finish by watching for the stop button to appear
- * then disappear (replaced by the submit button again).
+ * then disappear (replaced by the Send button again).
  */
 export async function sendPrompt(
   page: Page,
@@ -161,9 +161,9 @@ export async function sendPrompt(
   await stopButton.waitFor({ state: "visible", timeout: 30_000 });
   console.log(`  [e2e] sendPrompt: agent started (${elapsed(sendStart)})`);
 
-  const submitButton = page.locator('button[type="submit"]');
+  const sendButton = page.locator('button[title="Send (Enter)"]');
   await stopButton.waitFor({ state: "detached", timeout: 180_000 });
-  await submitButton.waitFor({ state: "visible", timeout: 10_000 });
+  await sendButton.waitFor({ state: "visible", timeout: 10_000 });
   console.log(`  [e2e] sendPrompt: agent finished (${elapsed(sendStart)})`);
 
   await page.waitForTimeout(3000);

@@ -7,24 +7,24 @@ const categories = [
 	{
 		key: 'general',
 		label: 'About Frontman',
-		description: 'What Frontman is, who it\'s for, and how it helps WordPress site owners, marketers, and designers update existing websites.'
+		description: 'For marketing teams who want to make changes to the WordPress site they already have.'
 	},
 	{
 		key: 'product',
 		label: 'Using Frontman',
-		description: 'What you can do with Frontman, what the experience looks like, and how changes stay safe.'
+		description: 'What you can change, when edits go live, and what recovery covers.'
 	},
 	{
 		key: 'technical',
-		label: 'Technical Details',
-		description: 'How Frontman integrates with your framework and gets deep context about your running application.'
+		label: 'Setup and access',
+		description: 'WordPress installation, AI-provider access, permissions, and the separate framework workflow.'
 	}
 ]
 
 const SEO = {
-	title: 'Frontman FAQ: AI Frontend Editing Questions Answered',
+	title: 'WordPress AI Editor FAQ | Frontman',
 	description:
-		'Get answers to common questions about Frontman — the AI agent that lives inside your app. Learn about features, frameworks, safety, and more.'
+		'Answers for marketing teams using Frontman on existing WordPress sites: supported edits, setup, separate AI costs, live changes, and recovery.'
 }
 
 const faqJsonLd = {
@@ -48,7 +48,7 @@ const faqJsonLd = {
 			<p class="faq-label">FAQ</p>
 			<h1 class="faq-title">Frequently Asked Questions</h1>
 			<p class="faq-subtitle">
-				Everything you need to know about Frontman — the AI agent that lives inside your app.
+				Make changes to your WordPress site with confidence about setup, costs, and what happens when you edit.
 			</p>
 
 			{categories.map((cat) => {
@@ -73,6 +73,11 @@ const faqJsonLd = {
 					</div>
 				)
 			})}
+			<div class="flex flex-wrap gap-x-6 gap-y-3 text-base text-white">
+				<a href="/docs/integrations/wordpress/" class="underline underline-offset-4">WordPress setup guide</a>
+				<a href="/pricing/" class="underline underline-offset-4">Pricing and AI costs</a>
+				<a href="/frameworks/" class="underline underline-offset-4">Using a framework instead?</a>
+			</div>
 		</div>
 	</div>
 </Layout>

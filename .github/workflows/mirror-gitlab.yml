@@ -10,6 +10,8 @@ on:
     - cron: "17 */6 * * *"
   workflow_dispatch:
 
+permissions: {}
+
 concurrency:
   group: mirror-gitlab
   cancel-in-progress: false

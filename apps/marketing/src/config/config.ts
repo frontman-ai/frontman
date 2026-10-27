@@ -17,9 +17,9 @@ export interface Config {
 }
 
 export const configData: Config = {
-	siteTitle: 'Frontman | AI Frontend Editing Directly in Your Browser',
+	siteTitle: 'Frontman | WordPress AI Editor for Marketing Teams',
 	siteDescription:
-		'Frontman lets you skip the "refresh and check" cycle and brings non-coding teammates into the workflow.',
+		'Make changes to your existing WordPress site without an agency handoff for every update. Describe the result, inspect the page, and refine it with Frontman.',
 	ogImage: '/og.png',
 	logo: {
 		src: '/logo.svg',

@@ -2,6 +2,7 @@
 title: 'Best WordPress MCP Servers and Plugins in 2026'
 seoTitle: 'Best WordPress MCP Servers and Plugins 2026'
 pubDate: 2026-07-31T05:00:00Z
+updatedDate: 2026-10-25T00:00:00Z
 description: 'Compare WordPress MCP servers and plugins for Claude, ChatGPT, Cursor, content, SEO, WooCommerce, Elementor, security, and custom abilities.'
 image: '/blog/best-wordpress-mcp-servers-and-plugins-2026-cover.png'
 tags: ['wordpress', 'mcp', 'comparison', 'ai']
@@ -61,9 +62,15 @@ imageAlt: 'Best WordPress MCP Servers and Plugins in 2026 article cover.'
 | [miniOrange Secure MCP Server](https://wordpress.org/plugins/miniorange-secure-mcp-server/) | Governance, role policies, approvals, and data controls                      | Runs inside WordPress                                      | Self-hosted OAuth 2.1 or API key                                                        | Very new plugin with limited public adoption evidence                                  |
 | [InstaWP MCP Server](https://github.com/InstaWP/mcp-wp)                                     | Node.js workflows and managing several WordPress sites from one local server | Separate Node.js process using WordPress REST API          | WordPress application passwords                                                         | You operate another process and its credentials; not a normal WordPress plugin         |
 
+**Looking for complementary agent tools?** [HOL Plugins](https://hol.org/plugins) catalogs MCP servers, skills, and apps for clients such as Claude Code, Codex, and Cursor, with install guidance and publisher and security signals. It is a broader AI-agent catalog, not a WordPress-specific plugin directory. Check each tool's WordPress compatibility and permissions before installing; catalog trust scores are not a safety guarantee.
+
 There is no universal winner. Your decision turns on five things: the WordPress actions you need, how the server authenticates clients, whether writes require review, where the server runs, and how you recover from a bad tool call.
 
-Need Claude, ChatGPT, or Cursor to call WordPress tools? Choose an MCP server. Need a person to request a change and review the live page in one workflow? Evaluate [Frontman for WordPress](/) instead. You can [watch one complete request-to-review task](/blog/best-wordpress-ai-plugins-2026/#frontman-workflow-demo) before deciding which workflow fits.
+<aside id="wordpress-mcp-workflow-choice" class="my-8 border-l-2 border-violet-500 pl-5">
+  <p>Need an external client such as Claude, ChatGPT, or Cursor to call WordPress tools? Continue with the MCP comparison below.</p>
+  <p>Need a person to make supported visual edits? Frontman is not an MCP server. It is a visual site editor with its own interface. Inspect its workflow before choosing. Writes affect the connected WordPress installation; live preview is not a universal approval gate. Start on staging and keep backups.</p>
+  <p><a href="/blog/best-wordpress-ai-plugins-2026/#frontman-workflow-demo" data-ga-event="wordpress_article_cta_clicked" data-ga-category="engagement" data-ga-label="wordpress_mcp_visual_demo" data-ga-placement="quick_answer" data-ga-destination="wordpress_demo" data-ga-task-family="update">Watch the Frontman visual editing workflow</a></p>
+</aside>
 
 If you cannot explain who approves a write and how you recover it, the server is not ready for production.
 
@@ -260,4 +267,4 @@ Reject the candidate if an underprivileged write succeeds, a revoked token remai
 
 Need the workflow to start in Claude, ChatGPT, or Cursor? Follow the selected server's official setup guide.
 
-Need visually reviewed WordPress editing without an external MCP client? Install [Frontman - Agentic AI Editor](https://wordpress.org/plugins/frontman-agentic-ai-editor/) on staging, then review its [current integration boundaries](/docs/integrations/wordpress/) before you connect a production site.
+Need visually reviewed WordPress editing without an external MCP client? Install [Frontman - AI Website Editor](https://wordpress.org/plugins/frontman-agentic-ai-editor/) on staging, then review its [current integration boundaries](/docs/integrations/wordpress/) before you connect a production site.

@@ -125,6 +125,12 @@ module Lens = {
     )
   }
 
+  let setPreviewFrame = (
+    task: Task.t,
+    ~contentDocument: option<WebAPI.DomTypes.document>,
+    ~contentWindow: option<FrontmanBindings.Bindings__WebAPI.windowHandle>,
+  ): Task.t => updatePreviewFrame(task, pf => {...pf, contentDocument, contentWindow})
+
   let updateTaskData = (task: Task.t, fn: Task.data => Task.data): Task.t =>
     switch task {
     | Task.Unloaded(_) => failwith("[Lens.updateTaskData] Cannot update Unloaded task")
@@ -338,10 +344,11 @@ type action =
   | ClearAnnotations
   | UpdateAnnotationComment({id: string, comment: string})
   | SetActivePopupAnnotationId({id: option<string>})
-  | SetPreviewUrl({url: string})
+  | NavigatePreview({url: string})
+  | PreviewUrlObserved({url: string})
   | SetPreviewFrame({
       contentDocument: option<WebAPI.DomTypes.document>,
-      contentWindow: option<WebAPI.DomTypes.window>,
+      contentWindow: option<FrontmanBindings.Bindings__WebAPI.windowHandle>,
     })
   | SetDeviceMode({deviceMode: Client__DeviceMode.deviceMode})
   | SetOrientation({orientation: Client__DeviceMode.orientation})
@@ -351,7 +358,7 @@ type action =
   | ExecutionStateIdle
   | ExecutionStateRequiresAction
   | CancelTurn
-  | AgentError({id: string, error: string, category: Client__ErrorCategory.t})
+  | AgentError({id: option<string>, error: string, category: Client__ErrorCategory.t})
   | UserMessageSendFailed({id: Message.UserMessageId.t, error: string})
   | RetryingUpdate({retryStatus: Types.Task.retryStatus})
   | RetryTurn({retriedErrorId: string})
@@ -386,7 +393,7 @@ type effect =
       id: string,
       element: WebAPI.DomTypes.element,
       document: option<WebAPI.DomTypes.document>,
-      contentWindow: option<WebAPI.DomTypes.window>,
+      contentWindow: option<FrontmanBindings.Bindings__WebAPI.windowHandle>,
     })
   | SessionCommand(ACP.sessionCommand)
   | ResolveQuestionToolEffect({resolveOk: JSON.t => unit, answerJson: JSON.t})
@@ -415,7 +422,8 @@ let actionToString = (action: action): string =>
   | ClearAnnotations => "ClearAnnotations"
   | UpdateAnnotationComment(_) => "UpdateAnnotationComment"
   | SetActivePopupAnnotationId(_) => "SetActivePopupAnnotationId"
-  | SetPreviewUrl(_) => "SetPreviewUrl"
+  | NavigatePreview(_) => "NavigatePreview"
+  | PreviewUrlObserved(_) => "PreviewUrlObserved"
   | SetPreviewFrame(_) => "SetPreviewFrame"
   | SetDeviceMode(_) => "SetDeviceMode"
   | SetOrientation(_) => "SetOrientation"
@@ -560,8 +568,21 @@ let resolveQuestion = (task: Task.t, ~skippedAll: bool, ~cancelled: bool): (
 
 let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   switch (task, action) {
-  | (Task.Unloaded(_), SetPreviewUrl(_)) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetPreviewUrl({url})) =>
+  | (Task.Unloaded(_), NavigatePreview(_)) => (task, [])
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), NavigatePreview({url})) =>
+    let updated = Lens.updatePreviewFrame(task, pf => {
+      ...pf,
+      url,
+      navigationKey: pf.navigationKey + 1,
+      contentDocument: None,
+      contentWindow: None,
+    })
+    let updated = Lens.setAnnotations(updated, [])
+    let updated = Lens.setActivePopupAnnotationId(updated, None)
+    (updated, [SyncBrowserUrl(url)])
+
+  | (Task.Unloaded(_), PreviewUrlObserved(_)) => (task, [])
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), PreviewUrlObserved({url})) =>
     let currentUrl = Task.getPreviewFrame(task, ~defaultUrl="").url
     let urlChanged = normalizeUrl(currentUrl) != normalizeUrl(url)
     let updated = Lens.updatePreviewFrame(task, frame => {...frame, url})
@@ -578,7 +599,13 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (
       Task.New(_) | Task.Loading(_) | Task.Loaded(_),
       SetPreviewFrame({contentDocument, contentWindow}),
-    ) => (Lens.updatePreviewFrame(task, frame => {...frame, contentDocument, contentWindow}), [])
+    ) =>
+    let previous = Task.getPreviewFrame(task, ~defaultUrl="")
+    let updated = Lens.setPreviewFrame(task, ~contentDocument, ~contentWindow)
+    switch previous.contentDocument === contentDocument {
+    | true => (updated, [])
+    | false => (updated->Lens.setAnnotations([])->Lens.setActivePopupAnnotationId(None), [])
+    }
 
   | (Task.Unloaded(_), SetDeviceMode(_) | SetOrientation(_) | ToggleDeviceMode) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetDeviceMode({deviceMode})) =>
@@ -985,7 +1012,15 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
-  | (Task.Loading(_), ExecutionStateIdle | ExecutionStateRequiresAction) => (
+  | (Task.Loading(_), ExecutionStateIdle) => (
+      Lens.updateTaskData(Lens.completeStreamingMessage(task), data => {
+        ...data,
+        isAgentRunning: false,
+      }),
+      [],
+    )
+
+  | (Task.Loading(_), ExecutionStateRequiresAction) => (
       Lens.updateTaskData(task, data => {...data, isAgentRunning: false}),
       [],
     )
@@ -1030,11 +1065,17 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     }
 
   | (Task.Loading(_) | Task.Loaded(_), AgentError({id, error, category})) =>
-    let errorMsg = Message.Error(Message.ErrorMessage.make(~id, ~error, ~category))
+    let errorMessage = Message.ErrorMessage.make(~id?, ~error, ~category)
+    let errorMsg = Message.Error(errorMessage)
     let completed = task->Lens.completeStreamingMessage->Lens.insertMessage(errorMsg)
     let updated = Lens.updateTaskData(completed, data => {
       ...data,
-      turnError: Some({id, message: error, category, retryErrorId: Some(id)}),
+      turnError: Some({
+        id: Message.ErrorMessage.id(errorMessage),
+        message: error,
+        category,
+        retryErrorId: id,
+      }),
       isAgentRunning: false,
       retryStatus: None,
     })
@@ -1105,8 +1146,12 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }),
       [],
     )
-  | (Task.Loading(_), LoadComplete) =>
-    switch task->Lens.completeStreamingMessage {
+  | (Task.Loading({isAgentRunning}), LoadComplete) =>
+    let updated = switch isAgentRunning {
+    | true => task
+    | false => Lens.completeStreamingMessage(task)
+    }
+    switch updated {
     | Task.Loading(data) => (
         Task.Loaded({
           ...data,
@@ -1124,6 +1169,16 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     Log.error(~ctx={"error": error}, "Task load failed")
     (Task.Loaded(data), [])
 
+  | (Task.Loaded({pendingQuestion: Some(pq)}), QuestionReceived({toolCallId, resolveError}))
+    if pq.toolCallId != toolCallId => (
+      task,
+      [
+        RejectQuestionToolEffect({
+          resolveError,
+          message: "An interactive question is already pending in this task.",
+        }),
+      ],
+    )
   | (Task.Loaded(data), QuestionReceived({questions, toolCallId, resolveOk, resolveError})) => (
       Task.Loaded({
         ...data,
@@ -1308,7 +1363,7 @@ let fetchAnnotationDetails = (
   ~id: string,
   ~element: WebAPI.DomTypes.element,
   ~document: option<WebAPI.DomTypes.document>,
-  ~contentWindow: option<WebAPI.DomTypes.window>,
+  ~contentWindow: option<FrontmanBindings.Bindings__WebAPI.windowHandle>,
   ~dispatch: action => unit,
 ) => {
   let inspection = switch document {
@@ -1366,7 +1421,7 @@ let fetchAnnotationDetails = (
 
   let sourceLocationPromise = {
     let sourceLocationWork = switch contentWindow {
-    | Some(window) =>
+    | Some({window}) =>
       Client__SourceDetection.getElementSourceLocation(~element, ~window)
       ->Promise.then(result => {
         let context = result->Option.map(Client__SourceContext.stripFileQueries)

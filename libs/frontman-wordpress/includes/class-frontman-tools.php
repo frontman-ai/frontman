@@ -123,6 +123,9 @@ class Frontman_Tools {
 	 * Register a tool definition.
 	 */
 	public function add( Frontman_Tool_Definition $tool ): void {
+		if ( isset( $this->tools[ $tool->name ] ) ) {
+			throw new \LogicException( 'Duplicate tool registration: ' . $tool->name );
+		}
 		$this->tools[ $tool->name ] = $tool;
 	}
 
@@ -167,9 +170,18 @@ class Frontman_Tools {
 		if ( class_exists( 'Frontman_Tool_Posts' ) && in_array( $name, [ 'wp_create_post', 'wp_update_post' ], true ) ) {
 			Frontman_Tool_Posts::validate_author_input( $input );
 			Frontman_Tool_Posts::validate_taxonomy_input( $input );
+			Frontman_Tool_Posts::validate_template_input( $input );
+		}
+		if ( 'wp_create_template' === $name && class_exists( 'Frontman_Tool_Templates' ) ) {
+			Frontman_Tool_Templates::validate_create_input( $input );
+			return array_intersect_key( $input, array_flip( [ 'slug', 'type', 'title', 'content', 'area' ] ) );
 		}
 		if ( 'wp_find_users' === $name && class_exists( 'Frontman_Tool_Users' ) ) {
 			return Frontman_Tool_Users::validate_input( $input );
+		}
+
+		if ( class_exists( 'Frontman_Tool_Elementor' ) && in_array( $name, [ 'wp_elementor_add_element', 'wp_elementor_generate_element' ], true ) ) {
+			Frontman_Tool_Elementor::validate_creation_input( $name, $input );
 		}
 
 		$preserve_strings = $tool->preserve_input_strings || ( 'wp_update_custom_css' === $name && 'edit' === ( $input['mode'] ?? null ) );
@@ -278,6 +290,9 @@ class Frontman_Tools {
 				return (float) $value;
 
 			case 'boolean':
+				if ( 'wp_get_site_info' === $tool_name && 'include_installation_paths' === $field_name && ! is_bool( $value ) ) {
+					throw new Frontman_Tool_Error( 'include_installation_paths must be a boolean.' );
+				}
 				if ( $preserve_input_strings && in_array( $field_name, [ 'confirm', 'replaceAll' ], true ) && ! is_bool( $value ) ) {
 					return $value;
 				}
@@ -285,7 +300,10 @@ class Frontman_Tools {
 				return filter_var( $value, FILTER_VALIDATE_BOOLEAN );
 
 			case 'string':
-				if ( 'slug' === $field_name && in_array( $tool_name, [ 'wp_create_post', 'wp_update_post' ], true ) ) {
+				if ( 'wp_update_post' === $tool_name && in_array( $field_name, [ 'mode', 'oldText', 'newText', 'expected_current_sha256' ], true ) ) {
+					return $value;
+				}
+				if ( in_array( $field_name, [ 'slug', 'content', 'template' ], true ) && in_array( $tool_name, [ 'wp_create_post', 'wp_update_post' ], true ) ) {
 					return $value;
 				}
 

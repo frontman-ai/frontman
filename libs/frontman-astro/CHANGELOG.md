@@ -1,5 +1,21 @@
 # @frontman-ai/astro
 
+## 3.1.3
+
+### Patch Changes
+
+- [#1984](https://github.com/frontman-ai/frontman/pull/1984) [`6211793`](https://github.com/frontman-ai/frontman/commit/62117932136b0c533cbb15cb922da240c46e1cb2) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update magic-string from 1.4.1 to 1.4.2.
+
+## 3.1.2
+
+### Patch Changes
+
+- [#1834](https://github.com/frontman-ai/frontman/pull/1834) [`a337fdb`](https://github.com/frontman-ai/frontman/commit/a337fdb01a4617013294cd78cdc87d08b068965f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve component rendering and props capture with Astro 7.3.8's inline runtime exports.
+
+- [#1900](https://github.com/frontman-ai/frontman/pull/1900) [`bc2a105`](https://github.com/frontman-ai/frontman/commit/bc2a105954c5aa226a3f91abe60701e76d57e9a2) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update magic-string from ^1.2.3 to ^1.4.1 in the Astro integration.
+
+- [#1909](https://github.com/frontman-ai/frontman/pull/1909) [`dbc7125`](https://github.com/frontman-ai/frontman/commit/dbc712584fa4105e4ed103ada401cc5c5e8a36d1) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update Lighthouse from 13.4.1 to 13.5.0 for performance, accessibility, best-practices, and SEO audits.
+
 ## 3.1.1
 
 ### Patch Changes

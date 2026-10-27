@@ -17,6 +17,7 @@ case "$WORDPRESS_VERSION" in
 esac
 case "$YOAST_VERSION" in
   "") ;;
+  28.6) YOAST_SHA256="ebb6e2a89d697cabecf2348a06d1efe807fd13ee1faeddcd06e354b98ee2a4d5" ;;
   28.4) YOAST_SHA256="93eba5afc65149967a4bb4906bc8fdebf92f4a65ee02bec97f5c01a7e14e7028" ;;
   19.9) YOAST_SHA256="8494a158e4bb9fcea9bb2198cc4c5908e92f3a5a2ccfffd989db05cf4e016af9" ;;
   *) printf 'Unsupported Yoast runtime test version: %s\n' "$YOAST_VERSION" >&2; exit 1 ;;
@@ -85,6 +86,7 @@ done
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/SentryRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-sentry-test.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/SentryRuntimeTest.php" "$WORDPRESS:/tmp/SentryRuntimeTest.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/WordPressRuntimeTest.php" "$WORDPRESS:/tmp/WordPressRuntimeTest.php"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/fixtures" "$WORDPRESS:/tmp/frontman-media-fixtures"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/CustomCssRuntimeTest.php" "$WORDPRESS:/tmp/CustomCssRuntimeTest.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ElementorSnapshotRuntimeTest.php" "$WORDPRESS:/tmp/ElementorSnapshotRuntimeTest.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ActivateWordPressPlugin.php" "$WORDPRESS:/tmp/ActivateWordPressPlugin.php"
@@ -92,6 +94,10 @@ done
 "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/mu-plugins
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PostAuthorsRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-authors-runtime.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PostAuthorsRuntimeTest.php" "$WORDPRESS:/tmp/PostAuthorsRuntimeTest.php"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/LandingPageRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-landing-page-runtime.php"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PostContentRuntimeTest.php" "$WORDPRESS:/tmp/PostContentRuntimeTest.php"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/TemplateCreationRuntimeTest.php" "$WORDPRESS:/tmp/TemplateCreationRuntimeTest.php"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PageTemplateRuntimeTest.php" "$WORDPRESS:/tmp/PageTemplateRuntimeTest.php"
 if [[ -n "$YOAST_VERSION" ]]; then
   "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/mu-plugins /var/www/html/wp-content/plugins/wordpress-seo
   "$RUNTIME" cp "$BUILD_DIR/yoast/wordpress-seo/." "$WORDPRESS:/var/www/html/wp-content/plugins/wordpress-seo/"
@@ -132,6 +138,14 @@ if [[ "$MULTISITE_STATUS" -ne 0 || "$MULTISITE_OUTPUT" != *"OK (Multisite author
   printf 'Multisite author tests did not report successful completion.\n' >&2
   exit 1
 fi
+
+curl -fsSL 'https://downloads.wordpress.org/plugin/301-redirects.1.05.zip' -o "$BUILD_DIR/301-redirects.zip"
+printf '%s  %s\n' '3423c49888af0d73e458fd9d5c1439ba7ca00d9da7ccb1b6c8ed0ac423011c8d' "$BUILD_DIR/301-redirects.zip" | sha256sum --check --status
+unzip -q "$BUILD_DIR/301-redirects.zip" -d "$BUILD_DIR/301-redirects"
+"$RUNTIME" cp "$BUILD_DIR/301-redirects/301-redirects" "$WORDPRESS:/var/www/html/wp-content/plugins/301-redirects"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/Redirects301RuntimeTest.php" "$WORDPRESS:/tmp/Redirects301RuntimeTest.php"
+"$RUNTIME" exec "$WORDPRESS" php /tmp/Redirects301RuntimeTest.php --setup
+"$RUNTIME" exec "$WORDPRESS" php /tmp/Redirects301RuntimeTest.php
 
 case "$WORDPRESS_VERSION" in
   6.[0-6].*) printf 'Skipping Redirection 5.10.0: requires WordPress 6.7+.\n'; exit 0 ;;

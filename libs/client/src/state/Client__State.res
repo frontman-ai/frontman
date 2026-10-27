@@ -7,6 +7,11 @@ module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
 
 module Actions = {
+  let wordPressAuthenticationRequired = loginUrl =>
+    Client__State__Store.dispatch(WordPressAuthenticationRequired(loginUrl))
+
+  let reloadAfterWordPressLogin = () => Client__State__Store.dispatch(ReloadAfterWordPressLogin)
+
   let addUserMessage = (~content, ~annotationId=?) =>
     Promise.make((resolve, _) =>
       Client__State__Store.dispatch(AddUserMessage({content, annotationId, onComplete: resolve}))
@@ -14,18 +19,31 @@ module Actions = {
 
   let setCurrentPreviewUrl = (~url) =>
     Client__State__Store.dispatch(
-      TaskAction({target: CurrentTask, action: SetPreviewUrl({url: url})}),
+      TaskAction({target: CurrentTask, action: NavigatePreview({url: url})}),
     )
 
-  let observePreviewUrl = (~url) =>
+  let observePreviewUrl = (~clientId: string, ~navigationKey: int, ~url: string) =>
     Client__State__Store.dispatch(
-      TaskAction({target: CurrentTask, action: SetPreviewUrl({url: url})}),
+      PreviewAction({clientId, navigationKey, action: PreviewUrlObserved({url: url})}),
     )
 
-  let setPreviewFrame = (~contentDocument, ~contentWindow) =>
+  let setPreviewFrame = (
+    ~clientId,
+    ~navigationKey,
+    ~context: option<Client__PreviewFrame.context>,
+  ) => {
+    let (contentDocument, contentWindow) = switch context {
+    | Some({doc, win}) => (Some(doc), Some({FrontmanBindings.Bindings__WebAPI.window: win}))
+    | None => (None, None)
+    }
     Client__State__Store.dispatch(
-      TaskAction({target: CurrentTask, action: SetPreviewFrame({contentDocument, contentWindow})}),
+      PreviewAction({
+        clientId,
+        navigationKey,
+        action: SetPreviewFrame({contentDocument, contentWindow}),
+      }),
     )
+  }
 
   let setDeviceMode = (~deviceMode) =>
     Client__State__Store.dispatch(
@@ -112,6 +130,7 @@ module Actions = {
   let openSettingsModal = () => setSettingsModalTab(Some(Client__State__Types.General))
   let openSettingsModalOnProviders = () => setSettingsModalTab(Some(Client__State__Types.Providers))
   let openSettingsModalOnBilling = () => setSettingsModalTab(Some(Client__State__Types.Billing))
+  let dismissBillingCheckout = () => Client__State__Store.dispatch(BillingCheckoutDismissed)
   let requestBilling = request => Client__State__Store.dispatch(RequestBilling(request))
   let closeSettingsModal = () => setSettingsModalTab(None)
 

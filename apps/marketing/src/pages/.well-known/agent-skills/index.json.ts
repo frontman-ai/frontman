@@ -31,7 +31,7 @@ const skillDocs = [
   },
 ]
 
-const skills = skillDocs.map((skill) => ({
+export const skills = skillDocs.map((skill) => ({
   name: skill.name,
   type: skill.type,
   description: skill.description,

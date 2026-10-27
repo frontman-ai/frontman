@@ -115,6 +115,7 @@ defmodule FrontmanServer.Protocols.ACP do
       "mcpCapabilities" => %{"http" => false, "sse" => false, "websocket" => true},
       "promptCapabilities" => %{"image" => true, "audio" => false, "embeddedContext" => true},
       "_meta" => %{
+        "frontman.dev/sessionId" => true,
         @extension_namespace => %{
           "agentAttribution" => %{"version" => @agent_attribution_version},
           "agents" => build_agent_catalog(agents),
@@ -339,6 +340,7 @@ defmodule FrontmanServer.Protocols.ACP do
   Sent when the agent encounters an error. Always delivered as a notification
   so the client can display it regardless of whether a pending prompt exists.
 
+  Use a persisted `agent_error_id` for execution failures, or nil when no retryable turn exists.
   Pass `retry_opts` when the server is scheduling an automatic retry. The client
   uses `retryAt` to show a countdown and infers retry state from its presence.
 

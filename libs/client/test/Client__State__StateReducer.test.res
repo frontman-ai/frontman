@@ -543,6 +543,44 @@ describe("Client State Reducer - Plan Handoff", () => {
     t->expect(duplicateEffects)->Expect.toEqual([])
   })
 
+  test("execute preserves the handoff when its session is unavailable", t => {
+    let state = TestHelpers.makeStateWithTask(~messages=[plannerPlan])->withPlanHandoffContext
+    let lost = switch state.connection {
+    | Some({connection: Ok(Some(runtime))}) =>
+      let (nextState, _) = Reducer.next(
+        state,
+        ConnectionAction(
+          ConnectionResultReceived({
+            signal: runtime.lifetimeAbortController.signal,
+            result: Error(ConnectionFailed(ACPError("Connection lost"))),
+          }),
+        ),
+      )
+      nextState
+    | _ => failwith("Expected connected fixture")
+    }
+    [
+      {...state, connection: None},
+      {...state, connection: Client__ConnectionTestHelpers.ready()},
+      {...state, connection: Client__ConnectionTestHelpers.ready(~sessionId=Some("another-task"))},
+      lost,
+    ]->Array.forEach(
+      state => {
+        let (nextState, effects) = Reducer.next(state, ExecutePendingPlan({id: testUserMessageId}))
+        t->expect(nextState)->Expect.toEqual(state)
+        t->expect(effects)->Expect.toEqual([])
+        t
+        ->expect(
+          Reducer.Selectors.pendingPlanHandoff({
+            ...nextState,
+            connection: Client__ConnectionTestHelpers.ready(~sessionId=Some("test-task-1")),
+          })->Option.isSome,
+        )
+        ->Expect.toBe(true)
+      },
+    )
+  })
+
   test("execute does nothing without a selected model", t => {
     let state = TestHelpers.makeStateWithTask(~messages=[plannerPlan])->withPlanHandoffContext
     let state = Reducer.next(state, ConnectionAction(SessionConfigReceived([])))->Pair.first
@@ -709,6 +747,49 @@ describe("Client State Reducer", () => {
     | (User(_), Assistant(_)) => ()
     | _ => JsExn.throw("Expected User message first, then Assistant message")
     }
+  })
+
+  test("connection and task-channel loss preserve server execution state and received text", t => {
+    let state = {
+      ...TestHelpers.makeStateWithTask(
+        ~isAgentRunning=true,
+        ~messages=[
+          Reducer.Message.Assistant(
+            Streaming({id: "assistant-1", textBuffer: "Received text", agentId: "test-agent"}),
+          ),
+        ],
+      ),
+      connection: Client__ConnectionTestHelpers.ready(~sessionId=Some("test-task-1")),
+    }
+    let (signal, requestId) = switch state.connection {
+    | Some({
+        connection: Ok(Some({
+          lifetimeAbortController,
+          phase: Ready({session: SessionActive({requestId})}),
+        })),
+      }) => (lifetimeAbortController.signal, requestId)
+    | _ => failwith("Expected active session")
+    }
+    let actions: array<Client__ConnectionReducer.action> = [
+      ConnectionResultReceived({
+        signal,
+        result: Error(ConnectionFailed(ACPError("Connection lost"))),
+      }),
+      SessionResultReceived({
+        requestId,
+        sessionId: "test-task-1",
+        result: Error(Client__ConnectionReducer.ACP.requestErrorFromMessage("Connection lost")),
+      }),
+    ]
+    actions->Array.forEach(
+      action => {
+        let (nextState, _) = Reducer.next(state, ConnectionAction(action))
+        t->expect(Reducer.Selectors.getSession(nextState)->Option.isNone)->Expect.toBe(true)
+        t->expect(Reducer.Selectors.isAgentRunning(nextState))->Expect.toBe(true)
+        t->expect(Reducer.Selectors.isStreaming(nextState))->Expect.toBe(true)
+        t->expect(nextState.tasks)->Expect.toEqual(state.tasks)
+      },
+    )
   })
 
   test("Selectors.isStreaming detects streaming messages", t => {
@@ -1164,12 +1245,12 @@ describe("Client State Reducer - Task Management Actions", () => {
     }
   })
 
-  test("SetPreviewUrl synchronizes the selected task browser URL", t => {
+  test("PreviewUrlObserved synchronizes the selected task browser URL", t => {
     let state = TestHelpers.makeStateWithTask()
     let previewUrl = "http://localhost:3000/products/42"
     let (nextState, effects) = Reducer.next(
       state,
-      TaskAction({target: CurrentTask, action: SetPreviewUrl({url: previewUrl})}),
+      TaskAction({target: CurrentTask, action: PreviewUrlObserved({url: previewUrl})}),
     )
 
     t->expect(Reducer.Selectors.previewUrl(nextState))->Expect.toBe(previewUrl)
@@ -1304,7 +1385,11 @@ describe("Client State Reducer - Billing Settings", () => {
     }
     let url = "https://billing.stripe.test/session"
     let cases: array<(Reducer.action, Client__Billing.flow, array<Reducer.effect>)> = [
-      (BillingUrlReceived({tab, url}), Idle, [NavigateBillingTab({tab, url})]),
+      (
+        BillingUrlReceived({tab, url, request: CustomerPortal}),
+        Idle,
+        [NavigateBillingTab({tab, url})],
+      ),
       (
         BillingLaunchFailed({tab: Some(tab), error: "Unavailable"}),
         Failed("Unavailable"),
@@ -1329,7 +1414,7 @@ describe("Client State Reducer - Billing Settings", () => {
   test("BillingStatusReceived stores global billing status", t => {
     let billingStatus = parseBillingStatus(`{
       "status": "active",
-      "access_allowed": true,
+      "can_start_turn": true,
       "has_billing_customer": true,
       "interval": "monthly",
       "current_period_end": null,
@@ -1352,7 +1437,7 @@ describe("Client State Reducer - Billing Settings", () => {
   test("BillingStatusReceived updates inactive billing to active", t => {
     let inactiveStatus = parseBillingStatus(`{
       "status": "none",
-      "access_allowed": false,
+      "can_start_turn": false,
       "has_billing_customer": false,
       "interval": null,
       "current_period_end": null,
@@ -1362,7 +1447,7 @@ describe("Client State Reducer - Billing Settings", () => {
     }`)
     let activeStatus = parseBillingStatus(`{
       "status": "active",
-      "access_allowed": true,
+      "can_start_turn": true,
       "has_billing_customer": true,
       "interval": "monthly",
       "current_period_end": null,
@@ -1380,16 +1465,16 @@ describe("Client State Reducer - Billing Settings", () => {
       BillingStatusReceived(activeStatus),
     )
 
-    t->expect(Reducer.Selectors.billingAccessAllowed(inactiveState))->Expect.toBe(false)
-    t->expect(Reducer.Selectors.billingAccessAllowed(activeState))->Expect.toBe(true)
+    t->expect(Reducer.Selectors.billingCanStartTurn(inactiveState))->Expect.toBe(false)
+    t->expect(Reducer.Selectors.billingCanStartTurn(activeState))->Expect.toBe(true)
     t->expect(inactiveEffects->Array.length)->Expect.toBe(0)
     t->expect(activeEffects->Array.length)->Expect.toBe(0)
   })
 
-  test("billingAccessAllowed selector returns derived billing access", t => {
+  test("billingCanStartTurn selector returns derived billing access", t => {
     let activeStatus = parseBillingStatus(`{
       "status": "active",
-      "access_allowed": true,
+      "can_start_turn": true,
       "has_billing_customer": true,
       "interval": null,
       "current_period_end": null,
@@ -1399,7 +1484,7 @@ describe("Client State Reducer - Billing Settings", () => {
     }`)
     let inactiveStatus = parseBillingStatus(`{
       "status": "none",
-      "access_allowed": false,
+      "can_start_turn": false,
       "has_billing_customer": false,
       "interval": null,
       "current_period_end": null,
@@ -1410,7 +1495,7 @@ describe("Client State Reducer - Billing Settings", () => {
 
     t
     ->expect(
-      Reducer.Selectors.billingAccessAllowed({
+      Reducer.Selectors.billingCanStartTurn({
         ...Reducer.defaultState,
         billingStatus: Client__Billing.Loaded(activeStatus),
       }),
@@ -1419,7 +1504,7 @@ describe("Client State Reducer - Billing Settings", () => {
 
     t
     ->expect(
-      Reducer.Selectors.billingAccessAllowed({
+      Reducer.Selectors.billingCanStartTurn({
         ...Reducer.defaultState,
         billingStatus: Client__Billing.Loaded(inactiveStatus),
       }),
@@ -1428,7 +1513,7 @@ describe("Client State Reducer - Billing Settings", () => {
 
     t
     ->expect(
-      Reducer.Selectors.billingAccessAllowed({
+      Reducer.Selectors.billingCanStartTurn({
         ...Reducer.defaultState,
         billingStatus: Client__Billing.NotLoaded,
       }),
@@ -1437,7 +1522,7 @@ describe("Client State Reducer - Billing Settings", () => {
 
     t
     ->expect(
-      Reducer.Selectors.billingAccessAllowed({
+      Reducer.Selectors.billingCanStartTurn({
         ...Reducer.defaultState,
         billingStatus: Client__Billing.Error("boom"),
       }),
@@ -2050,12 +2135,16 @@ describe("Client State Reducer - Annotations on Messages", () => {
         t->expect(fail(state)->Reducer.Selectors.queuedUserMessages)->Expect.toEqual([])
         let connection = state.connection->Option.getOrThrow
         let runtime = connection.connection->Result.getOrThrow->Option.getOrThrow
-        let lost =
-          Reducer.next(
-            state,
-            ConnectionAction(ACPReconnecting({signal: runtime.lifetimeAbortController.signal})),
-          )->Pair.first
-        t->expect(fail(lost)->Reducer.Selectors.queuedUserMessages)->Expect.toEqual([])
+        let lost = Reducer.next(
+          state,
+          ConnectionAction(
+            ConnectionResultReceived({
+              signal: runtime.lifetimeAbortController.signal,
+              result: Error(ConnectionFailed(ACPError("Connection lost"))),
+            }),
+          ),
+        )->Pair.first
+        t->expect(fail(lost))->Expect.toBe(lost)
         let newer = {
           ...state,
           connection: Client__ConnectionTestHelpers.ready(~sessionId=Some("session-1")),

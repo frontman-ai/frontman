@@ -1,0 +1,46 @@
+{
+  "type": "object",
+  "properties": {
+    "cwd": {
+      "type": "string",
+      "pattern": "^\\/"
+    },
+    "mcpServers": {
+      "items": {},
+      "type": "array",
+      "maxItems": 0
+    },
+    "additionalDirectories": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "maxItems": 0
+    },
+    "_meta": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "frontman.dev/sessionId": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "frontman.dev/model": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "cwd",
+    "mcpServers"
+  ]
+}

@@ -24,7 +24,7 @@ test("WebMCP works without dynamic code generation and CSP permits the support A
   });
   const document = {
     modelContext: { registerTool: vi.fn() },
-    defaultView: { location: { assign: vi.fn() } },
+    defaultView: { location: { pathname: "/", assign: vi.fn() } },
   };
   const context = vm.createContext({ AbortController }, { codeGeneration: { strings: false, wasm: false } });
   vm.runInContext(bundle.output.find(chunk => chunk.isEntry).code, context);

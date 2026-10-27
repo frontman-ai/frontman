@@ -51,7 +51,7 @@ config :frontman_server, dev_routes: true
 config :frontman_server, :stripe,
   monthly_price_id: "price_1TRtEAAusjHKowtIWQOVN6Al",
   yearly_price_id: "price_1TUYAiPPoSdrJYfmwhmJyMCw",
-  trial_days: 14
+  trial_days: 7
 
 config :phoenix, :stacktrace_depth, 20
 

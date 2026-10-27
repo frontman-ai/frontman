@@ -359,6 +359,31 @@ describe("Task - Plan Entries", () => {
     ->expect(TaskReducer.Selectors.planEntries(task2)->Option.getOr([])->Array.length)
     ->Expect.toBe(2)
   })
+
+  test("Stop preserves started-but-unfinished plan entries through the next turn", t => {
+    let entries: array<Client__Task__Types.ACPTypes.planEntry> = [
+      {content: "Finished step", priority: High, status: Completed},
+      {content: "Started step", priority: Medium, status: InProgress},
+      {content: "Future step", priority: Low, status: Pending},
+    ]
+    let (planned, _) = TaskReducer.next(
+      TestHelpers.makeLoadedTask(),
+      PlanReceived({entries: entries}),
+    )
+    let (running, _) = TaskReducer.next(planned, ExecutionStateRunning)
+    let (cancelled, _) = TaskReducer.next(running, CancelTurn)
+    let (idle, _) = TaskReducer.next(cancelled, ExecutionStateIdle)
+    let nextTurn = TestHelpers.acceptUserMessage(idle, ~id="continue", ~text="Continue")
+    let (resumed, _) = TaskReducer.next(nextTurn, ExecutionStateRunning)
+
+    [cancelled, idle, resumed]->Array.forEach(
+      task => {
+        t->expect(TaskReducer.Selectors.planEntries(task))->Expect.toEqual(Some(entries))
+      },
+    )
+    t->expect(TaskReducer.Selectors.isAgentRunning(idle))->Expect.toEqual(Some(false))
+    t->expect(TaskReducer.Selectors.isAgentRunning(resumed))->Expect.toEqual(Some(true))
+  })
 })
 
 describe("Task - Error Handling", () => {
@@ -410,7 +435,7 @@ describe("Task - Error Handling", () => {
     )
     let (failed, effects) = TaskReducer.next(
       streaming,
-      AgentError({id: "agent-error-1", error: "Quota exhausted", category: #quota}),
+      AgentError({id: Some("agent-error-1"), error: "Quota exhausted", category: #quota}),
     )
 
     t
@@ -449,7 +474,7 @@ describe("Task - Error Handling", () => {
     let (task2, _) = TaskReducer.next(
       task,
       AgentError({
-        id: "agent-error-1",
+        id: Some("agent-error-1"),
         error: "Some error",
         category: #unknown,
       }),
@@ -474,7 +499,7 @@ describe("Task - Error Handling", () => {
     let (task2, _) = TaskReducer.next(
       task,
       AgentError({
-        id: "agent-error-1",
+        id: Some("agent-error-1"),
         error: "Previous error",
         category: #unknown,
       }),
@@ -956,6 +981,20 @@ describe("Task - Interactive wait contract", () => {
         t->expect(resolutions.contents)->Expect.toEqual([])
       },
     )
+  })
+
+  test("a second interactive request cannot replace the pending question", t => {
+    let rejected = ref(None)
+    let request = toolCallId => TaskReducer.QuestionReceived({
+      questions,
+      toolCallId,
+      resolveOk: _ => failwith("Unexpected resolution"),
+      resolveError: _ => rejected := Some(toolCallId),
+    })
+    let (waiting, _) = TaskReducer.next(TestHelpers.makeLoadedTask(), request("first"))
+    let (unchanged, effects) = TaskReducer.next(waiting, request("second"))
+    runEffects(effects)
+    t->expect((unchanged, rejected.contents))->Expect.toEqual((waiting, Some("second")))
   })
 
   test("historical requires_action replays without reopening the turn", t => {

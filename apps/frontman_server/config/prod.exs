@@ -10,7 +10,7 @@ config :swoosh, local: false
 config :frontman_server, :stripe,
   monthly_price_id: "price_1TUNIEPPoSdrJYfmu6kRjlTI",
   yearly_price_id: "price_1TUNIEPPoSdrJYfmCbSWxXUb",
-  trial_days: 14
+  trial_days: 7
 
 config :logger, level: :info
 

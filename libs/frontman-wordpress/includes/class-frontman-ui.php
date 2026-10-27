@@ -31,6 +31,26 @@ class Frontman_UI {
 	public function register(): void {
 		add_action( 'admin_menu', [ $this, 'add_admin_menu_link' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_admin_assets' ] );
+		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_preview_bridge' ] );
+	}
+
+	public function enqueue_preview_bridge(): void {
+		Frontman_Sentry::boundary( 'wp_enqueue_scripts', function (): void {
+			$this->enqueue_preview_bridge_assets();
+		} );
+	}
+
+	private function enqueue_preview_bridge_assets(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		wp_enqueue_script(
+			'frontman-preview-bridge',
+			FRONTMAN_PLUGIN_URL . 'assets/bridge.js',
+			[],
+			FRONTMAN_VERSION,
+			true
+		);
 	}
 
 	/**
@@ -39,14 +59,22 @@ class Frontman_UI {
 	 * @param string $hook_suffix Current admin page hook suffix.
 	 */
 	public function enqueue_admin_assets( string $hook_suffix ): void {
-		unset( $hook_suffix );
-		$this->enqueue_admin_menu_icon_style();
+		Frontman_Sentry::boundary( 'admin_enqueue_scripts', function () use ( $hook_suffix ): void {
+			unset( $hook_suffix );
+			$this->enqueue_admin_menu_icon_style();
+		} );
 	}
 
 	/**
 	 * Add a menu link that points to /frontman (external to wp-admin).
 	 */
 	public function add_admin_menu_link(): void {
+		Frontman_Sentry::boundary( 'admin_menu', function (): void {
+			$this->register_admin_menu_link();
+		} );
+	}
+
+	private function register_admin_menu_link(): void {
 		$menu_icon_url = esc_url( FRONTMAN_PLUGIN_URL . 'assets/frontman-menu-icon.svg' );
 
 		add_menu_page(
@@ -60,8 +88,10 @@ class Frontman_UI {
 		);
 
 		add_action( 'load-toplevel_page_frontman', function (): void {
-			wp_safe_redirect( self::url( '/frontman' ) );
-			exit;
+			Frontman_Sentry::boundary( 'load-toplevel_page_frontman', static function (): void {
+				wp_safe_redirect( self::url( '/frontman' ) );
+				exit;
+			} );
 		} );
 	}
 
@@ -108,6 +138,7 @@ class Frontman_UI {
 			'relayBaseUrl' => self::url( '' ),
 			'wpNonce'      => Frontman_Auth::create_nonce(),
 			'wordpressPluginsUrl' => network_admin_url( 'plugins.php' ),
+			'wordpressLoginUrl' => wp_login_url( self::url( '/frontman' ) ),
 		];
 
 		$entrypoint_url = null;
@@ -134,11 +165,13 @@ class Frontman_UI {
 	<div
 		id="frontman-runtime-config"
 		hidden
+		data-preview-bridge="page-context-v1"
 		data-framework="<?php echo esc_attr( $runtime['framework'] ); ?>"
 		data-base-path="<?php echo esc_attr( $runtime['basePath'] ); ?>"
 		data-relay-base-url="<?php echo esc_attr( $runtime['relayBaseUrl'] ); ?>"
 		data-wp-nonce="<?php echo esc_attr( $runtime['wpNonce'] ); ?>"
 		data-wordpress-plugins-url="<?php echo esc_url( $runtime['wordpressPluginsUrl'] ); ?>"
+		data-wordpress-login-url="<?php echo esc_url( $runtime['wordpressLoginUrl'] ); ?>"
 	></div>
 	<?php if ( $entrypoint_url ) : ?>
 	<span id="frontman-entrypoint-url" hidden><?php echo esc_url( $entrypoint_url ); ?></span>

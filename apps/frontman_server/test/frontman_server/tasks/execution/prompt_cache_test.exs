@@ -26,7 +26,7 @@ defmodule FrontmanServer.Tasks.Execution.PromptCacheTest do
   for {provider, model, auth, path} <- [
         {:anthropic, "claude-sonnet-4-6", :api_key, "/v1/messages"},
         {:anthropic, "claude-sonnet-4-6", :oauth, "/v1/messages"},
-        {:openai_codex, "gpt-5.5", :oauth, "/codex/responses"},
+        {:openai_codex, "gpt-6.1-sol", :oauth, "/codex/responses"},
         {:openrouter, "anthropic/claude-sonnet-4.6", :api_key, "/chat/completions"},
         {:openrouter, "~anthropic/claude-sonnet-latest", :api_key, "/chat/completions"},
         {:openrouter, "openai/gpt-5.5", :api_key, "/chat/completions"}

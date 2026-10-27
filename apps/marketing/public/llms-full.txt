@@ -9,6 +9,9 @@ Frontman helps ship updates to existing websites faster with an AI editing loop:
 - WordPress setup: https://frontman.sh/docs/integrations/wordpress/
 - Framework integrations: https://frontman.sh/frameworks/
 - Markdown homepage: https://frontman.sh/index.md
+- Pricing Markdown: https://frontman.sh/pricing.md
+- Authentication Markdown: https://frontman.sh/auth.md
+- Framework Markdown: https://frontman.sh/frameworks.md
 - Documentation: https://frontman.sh/docs/
 - Installation: https://frontman.sh/docs/installation/
 - API keys and providers: https://frontman.sh/docs/api-keys/
@@ -22,7 +25,7 @@ Frontman helps ship updates to existing websites faster with an AI editing loop:
 
 ### WordPress
 
-Install Frontman Agentic AI Editor from wp-admin and open Frontman from the admin menu. Requires WordPress 6.0+, PHP 7.4+, administrator access, Frontman sign-in, service access, and your own supported AI provider with separate costs. The plugin edits posts, pages, Gutenberg blocks, Elementor content, menus, templates, widgets, allowlisted settings, and WooCommerce data beside live preview. WordPress uses native CMS tools. Tool requests use WordPress nonces. Frontman for WordPress is production-ready. Writes persist to the connected installation; published content on a live site can change immediately. Preview is not a universal approval gate. Start with staging and backups. Recovery is selective, not universal undo.
+Install Frontman - AI Website Editor from wp-admin and open Frontman from the admin menu. Requires WordPress 6.0+, PHP 7.4+, administrator access, Frontman sign-in, service access, and your own supported AI provider with separate costs. The plugin edits posts, pages, Gutenberg blocks, Elementor content, menus, templates, widgets, allowlisted settings, and WooCommerce data beside live preview. WordPress uses native CMS tools. Tool requests use WordPress nonces. Frontman for WordPress is production-ready. Writes persist to the connected installation; published content on a live site can change immediately. Preview is not a universal approval gate. Start with staging and backups. Recovery is selective, not universal undo.
 
 ### Frameworks
 
@@ -30,7 +33,7 @@ Frontman integrates with Next.js, Astro, and Vite. The framework plugin exposes 
 
 ### Hosted service and licensing
 
-Frontman Pro offers a 14-day trial with a credit card required, followed by a paid subscription. AI provider usage is billed separately. Supported connections include Anthropic and OpenAI OAuth, plus saved keys for Anthropic, OpenRouter, Fireworks AI, and NVIDIA. See the provider setup docs for current access. Self-hosting is available under the repository terms. The browser client and JavaScript integrations use Apache-2.0, the WordPress plugin uses GPL-2.0-or-later, and the server uses AGPL-3.0-only with AI Supplementary Terms.
+Try Frontman free: five uses, no card. AI-provider costs are separate. Supported connections include Anthropic and OpenAI OAuth, plus saved keys for Anthropic, OpenRouter, Fireworks AI, and NVIDIA. See the provider setup docs for current access. Self-hosting is available under the repository terms. The browser client and JavaScript integrations use Apache-2.0, the WordPress plugin uses GPL-2.0-or-later, and the server uses AGPL-3.0-only with AI Supplementary Terms.
 
 ## Suitable Uses
 
@@ -46,9 +49,8 @@ Frontman Pro offers a 14-day trial with a credit card required, followed by a pa
 - Sitemap: https://frontman.sh/sitemap-index.xml
 - RSS: https://frontman.sh/rss.xml
 - API catalog: https://frontman.sh/.well-known/api-catalog
-- Agent card: https://frontman.sh/.well-known/agent-card.json
-- MCP discovery: https://frontman.sh/.well-known/mcp
-- MCP server card: https://frontman.sh/.well-known/mcp/server-card.json
+- Public read-only OpenAPI description: https://frontman.sh/openapi.json
+- Agentic resources (ARD proposal): https://frontman.sh/.well-known/ard.json
 - Agent skills: https://frontman.sh/.well-known/agent-skills/index.json
 - Docs scoped context: https://frontman.sh/docs/llms.txt
 - API scoped context: https://frontman.sh/api/llms.txt

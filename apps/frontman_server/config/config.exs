@@ -1,5 +1,7 @@
 import Config
 
+config :sentry, before_send: {FrontmanServer.Observability.Sentry, :before_send}
+
 config :frontman_server, :scopes,
   user: [
     default: true,
@@ -146,7 +148,7 @@ config :frontman_server, :stripe,
   api_base_url: "https://api.stripe.com/v1",
   api_version: "2025-03-31.basil",
   signature_tolerance_seconds: 300,
-  trial_days: 14
+  trial_days: 7
 
 config :frontman_server, FrontmanServerWeb.Endpoint,
   url: [host: "localhost"],
@@ -165,9 +167,14 @@ config :frontman_server, FrontmanServer.Mailer,
 
 config :frontman_server, FrontmanServer.Workers.SendWelcomeEmail, enabled: false
 
-config :frontman_server, FrontmanServer.Workers.SyncResendContact,
+config :frontman_server, FrontmanServer.Workers.SyncResendContact, enabled: false
+
+config :frontman_server, FrontmanServer.ResendContacts, req_options: []
+
+config :frontman_server, FrontmanServer.Workers.EnterActivationCampaign,
   enabled: false,
-  req_options: []
+  cutoff: nil,
+  max_entry_lag_seconds: 3600
 
 config :frontman_server, FrontmanServer.Workers.NotifyDiscordNewUser,
   enabled: false,
@@ -222,6 +229,9 @@ config :logger, :default_formatter,
     :function,
     :reason,
     :error_code,
+    :response_kind,
+    :tool_call_id,
+    :mcp_request_id,
     :task_id,
     :user_id,
     :user_name

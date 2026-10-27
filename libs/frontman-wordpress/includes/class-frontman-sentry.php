@@ -13,10 +13,28 @@ class Frontman_Sentry {
 	private const OPTION = 'frontman_php_diagnostics';
 	private const DSN = 'https://442ae992e5a5ccfc42e6910220aeb2a9@o4510512511320064.ingest.de.sentry.io/4510512546185296';
 
+	/**
+	 * Report unexpected entry-point failures without changing WordPress error handling.
+	 *
+	 * Action callbacks keep their registered identity, priority and accepted arguments.
+	 * This opt-in boundary installs no global handlers and emits no response output.
+	 * Deferred callbacks run after bootstrap, not inside its boundary.
+	 */
+	public static function boundary( string $entry_point, callable $callback ): void {
+		try {
+			$callback();
+		} catch ( \Throwable $exception ) {
+			self::capture( $exception, $entry_point );
+			throw $exception;
+		}
+	}
+
 	public static function register(): void {
 		add_action( 'admin_init', [ self::class, 'register_setting' ] );
 		add_action( 'admin_menu', static function (): void {
-			add_options_page( 'Frontman', 'Frontman', 'manage_options', 'frontman-diagnostics', [ self::class, 'render_settings' ] );
+			self::boundary( 'diagnostics_admin_menu', static function (): void {
+				add_options_page( 'Frontman', 'Frontman', 'manage_options', 'frontman-diagnostics', [ self::class, 'render_settings' ] );
+			} );
 		} );
 	}
 
@@ -25,17 +43,31 @@ class Frontman_Sentry {
 	}
 
 	public static function register_setting(): void {
+		self::boundary( 'admin_init', [ self::class, 'register_diagnostic_settings' ] );
+	}
+
+	private static function register_diagnostic_settings(): void {
 		register_setting( 'frontman_diagnostics', self::OPTION, [
 			'type' => 'boolean',
 			'default' => false,
 			'sanitize_callback' => [ self::class, 'sanitize_enabled' ],
+		] );
+		register_setting( 'frontman_diagnostics', 'frontman_auth_diagnostics', [
+		        'type' => 'boolean',
+		        'default' => false,
+		        'sanitize_callback' => [ self::class, 'sanitize_enabled' ],
 		] );
 	}
 
 	public static function render_settings(): void {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( esc_html__( 'Administrator access required.', 'frontman-agentic-ai-editor' ) );
+			return;
 		}
+		self::boundary( 'diagnostics_settings', [ self::class, 'render_settings_form' ] );
+	}
+
+	private static function render_settings_form(): void {
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Frontman PHP Diagnostics', 'frontman-agentic-ai-editor' ); ?></h1>
@@ -48,6 +80,12 @@ class Frontman_Sentry {
 				</label>
 				<p><?php esc_html_e( 'Reports include exception types, sanitized stack traces, tool names, and software versions. They exclude exception messages, tool arguments, source code, site URLs, and user data. Sentry receives the server IP address when delivering reports. You can disable reporting here at any time.', 'frontman-agentic-ai-editor' ); ?></p>
 				<p><a href="https://frontman.sh/privacy/" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Frontman Privacy Policy', 'frontman-agentic-ai-editor' ); ?></a> · <a href="https://sentry.io/privacy/" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Sentry Privacy Policy', 'frontman-agentic-ai-editor' ); ?></a></p>
+				<input type="hidden" name="frontman_auth_diagnostics" value="0">
+				<label>
+				        <input type="checkbox" name="frontman_auth_diagnostics" value="1" <?php checked( self::sanitize_enabled( get_option( 'frontman_auth_diagnostics', false ) ) ); ?>>
+				        <?php esc_html_e( 'Enable authentication diagnostics in the server PHP error log.', 'frontman-agentic-ai-editor' ); ?>
+				</label>
+				<p><?php esc_html_e( 'Records contain only fixed authentication failure categories and WordPress, PHP, and plugin versions. They exclude credentials, request content, URLs, and user data. Each category is logged at most once every five minutes per site. These records are not sent to Sentry. You can disable logging here at any time.', 'frontman-agentic-ai-editor' ); ?></p>
 				<?php submit_button(); ?>
 			</form>
 		</div>

@@ -81,7 +81,7 @@ Classic themes do not use the Site Editor. Their controls depend on what the the
 4. Review it in the Customizer preview.
 5. Publish only after the preview shows the correct global result.
 
-The [WordPress Customizer documentation](https://wordpress.org/documentation/article/customizer/) confirms that each theme can expose different controls. Some themes provide complete header builders. Others expose only a logo, site title, menu location, or footer widget area.
+The [WordPress Customizer documentation](https://wordpress.org/documentation/article/customizer/) confirms that each theme can expose different controls. Some themes provide complete header builders. Others expose only a logo, site title, menu location, or footer widget area. If Astra controls your header, use the [Astra-specific header customization workflow](/blog/astra-theme-customization/#make-the-header-more-compact).
 
 If **Customize** is absent, confirm which theme is active under **Appearance > Themes**. Block themes hide most Customizer controls because their global structure belongs in the Site Editor.
 

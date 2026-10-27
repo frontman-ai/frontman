@@ -43,7 +43,7 @@ export const footerNavigationData: FooterData = {
 	footerAbout: {
 		title: 'Frontman',
 		aboutText:
-			'Frontman is an AI website editor for existing WordPress, Next.js, Astro, and Vite sites.',
+			'Your WordPress site. Your changes. Frontman helps marketing teams turn requests into edits on the site they already have.',
 		logo: {
 			src: '/logo.svg',
 			alt: 'Frontman logo',
@@ -54,18 +54,14 @@ export const footerNavigationData: FooterData = {
 		{
 			category: 'Product',
 			subCategories: [
-				{ subCategory: 'For Frameworks', subCategoryLink: '/frameworks/' },
+				{ subCategory: 'WordPress', subCategoryLink: '/' },
 				{
 					subCategory: 'Pricing',
 					subCategoryLink: '/pricing/'
 				},
 				{
-					subCategory: 'WordPress',
-					subCategoryLink: '/'
-				},
-				{
-					subCategory: 'Marketing Teams',
-					subCategoryLink: '/marketing-teams/'
+					subCategory: 'Customer Story',
+					subCategoryLink: '/blog/autonomyai-wordpress-redesign-case-study/'
 				},
 				{
 					subCategory: 'About',
@@ -98,12 +94,14 @@ export const footerNavigationData: FooterData = {
 			]
 		},
 		{
-			category: 'Integrations',
+			category: 'Setup',
 			subCategories: [
 				{
-					subCategory: 'All Integrations',
-					subCategoryLink: '/integrations/'
+					subCategory: 'WordPress Setup',
+					subCategoryLink: '/docs/integrations/wordpress/'
 				},
+				{ subCategory: 'For Frameworks', subCategoryLink: '/frameworks/' },
+				{ subCategory: 'Framework Teams', subCategoryLink: '/marketing-teams/' },
 				{
 					subCategory: 'Next.js',
 					subCategoryLink: '/docs/integrations/nextjs/'
@@ -116,10 +114,6 @@ export const footerNavigationData: FooterData = {
 					subCategory: 'Vite (React, Vue, Svelte)',
 					subCategoryLink: '/docs/integrations/vite/'
 				},
-				{
-					subCategory: 'WordPress',
-					subCategoryLink: '/'
-				}
 			]
 		},
 		{
@@ -151,11 +145,11 @@ export const footerNavigationData: FooterData = {
 			category: 'Resources',
 			subCategories: [
 				{
-					subCategory: 'Use Case: Designers',
+					subCategory: 'Framework Use Case: Designers',
 					subCategoryLink: '/use-cases/designers/'
 				},
 				{
-					subCategory: 'Use Case: Frontend Developers',
+					subCategory: 'Framework Use Case: Developers',
 					subCategoryLink: '/use-cases/frontend-developers/'
 				},
 				{

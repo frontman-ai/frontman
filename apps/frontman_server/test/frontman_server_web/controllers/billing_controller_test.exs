@@ -70,7 +70,11 @@ defmodule FrontmanServerWeb.BillingControllerTest do
     assert return_url ==
              FrontmanServerWeb.Endpoint.url() <> "/billing/stripe-return/customer-portal"
 
-    assert %{"access_allowed" => false, "has_billing_customer" => true} =
+    assert %{
+             "can_start_turn" => true,
+             "pretrial_runs_remaining" => 5,
+             "has_billing_customer" => true
+           } =
              conn |> get(~p"/api/billing/status") |> json_response(200)
   end
 
@@ -108,6 +112,18 @@ defmodule FrontmanServerWeb.BillingControllerTest do
     refute_received {:start_checkout, _, _, _, _, _}
   end
 
+  test "past-due account must recover payment instead of starting another checkout", %{
+    conn: conn,
+    scope: scope
+  } do
+    subscription_for_scope_fixture(scope, %{status: "past_due"})
+    conn = post(conn, ~p"/api/billing/checkout", %{"interval" => "monthly"})
+
+    assert json_response(conn, 409)["error"] =~ "Manage billing in Stripe"
+    assert Sentry.Test.pop_sentry_reports() == []
+    refute_received {:start_checkout, _, _, _, _, _}
+  end
+
   test "active bearer account rejects checkout even when the browser account has no plan", %{
     conn: conn,
     scope: scope
@@ -115,7 +131,7 @@ defmodule FrontmanServerWeb.BillingControllerTest do
     %{conn: conn} = register_and_log_in_user(%{conn: conn})
     allow_access_for_scope_fixture(scope)
     conn = post(conn, ~p"/api/billing/checkout", %{"interval" => "monthly"})
-    assert json_response(conn, 409)["error"] =~ "already have an active subscription"
+    assert json_response(conn, 409)["error"] =~ "already have a subscription"
     assert Sentry.Test.pop_sentry_reports() == []
     refute_received {:start_checkout, _, _, _, _, _}
   end
@@ -214,9 +230,9 @@ defmodule FrontmanServerWeb.BillingControllerTest do
   end
 
   for {path, title} <- [
-        {"success", "Stripe checkout complete"},
-        {"cancel", "Stripe checkout closed"},
-        {"customer-portal", "Stripe billing portal closed"}
+        {"success", "Checkout complete. Back to your next improvement."},
+        {"cancel", "Your request is still waiting for you."},
+        {"customer-portal", "Return to your work in Frontman."}
       ] do
     @path path
     @title title
@@ -225,10 +241,10 @@ defmodule FrontmanServerWeb.BillingControllerTest do
       assert response =~ "billing-stripe-return"
       assert response =~ "data-auto-close-window"
       assert response =~ @title
-      assert response =~ "You can close this tab and return to Frontman."
+      assert response =~ "Close this tab to continue in Frontman. No edits run automatically."
 
       assert response =~
-               "Your original Frontman tab updates automatically when Stripe sends a billing event."
+               "Frontman confirms your plan status before you continue. Your draft remains in the original tab."
     end
   end
 end

@@ -20,6 +20,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
   alias FrontmanServer.Accounts.UserIdentity
   alias FrontmanServer.Accounts.WorkOS.AuthError
   alias FrontmanServer.Repo
+  alias FrontmanServer.Workers.EnterActivationCampaign
   alias FrontmanServer.Workers.NotifyDiscordNewUser
   alias FrontmanServer.Workers.SendWelcomeEmail
   alias FrontmanServer.Workers.SyncResendContact
@@ -56,9 +57,8 @@ defmodule FrontmanServer.Accounts.WorkOS do
     {:ok, WorkOS.UserManagement.get_authorization_url(workos_client(), opts)}
   end
 
-  def get_authorization_url(provider, _redirect_uri, _state) do
-    {:error,
-     "Unsupported provider: #{provider}. Supported: #{Enum.join(@supported_providers, ", ")}"}
+  def get_authorization_url(_provider, _redirect_uri, _state) do
+    {:error, :unsupported_provider}
   end
 
   @doc """
@@ -199,9 +199,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
     end
   end
 
-  def unlink_provider(%User{}, provider) do
-    {:error, "Unsupported provider: #{provider}"}
-  end
+  def unlink_provider(%User{}, _provider), do: {:error, :unsupported_provider}
 
   @doc """
   Lists all OAuth identities for a user.
@@ -319,6 +317,9 @@ defmodule FrontmanServer.Accounts.WorkOS do
     |> Oban.insert(:sync_resend_contact, fn %{user: user} ->
       SyncResendContact.new(%{user_id: user.id})
     end)
+    |> Oban.insert(:activation_entry, fn %{user: user} ->
+      EnterActivationCampaign.new(%{user_id: user.id})
+    end)
     |> Oban.insert(:notify_discord, fn %{user: user} ->
       NotifyDiscordNewUser.new(notify_discord_args(user.id, signup_framework))
     end)
@@ -376,10 +377,13 @@ defmodule FrontmanServer.Accounts.WorkOS do
   defp post_authenticate_request(body, context, attempt \\ 1) do
     require Logger
 
-    case Req.post("#{@workos_api_base}/user_management/authenticate",
-           json: body,
-           receive_timeout: @workos_auth_receive_timeout_ms,
-           connect_options: [timeout: @workos_auth_connect_timeout_ms]
+    case Req.post(
+           "#{@workos_api_base}/user_management/authenticate",
+           [
+             json: body,
+             receive_timeout: @workos_auth_receive_timeout_ms,
+             connect_options: [timeout: @workos_auth_connect_timeout_ms]
+           ] ++ Application.get_env(:frontman_server, :workos_req_options, [])
          ) do
       {:ok, %Req.Response{status: 200, body: response_body}} ->
         {:ok, response_body}

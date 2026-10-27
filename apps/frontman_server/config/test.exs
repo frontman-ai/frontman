@@ -36,7 +36,7 @@ config :frontman_server, :stripe,
   extra_headers: {PaperTiger.Test, :sandbox_headers, []},
   monthly_price_id: "price_monthly_test",
   yearly_price_id: "price_yearly_test",
-  trial_days: 14
+  trial_days: 7
 
 config :paper_tiger,
   start: true,
@@ -76,9 +76,15 @@ config :paper_tiger,
 
 config :frontman_server, FrontmanServer.Workers.SendWelcomeEmail, enabled: true
 
-config :frontman_server, FrontmanServer.Workers.SyncResendContact,
+config :frontman_server, FrontmanServer.Workers.SyncResendContact, enabled: true
+
+config :frontman_server, FrontmanServer.ResendContacts,
+  req_options: [plug: {Req.Test, :resend}, retry: true]
+
+config :frontman_server, FrontmanServer.Workers.EnterActivationCampaign,
   enabled: true,
-  req_options: []
+  cutoff: ~U[2020-01-01 00:00:00Z],
+  max_entry_lag_seconds: 3600
 
 config :frontman_server, FrontmanServer.Workers.NotifyDiscordNewUser,
   enabled: true,

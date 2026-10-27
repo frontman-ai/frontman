@@ -30,6 +30,86 @@ let wait = async predicate => await Vi.waitFor(() =>
   , ())
 let config = (store, model) => dispatch(store, SetSelectedModelValue({value: model}))
 let clear = store => dispatch(store, ClearCurrentTask)
+
+[#idle, #running, #newTurn]->Array.forEach((outcome: [#idle | #running | #newTurn]) =>
+  testAsync(
+    `cached activation keeps replay and live turn boundaries (${(outcome :> string)})`,
+    async t => {
+      let (store, _, matches, last, created, _, _, notify, loaded) = await H.start()
+      active := Some(store)
+      send(store)
+      await wait(() => matches("session/new")->Array.length == 1)
+      let creation = last("session/new")
+      let id = H.sessionId(creation)
+      created(creation, H.a)
+      await wait(() => matches("session/prompt")->Array.length == 1)
+      clear(store)
+      dispatch(store, SwitchTask({taskId: id}))
+      await wait(() => matches("session/load")->Array.length == 1)
+      let frame = last("session/load")
+      let text = (messageId, text) =>
+        notify(
+          frame,
+          AgentMessageChunk({
+            messageId,
+            content: TextContent({text, _meta: None, annotations: None}),
+            _meta: {agentId: "agent-1", timestamp: "2026-01-01T00:00:00Z"},
+          }),
+        )
+      let execution = state => notify(frame, StateUpdate({state, stopReason: None}))
+      text("history", "History")
+      switch outcome {
+      | #idle => execution(Idle)
+      | #running => execution(Running)
+      | #newTurn =>
+        execution(Idle)
+        execution(Running)
+        text("live", "Live")
+      }
+      loaded(frame, H.a)
+      await wait(
+        () =>
+          Task.isLoaded(App.Selectors.currentTask(state(store))) &&
+          !App.Selectors.isSubmitting(state(store)),
+      )
+      let transcript = () =>
+        Task.getMessages(App.Selectors.currentTask(state(store)))->Array.map(
+          message =>
+            switch message {
+            | Assistant(Completed({id, content: [Text({text})]})) => (id, text, false)
+            | Assistant(Streaming({id, textBuffer})) => (id, textBuffer, true)
+            | _ => failwith("Unexpected activation transcript")
+            },
+        )
+      t
+      ->expect(transcript())
+      ->Expect.toEqual(
+        switch outcome {
+        | #idle => [("history", "History", false)]
+        | #running => [("history", "History", true)]
+        | #newTurn => [("history", "History", false), ("live", "Live", true)]
+        },
+      )
+      switch outcome {
+      | #idle => ()
+      | #running | #newTurn =>
+        text(outcome == #running ? "history" : "live", " continued")
+        Client__TextDeltaBuffer.flush()
+        execution(Idle)
+        t
+        ->expect(transcript())
+        ->Expect.toEqual(
+          switch outcome {
+          | #running => [("history", "History continued", false)]
+          | #newTurn => [("history", "History", false), ("live", "Live continued", false)]
+          | #idle => failwith("Expected a running turn")
+          },
+        )
+      }
+    },
+  )
+)
+
 beforeEach(() => {
   Vi.useFakeTimers()->ignore
   Client__TextDeltaBuffer.reset()
@@ -56,9 +136,10 @@ testAsync(
     send(store)
     await wait(() => matches("session/new")->Array.length == 1)
     let first = last("session/new")
+    let params = S.parseOrThrow(H.request(first).params, ~to=ACP.sessionNewParamsSchema)
     t
-    ->expect(S.parseOrThrow(H.request(first).params, ~to=ACP.sessionNewParamsSchema)._meta)
-    ->Expect.toEqual(Some({model: H.b}))
+    ->expect(params._meta->Option.flatMap(metadata => metadata.model))
+    ->Expect.toEqual(Some(H.b))
     created(first, H.b)
     await wait(() => matches("session/prompt")->Array.length == 1)
     let prompt = S.parseOrThrow(H.request(last("session/prompt")).params, ~to=promptSchema)
@@ -179,7 +260,7 @@ testAsync(
 )
 
 testAsync(
-  "client session-flow integration: cached/channel reconnect replay preserves model, identity and local data",
+  "client session-flow integration: cached replay preserves model, identity and local data; connection loss invalidates the session",
   async t => {
     let (store, wire, matches, last, created, configured, reject, notify, loaded) = await H.start()
     active := Some(store)
@@ -314,8 +395,8 @@ testAsync(
     let count = matches("session/load")->Array.length
     dispatch(store, SwitchTask({taskId: a}))
     t->expect(matches("session/load")->Array.length)->Expect.toBe(count)
-    wire.lose(false)
-    let _ = await Vi.advanceTimersByTimeAsync(1000)
+    clear(store)
+    dispatch(store, SwitchTask({taskId: a}))
     await wait(() => matches("session/load")->Array.length == count + 1)
     notify(
       last("session/load"),
@@ -330,7 +411,7 @@ testAsync(
       Error({
         _meta: Some(
           S.decodeOrThrow(
-            {Client__ACP__MessageCodec.agentErrorId: "replay-error"},
+            {Client__ACP__MessageCodec.agentErrorId: Some("replay-error")},
             ~from=Client__ACP__MessageCodec.frontmanErrorMetaSchema,
             ~to=S.json,
           ),
@@ -400,5 +481,10 @@ testAsync(
       ),
     )
     ->Expect.toEqual([("history", "History"), ("replay-error", "quota")])
+    wire.lose(false)
+    t->expect(App.Selectors.getSession(state(store)))->Expect.toEqual(None)
+    let disconnected = state(store)
+    notify(old, ConfigOptionUpdate({configOptions: H.options(H.b)}))
+    t->expect(state(store))->Expect.toBe(disconnected)
   },
 )

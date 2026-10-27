@@ -301,6 +301,37 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   end
 
   describe "to_swarm_messages/1" do
+    test "keeps empty assistant responses and their metadata in conversation order" do
+      for tool_calls <- [nil, []] do
+        interactions = [
+          user_msg("Continue"),
+          agent_resp(nil, %{
+            "tool_calls" => tool_calls,
+            "response_id" => "resp_empty",
+            "reasoning_details" => [%{"type" => "reasoning.encrypted", "data" => "opaque"}]
+          }),
+          agent_resp("Done")
+        ]
+
+        assert [
+                 %SwarmAi.Message.User{},
+                 %SwarmAi.Message.Assistant{
+                   content: [],
+                   tool_calls: [],
+                   metadata: %{response_id: "resp_empty"},
+                   reasoning_details: [%{"type" => "reasoning.encrypted", "data" => "opaque"}]
+                 },
+                 %SwarmAi.Message.Assistant{content: [%ContentPart{text: "Done"}]}
+               ] = Interaction.to_swarm_messages(interactions)
+      end
+    end
+
+    test "does not silently discard unsupported interactions" do
+      assert_raise FunctionClauseError, fn ->
+        Interaction.to_swarm_messages([%{content: nil}])
+      end
+    end
+
     test "converts user message text and images to Swarm content parts" do
       msg = %{
         user_msg("Look at this")

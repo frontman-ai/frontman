@@ -68,8 +68,8 @@ jobs:
       - name: Clean ReScript build cache
         run: yarn rescript clean
 
-      - name: Build project
-        run: make build
+      - name: Build project with warnings as errors
+        run: make build RESCRIPT_FLAGS="--warn-error +a"
 
   test-frontman-client:
     name: Test frontman-client
@@ -104,7 +104,7 @@ jobs:
         run: make -C libs/frontman-client test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
+        uses: clearlyip/code-coverage-report-action@3fd916c98ed8369fa58edd4159558009f4bde010
         with:
           filename: libs/frontman-client/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -143,7 +143,7 @@ jobs:
         run: make -C libs/frontman-core test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
+        uses: clearlyip/code-coverage-report-action@3fd916c98ed8369fa58edd4159558009f4bde010
         with:
           filename: libs/frontman-core/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -182,7 +182,7 @@ jobs:
         run: make -C libs/frontman-nextjs test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
+        uses: clearlyip/code-coverage-report-action@3fd916c98ed8369fa58edd4159558009f4bde010
         with:
           filename: libs/frontman-nextjs/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -221,7 +221,7 @@ jobs:
         run: make -C libs/react-statestore test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
+        uses: clearlyip/code-coverage-report-action@3fd916c98ed8369fa58edd4159558009f4bde010
         with:
           filename: libs/react-statestore/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -260,7 +260,7 @@ jobs:
         run: make -C libs/client test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
+        uses: clearlyip/code-coverage-report-action@3fd916c98ed8369fa58edd4159558009f4bde010
         with:
           filename: libs/client/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -394,6 +394,7 @@ jobs:
             bridge:
               - 'libs/frontman-preview-bridge/**'
               - 'libs/frontman-protocol/**'
+              - 'libs/frontman-astro-browser/**'
               - 'package.json'
               - '.yarnrc.yml'
               - 'yarn.lock'
@@ -419,6 +420,10 @@ jobs:
       - name: Install dependencies
         if: steps.changes.outputs.bridge == 'true'
         run: yarn install --immutable
+
+      - name: Install bridge test browser
+        if: steps.changes.outputs.bridge == 'true'
+        run: make -C libs/frontman-preview-bridge install-browser
 
       - name: Run focused bridge tests
         if: steps.changes.outputs.bridge == 'true'
@@ -679,7 +684,7 @@ jobs:
           MIX_TEST_DB_SUFFIX: "_run_${{ github.run_id }}"
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
+        uses: clearlyip/code-coverage-report-action@3fd916c98ed8369fa58edd4159558009f4bde010
         with:
           filename: apps/frontman_server/cover/cobertura.xml
           overall_coverage_fail_threshold: 0

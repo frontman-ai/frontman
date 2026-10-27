@@ -139,8 +139,33 @@ if ( ! function_exists( 'wp_insert_attachment' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_delete_attachment' ) ) {
+	function wp_delete_attachment( int $attachment_id, bool $force_delete = false ): void {
+		if ( ! $force_delete ) {
+			throw new RuntimeException( 'Failed uploads must be permanently deleted.' );
+		}
+		wp_delete_file( $GLOBALS['frontman_test_attachments'][ $attachment_id ]['file'] );
+		unset( $GLOBALS['frontman_test_attachments'][ $attachment_id ], $GLOBALS['frontman_test_attachment_meta'][ $attachment_id ], $GLOBALS['frontman_test_attachment_metadata'][ $attachment_id ] );
+	}
+}
+
+if ( ! function_exists( 'wp_read_audio_metadata' ) ) {
+	function wp_read_audio_metadata( string $file ): array {
+		return [];
+	}
+}
+
+if ( ! function_exists( 'wp_read_video_metadata' ) ) {
+	function wp_read_video_metadata( string $file ): array {
+		return [];
+	}
+}
+
 if ( ! function_exists( 'wp_generate_attachment_metadata' ) ) {
 	function wp_generate_attachment_metadata( int $attachment_id, string $file ): array {
+		if ( $GLOBALS['frontman_test_metadata_failure'] ) {
+			throw new Error( 'Metadata generation failed.' );
+		}
 		return [ 'file' => basename( $file ), 'generated_for' => $attachment_id ];
 	}
 }
@@ -178,6 +203,7 @@ class Frontman_Media_Tools_Test_Runner {
 		$this->test_upload_infers_filename_and_mime_type_from_attachment_reference();
 		$this->test_upload_rejects_missing_resolved_content();
 		$this->test_upload_rejects_uploaded_filetype_mismatch();
+		$this->test_upload_cleans_up_after_metadata_failure();
 		$this->test_tool_schema_exposes_image_ref();
 		$this->test_sanitizer_preserves_upload_content();
 
@@ -253,6 +279,23 @@ class Frontman_Media_Tools_Test_Runner {
 		$this->assert_same( [ ABSPATH . 'uploads/fake.png' ], $GLOBALS['frontman_test_deleted_files'], 'wp_upload_media deletes failed uploads with WordPress API' );
 	}
 
+	private function test_upload_cleans_up_after_metadata_failure(): void {
+		$this->reset_upload_state();
+		$GLOBALS['frontman_test_metadata_failure'] = true;
+		$this->assert_throws(
+			fn() => $this->tool->upload_media( [
+				'content' => base64_encode( 'png-binary' ),
+				'filename' => 'failed.png',
+				'alt_text' => 'Logo',
+			] ),
+			'Metadata generation failed.',
+			'wp_upload_media propagates metadata generation errors'
+		);
+		$this->assert_same( [], $GLOBALS['frontman_test_attachments'], 'Metadata failure deletes the attachment' );
+		$this->assert_same( [ ABSPATH . 'uploads/failed.png' ], $GLOBALS['frontman_test_deleted_files'], 'Metadata failure deletes the uploaded file' );
+		$this->assert_same( [], $GLOBALS['frontman_test_attachment_meta'], 'Metadata failure leaves no attachment alt text' );
+	}
+
 	private function test_tool_schema_exposes_image_ref(): void {
 		$definition = $this->tools->get( 'wp_upload_media' );
 		$this->assert_true( null !== $definition, 'wp_upload_media is registered' );
@@ -281,6 +324,7 @@ class Frontman_Media_Tools_Test_Runner {
 		$GLOBALS['frontman_test_next_attachment_id']  = 1000;
 		$GLOBALS['frontman_test_deleted_files']        = [];
 		$GLOBALS['frontman_test_filetype_and_ext']     = null;
+		$GLOBALS['frontman_test_metadata_failure']     = false;
 	}
 
 	private function assert_same( $expected, $actual, string $message ): void {
@@ -301,7 +345,7 @@ class Frontman_Media_Tools_Test_Runner {
 		$this->assertions++;
 		try {
 			$callback();
-		} catch ( Frontman_Tool_Error $e ) {
+		} catch ( \Throwable $e ) {
 			if ( false !== strpos( $e->getMessage(), $expected_message ) ) {
 				return;
 			}

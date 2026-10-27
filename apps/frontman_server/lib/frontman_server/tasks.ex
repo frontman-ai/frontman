@@ -66,6 +66,7 @@ defmodule FrontmanServer.Tasks do
 
   alias FrontmanServer.Tools
   alias FrontmanServer.Workers.GenerateTitle
+  alias FrontmanServer.Workers.SyncResendContact
   alias SwarmAi.{Loop, Message}
   alias SwarmAi.Message.ContentPart
   alias SwarmAi.Message.Tool
@@ -144,12 +145,19 @@ defmodule FrontmanServer.Tasks do
   """
   def create_task(%Scope{} = scope, %{id: task_id, framework: _framework} = attrs, opts \\ [])
       when is_binary(task_id) do
-    attrs
-    |> Map.put(:short_desc, TaskSchema.default_title())
-    |> Map.put(:user_id, Accounts.scope_user_id(scope))
-    |> TaskSchema.create_changeset()
-    |> validate_current_model(Providers.available_models(scope))
-    |> Repo.insert(opts)
+    changeset =
+      attrs
+      |> Map.put(:short_desc, TaskSchema.default_title())
+      |> Map.put(:user_id, Accounts.scope_user_id(scope))
+      |> TaskSchema.create_changeset()
+
+    changeset =
+      case Map.has_key?(attrs, :current_model) do
+        true -> validate_current_model(changeset, Providers.available_models(scope))
+        false -> changeset
+      end
+
+    Repo.insert(changeset, opts)
   end
 
   def ensure_session(%Scope{} = scope, %{id: task_id} = attrs) do
@@ -240,19 +248,25 @@ defmodule FrontmanServer.Tasks do
 
     enforce_project_rule_limit!(length(loaded_paths) + length(attrs), task.id)
 
-    case attrs do
+    rows =
+      Enum.map(attrs, fn attrs ->
+        result =
+          task
+          |> Ecto.build_assoc(:interaction_rows)
+          |> InteractionSchema.changeset(attrs)
+          |> Repo.insert()
+
+        case result do
+          {:ok, row} -> row
+          {:error, changeset} -> Repo.rollback({:invalid_project_rule, changeset})
+        end
+      end)
+
+    case rows do
       [] ->
         {:ok, {task, []}}
 
       [_ | _] ->
-        rows =
-          Enum.map(attrs, fn attrs ->
-            task
-            |> Ecto.build_assoc(:interaction_rows)
-            |> InteractionSchema.changeset(attrs)
-            |> Repo.insert!()
-          end)
-
         {1, _} =
           TaskSchema
           |> TaskSchema.by_id(task.id)
@@ -421,13 +435,13 @@ defmodule FrontmanServer.Tasks do
     Logger.warning("Execution failed for task #{task_id}, reason: #{reason_str}")
   end
 
-  defp report_agent_execution_failure(task_id, reason_str, _category, _retryable) do
-    Logger.error("Execution failed for task #{task_id}, reason: #{reason_str}")
+  defp report_agent_execution_failure(task_id, reason_str, category, retryable) do
+    Logger.warning("Execution failed for task #{task_id}, reason: #{reason_str}")
 
     Sentry.capture_message("Agent execution failed",
       level: :error,
-      tags: %{error_type: "agent_execution_error"},
-      extra: %{task_id: task_id, reason: reason_str}
+      tags: %{error_type: "agent_execution_error", category: category},
+      extra: %{task_id: task_id, reason: reason_str, retryable: retryable}
     )
   end
 
@@ -541,6 +555,12 @@ defmodule FrontmanServer.Tasks do
       attrs = Interaction.UserMessage.attrs(arguments.message, model, arguments.agent_id)
       attrs = put_selected_skill(attrs, selected_skill)
 
+      if Accounts.record_first_message(scope) do
+        %{user_id: Accounts.scope_user_id(scope), activation: true}
+        |> SyncResendContact.new()
+        |> Oban.insert!()
+      end
+
       insert_interaction_row(task, %{
         id: arguments.message_id,
         type: :user_message,
@@ -567,7 +587,7 @@ defmodule FrontmanServer.Tasks do
   defp prompt_model(_task, model), do: model
 
   defp guard_billing_access(scope) do
-    case Billing.allow_access?(scope) do
+    case Billing.can_start_turn?(scope) do
       true -> :ok
       false -> {:error, :billing_inactive}
     end
@@ -576,7 +596,7 @@ defmodule FrontmanServer.Tasks do
   def billing_inactive_message(%Scope{} = scope) do
     case Billing.get_current_subscription(scope) do
       nil ->
-        "Finish billing setup to start using Frontman."
+        "Keep going with a 7-day free Pro trial. Card required."
 
       %Billing.Subscription{} ->
         "Your Frontman access has ended. Start a subscription to continue."
@@ -633,8 +653,16 @@ defmodule FrontmanServer.Tasks do
 
   defp start_next_turn(%Scope{} = scope, task_id) when is_binary(task_id) do
     case claim_next_turn(scope, task_id) do
-      {:ok, {task_schema, turn_started_row, turn_number, turn_model, agent, first_message}} ->
+      {:ok,
+       {task_schema, turn_started_row, turn_number, turn_model, agent, first_message,
+        billing_authorization}} ->
         broadcast_task(task_id, {:interaction, turn_started_row})
+
+        case billing_authorization do
+          :pretrial -> Billing.broadcast_status_changed(Accounts.scope_user_id(scope))
+          :subscription -> :ok
+        end
+
         enqueue_title_generation(scope, task_id, first_message, turn_model, turn_number)
         {:ok, task_schema, turn_number, turn_model, agent}
 
@@ -674,16 +702,22 @@ defmodule FrontmanServer.Tasks do
            end),
          user_message_ids = Enum.map(accepted_messages, & &1.id),
          {:ok, agent} <- Agents.get_agent(scope, agent_id),
+         {:ok, _access} <- Providers.resolve_model_access(scope, turn_model),
+         {:ok, billing_authorization} <- Billing.authorize_new_turn(scope),
          {:ok, turn_started_row} <-
            insert_interaction_row(task_schema, %{
              id: Ecto.UUID.generate(),
              type: :turn_started,
-             data: %{agent_id: agent.id, user_message_ids: user_message_ids},
+             data: %{
+               agent_id: agent.id,
+               user_message_ids: user_message_ids
+             },
              turn_number: turn_number
            }),
          :ok <- insert_skill_used_rows(task_schema, accepted_messages, turn_number) do
       {:ok,
-       {task_schema, turn_started_row, turn_number, turn_model, agent, first_accepted_message}}
+       {task_schema, turn_started_row, turn_number, turn_model, agent, first_accepted_message,
+        billing_authorization}}
     else
       {:error, reason} -> {:error, reason}
       {nil, []} -> {:error, :no_accepted_messages}
@@ -834,6 +868,15 @@ defmodule FrontmanServer.Tasks do
      }}
   end
 
+  @doc "Whether the user has a tool request or result after the given timestamp."
+  def tool_used_since?(%Scope{} = scope, tool_name, %DateTime{} = since)
+      when is_binary(tool_name) do
+    scope
+    |> Accounts.scope_user_id()
+    |> InteractionSchema.recent_tool_interactions(tool_name, since)
+    |> Repo.exists?()
+  end
+
   @doc "Records a client-handled tool request in the given turn."
   def request_client_tool(
         %Scope{} = scope,
@@ -974,10 +1017,9 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  @doc "Records a retry request and starts execution."
+  @doc "Retries an already-authorized turn without charging or rechecking billing."
   def retry_execution(scope, task_id, retried_error_id, execution) do
-    with :ok <- guard_billing_access(scope),
-         {:ok, schema} <- get_task(scope, task_id),
+    with {:ok, schema} <- get_task(scope, task_id),
          {:ok, history} = load_history(task_id),
          {:ok, turn_number} <- retry_turn_number(history.rows, retried_error_id),
          :ok <- ensure_latest_retry_turn(retried_error_id, turn_number, history),
@@ -1041,10 +1083,9 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  @doc "Resumes execution for the active turn."
+  @doc "Resumes an already-authorized active turn without charging or rechecking billing."
   def resume_execution(scope, task_id, execution) do
-    with :ok <- guard_billing_access(scope),
-         {:ok, task} <- get_task(scope, task_id),
+    with {:ok, task} <- get_task(scope, task_id),
          {:ok, history} <- load_history(task.id),
          turn_number when is_integer(turn_number) <- History.active_turn_number(history),
          {:ok, agent} <- turn_agent(scope, history, turn_number),

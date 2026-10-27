@@ -52,7 +52,7 @@ let make = () => {
   let billingFlow = State.useSelector(State.Selectors.billingFlow)
   let connected = State.useSelector(State.Selectors.hasActiveACPSession)
   let opening = billingFlow === Billing.Opening
-  let disabled = opening || !connected
+  let disabled = opening || billingFlow == Billing.AwaitingCheckout || !connected
 
   <div className="space-y-4">
     {switch billingFlow {
@@ -61,6 +61,16 @@ let make = () => {
         <Alert.Title> {React.string("Could not open billing")} </Alert.Title>
         <Alert.Description> {React.string(error)} </Alert.Description>
       </Alert>
+    | AwaitingCheckout =>
+      <div className="space-y-2">
+        <p className="text-sm"> {React.string("Complete checkout in the new tab.")} </p>
+        <Button disabled={!connected} onClick={_ => State.Actions.requestBilling(Status)}>
+          {React.string("Check activation")}
+        </Button>
+        <Button variant=Button.Variant.Ghost onClick={_ => State.Actions.dismissBillingCheckout()}>
+          {React.string("Canceled checkout? Choose again")}
+        </Button>
+      </div>
     | Idle | Opening => React.null
     }}
     {switch billingStatus {
@@ -82,19 +92,37 @@ let make = () => {
           </Card.Action>
           <Card.Title> {React.string("Plan status")} </Card.Title>
           <Card.Description>
-            {React.string("Stripe manages payment methods, invoices, and cancellation.")}
+            {React.string("Manage payments and cancellation in Stripe.")}
           </Card.Description>
         </Card.Header>
         <Card.Content className="space-y-4">
-          {switch Billing.cancelAt(status) {
-          | Some(cancelAt) =>
+          {switch (
+            Billing.subscriptionStatus(status),
+            Billing.cancelAt(status),
+            Billing.canceledAt(status),
+          ) {
+          | (Trialing, Some(_), _) | (Trialing, _, Some(_)) =>
+            <Alert>
+              <Alert.Title> {React.string("Trial canceled")} </Alert.Title>
+              <Alert.Description>
+                {React.string(
+                  switch Billing.pretrialRunsRemaining(status) {
+                  | Some(remaining)
+                    if remaining > 0 => "Your trial access has ended. You can still use your remaining free prompts."
+                  | Some(_)
+                  | None => "Your trial access has ended. Manage billing in Stripe to restore access."
+                  },
+                )}
+              </Alert.Description>
+            </Alert>
+          | (_, Some(cancelAt), _) =>
             <Alert>
               <Alert.Title> {React.string("Subscription scheduled to cancel")} </Alert.Title>
               <Alert.Description>
                 {React.string(`Access remains active until ${formatDate(cancelAt)}.`)}
               </Alert.Description>
             </Alert>
-          | None => React.null
+          | (_, None, _) => React.null
           }}
           <div className="divide-y">
             {switch Billing.interval(status) {
@@ -123,9 +151,9 @@ let make = () => {
             </div>
           | false => React.null
           }}
-          {switch Billing.isAccessAllowed(status) {
-          | true => React.null
-          | false =>
+          {switch Billing.canStartCheckout(status) {
+          | false => React.null
+          | true =>
             <div className="divide-y">
               {Billing.checkoutOptions
               ->Array.map(option =>

@@ -101,11 +101,16 @@ class Frontman_Tool_Media {
 		}
 
 		$attachment_id = (int) $attachment_id;
-		$this->update_attachment_metadata( $attachment_id, $file_path );
+		try {
+			$this->update_attachment_metadata( $attachment_id, $file_path );
 
-		$alt_text = sanitize_text_field( $input['alt_text'] ?? '' );
-		if ( '' !== $alt_text ) {
-			update_post_meta( $attachment_id, '_wp_attachment_image_alt', $alt_text );
+			$alt_text = sanitize_text_field( $input['alt_text'] ?? '' );
+			if ( '' !== $alt_text ) {
+				update_post_meta( $attachment_id, '_wp_attachment_image_alt', $alt_text );
+			}
+		} catch ( \Throwable $e ) {
+			wp_delete_attachment( $attachment_id, true );
+			throw $e;
 		}
 
 		return [
@@ -229,15 +234,11 @@ class Frontman_Tool_Media {
 	}
 
 	private function update_attachment_metadata( int $attachment_id, string $file_path ): void {
+		if ( ! function_exists( 'wp_read_audio_metadata' ) || ! function_exists( 'wp_read_video_metadata' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/media.php';
+		}
 		if ( ! function_exists( 'wp_generate_attachment_metadata' ) ) {
-			if ( function_exists( 'wp_maybe_generate_attachment_metadata' ) && function_exists( 'get_post' ) ) {
-				$attachment = get_post( $attachment_id );
-				if ( $attachment ) {
-					wp_maybe_generate_attachment_metadata( $attachment );
-				}
-			}
-
-			return;
+			require_once ABSPATH . 'wp-admin/includes/image.php';
 		}
 
 		$metadata = wp_generate_attachment_metadata( $attachment_id, $file_path );

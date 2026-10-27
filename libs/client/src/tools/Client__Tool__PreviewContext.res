@@ -7,7 +7,17 @@ let get = (): option<t> => {
   let state = StateStore.getState(Client__State__Store.store)
   let previewFrame = Client__State__StateReducer.Selectors.previewFrame(state)
   switch (previewFrame.contentDocument, previewFrame.contentWindow) {
-  | (Some(doc), Some(win)) => Some({doc, win})
+  | (Some(doc), Some(window)) =>
+    switch Client__PreviewFrame.isCurrent(~doc, ~window) {
+    | true => Some({doc, win: window.window})
+    | false =>
+      Client__State.Actions.setPreviewFrame(
+        ~clientId=Client__State.Selectors.currentTaskClientId(state),
+        ~navigationKey=previewFrame.navigationKey,
+        ~context=None,
+      )
+      None
+    }
   | (Some(_), None) | (None, Some(_)) | (None, None) => None
   }
 }

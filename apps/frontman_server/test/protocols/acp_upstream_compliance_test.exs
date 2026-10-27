@@ -33,6 +33,44 @@ defmodule FrontmanServer.Protocols.AcpUpstreamComplianceTest do
     Enum.each(fixtures, &ProtocolSchema.validate_upstream_acp!/1)
   end
 
+  test "actual Frontman session/new params conform to pinned NewSessionRequest" do
+    params = %{
+      "cwd" => "/",
+      "mcpServers" => [],
+      "_meta" => %{"frontman.dev/sessionId" => Ecto.UUID.generate(), "other.vendor/trace" => true}
+    }
+
+    ProtocolSchema.validate!(params, "acp/sessionNewParams")
+    assert ProtocolSchema.upstream_acp_definition_valid?(params, "NewSessionRequest")
+
+    ProtocolSchema.validate_upstream_acp!(%{
+      "jsonrpc" => "2.0",
+      "id" => 2,
+      "method" => "session/new",
+      "params" => params
+    })
+
+    assert ProtocolSchema.upstream_acp_definition_valid?(
+             Map.delete(params, "_meta"),
+             "NewSessionRequest"
+           )
+
+    refute ProtocolSchema.valid?(
+             Map.put(params, "sessionId", Ecto.UUID.generate()),
+             "acp/sessionNewParams"
+           )
+
+    refute ProtocolSchema.upstream_acp_definition_valid?(
+             %{"sessionId" => "legacy"},
+             "NewSessionRequest"
+           )
+
+    assert get_in(
+             ACP.build_initialize_result([agent()], "executor-id"),
+             ["agentCapabilities", "_meta", "frontman.dev/sessionId"]
+           ) == true
+  end
+
   test "draft adapter preserves upstream envelope and known-update constraints" do
     assert ProtocolSchema.upstream_acp_definition_valid?(
              FrontmanServer.CurrentPageContext.to_content_blocks(%{url: "http://localhost"})

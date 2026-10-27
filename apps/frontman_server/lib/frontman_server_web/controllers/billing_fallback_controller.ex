@@ -10,7 +10,11 @@ defmodule FrontmanServerWeb.BillingFallbackController do
   alias FrontmanServer.Accounts.Scope
 
   def call(conn, {:error, {:billing, :checkout, :subscription_already_active}}) do
-    render_error(conn, :conflict, "You already have an active subscription.")
+    render_error(
+      conn,
+      :conflict,
+      "You already have a subscription. Manage billing in Stripe to update your payment method."
+    )
   end
 
   def call(conn, {:error, {:billing, :customer_portal, :billing_customer_missing}}) do

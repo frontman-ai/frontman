@@ -24,13 +24,21 @@ defmodule FrontmanServerWeb.TasksChannel do
   alias FrontmanServer.Tasks
 
   @billing_status_updated "billing_status_updated"
-  @acp_protocol_version ACP.protocol_version()
   @acp_message ACP.event_acp_message()
   @model_catalog_updated "model_catalog_updated"
   @acp_list_sessions ACP.event_list_sessions()
   @acp_delete_session ACP.event_delete_session()
   @acp_method_initialize ACP.method_initialize()
   @acp_method_session_new ACP.method_session_new()
+  @session_new_params_path Path.expand(
+                             "../../../../../libs/frontman-protocol/schemas/acp/sessionNewParams.json",
+                             __DIR__
+                           )
+  @external_resource @session_new_params_path
+  @session_new_params_schema @session_new_params_path
+                             |> File.read!()
+                             |> Jason.decode!()
+                             |> JSV.build!()
 
   @impl true
   def join("tasks", _params, socket) do
@@ -82,10 +90,10 @@ defmodule FrontmanServerWeb.TasksChannel do
   end
 
   defp handle_message(
-         {:request, id, @acp_method_initialize,
-          %{"protocolVersion" => @acp_protocol_version} = params},
+         {:request, id, @acp_method_initialize, %{"protocolVersion" => version} = params},
          socket
-       ) do
+       )
+       when is_integer(version) and version >= 0 and version <= 65_535 do
     Logger.info("ACP initialize received")
 
     case ACP.negotiate_agent_attribution_version(params["clientCapabilities"]) do
@@ -95,29 +103,37 @@ defmodule FrontmanServerWeb.TasksChannel do
         push(
           socket,
           @model_catalog_updated,
-          socket.assigns.scope |> Providers.available_models() |> ACP.build_model_options()
+          %{
+            "groups" =>
+              socket.assigns.scope |> Providers.available_models() |> ACP.build_model_options()
+          }
         )
 
         push(socket, @billing_status_updated, Billing.status(socket.assigns.scope))
         agents = Agents.list_agents(socket.assigns.scope)
 
-        push_response(
+        reply_response(
           socket,
           id,
           ACP.build_initialize_result(agents, Agents.default_agent_id(socket.assigns.scope))
         )
 
       {:error, message} ->
-        push_error(socket, id, JsonRpc.error_invalid_params(), message)
+        reply_error(socket, id, JsonRpc.error_invalid_params(), message)
     end
   end
 
   defp handle_message({:request, id, @acp_method_initialize, %{"protocolVersion" => _}}, socket) do
-    push_error(socket, id, JsonRpc.error_invalid_request(), "Unsupported protocol version")
+    reply_error(
+      socket,
+      id,
+      JsonRpc.error_invalid_params(),
+      "Invalid protocolVersion: must be an integer between 0 and 65535"
+    )
   end
 
   defp handle_message({:request, id, @acp_method_initialize, _params}, socket) do
-    push_error(
+    reply_error(
       socket,
       id,
       JsonRpc.error_invalid_params(),
@@ -125,25 +141,17 @@ defmodule FrontmanServerWeb.TasksChannel do
     )
   end
 
-  defp handle_message(
-         {:request, id, @acp_method_session_new, %{"sessionId" => session_id} = params},
-         socket
-       )
-       when is_binary(session_id) and session_id != "" do
-    Logger.info("ACP session/new request received with sessionId: #{session_id}")
-
-    with :ok <- validate_uuid_format(session_id),
+  defp handle_message({:request, id, @acp_method_session_new, params}, socket) do
+    with {:ok, session_id} <- session_new_id(params),
          raw_framework when is_binary(raw_framework) <-
            extract_framework(socket.assigns[:acp_client_info]),
-         true <- Billing.allow_access?(socket.assigns.scope),
-         {:ok, current_model} <- new_model(params),
+         true <- Billing.can_start_turn?(socket.assigns.scope),
          {:ok, %Tasks.TaskSchema{id: ^session_id} = task} <-
-           Tasks.ensure_session(socket.assigns.scope, %{
-             id: session_id,
-             framework: raw_framework,
-             current_model: current_model
-           }) do
-      push_response(
+           Tasks.ensure_session(
+             socket.assigns.scope,
+             Map.merge(%{id: session_id, framework: raw_framework}, new_model_attrs(params))
+           ) do
+      reply_response(
         socket,
         id,
         ACP.build_session_new_result(
@@ -158,26 +166,26 @@ defmodule FrontmanServerWeb.TasksChannel do
       false ->
         push(socket, @billing_status_updated, Billing.status(socket.assigns.scope))
 
-        push_error(
+        reply_error(
           socket,
           id,
           JsonRpc.error_billing_inactive(),
           Tasks.billing_inactive_message(socket.assigns.scope)
         )
 
-      :error ->
-        push_error(
+      {:error, :invalid_session_params} ->
+        reply_error(
           socket,
           id,
           JsonRpc.error_invalid_params(),
-          "Invalid sessionId: must be a valid UUID"
+          "Invalid or unsupported session/new parameters: use cwd /, empty mcpServers and no additional directories"
         )
 
       nil ->
-        push_error(socket, id, JsonRpc.error_invalid_params(), "Missing framework in clientInfo")
+        reply_error(socket, id, JsonRpc.error_invalid_params(), "Missing framework in clientInfo")
 
       {:error, %Ecto.Changeset{errors: [{field, {message, _}} | _]}} ->
-        push_error(
+        reply_error(
           socket,
           id,
           JsonRpc.error_invalid_params(),
@@ -185,17 +193,13 @@ defmodule FrontmanServerWeb.TasksChannel do
         )
 
       {:error, _changeset} ->
-        push_error(socket, id, JsonRpc.error_invalid_params(), "Failed to create session")
+        reply_error(socket, id, JsonRpc.error_invalid_params(), "Failed to create session")
     end
-  end
-
-  defp handle_message({:request, id, @acp_method_session_new, _params}, socket) do
-    push_error(socket, id, JsonRpc.error_invalid_params(), "Missing required field: sessionId")
   end
 
   defp handle_message({:request, id, method, _params}, socket) do
     Logger.info("ACP unknown method: #{method}")
-    push_error(socket, id, JsonRpc.error_method_not_found(), "Method not found")
+    reply_error(socket, id, JsonRpc.error_method_not_found(), "Method not found")
   end
 
   defp handle_message({:notification, _method, _params}, socket) do
@@ -207,7 +211,10 @@ defmodule FrontmanServerWeb.TasksChannel do
     push(
       socket,
       @model_catalog_updated,
-      socket.assigns.scope |> Providers.available_models() |> ACP.build_model_options()
+      %{
+        "groups" =>
+          socket.assigns.scope |> Providers.available_models() |> ACP.build_model_options()
+      }
     )
 
     {:noreply, socket}
@@ -218,18 +225,28 @@ defmodule FrontmanServerWeb.TasksChannel do
     {:noreply, socket}
   end
 
-  defp new_model(%{"_meta" => meta}) when not is_map(meta),
-    do: {:error, :invalid_params}
+  defp new_model_attrs(%{"_meta" => %{"frontman.dev/model" => model}}),
+    do: %{current_model: model}
 
-  defp new_model(params),
-    do: {:ok, params |> Map.get("_meta", %{}) |> Map.get("frontman.dev/model")}
+  defp new_model_attrs(_params), do: %{}
 
-  defp validate_uuid_format(string) do
-    case Ecto.UUID.cast(string) do
-      {:ok, uuid} -> if uuid == String.downcase(string), do: :ok, else: :error
-      :error -> :error
+  defp session_new_id(params) do
+    with {:ok, %{"cwd" => "/"}} <-
+           JSV.validate(params, @session_new_params_schema, cast: false),
+         {:ok, session_id} <- session_new_retry_id(params["_meta"]) do
+      {:ok, session_id}
+    else
+      _invalid_params -> {:error, :invalid_session_params}
     end
   end
+
+  defp session_new_retry_id(%{"frontman.dev/sessionId" => session_id})
+       when is_binary(session_id) do
+    Ecto.UUID.cast(session_id)
+  end
+
+  defp session_new_retry_id(%{"frontman.dev/sessionId" => _invalid_id}), do: :error
+  defp session_new_retry_id(_metadata), do: {:ok, Ecto.UUID.generate()}
 
   defp extract_framework(%{"_meta" => %{"framework" => framework}}) when is_binary(framework),
     do: framework
@@ -238,7 +255,7 @@ defmodule FrontmanServerWeb.TasksChannel do
 
   defp handle_parse_error(_reason, %{"id" => id}, socket) do
     Logger.error("Invalid ACP message")
-    push_error(socket, id, JsonRpc.error_invalid_request(), "Invalid JSON-RPC message")
+    reply_error(socket, id, JsonRpc.error_invalid_request(), "Invalid JSON-RPC message")
   end
 
   defp handle_parse_error(_reason, _payload, socket) do
@@ -246,13 +263,11 @@ defmodule FrontmanServerWeb.TasksChannel do
     {:noreply, socket}
   end
 
-  defp push_response(socket, id, result) do
-    push(socket, @acp_message, JsonRpc.success_response(id, result))
-    {:noreply, socket}
+  defp reply_response(socket, id, result) do
+    {:reply, {:ok, %{@acp_message => JsonRpc.success_response(id, result)}}, socket}
   end
 
-  defp push_error(socket, id, code, message) do
-    push(socket, @acp_message, JsonRpc.error_response(id, code, message))
-    {:noreply, socket}
+  defp reply_error(socket, id, code, message) do
+    {:reply, {:ok, %{@acp_message => JsonRpc.error_response(id, code, message)}}, socket}
   end
 end

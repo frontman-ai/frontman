@@ -5,7 +5,9 @@ defmodule FrontmanServer.SentryTest do
 
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Accounts.User
+  alias FrontmanServer.Observability.Sentry, as: SentryReporting
   alias FrontmanServer.Observability.SentryContext
+  alias FrontmanServer.Tasks.InteractionSchema
 
   setup do
     Sentry.Test.setup_sentry(dedup_events: false)
@@ -15,6 +17,11 @@ defmodule FrontmanServer.SentryTest do
   end
 
   describe "Sentry configuration" do
+    test "leaves unrelated events unchanged" do
+      event = Sentry.Event.transform_exception(%RuntimeError{message: "unrelated"}, [])
+      assert SentryReporting.before_send(event) == event
+    end
+
     test "sentry is in test mode" do
       assert Application.get_env(:sentry, :test_mode) == true
     end
@@ -25,6 +32,48 @@ defmodule FrontmanServer.SentryTest do
   end
 
   describe "Logger metadata reporting" do
+    test "serializes parameterized type metadata from cast errors" do
+      type = Ecto.ParameterizedType.init(Ecto.Enum, values: [:admin])
+      changeset = Ecto.Changeset.cast({%{}, %{role: type}}, %{role: "invalid"}, [:role])
+      exception = Ecto.InvalidChangesetError.exception(action: :insert, changeset: changeset)
+
+      Sentry.capture_exception(exception)
+
+      [event] = Sentry.Test.pop_sentry_reports()
+      assert [%{metadata: metadata}] = event.extra.changeset_errors.role
+      assert metadata.type == inspect(type)
+
+      assert {:ok, _json} =
+               event
+               |> Sentry.Client.render_event()
+               |> Sentry.JSON.encode(Sentry.Config.json_library())
+    end
+
+    @tag :capture_log
+    test "adds nested changeset errors while preserving the exception message" do
+      content = String.duplicate("private-инструкции", 8192)
+
+      changeset =
+        InteractionSchema.changeset(
+          %InteractionSchema{task_id: Ecto.UUID.generate()},
+          %{
+            id: Ecto.UUID.generate(),
+            type: :discovered_project_rule,
+            data: %{path: "AGENTS.md", content: content}
+          }
+        )
+
+      exception = Ecto.InvalidChangesetError.exception(action: :insert, changeset: changeset)
+      :logger.error(%{reason: {exception, []}})
+
+      [event] = Sentry.Test.pop_sentry_reports()
+      assert [%{message: message, metadata: metadata}] = event.extra.changeset_errors.data.content
+      assert message == "should be at most %{count} byte(s)"
+      assert metadata.count == 65_536
+      [reported] = event.exception
+      assert reported.value == Exception.message(exception)
+    end
+
     @tag :capture_log
     test "captures Logger errors with metadata" do
       Logger.error(

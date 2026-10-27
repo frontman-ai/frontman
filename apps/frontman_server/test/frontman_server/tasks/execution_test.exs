@@ -44,6 +44,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   alias FrontmanServer.Test.Fixtures.ReqLLMResponses
   alias FrontmanServer.Tools.MCP
   alias FrontmanServer.Workers.GenerateTitle
+  alias FrontmanServer.Workers.SyncResendContact
   alias ReqLLM.Error.API.Request
 
   @moduletag billing: :active
@@ -550,7 +551,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert second_part.text == "Now tighten copy"
     end
 
-    test "credentials lost after acceptance terminate the claimed turn", %{
+    test "credentials lost after acceptance leave the message queued without a turn error", %{
       task_id: task_id,
       scope: scope
     } do
@@ -573,30 +574,42 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                })
 
       {1, _} = Repo.delete_all(ApiKey.for_user_and_provider(scope.user.id, "openrouter"))
-      assert :ok = Tasks.execute_next_turn(scope, task_id, execution)
+      assert {:error, :no_api_key} = Tasks.execute_next_turn(scope, task_id, execution)
+      assert [] = turn_started_rows(task_id)
 
-      assert_receive_interaction(
-        %Interaction.AgentError{
-          category: "auth",
-          kind: "failed",
-          retryable: false,
-          error: "No API key available for this request."
-        } = error,
-        1
-      )
-
-      assert [%{turn_number: 1, data: %{user_message_ids: [^message_id]}}] =
-               turn_started_rows(task_id)
-
-      assert [%InteractionSchema{turn_number: 1, data: ^error}] =
+      assert [] =
                task_id
                |> InteractionSchema.for_task()
                |> InteractionSchema.of_type(:agent_error)
                |> Repo.all()
 
+      assert %InteractionSchema{turn_number: nil} = Repo.get!(InteractionSchema, message_id)
       assert {:ok, :no_active_turn} = Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
-      assert :no_accepted_messages = Tasks.execute_next_turn(scope, task_id, execution)
+      assert {:error, :no_api_key} = Tasks.execute_next_turn(scope, task_id, execution)
       refute SwarmAi.running?(FrontmanServer.AgentRuntime, task_id)
+    end
+
+    @tag billing: :pretrial
+    test "missing credentials leave the accepted message unclaimed and allowance unspent" do
+      scope = user_scope_fixture()
+      task = task_with_pubsub_fixture(scope)
+      message = insert_accepted_user_message!(task, "Edit")
+      {1, _} = Repo.delete_all(ApiKey.for_user_and_provider(scope.user.id, "openrouter"))
+      execution = execution_request_fixture()
+      assert {:error, :no_api_key} = Tasks.execute_next_turn(scope, task.id, execution)
+      assert [] == turn_started_rows(task.id)
+      assert %{pretrial_runs_remaining: 5} = FrontmanServer.Billing.status(scope)
+
+      :ok = FrontmanServer.Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
+      expect_llm_responses(["Done"])
+      assert :ok = Tasks.execute_next_turn(scope, task.id, execution)
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+      message_id = message.id
+
+      assert [%{data: %Interaction.TurnStarted{user_message_ids: [^message_id]}}] =
+               turn_started_rows(task.id)
+
+      assert %{pretrial_runs_remaining: 4} = FrontmanServer.Billing.status(scope)
     end
 
     test "executes browser context with the accepted prompt", %{
@@ -1167,11 +1180,13 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   end
 
   describe "interactive waits and serial recovery" do
-    test "application shutdown preserves approval, interrupts the write, and resumes the same turn",
+    @tag billing: :pretrial
+    test "application shutdown preserves approval and resumes the fifth turn with no allowance left",
          context do
       Process.flag(:trap_exit, true)
       Sandbox.mode(Repo, :auto)
       %{scope: scope} = setup_user(context)
+      FrontmanServer.BillingFixtures.run_allowance_fixture(scope, 4)
       task_id = task_with_pubsub_fixture(scope, framework: "wordpress").id
 
       on_exit(fn ->
@@ -1179,6 +1194,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
         Sandbox.unboxed_run(Repo, fn ->
           all_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
+          |> Enum.each(&Repo.delete!/1)
+
+          all_enqueued(worker: SyncResendContact, args: %{user_id: Scope.user_id(scope)})
           |> Enum.each(&Repo.delete!/1)
 
           Repo.delete!(Scope.user(scope))
@@ -1246,15 +1264,15 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert {:ok, 1, [%Interaction.ToolCall{tool_name: "approval"}]} =
                Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
 
-      {:ok, _} =
-        Tasks.submit_user_message(
-          scope,
-          Map.merge(execution_request_fixture(), %{
-            task_id: task_id,
-            message_id: Ecto.UUID.generate(),
-            message: user_content("Queued next turn")
-          })
-        )
+      assert {:error, :billing_inactive} =
+               Tasks.submit_user_message(
+                 scope,
+                 Map.merge(execution_request_fixture(), %{
+                   task_id: task_id,
+                   message_id: Ecto.UUID.generate(),
+                   message: user_content("New turns require billing")
+                 })
+               )
 
       assert {:ok, _, _} =
                Tasks.resolve_tool_request(
@@ -1283,8 +1301,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                "yes"
              ]
 
-      refute Enum.any?(messages, &(extract_content_text(&1.content) =~ "Queued next turn"))
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+      assert %{pretrial_runs_remaining: 0} = FrontmanServer.Billing.status(scope)
       assert length(turn_started_rows(task_id)) == 1
       refute_receive {:interaction, %{data: %Interaction.ToolCall{tool_name: "write_file"}}}, 50
     end
@@ -1626,12 +1644,14 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     end
 
     @tag :capture_log
-    test "retryable provider failures retry only after channel timer fires", %{
+    @tag billing: :pretrial
+    test "fifth-turn retry waits for the channel timer and survives subscription cancellation", %{
       task_id: task_id,
       scope: scope,
       socket: socket
     } do
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
+      FrontmanServer.BillingFixtures.run_allowance_fixture(scope, 4)
 
       attempts = :counters.new(1, [])
 
@@ -1671,6 +1691,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         }
       })
 
+      assert %{pretrial_runs_remaining: 0} = FrontmanServer.Billing.status(scope)
+      FrontmanServer.BillingFixtures.subscription_for_scope_fixture(scope, %{status: "canceled"})
       %{assigns: %{retry_state: retry_state}} = :sys.get_state(socket.channel_pid)
       send(socket.channel_pid, {:fire_retry, retry_state.timer_token})
 

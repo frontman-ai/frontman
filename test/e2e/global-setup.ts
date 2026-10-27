@@ -12,8 +12,6 @@ import { spawn, execSync, type ChildProcess } from "node:child_process";
 import { resolve } from "node:path";
 import { existsSync } from "node:fs";
 
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
 const ROOT = resolve(import.meta.dirname, "../..");
 const SERVER_DIR = resolve(ROOT, "apps/frontman_server");
 const CLIENT_DIR = resolve(ROOT, "libs/client");

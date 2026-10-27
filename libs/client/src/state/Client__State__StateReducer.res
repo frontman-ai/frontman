@@ -32,6 +32,8 @@ type promptInput = {
 
 type rec action =
   | InitializeConnection(Connection.config)
+  | WordPressAuthenticationRequired(option<string>)
+  | ReloadAfterWordPressLogin
   | ConnectionAction(Connection.action)
   | ConnectionEvent({signal: WebAPI.EventTypes.abortSignal, action: action})
   | SessionEvent({requestId: Connection.sessionRequestId, action: action})
@@ -44,6 +46,7 @@ type rec action =
     })
   | AcpSessionUpdateReceived({taskId: string, update: ACP.sessionUpdate})
   | TaskAction({target: taskTarget, action: TaskReducer.action})
+  | PreviewAction({clientId: string, navigationKey: int, action: TaskReducer.action})
   | CancelTurn
   | ExecutePendingPlan({id: Message.UserMessageId.t})
   | TaskLoadFinished({taskId: string, result: result<Connection.sessionRequestId, string>})
@@ -55,7 +58,8 @@ type rec action =
   | BillingStatusReceived(Client__Billing.status)
   | BillingStatusError({error: string})
   | RequestBilling(Client__Billing.request)
-  | BillingUrlReceived({tab: WebAPI.Window.t, url: string})
+  | BillingUrlReceived({tab: WebAPI.Window.t, url: string, request: Client__Billing.request})
+  | BillingCheckoutDismissed
   | BillingLaunchFailed({tab: option<WebAPI.Window.t>, error: string})
   | BillingAuthRequired({tab: option<WebAPI.Window.t>})
   | BillingRequestCancelled({tab: option<WebAPI.Window.t>})
@@ -128,6 +132,7 @@ type customProviderMutationRequest =
   | DeleteCustomProviderRequest({id: string, lockVersion: int})
 
 type effect =
+  | ReloadFrontman
   | ConnectionEffect(Connection.effect)
   | CreateSession({taskId: string, input: promptInput})
   | SendMessage({taskId: string, submission: Client__State__Types.submission})
@@ -278,6 +283,7 @@ let defaultState: state = {
   tasks: Dict.make(),
   currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
   connection: None,
+  wordPressLoginRecovery: None,
   userProfile: None,
   settingsModalTab: None,
   billingStatus: Client__Billing.NotLoaded,
@@ -326,6 +332,7 @@ let modelValue = options =>
   )
 
 module Selectors = {
+  let wordPressLoginRecovery = (state: state) => state.wordPressLoginRecovery
   let getSession = (state: state) =>
     state.connection->Option.flatMap(Connection.Selectors.getSession)
   let getRelay = (state: state) => state.connection->Option.flatMap(Connection.Selectors.getRelay)
@@ -340,7 +347,7 @@ module Selectors = {
     )
   let apiBaseUrl = (state: state) =>
     switch state.connection {
-    | Some({config, connection: Ok(Some({phase: Ready(_) | Reconnecting(_)}))}) =>
+    | Some({config, connection: Ok(Some({phase: Ready(_)}))}) =>
       Some(Connection.apiBaseUrlFromLoginUrl(config.acp.loginUrl))
     | _ => None
     }
@@ -572,12 +579,13 @@ module Selectors = {
         catalog->Array.find(agent => agent.name == name)
       )
     switch (
-      apiBaseUrl(state),
+      getSession(state),
       findAgent(plannerAgentName),
       findAgent(executorAgentName),
       TaskReducer.Selectors.completedIdleTurn(currentTask(state)),
     ) {
-    | (Some(_), Some(planner), Some(executor), Some({taskId, agentId})) if agentId == planner.id =>
+    | (Some({sessionId}), Some(planner), Some(executor), Some({taskId, agentId}))
+      if agentId == planner.id && sessionId == taskId =>
       Some({taskId, executorAgentId: executor.id})
     | _ => None
     }
@@ -586,7 +594,8 @@ module Selectors = {
   let settingsModalTab = (state: state) => state.settingsModalTab
   let billingStatus = (state: state) => state.billingStatus
   let billingFlow = (state: state) => state.billingFlow
-  let billingAccessAllowed = (state: state) => Client__Billing.accessAllowed(state.billingStatus)
+  let billingCanStartTurn = (state: state) =>
+    Client__Billing.canStartTurnFromState(state.billingStatus)
 
   let providerSetupRequired = (state: state): bool => {
     switch (apiBaseUrl(state), state.modelGroups) {
@@ -1183,8 +1192,7 @@ module ConnectionEffects = {
   let connectRuntime = async (
     ~config: config,
     ~signal: WebAPI.EventTypes.abortSignal,
-    ~onReconnecting,
-    ~onReconnect,
+    ~onConnectionLost,
   ): result<readyState, connectError> => {
     let attempt = WebAPI.AbortController.make()
     let attemptSignal = WebAPI.AbortSignal.any([signal, attempt.signal])
@@ -1214,7 +1222,8 @@ module ConnectionEffects = {
       ->Result.mapError(acpError)
       ->Result.flatMap(conn =>
         switch (ACP.isInitialized(conn), ACP.getAgentAttributionConfiguration(conn)) {
-        | (false, _) | (true, Some(_)) => Ok(conn)
+        | (true, Some(_)) => Ok(conn)
+        | (false, _) => Error(ConnectionFailed(ACPError("Connection lost")))
         | (true, None) =>
           Error(ConnectionFailed(ACPError("Frontman requires agent attribution v1")))
         }
@@ -1224,14 +1233,10 @@ module ConnectionEffects = {
         config.acp,
         ~signal=attemptSignal,
         ~onConnectionCreated=conn => connection := Some(conn),
-        ~onReconnecting,
-        ~onReconnect=result => {
-          let result = validateConnection(result)
-          switch result {
-          | Error(error) => fail(error)
-          | Ok(_) => ()
-          }
-          onReconnect(result)
+        ~onConnectionLost=message => {
+          let error = ConnectionFailed(ACPError(message))
+          fail(error)
+          onConnectionLost(error)
         },
       )
       switch validateConnection(result) {
@@ -1320,7 +1325,8 @@ module ConnectionEffects = {
             dispatchApp(
               SessionEvent({requestId, action: UpdateTaskTitle({taskId: sessionId, title})}),
             ),
-          error =>
+          error => {
+            Client__TextDeltaBuffer.flush()
             switch pending.contents {
             | true => creationError := Some(error)
             | false =>
@@ -1331,7 +1337,8 @@ module ConnectionEffects = {
                   result: Error(ACP.requestErrorFromMessage(error)),
                 }),
               )
-            },
+            }
+          },
         )
         let result = result->Result.flatMap(((session, configOptions)) =>
           switch creationError.contents {
@@ -1372,11 +1379,10 @@ module ConnectionEffects = {
         switch result {
         | Ok(_) => complete(Ok(sessionId))
         | Error(error) =>
-          Client__TextDeltaBuffer.discardTask(sessionId)
+          Client__TextDeltaBuffer.flush()
           complete(Error(billingRequestErrorMessage(error, dispatchApp)))
         }
-      | Ok(Some({phase: Ready(current) | Reconnecting(current)}))
-        if current.session === ready.session =>
+      | Ok(Some({phase: Ready(current)})) if current.session === ready.session =>
         complete(Error("Connection changed before submission completed; send again when ready"))
       | Ok(_) | Error(_) => complete(Error("Conversation changed. Your message was not sent."))
       }
@@ -1385,7 +1391,7 @@ module ConnectionEffects = {
     | CleanupEffect(runtime) =>
       WebAPI.AbortController.abort(runtime.lifetimeAbortController)
       switch runtime.phase {
-      | Ready({connection, session}) | Reconnecting({connection, session}) =>
+      | Ready({connection, session}) =>
         ACP.disconnect(connection)
         releaseSession(session)->Array.forEach(effect =>
           handleEffect(effect, state, dispatch, ~dispatchApp)
@@ -1404,8 +1410,10 @@ module ConnectionEffects = {
             },
           },
           ~signal,
-          ~onReconnecting=() => dispatch(ACPReconnecting({signal: signal})),
-          ~onReconnect=result => dispatch(ACPReconnected({signal, result})),
+          ~onConnectionLost=error => {
+            Client__TextDeltaBuffer.flush()
+            dispatch(ConnectionResultReceived({signal, result: Error(error)}))
+          },
         )
         switch (signal.aborted, result) {
         | (true, Ok(ready)) => ACP.disconnect(ready.connection)
@@ -1518,6 +1526,7 @@ module ConnectionEffects = {
 
 let handleEffect = (effect, state: state, dispatch: action => unit) => {
   switch effect {
+  | ReloadFrontman => WebAPI.Window.current->WebAPI.Window.location->WebAPI.Location.reload
   | BufferAssistantText({taskId, messageId, text, agentId}) =>
     getSessionTextBuffer(dispatch).add(~taskId, ~messageId, ~text, ~agentId)
   | BufferUserBlock({taskId, messageId, block, agentId}) =>
@@ -1559,7 +1568,7 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
             switch result {
             | Ok({url}) =>
               switch WebAPI.URL.make(~url).protocol {
-              | "https:" => dispatch(BillingUrlReceived({tab, url}))
+              | "https:" => dispatch(BillingUrlReceived({tab, url, request}))
               | _ => failwith("Invalid Stripe URL")
               }
             | Error(RequestFailed(error)) => dispatch(BillingLaunchFailed({tab: Some(tab), error}))
@@ -2089,14 +2098,10 @@ let startCustomProviderMutation = (state: state, request) => {
 let clearConnectionState = (state: state) => {
   let updatedTasks = state.tasks->Dict.copy
   updatedTasks->Dict.forEachWithKey((task, taskId) => {
-    switch TaskReducer.Selectors.pendingQuestion(task) {
-    | Some(_) =>
-      switch task {
-      | Task.Loaded(data) =>
-        updatedTasks->Dict.set(taskId, Task.Loaded({...data, pendingQuestion: None}))
-      | _ => ()
-      }
-    | None => ()
+    switch task {
+    | Task.Loaded(data) =>
+      updatedTasks->Dict.set(taskId, Task.Loaded({...data, pendingQuestion: None}))
+    | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => ()
     }
   })
   {
@@ -2117,6 +2122,12 @@ let clearConnectionState = (state: state) => {
 
 let rec next = (state: state, action) => {
   switch action {
+  | WordPressAuthenticationRequired(loginUrl) =>
+    switch state.wordPressLoginRecovery {
+    | Some(_) => state->StateReducer.update
+    | None => {...state, wordPressLoginRecovery: Some({loginUrl: loginUrl})}->StateReducer.update
+    }
+  | ReloadAfterWordPressLogin => state->StateReducer.update(~sideEffects=[ReloadFrontman])
   | InitializeConnection(config) =>
     next(
       {...state, connection: Some(Connection.initialState(config))},
@@ -2256,6 +2267,7 @@ let rec next = (state: state, action) => {
     | Error({_meta, message, retryAt, attempt, maxAttempts, category}) =>
       let settings = switch category {
       | Some("billing") => [SetSettingsModalTab({tab: Some(Providers)})]
+      | Some("frontman_billing") => [SetSettingsModalTab({tab: Some(Billing)})]
       | Some(_) | None => []
       }
       let action = switch retryAt {
@@ -2280,6 +2292,13 @@ let rec next = (state: state, action) => {
   | TaskAction({target: ForTask(taskId), action: LoadStarted(_) as taskAction}) =>
     let (state, effects) = state->Lens.delegateToTask(ForTask(taskId), taskAction)
     state->StateReducer.update(~sideEffects=Array.concat([DiscardTaskText(taskId)], effects))
+  | PreviewAction({clientId, navigationKey, action}) =>
+    let frame = Selectors.previewFrame(state)
+    switch clientId == Selectors.currentTaskClientId(state) &&
+      navigationKey == frame.navigationKey {
+    | true => state->Lens.delegateToTask(CurrentTask, action)
+    | false => StateReducer.update(state)
+    }
   | TaskAction({target, action: taskAction}) => state->Lens.delegateToTask(target, taskAction)
 
   | PromptFailed({requestId, taskId, id, error}) =>
@@ -2292,14 +2311,17 @@ let rec next = (state: state, action) => {
       | false => state
       }
       failed(state, Connection.ACP.requestErrorMessage(error))
-    | Some({
-        connection: Ok(Some({
-          phase: Reconnecting({session: SessionActive({requestId: expected})}),
-        })),
-      }) if requestId === expected =>
-      failed(state, "Connection lost; request was not replayed")
     | _ => state->StateReducer.update
     }
+  | AddUserMessage({onComplete}) if Client__Billing.turnStartBlocked(state.billingStatus) =>
+    {...state, settingsModalTab: Some(Billing)}->StateReducer.update(
+      ~sideEffect=SubmissionCompleted({
+        onComplete,
+        result: Error("Start a Frontman trial to continue."),
+      }),
+    )
+  | ExecutePendingPlan(_) if Client__Billing.turnStartBlocked(state.billingStatus) =>
+    {...state, settingsModalTab: Some(Billing)}->StateReducer.update
   | AddUserMessage({content, annotationId, onComplete} as input) =>
     let reject = error => rejectSubmission(state, onComplete, error)
     switch (Selectors.isSubmitting(state), state.selectedAgentId) {
@@ -2334,7 +2356,7 @@ let rec next = (state: state, action) => {
               [
                 SubmissionCompleted({
                   onComplete,
-                  result: Error("Reconnecting this conversation. Send again when it is ready."),
+                  result: Error("Loading this conversation. Send again when it is ready."),
                 }),
               ],
             ),
@@ -2493,7 +2515,8 @@ let rec next = (state: state, action) => {
   | SetSettingsModalTab({tab}) => {...state, settingsModalTab: tab}->StateReducer.update
   | RequestBilling(request) =>
     switch (Selectors.apiBaseUrl(state), request, state.billingFlow) {
-    | (None, _, _) | (_, Checkout(_) | CustomerPortal, Opening) => state->StateReducer.update
+    | (None, _, _) | (_, Checkout(_) | CustomerPortal, Opening | AwaitingCheckout) =>
+      state->StateReducer.update
     | (Some(apiBaseUrl), _, _) =>
       let controller = switch state.billingAbortController {
       | Some(controller) => controller
@@ -2525,10 +2548,16 @@ let rec next = (state: state, action) => {
         },
       }->StateReducer.update(~sideEffects=effects)
     }
-  | BillingUrlReceived({tab, url}) =>
-    {...state, billingFlow: Client__Billing.Idle}->StateReducer.update(
-      ~sideEffects=[NavigateBillingTab({tab, url})],
-    )
+  | BillingCheckoutDismissed =>
+    next({...state, billingFlow: Client__Billing.Idle}, RequestBilling(Status))
+  | BillingUrlReceived({tab, url, request}) =>
+    {
+      ...state,
+      billingFlow: switch request {
+      | Checkout(_) => Client__Billing.AwaitingCheckout
+      | Status | CustomerPortal => Client__Billing.Idle
+      },
+    }->StateReducer.update(~sideEffects=[NavigateBillingTab({tab, url})])
   | BillingLaunchFailed({tab, error}) =>
     {...state, billingFlow: Client__Billing.Failed(error)}->StateReducer.update(
       ~sideEffects=[CloseBillingTab(tab)],
@@ -2547,6 +2576,10 @@ let rec next = (state: state, action) => {
       ...state,
       billingStatus: Client__Billing.Loaded(status),
       billingStatusAbortController: None,
+      billingFlow: switch (state.billingFlow, Client__Billing.canStartCheckout(status)) {
+      | (AwaitingCheckout, false) => Idle
+      | _ => state.billingFlow
+      },
     }->StateReducer.update(
       ~sideEffects=switch state.billingStatusAbortController {
       | None => []

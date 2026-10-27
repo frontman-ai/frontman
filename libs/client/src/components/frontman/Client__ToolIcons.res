@@ -23,7 +23,7 @@ module FileIcon = {
   }
 }
 
-module LoaderIcon = {
+module InProgressIcon = {
   @react.component
   let make = (~size: int=defaultSize, ~className: string="") => {
     <svg
@@ -32,9 +32,13 @@ module LoaderIcon = {
       fill="currentColor"
       width={Int.toString(size)}
       height={Int.toString(size)}
-      className={`animate-spin ${className}`}
+      className={className}
+      role="img"
+      ariaLabel="Started, not finished"
     >
-      <path d="M8 0a8 8 0 1 0 8 8 .5.5 0 0 1 1 0 9 9 0 1 1-9-9 .5.5 0 0 1 0 1z" />
+      <title> {React.string("Started, not finished")} </title>
+      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" fill="none" />
+      <path d="M8 2a6 6 0 0 1 0 12z" />
     </svg>
   }
 }

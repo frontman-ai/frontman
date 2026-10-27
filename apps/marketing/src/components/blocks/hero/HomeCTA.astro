@@ -11,17 +11,6 @@ const youtubeVideoId = '-4GD1GYwH8Y'
 ---
 
 <section id="intro" class="hero-section">
-	<script>
-		import { registerHomepageTools } from '../../../integrations/webmcp.mjs'
-
-		async function initializeWebMcp() {
-			await registerHomepageTools(document)
-		}
-
-		void initializeWebMcp().catch((error) => {
-			console.error('[WebMCP] Homepage tool registration failed.', error)
-		})
-	</script>
 	<div class="hero-section__bg">
 		<img src={gridNetBackground.src} alt="" aria-hidden="true" class="hero-section__bg-image" width="1440" height="900" loading="lazy" fetchpriority="low" />
 	</div>

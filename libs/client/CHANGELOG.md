@@ -1,5 +1,57 @@
 # @frontman-ai/client
 
+## 1.5.1
+
+### Patch Changes
+
+- [#2002](https://github.com/frontman-ai/frontman/pull/2002) [`af7e347`](https://github.com/frontman-ai/frontman/commit/af7e347c29852b4b0c56e124cb4191da1afdef3f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Block new prompts as soon as a trial is canceled, including cancellations scheduled for trial end. Keep unused free prompts available and preserve paid subscription access.
+
+  Show canceled trial access accurately in billing settings instead of promising access until the scheduled cancellation date.
+
+- [#1993](https://github.com/frontman-ai/frontman/pull/1993) [`c2535b8`](https://github.com/frontman-ai/frontman/commit/c2535b88ceaef24645ea850555fa8a6b91926fea) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Show todo progress with a static started-but-unfinished indicator instead of a spinner. Rename the plan heading to "Plan" so stopped agents do not appear active. Preserve todo statuses after Stop.
+
+- [#1972](https://github.com/frontman-ai/frontman/pull/1972) [`9dedf54`](https://github.com/frontman-ai/frontman/commit/9dedf545051b2744a6b364d08d4f3e7a0801788d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Handle cross-origin preview navigation without WindowProxy option errors. Reload and address-bar navigation now reset the iframe from parent state, and preview tools reject stale documents until a supported page loads.
+
+- [#1985](https://github.com/frontman-ai/frontman/pull/1985) [`f9894b0`](https://github.com/frontman-ai/frontman/commit/f9894b0a4774e7310a954b5b0f5ae23f7f8fe367) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update lucide-react from 1.46.0 to 1.48.0.
+
+- [#1975](https://github.com/frontman-ai/frontman/pull/1975) [`08b834a`](https://github.com/frontman-ai/frontman/commit/08b834abc4464ace02d2d5c9278d6f7fed88bee4) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update @pierre/diffs from 1.4.2 to 1.5.1.
+
+## 1.5.0
+
+### Minor Changes
+
+- [#1807](https://github.com/frontman-ai/frontman/pull/1807) [`86327f3`](https://github.com/frontman-ai/frontman/commit/86327f316ece79a293277172bbc6a88729c8a590) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Allow five AI runs before a Frontman trial is required. Users must connect their own AI provider; provider access is validated before a turn is claimed for both subscribers and allowance users. The allowance is shared across projects and does not reset when conversations are deleted. Claimed turns can retry and recover without another charge, even after subscription access ends. Pre-turn failures do not offer turn retry; saving provider credentials resumes queued work. Billing status now exposes `can_start_turn` instead of `access_allowed` to distinguish new-turn eligibility from continuation.
+
+### Patch Changes
+
+- [#1818](https://github.com/frontman-ai/frontman/pull/1818) [`3e527dc`](https://github.com/frontman-ai/frontman/commit/3e527dc7ec76333f9886926eec02b8de974927ef) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Return supported ACP version 1 for valid initialization requests. Reject missing or malformed versions and dispose connections after unsupported response versions.
+
+  Use standard session creation fields with optional namespaced retry IDs. Require the advertised retry-ID capability in Frontman clients. Reject unsupported workspace and MCP configuration. Preserve scoped retry identity and reject returned-ID mismatches.
+
+  CAUTION: Do not use the unchanged automatic server-first rollout for this breaking session-creation cutover. Deployment requires a separately approved, enforceable client-reload/admission strategy and paired server/client rollback. Old clients send incompatible root session IDs. New clients cannot create sessions on the old server. Publication together does not replace old code in open tabs or custom client URLs. This stage does not change immediate prompt acceptance or its existing 120-second timeout.
+
+- [#1880](https://github.com/frontman-ai/frontman/pull/1880) [`582dda1`](https://github.com/frontman-ai/frontman/commit/582dda13c9292800e6c03e1125d8f3d7c7f823ff) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Block new usage as soon as Stripe reports a past-due subscription after a failed payment, rather than allowing access during payment retries. Restore access when the subscription becomes active again. Prevent duplicate subscription checkout for past-due users and direct them to manage payment in Stripe.
+
+- [#1828](https://github.com/frontman-ai/frontman/pull/1828) [`547fc48`](https://github.com/frontman-ai/frontman/commit/547fc4811af3bf42b79f1a8b01bf9ae13a60ec21) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep checkout in a waiting state until billing access is confirmed. Prevent duplicate checkout launches and provide explicit cancellation and status-check controls without running edits automatically. Refresh billing status when checkout is dismissed so a failed activation check can recover.
+
+- [#1827](https://github.com/frontman-ai/frontman/pull/1827) [`e794fd7`](https://github.com/frontman-ai/frontman/commit/e794fd7d388fe8b4b1da1f63f43185191d137119) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Expose server-confirmed trial eligibility and duration to the client. Keep older billing payloads compatible and omit trial offers when metadata is unavailable.
+
+- [#1838](https://github.com/frontman-ai/frontman/pull/1838) [`e5dbf75`](https://github.com/frontman-ai/frontman/commit/e5dbf75f51e0e2fa26ced7687783ba25657f3f37) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add an accessible customer feedback panel with a 0–10 recommendation score, optional comment, and separate Skip action. Keep drafts controlled during submission and errors, and wrap score choices to fit narrow chat panels. Share textarea appearance across feedback, question answers, and input groups, with sizing set by each caller.
+
+- [#1822](https://github.com/frontman-ai/frontman/pull/1822) [`1cf5dd8`](https://github.com/frontman-ai/frontman/commit/1cf5dd81a84896cf0bee1773cedbbf12ebf6feb6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Update vulnerable dependencies and the Next.js test site. Keep TLS certificate validation enabled in E2E tests. Run test installers without shell interpolation. Render browser-test logs and tool metadata as text. Remove unused token permissions from mirror workflows.
+
+- [#1834](https://github.com/frontman-ai/frontman/pull/1834) [`a337fdb`](https://github.com/frontman-ai/frontman/commit/a337fdb01a4617013294cd78cdc87d08b068965f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Prevent repeated prompt content notifications while typing and remove duplicate notifications when the editor clears. Changing editability no longer emits a text update.
+
+- [#1881](https://github.com/frontman-ai/frontman/pull/1881) [`5028992`](https://github.com/frontman-ai/frontman/commit/50289929c765f321a7d821ac53bbeb82e72441f3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Offer a 7-day free Pro trial with a card. Keep five free uses without a card. Unused free uses stay available. Existing trial dates stay unchanged.
+
+- [#1843](https://github.com/frontman-ai/frontman/pull/1843) [`0bfca4e`](https://github.com/frontman-ai/frontman/commit/0bfca4ed2e7cc8bcf7e3bb87e51b277322d000a8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Enable optional customer feedback in WordPress, Astro, Next.js, and Vite through the existing question interaction. Store ratings and skips as ordinary MCP tool results instead of duplicating feedback persistence. Drop the unused customer feedback table and its data. Apply the 30-day cooldown using the user's stored feedback tool interactions. Keep feedback guidance in the tool description.
+
+- [#1668](https://github.com/frontman-ai/frontman/pull/1668) [`84fffb0`](https://github.com/frontman-ai/frontman/commit/84fffb0c2badfa3dbed2b2e51c15efd4d76b5161) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix connection loss and server-initiated channel closure that left the agent UI stuck. Preserve received text and the last server-reported execution state. Settle pending ACP requests and disable disconnected controls. Require a reload to recover conversation history instead of automatically rejoining a stale session. Send composer commands directly to the editor instead of routing them through state and effects.
+
+- [#1904](https://github.com/frontman-ai/frontman/pull/1904) [`1b36fb4`](https://github.com/frontman-ai/frontman/commit/1b36fb4cc1860e65da9c2d90a5469beb3a4c8516) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update Babel core to 8.0.6 for client builds.
+
+- [#1928](https://github.com/frontman-ai/frontman/pull/1928) [`059145c`](https://github.com/frontman-ai/frontman/commit/059145c2c4a59dcb99792ee3e4d3b82b63744d2b) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Show a persistent WordPress login recovery banner when the relay reports that WordPress authentication is required. Keep saved work and Frontman authentication unchanged; let users log in and reload before asking the agent to continue.
+
 ## 1.4.0
 
 ### Minor Changes

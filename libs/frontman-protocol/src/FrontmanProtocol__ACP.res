@@ -289,6 +289,9 @@ let sessionConfigSelectGroupSchema = S.object(s => {
   _meta: s.field("_meta", S.option(S.json)),
 })
 
+@schema
+type modelCatalogUpdated = {groups: array<sessionConfigSelectGroup>}
+
 type sessionConfigSelectOptions =
   | Ungrouped(array<sessionConfigSelectOption>)
   | Grouped(array<sessionConfigSelectGroup>)
@@ -383,6 +386,39 @@ let findConfigOptionByCategory = (
     }
   )
 
+type sessionNewMetadata = {sessionId: option<string>, model: option<string>}
+
+let sessionNewMetadataSchema = S.object(s => {
+  model: s.field("frontman.dev/model", S.option(nonEmptyStringSchema)),
+  sessionId: s.field(
+    "frontman.dev/sessionId",
+    S.option(
+      S.string->S.pattern(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+        ~message="Expected a canonical UUID",
+      ),
+    ),
+  ),
+})
+
+type sessionNewParams = {
+  cwd: string,
+  mcpServers: array<JSON.t>,
+  additionalDirectories: option<array<string>>,
+  _meta: option<sessionNewMetadata>,
+}
+
+let sessionNewParamsSchema = S.object(s => {
+  cwd: s.field("cwd", S.string->S.pattern(/^\//, ~message="Expected an absolute path")),
+  mcpServers: s.field("mcpServers", S.array(S.json)->S.max(0)),
+  additionalDirectories: s.field("additionalDirectories", S.option(S.array(S.string)->S.max(0))),
+  _meta: s.field("_meta", S.nullableAsOption(sessionNewMetadataSchema)),
+})->S.strict
+
+let sessionIdCapabilityMetadataSchema = S.object(s =>
+  s.field("frontman.dev/sessionId", S.option(S.bool))
+)
+
 type sessionNewResult = {
   sessionId: string,
   modes: option<sessionModeState>,
@@ -418,15 +454,6 @@ let configOptionsUpdatedSchema = S.object(s => {
 
 @schema
 type setConfigOptionParams = {sessionId: string, configId: string, value: string}
-
-type sessionNewMetadata = {model: string}
-
-let sessionNewMetadataSchema = S.object(s => {
-  model: s.field("frontman.dev/model", nonEmptyStringSchema),
-})
-
-@schema
-type sessionNewParams = {sessionId: string, _meta: option<sessionNewMetadata>}
 
 type toolCallContentItem =
   | Content({content: FrontmanProtocol__ContentBlock.t, _meta: option<JSON.t>})

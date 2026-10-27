@@ -90,6 +90,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     receive do
       %Phoenix.Socket.Message{event: event, payload: payload} ->
         collect_all_pushes([{event, payload} | acc])
+
+      %Phoenix.Socket.Reply{status: :ok, payload: %{"acp:message" => payload}} ->
+        collect_all_pushes([{"acp:reply", payload} | acc])
     after
       200 -> Enum.reverse(acc)
     end
@@ -501,7 +504,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       push(socket, "acp:message", build_acp_request("session/load", 6, %{"sessionId" => task_id}))
 
-      assert_push("acp:message", %{
+      assert_acp_reply(%{
         "id" => 6,
         "result" => %{"configOptions" => [%{"currentValue" => ^model}]}
       })
@@ -920,9 +923,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   end
 
   describe "session/prompt billing access" do
-    test "rejects inactive billing before persisting prompt or enqueuing title generation", %{
+    test "rejects exhausted allowance before persisting prompt or enqueuing title generation", %{
       scope: scope
     } do
+      FrontmanServer.BillingFixtures.run_allowance_fixture(scope, 5)
       task_id = Ecto.UUID.generate()
 
       {:ok, _task} =
@@ -943,7 +947,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       assert_reply(ref, :ok, %{
         "acp:message" => %{
-          "error" => %{"message" => "Finish billing setup to start using Frontman."}
+          "error" => %{
+            "message" => "Keep going with a 7-day free Pro trial. Card required."
+          }
         }
       })
 
@@ -1537,12 +1543,19 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
 
     test "accepts valid MCP response", %{socket: socket, task_id: task_id, scope: scope} do
-      tool_call = tool_call("call_valid_test", "testTool")
+      previous_level = Logger.level()
+      Logger.configure(level: :info)
+      on_exit(fn -> Logger.configure(level: previous_level) end)
+      tool_call = tool_call("call_valid_test", "testTool", %{"private" => "private-input-marker"})
       tool_call_id = tool_call.tool_call_id
       turn_number = start_turn_fixture(scope, task_id)
       register_tool_receiver(task_id, tool_call.tool_call_id)
 
-      {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
+      dispatch_log =
+        capture_log([level: :info, metadata: :all], fn ->
+          {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
+          :sys.get_state(socket.channel_pid)
+        end)
 
       assert_push("mcp:message", %{
         "method" => "tools/call",
@@ -1555,6 +1568,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
 
       assert is_integer(mcp_request_id)
+      assert dispatch_log =~ "MCP tool request pushed"
+      assert dispatch_log =~ "mcp_request_id=#{mcp_request_id}"
+      assert dispatch_log =~ "tool_call_id=#{tool_call_id}"
+      refute dispatch_log =~ "private-input-marker"
 
       image_data =
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
@@ -1566,11 +1583,15 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         |> Map.put("_meta", %{"envApiKey" => "sk-fake-valid-mcp-marker"})
 
       log =
-        capture_log([level: :info], fn ->
+        capture_log([level: :info, metadata: :all], fn ->
           push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, mcp_result))
           :sys.get_state(socket.channel_pid)
         end)
 
+      assert log =~ "MCP tool response received"
+      assert log =~ "mcp_request_id=#{mcp_request_id}"
+      assert log =~ "tool_call_id=#{tool_call_id}"
+      assert log =~ "response_kind=result"
       refute log =~ "sk-fake-valid-mcp-marker"
       refute log =~ "envApiKey"
 
@@ -1679,7 +1700,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         build_acp_request("session/load", 88, %{"sessionId" => other_task.id})
       )
 
-      assert_push("acp:message", %{
+      assert_acp_reply(%{
         "id" => 88,
         "error" => %{"code" => -32_602, "message" => "Session does not match channel"}
       })
@@ -1706,7 +1727,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         build_acp_request("session/load", 90, %{"sessionId" => task.id})
       )
 
-      assert_push("acp:message", %{"id" => 90, "result" => %{"configOptions" => []}})
+      assert_acp_reply(%{"id" => 90, "result" => %{"configOptions" => []}})
 
       assert_push("acp:message", %{
         "params" => %{
@@ -1792,7 +1813,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       relevant_messages =
         collect_all_pushes()
         |> Enum.filter(fn
-          {"acp:message", %{"id" => 92}} ->
+          {"acp:reply", %{"id" => 92}} ->
             true
 
           {"acp:message", payload} ->
@@ -1874,7 +1895,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       :sys.get_state(socket.channel_pid)
 
-      assert_push("acp:message", %{"id" => 91, "result" => %{}})
+      assert_acp_reply(%{"id" => 91, "result" => %{}})
       assert_state_update_running_then_idle(task.id)
     end
   end
@@ -2197,8 +2218,26 @@ defmodule FrontmanServerWeb.TaskChannelTest do
                    false
                end)
 
-      push(socket, "mcp:message", JsonRpc.error_response(mcp_request_id, -32_000, "Tool failed"))
-      :sys.get_state(socket.channel_pid)
+      previous_level = Logger.level()
+      Logger.configure(level: :info)
+      on_exit(fn -> Logger.configure(level: previous_level) end)
+
+      log =
+        capture_log([level: :info, metadata: :all], fn ->
+          push(
+            socket,
+            "mcp:message",
+            JsonRpc.error_response(mcp_request_id, -32_000, "Tool failed")
+          )
+
+          :sys.get_state(socket.channel_pid)
+        end)
+
+      assert log =~ "MCP tool response received"
+      assert log =~ "mcp_request_id=#{mcp_request_id}"
+      assert log =~ "tool_call_id=#{tool_call_id}"
+      assert log =~ "response_kind=error"
+      refute log =~ "Tool failed"
 
       assert_receive {:resumed_model, %LLMDB.Model{id: "openai/gpt-5.5"}}, 1_000
 
@@ -2369,7 +2408,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       session_load_idx =
         Enum.find_index(messages, fn
-          {"acp:message", %{"id" => 1, "result" => %{}}} -> true
+          {"acp:reply", %{"id" => 1, "result" => %{}}} -> true
           _ -> false
         end)
 
@@ -2597,6 +2636,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           "update" => %{
             "sessionUpdate" => "error",
             "category" => "retry_unavailable",
+            "_meta" => %{"frontman.dev/agentErrorId" => nil},
             "message" =>
               "That response can no longer be retried. Please send a new message instead."
           }

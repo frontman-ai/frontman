@@ -3,7 +3,7 @@ defmodule FrontmanServer.Repo.Migrations.AddCurrentModelToTasks do
 
   def change do
     alter table(:tasks) do
-      add(:current_model, :string)
+      add(:current_model, :text)
     end
   end
 end

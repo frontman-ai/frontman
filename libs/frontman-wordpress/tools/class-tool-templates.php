@@ -2,7 +2,7 @@
 /**
  * WordPress Template tools — site info and template listing.
  *
- * Tools: wp_get_site_info, wp_list_templates, wp_read_template, wp_update_template
+ * Tools: wp_get_site_info, wp_list_templates, wp_read_template, wp_create_template, wp_update_template
  *
  * Handlers return plain data arrays on success, throw Frontman_Tool_Error on failure.
  *
@@ -21,11 +21,17 @@ class Frontman_Tool_Templates {
 	public function register( Frontman_Tools $tools ): void {
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_get_site_info',
-			'Returns comprehensive site information including WordPress version, active theme, active plugins, registered public post types with archive URLs and rewrite settings, and taxonomies. CPT archives are generated routes, not backing pages/posts.',
+			'Returns site information including WordPress version, active theme, active plugins, public post types with archive URLs and rewrite settings, and taxonomies. CPT archives are generated routes, not backing pages/posts. Set include_installation_paths to true only for a user-requested installation-location check. Paths describe the PHP runtime, not a unique site identity or necessarily the public document root.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
-				'properties'           => new \stdClass(),
+				'properties'           => [
+					'include_installation_paths' => [
+						'type'        => 'boolean',
+						'default'     => false,
+						'description' => 'Include configured and resolved WordPress root paths. These private hosting details can enter model context and task history. Omitted by default.',
+					],
+				],
 			],
 			[ $this, 'get_site_info' ]
 		) );
@@ -66,6 +72,24 @@ class Frontman_Tool_Templates {
 				'required' => [ 'slug' ],
 			],
 			[ $this, 'read_template' ]
+		) );
+
+		$tools->add( new Frontman_Tool_Definition(
+			'wp_create_template',
+			'Creates a new block template or part linked to the active theme. Never overwrites existing templates, including theme files. Use wp_update_template for existing slugs.',
+			[
+				'type' => 'object',
+				'additionalProperties' => false,
+				'properties' => [
+					'slug' => [ 'type' => 'string', 'description' => 'Canonical template slug (no theme prefix).' ],
+					'type' => [ 'type' => 'string', 'enum' => [ 'wp_template', 'wp_template_part' ] ],
+					'title' => [ 'type' => 'string', 'description' => 'Human-readable title.' ],
+					'content' => [ 'type' => 'string', 'description' => 'Block markup.' ],
+					'area' => [ 'type' => 'string', 'enum' => array_column( get_allowed_block_template_part_areas(), 'area' ), 'description' => 'Registered template-part area. Parts only; defaults to uncategorized.' ],
+				],
+				'required' => [ 'slug', 'type', 'title', 'content' ],
+			],
+			[ $this, 'create_template' ]
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -111,6 +135,8 @@ class Frontman_Tool_Templates {
 			'source'      => $template->source,
 			'content'     => $template->content ?? '',
 			'wp_id'       => isset( $template->wp_id ) ? (int) $template->wp_id : null,
+			'theme'       => $template->theme ?? null,
+			'area'        => $template->area ?? null,
 		];
 	}
 
@@ -184,7 +210,7 @@ class Frontman_Tool_Templates {
 			];
 		}
 
-		return [
+		$result = [
 			'site_name'    => get_bloginfo( 'name' ),
 			'site_url'     => get_site_url(),
 			'home_url'     => get_home_url(),
@@ -204,6 +230,16 @@ class Frontman_Tool_Templates {
 			'is_multisite' => is_multisite(),
 			'language'     => get_bloginfo( 'language' ),
 		];
+
+		if ( true === ( $input['include_installation_paths'] ?? false ) ) {
+			$resolved = @realpath( ABSPATH );
+			$result['installation'] = [
+				'abspath'          => trailingslashit( wp_normalize_path( ABSPATH ) ),
+				'resolved_abspath' => false === $resolved ? null : trailingslashit( wp_normalize_path( $resolved ) ),
+			];
+		}
+
+		return $result;
 	}
 
 	/**
@@ -253,10 +289,100 @@ class Frontman_Tool_Templates {
 		return $this->serialize_template( $template );
 	}
 
+	/** Validate raw arguments before registry coercion and direct handler writes. */
+	public static function validate_create_input( array $input ): void {
+		foreach ( [ 'slug', 'type', 'title', 'content' ] as $field ) {
+			if ( ! array_key_exists( $field, $input ) || ! is_string( $input[ $field ] ) ) {
+				throw new Frontman_Tool_Error( "{$field} is required and must be a string." );
+			}
+		}
+		if ( '' === $input['slug'] || strlen( $input['slug'] ) > 200 || sanitize_title( $input['slug'] ) !== $input['slug'] ) {
+			throw new Frontman_Tool_Error( 'slug must be a nonempty canonical WordPress slug of at most 200 bytes.' );
+		}
+		if ( ! in_array( $input['type'], [ 'wp_template', 'wp_template_part' ], true ) ) {
+			throw new Frontman_Tool_Error( 'type must be wp_template or wp_template_part.' );
+		}
+		if ( '' === trim( $input['title'] ) || sanitize_text_field( $input['title'] ) !== $input['title'] ) {
+			throw new Frontman_Tool_Error( 'title must be nonempty plain text.' );
+		}
+		if ( array_key_exists( 'area', $input ) && ( 'wp_template_part' !== $input['type'] || ! in_array( $input['area'], array_column( get_allowed_block_template_part_areas(), 'area' ), true ) ) ) {
+			throw new Frontman_Tool_Error( 'area must be a registered template-part area and is only supported for parts.' );
+		}
+	}
+
+	public function create_template( array $input ): array {
+		self::validate_create_input( $input );
+		if ( ! current_user_can( 'edit_theme_options' ) ) {
+			throw new Frontman_Tool_Error( 'Creating templates requires edit_theme_options.' );
+		}
+		if ( 'wp_template' === $input['type'] && ! current_theme_supports( 'block-templates' ) ) {
+			throw new Frontman_Tool_Error( 'Creating block templates requires active theme support for block-templates.' );
+		}
+		if ( $this->find_template( $input['slug'], $input['type'] ) ) {
+			throw new Frontman_Tool_Error( 'Template already exists; use wp_update_template.' );
+		}
+		$existing = get_posts( [
+			'post_type' => $input['type'],
+			'post_status' => array_values( array_diff( get_post_stati(), [ 'trash' ] ) ),
+			'name' => $input['slug'],
+			'fields' => 'ids',
+			'numberposts' => 1,
+			'tax_query' => [ [ 'taxonomy' => 'wp_theme', 'field' => 'name', 'terms' => get_stylesheet() ] ],
+		] );
+		if ( $existing ) {
+			throw new Frontman_Tool_Error( 'A template post with this slug already exists in the active theme. Inspect or edit the existing post in WordPress before proceeding.' );
+		}
+		$after = $this->save_template( [
+			'post_type' => $input['type'],
+			'post_status' => 'publish',
+			'post_name' => $input['slug'],
+			'post_title' => $input['title'],
+			'post_content' => $input['content'],
+		], $input['slug'], $input['type'], 'wp_template_part' === $input['type'] ? ( $input['area'] ?? 'uncategorized' ) : null );
+		return [ 'created' => true, 'after' => $after ];
+	}
+
+	/** Shared native save -> explicit theme/area terms -> verified discovery path. */
+	private function save_template( array $post_data, string $slug, string $type, ?string $area ): array {
+		$theme = get_stylesheet();
+		$post_id = wp_insert_post( wp_slash( $post_data ), true );
+		if ( is_wp_error( $post_id ) ) {
+			throw new Frontman_Tool_Error( $post_id->get_error_message() );
+		}
+		try {
+			$terms = wp_set_post_terms( $post_id, [ $theme ], 'wp_theme' );
+			if ( is_wp_error( $terms ) ) {
+				throw new Frontman_Tool_Error( 'theme assignment failed: ' . $terms->get_error_message() );
+			}
+			if ( null !== $area ) {
+				$terms = wp_set_post_terms( $post_id, [ $area ], 'wp_template_part_area' );
+				if ( is_wp_error( $terms ) ) {
+					throw new Frontman_Tool_Error( 'area assignment failed: ' . $terms->get_error_message() );
+				}
+			}
+			$after = $this->find_template( $slug, $type );
+			if ( ! $after || (int) ( $after->wp_id ?? 0 ) !== (int) $post_id ) {
+				throw new Frontman_Tool_Error( 'could not be read back as the active template' );
+			}
+			if ( get_post( $post_id )->post_content !== $post_data['post_content'] ) {
+				throw new Frontman_Tool_Error( 'its observed content differs from the requested content' );
+			}
+			if ( $after->id !== $theme . '//' . $slug || $after->slug !== $slug || $after->type !== $type || ( $after->theme ?? null ) !== $theme || $after->title !== $post_data['post_title'] || ( null !== $area && ( $after->area ?? null ) !== $area ) ) {
+				throw new Frontman_Tool_Error( 'observed template identity, theme, title or area differs from the request' );
+			}
+			return $this->serialize_template( $after );
+		} catch ( \Throwable $e ) {
+			throw new Frontman_Tool_Error( "Template post {$post_id} was saved but " . $e->getMessage() . ". Partial writes may remain; no rollback was performed. Read the template before retrying. If discovery failed, use wp_read_post with id {$post_id} for raw recovery.", 0, $e );
+		}
+	}
+
 	/**
 	 * wp_update_template handler.
 	 */
 	public function update_template( array $input ): array {
+		if ( ! current_user_can( 'edit_theme_options' ) ) {
+			throw new Frontman_Tool_Error( 'Updating templates requires edit_theme_options.' );
+		}
 		$type     = sanitize_key( $input['type'] ?? 'wp_template' );
 		$slug     = sanitize_title( $input['slug'] ?? '' );
 		$content  = (string) ( $input['content'] ?? '' );
@@ -279,24 +405,12 @@ class Frontman_Tool_Templates {
 			$post_data['ID'] = (int) $template->wp_id;
 		}
 
-		$post_id = wp_insert_post( wp_slash( $post_data ), true );
-		if ( is_wp_error( $post_id ) ) {
-			throw new Frontman_Tool_Error( $post_id->get_error_message() );
-		}
-
-		if ( function_exists( 'wp_set_post_terms' ) ) {
-			wp_set_post_terms( $post_id, [ get_stylesheet() ], 'wp_theme' );
-		}
-
-		$after_template = $this->find_template( $slug, $type );
-		if ( ! $after_template ) {
-			throw new Frontman_Tool_Error( 'Template was updated but could not be read back.' );
-		}
+		$after = $this->save_template( $post_data, $slug, $type, 'wp_template_part' === $type ? ( $template->area ?? 'uncategorized' ) : null );
 
 		return [
 			'updated' => true,
 			'before'  => $before,
-			'after'   => $this->serialize_template( $after_template ),
+			'after'   => $after,
 		];
 	}
 }

@@ -1,5 +1,70 @@
 # @frontman-ai/frontman-wordpress
 
+## 5.5.0
+
+### Minor Changes
+
+- [#2001](https://github.com/frontman-ai/frontman/pull/2001) [`677414f`](https://github.com/frontman-ai/frontman/commit/677414feb92fcbb344eb16354fe74a71dd10da7c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add exact-fragment editing to `wp_update_post` for user-authorized changes to draft, freeform HTML, and block HTML posts. Readbacks include a content SHA256 hash. Edit mode requires a fresh hash and one unique exact-text anchor, preserves surrounding bytes and omitted fields, and reuses existing save permissions and verification. Conflict detection is best-effort, not atomic.
+
+### Patch Changes
+
+- [#1840](https://github.com/frontman-ai/frontman/pull/1840) [`e59b88d`](https://github.com/frontman-ai/frontman/commit/e59b88dbf2498987444dde019be2c8ad483c62cc) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Prepare WordPress for gradual preview bridge rollout. Package a same-origin page-context bridge and declare `page-context-v1` support on the Frontman runtime-config element. The bridge stays inactive with existing clients, and prompt submission remains unchanged. Load it in the footer and include bundled dependency license notices.
+
+- [#1971](https://github.com/frontman-ai/frontman/pull/1971) [`7993341`](https://github.com/frontman-ai/frontman/commit/79933410a671eaade0717a43a215d332429f66a0) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Clarify that `wp_update_option` supports only allowlisted core WordPress options, not arbitrary plugin-private options.
+
+- [#1944](https://github.com/frontman-ai/frontman/pull/1944) [`f906abf`](https://github.com/frontman-ai/frontman/commit/f906abff840f76d25c6cd9bb86d4bedc240d7fe7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add approved creation of WebFactory 301 Redirects rules with duplicate checks and storage preservation checks across all pages.
+  Normalize site-relative destinations when the site URL ends with a slash.
+
+- [#1945](https://github.com/frontman-ai/frontman/pull/1945) [`d2b8e49`](https://github.com/frontman-ai/frontman/commit/d2b8e49820685fa477a96006b536363d4976412c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add approved deletion of WebFactory 301 Redirects rules with exact source and row checks.
+  Verify preservation of every remaining rule, including rules beyond the first page.
+
+- [#1995](https://github.com/frontman-ai/frontman/pull/1995) [`8bcc28f`](https://github.com/frontman-ai/frontman/commit/8bcc28f710ab61a2a6e814a592dd57c70e85c409) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add opt-in stored layout context to Elementor site-wide text search. Return each matched element's parent, sibling position, nearest layout ancestor, and narrow stored style overrides without changing matches or candidate pagination. Reject ambiguous element IDs only when context is requested. Stored overrides and unresolved global references are not computed styles.
+
+- [#1995](https://github.com/frontman-ai/frontman/pull/1995) [`8bcc28f`](https://github.com/frontman-ai/frontman/commit/8bcc28f710ab61a2a6e814a592dd57c70e85c409) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Generate missing IDs recursively when adding or generating new Elementor subtrees. Preserve supplied IDs, reject malformed children and ID collisions before saving, and report the input path that needs repair.
+
+- [#1946](https://github.com/frontman-ai/frontman/pull/1946) [`781935f`](https://github.com/frontman-ai/frontman/commit/781935fa28d2356eaf3a78121e6280d472caad05) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Verify WebFactory 301 Redirects and Redirection coexistence with a focused WordPress runtime suite.
+
+- [#1941](https://github.com/frontman-ai/frontman/pull/1941) [`812ec30`](https://github.com/frontman-ai/frontman/commit/812ec308ee2a30cf051d4404a12ce13da8173a02) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reject duplicate WordPress tool names instead of silently replacing an existing handler.
+
+- [#1943](https://github.com/frontman-ai/frontman/pull/1943) [`4f229cf`](https://github.com/frontman-ai/frontman/commit/4f229cf9a4ae30471b3178055684806c8945f282) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - WebFactory 301 Redirects now validates literal source paths and safe HTTP(S) destinations.
+  Absolute destinations use the same path restrictions as site-relative destinations.
+
+- [#1947](https://github.com/frontman-ai/frontman/pull/1947) [`b3f4e0f`](https://github.com/frontman-ai/frontman/commit/b3f4e0fe860b73063ce90d17785ac0510da0c3bb) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Verify WebFactory redirect HTTP behavior, plugin identity, and database failure boundaries.
+
+- [#1942](https://github.com/frontman-ai/frontman/pull/1942) [`1247208`](https://github.com/frontman-ai/frontman/commit/12472082681c73ed23356f8ee15510df48d52e3b) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Expose the pinned WebFactory 301 Redirects store separately from Redirection.
+
+- [#1941](https://github.com/frontman-ai/frontman/pull/1941) [`812ec30`](https://github.com/frontman-ai/frontman/commit/812ec308ee2a30cf051d4404a12ce13da8173a02) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Report unexpected initialization, request-dispatch, and deferred UI and diagnostics admin callback failures when PHP diagnostics are enabled, while preserving WordPress hook contracts and error handling.
+
+- [#1965](https://github.com/frontman-ai/frontman/pull/1965) [`1d6c378`](https://github.com/frontman-ai/frontman/commit/1d6c378e80801345a5977da5d05a7b9b7e2f7fe3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add opt-in installation paths to `wp_get_site_info` for read-only location checks. Keep paths out of default results and preserve administrator-only access. Report the configured WordPress root and its resolved path without exposing general filesystem tools.
+
+- [#1954](https://github.com/frontman-ai/frontman/pull/1954) [`9d4b474`](https://github.com/frontman-ai/frontman/commit/9d4b474dd5e98609b38f33e5f5f0c8e14a5a27db) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Read and update one Yoast Free focus keyphrase through the existing guarded provider path, including sanitization, permissions, clearing, and stored readback.
+
+- [#1953](https://github.com/frontman-ai/frontman/pull/1953) [`fccc78e`](https://github.com/frontman-ai/frontman/commit/fccc78eaf1cd0b5a925d9dc2966c5c0872b226f0) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Use one field map for Yoast metadata validation, permissions, provider operations, and stored snapshots without changing tool behavior.
+
+- [#1952](https://github.com/frontman-ai/frontman/pull/1952) [`fd3afc9`](https://github.com/frontman-ai/frontman/commit/fd3afc9149d82a19c33ef5d7ca5fe7143dc92b15) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Allow Yoast SEO Free title and description tools when the required runtime capabilities are available, instead of requiring an exact version match. Preserve provider writes, sanitization, conflict checks, permissions, and stored readback. Add Yoast 28.6 to the pinned integration-test matrix.
+
+## 5.3.1
+
+### Patch Changes
+
+- [#1833](https://github.com/frontman-ai/frontman/pull/1833) [`25c573a`](https://github.com/frontman-ai/frontman/commit/25c573a13620ad7028b6dbf21f0f99c70f4de5ac) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Load WordPress image and media helpers during uploads so image, audio, and video metadata, image thumbnails, and supplied alt text are saved. Delete the new attachment and its files if metadata generation throws.
+
+- [#1911](https://github.com/frontman-ai/frontman/pull/1911) [`91ecc1a`](https://github.com/frontman-ai/frontman/commit/91ecc1a56ed5d55a1090a8e70d3dc018e1120ee7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Clarify that navigation listing returns saved wp_navigation posts, not navigation built directly in templates or template parts.
+
+- [#1824](https://github.com/frontman-ai/frontman/pull/1824) [`a29d066`](https://github.com/frontman-ai/frontman/commit/a29d06602a9d896e9ab55b5c11cfd66253f88526) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Support creating and updating block and Custom HTML widgets, and preserve clickable links in text widgets. Widget removal retains settings for recovery with the existing move tool, including recovery from WordPress's inactive widgets. Reject noncanonical widget IDs before reading or mutating instances. Validate settings and permissions, preserve plugin metadata, and report failed saves with recovery instructions.
+
+- [#1878](https://github.com/frontman-ai/frontman/pull/1878) [`a24dc40`](https://github.com/frontman-ai/frontman/commit/a24dc40b99ddc871f7219d2775ac529161725a82) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Report template theme-assignment failures and reject readback that resolves a different post or content. Errors after saving identify the saved post; readback errors ask the agent to inspect the template before retrying.
+
+- [#1927](https://github.com/frontman-ai/frontman/pull/1927) [`e292959`](https://github.com/frontman-ai/frontman/commit/e292959a0af11beb9229c8a3944b0bbd519f5f21) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add separately opted-in local diagnostics for rejected WordPress API authentication, limited to cookie failure categories and software versions. Limit each category to one record per site every five minutes. Authentication and nonce behavior are unchanged.
+
+- [#1928](https://github.com/frontman-ai/frontman/pull/1928) [`059145c`](https://github.com/frontman-ai/frontman/commit/059145c2c4a59dcb99792ee3e4d3b82b63744d2b) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Show a persistent WordPress login recovery banner when the relay reports that WordPress authentication is required. Keep saved work and Frontman authentication unchanged; let users log in and reload before asking the agent to continue.
+
+- [#1929](https://github.com/frontman-ai/frontman/pull/1929) [`7e702cf`](https://github.com/frontman-ai/frontman/commit/7e702cfec7564cf4fbc647afdcbff92fdc7a6dbf) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve post embed HTML for authorized users. Reject denied or malformed content before saving, and report partial saves when native filters change the stored content.
+
+- [#1929](https://github.com/frontman-ai/frontman/pull/1929) [`7e702cf`](https://github.com/frontman-ai/frontman/commit/7e702cfec7564cf4fbc647afdcbff92fdc7a6dbf) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Allow native page-template assignment when creating or updating pages. Validate availability before saving, preserve omitted assignments, support default resets, and return verified actual assignments with partial-save errors on persistence failure.
+
+- [#1929](https://github.com/frontman-ai/frontman/pull/1929) [`7e702cf`](https://github.com/frontman-ai/frontman/commit/7e702cfec7564cf4fbc647afdcbff92fdc7a6dbf) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add verified, theme-linked block template and template-part creation. Reject collisions and generic orphan-producing creation paths, validate raw inputs, and report partial saves with raw-post recovery IDs. Require theme support for block templates, accept registered template-part areas, and verify stored markup before WordPress adds hooked blocks.
+
 ## 5.3.0
 
 ### Minor Changes

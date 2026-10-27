@@ -1,13 +1,88 @@
 open Vitest
 
+@module("react-dom/client")
+external createRoot: WebAPI.DomTypes.element => ReactDOM.Client.Root.t = "createRoot"
+@module("react-dom") external flushSync: (unit => unit) => unit = "flushSync"
+
 let _setRuntime: JSON.t => unit = %raw(`function(value) { window.__frontmanRuntime = value }`)
 let _clearRuntime: unit => unit = %raw(`function() { delete window.__frontmanRuntime }`)
 
 afterEach(() => {
   _clearRuntime()
+  WebAPI.DomGlobal.document
+  ->WebAPI.Document.querySelector("#frontman-runtime-config")
+  ->Null.toOption
+  ->Option.forEach(WebAPI.Element.remove)
 })
 
+let setNativeLoginUrl = loginUrl => {
+  let element = WebAPI.DomGlobal.document->WebAPI.Document.createElement("div")
+  element->WebAPI.Element.setAttribute(~qualifiedName="id", ~value="frontman-runtime-config")
+  element->WebAPI.Element.setAttribute(~qualifiedName="data-wordpress-login-url", ~value=loginUrl)
+  WebAPI.DomGlobal.document.body
+  ->WebAPI.HTMLElement.appendChild(element->WebAPI.Element.asNode)
+  ->ignore
+}
+
+let setOldBootstrapRuntime = framework =>
+  _setRuntime(
+    JSON.Encode.object(
+      dict{
+        "framework": JSON.Encode.string(framework),
+        "basePath": JSON.Encode.string("frontman"),
+        "relayBaseUrl": JSON.Encode.string("https://example.test/site/index.php"),
+        "wpNonce": JSON.Encode.string("nonce-123"),
+        "wordpressPluginsUrl": JSON.Encode.string("https://example.test/site/wp-admin/plugins.php"),
+      },
+    ),
+  )
+
 describe("Client__RuntimeConfig", _t => {
+  test("old WordPress bootstrap obtains the native login URL without leaking metadata", t => {
+    let loginUrl = "https://example.test/site/wp-login.php?redirect_to=https%3A%2F%2Fexample.test%2Fsite%2Findex.php%2Ffrontman&reauth=1"
+    setOldBootstrapRuntime("wordpress")
+    setNativeLoginUrl(loginUrl)
+    let config = Client__RuntimeConfig.read()
+    t->expect(config.wordpressLoginUrl)->Expect.toBe(Some(loginUrl))
+    t->expect(config.wpNonce)->Expect.toBe(Some("nonce-123"))
+    let original = StateStore.getState(Client__State__Store.store)
+    Client__State.Actions.wordPressAuthenticationRequired(config.wordpressLoginUrl)
+    let container = WebAPI.DomGlobal.document->WebAPI.Document.createElement("div")
+    let root = createRoot(container)
+    flushSync(() => root->ReactDOM.Client.Root.render(<Client__WordPressLoginBanner />))
+    let href =
+      container
+      ->WebAPI.Element.querySelector("a")
+      ->Null.toOption
+      ->Option.flatMap(element => element->WebAPI.Element.getAttribute("href")->Null.toOption)
+    flushSync(() => root->ReactDOM.Client.Root.unmount())
+    StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
+      Client__State__Store.store,
+      original,
+    )
+    t->expect(href)->Expect.toBe(Some(loginUrl))
+    t
+    ->expect(Client__RuntimeConfig.toMeta(config))
+    ->Expect.toEqual(JSON.Encode.object(dict{"framework": JSON.Encode.string("wordpress")}))
+  })
+
+  test("old WordPress bootstrap permits missing native login URL", t => {
+    setOldBootstrapRuntime("wordpress")
+    t->expect(Client__RuntimeConfig.read().wordpressLoginUrl)->Expect.toBe(None)
+    setNativeLoginUrl("")
+    t->expect(Client__RuntimeConfig.read().wordpressLoginUrl)->Expect.toBe(None)
+  })
+
+  test("other frameworks ignore the native WordPress login URL", t => {
+    setNativeLoginUrl("https://example.test/wp-login.php")
+    ["nextjs", "vite", "astro"]->Array.forEach(
+      framework => {
+        setOldBootstrapRuntime(framework)
+        t->expect(Client__RuntimeConfig.read().wordpressLoginUrl)->Expect.toBe(None)
+      },
+    )
+  })
+
   test("file changes are supported by project-backed frameworks", t => {
     t
     ->expect(Client__RuntimeConfig.supportsFileChanges(Client__RuntimeConfig.Nextjs))
@@ -69,6 +144,7 @@ describe("Client__RuntimeConfig", _t => {
     t->expect(config.relayBaseUrl)->Expect.toBe(None)
     t->expect(config.wpNonce)->Expect.toBe(None)
     t->expect(config.wordpressPluginsUrl)->Expect.toBe(None)
+    t->expect(config.wordpressLoginUrl)->Expect.toBe(None)
     t->expect(config.projectRoot)->Expect.toBe(Some("/test/project"))
     t->expect(config.traits)->Expect.toBe(None)
   })
@@ -105,7 +181,8 @@ describe("Client__RuntimeConfig", _t => {
     )
   })
 
-  test("read preserves WordPress runtime values", t => {
+  test("read preserves WordPress runtime values over native DOM values", t => {
+    setNativeLoginUrl("https://example.test/ignored/wp-login.php")
     _setRuntime(
       JSON.Encode.object(
         Dict.fromArray([
@@ -113,6 +190,10 @@ describe("Client__RuntimeConfig", _t => {
           ("basePath", JSON.Encode.string("frontman")),
           ("relayBaseUrl", JSON.Encode.string("https://example.com/index.php")),
           ("wpNonce", JSON.Encode.string("nonce-123")),
+          (
+            "wordpressLoginUrl",
+            JSON.Encode.string("https://example.com/wp-login.php?redirect_to=frontman"),
+          ),
           ("wordpressPluginsUrl", JSON.Encode.string("https://example.com/wp-admin/plugins.php")),
         ]),
       ),
@@ -124,6 +205,9 @@ describe("Client__RuntimeConfig", _t => {
     t->expect(config.relayBaseUrl)->Expect.toBe(Some("https://example.com/index.php"))
     t->expect(config.wpNonce)->Expect.toBe(Some("nonce-123"))
     t
+    ->expect(config.wordpressLoginUrl)
+    ->Expect.toBe(Some("https://example.com/wp-login.php?redirect_to=frontman"))
+    t
     ->expect(config.wordpressPluginsUrl)
     ->Expect.toBe(Some("https://example.com/wp-admin/plugins.php"))
   })
@@ -134,6 +218,7 @@ describe("Client__RuntimeConfig", _t => {
       basePath: "frontman",
       relayBaseUrl: Some("https://example.com/index.php"),
       wpNonce: Some("nonce-123"),
+      wordpressLoginUrl: Some("https://example.com/wp-login.php?redirect_to=frontman"),
       wordpressPluginsUrl: Some("https://example.com/wp-admin/plugins.php"),
       projectRoot: None,
       traits: None,

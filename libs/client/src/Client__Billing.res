@@ -45,10 +45,16 @@ type interval =
 type status = {
   @s.matches(subscriptionStatusSchema)
   status: subscriptionStatus,
-  @as("access_allowed")
-  accessAllowed: bool,
+  @as("can_start_turn")
+  canStartTurn: bool,
+  @as("pretrial_runs_remaining")
+  pretrialRunsRemaining: @s.nullable option<int>,
   @as("has_billing_customer")
   hasBillingCustomer: bool,
+  @as("trial_eligible")
+  trialEligible?: bool,
+  @as("trial_days")
+  trialDays?: int,
   interval: @s.null option<interval>,
   @as("current_period_end")
   currentPeriodEnd: @s.null option<string>,
@@ -67,7 +73,7 @@ type state =
 
 type request = Status | Checkout(interval) | CustomerPortal
 
-type flow = Idle | Opening | Failed(string)
+type flow = Idle | Opening | AwaitingCheckout | Failed(string)
 
 @schema
 type checkoutRequest = {interval: interval}
@@ -93,13 +99,27 @@ type checkoutOption = {
   badge: option<string>,
 }
 
-let accessAllowed = billingStatus =>
+let canStartTurnFromState = billingStatus =>
   switch billingStatus {
-  | Loaded({accessAllowed: true}) => true
+  | Loaded({canStartTurn: true}) => true
   | NotLoaded | Error(_) | Loaded(_) => false
   }
 
-let isAccessAllowed = (billingStatus: status) => billingStatus.accessAllowed
+let canStartTurn = (billingStatus: status) => billingStatus.canStartTurn
+
+let pretrialRunsRemaining = (billingStatus: status) => billingStatus.pretrialRunsRemaining
+
+let canStartCheckout = (billingStatus: status) =>
+  switch billingStatus.status {
+  | Trialing | Active | PastDue => false
+  | _ => true
+  }
+
+let turnStartBlocked = billingStatus =>
+  switch billingStatus {
+  | Loaded({canStartTurn: false}) => true
+  | _ => false
+  }
 
 let canManage = (billingStatus: status) => billingStatus.hasBillingCustomer
 
@@ -107,12 +127,15 @@ let subscriptionStatus = (billingStatus: status) => billingStatus.status
 
 let activationMessage = (billingStatus: status) =>
   switch billingStatus.status {
+  | _
+    if billingStatus.canStartTurn &&
+    billingStatus.pretrialRunsRemaining->Option.isSome => "Make your next update. Your AI provider bills separately."
   | NoSubscription
   | Incomplete
   | IncompleteExpired => "Finish billing setup to start using Frontman."
+  | PastDue => "Your payment failed. Manage billing in Stripe to restore access."
   | Canceled
-  | Unpaid
-  | PastDue => "Your Frontman access has ended. Start a subscription to continue."
+  | Unpaid => "Your Frontman access has ended. Start a subscription to continue."
   | Trialing | Active | UnknownSubscriptionStatus(_) => "Activate billing to start using Frontman."
   }
 
@@ -166,6 +189,12 @@ let checkoutOptionPrice = (option: checkoutOption) => option.price
 let checkoutOptionDescription = (option: checkoutOption) => option.description
 let checkoutOptionBadge = (option: checkoutOption) => option.badge
 let checkoutOptionRequest = (option: checkoutOption) => Checkout(option.interval)
+let offeredTrialDays = (status: status) =>
+  switch (status.trialEligible, status.trialDays, canStartCheckout(status)) {
+  | (Some(true), Some(days), true) if days > 0 => Some(days)
+  | _ => None
+  }
+
 let checkoutOptionRecommended = (option: checkoutOption) =>
   switch option.interval {
   | Yearly => true

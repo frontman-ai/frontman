@@ -83,6 +83,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y rsync subversion zip
 
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        if: steps.verify.outputs.publish == 'true'
+        with:
+          node-version: '24.4.1'
+
+      - name: Install bridge build dependencies
+        if: steps.verify.outputs.publish == 'true'
+        run: corepack enable && corepack install && yarn install --immutable
+
       - name: Package and validate WordPress plugin
         if: steps.verify.outputs.publish == 'true'
         run: make test-wordpress-plugin-export VERSION="${{ steps.version.outputs.version }}"

@@ -476,16 +476,19 @@ let pastedTextNode = TiptapCore.makeNode({
   addNodeView: () => TiptapReact.reactNodeViewRenderer(PastedTextView.make),
 })
 
+type commands = {
+  submit: unit => unit,
+  attach: unit => unit,
+  dropFiles: array<browserFile> => unit,
+}
+
 @react.component
 let make = (
   ~disabled: bool,
   ~placeholder: string,
   ~isEnrichingAnnotations: bool,
   ~hasAnnotations: bool,
-  ~submitSignal: int,
-  ~attachSignal: int,
-  ~dropFilesSignal: int,
-  ~droppedFiles: array<browserFile>,
+  ~commandsRef: React.ref<Nullable.t<commands>>,
   ~onHasContentChange: bool => unit,
   ~onSubmit: (string, array<editorFileAttachment>) => promise<result<unit, string>>,
   ~onPreviewImage: string => unit,
@@ -498,13 +501,11 @@ let make = (
   let disabledRef = React.useRef(disabled)
   let isEnrichingAnnotationsRef = React.useRef(isEnrichingAnnotations)
   let hasAnnotationsRef = React.useRef(hasAnnotations)
+  let hasContentRef = React.useRef(false)
   let onHasContentChangeRef = React.useRef(onHasContentChange)
   let onSubmitRef = React.useRef(onSubmit)
   let onPreviewImageRef = React.useRef(onPreviewImage)
   let onFileSizeErrorRef = React.useRef(onFileSizeError)
-  let lastSubmitSignalRef = React.useRef(submitSignal)
-  let lastAttachSignalRef = React.useRef(attachSignal)
-  let lastDropFilesSignalRef = React.useRef(dropFilesSignal)
   let (expandablePaste, setExpandablePaste) = React.useState((): option<expandablePaste> => None)
   let expandablePasteRef: React.ref<option<expandablePaste>> = React.useRef(None)
   let expandablePasteTimerRef: React.ref<option<WebAPI.DomTypes.timeoutId>> = React.useRef(None)
@@ -573,9 +574,7 @@ let make = (
         | Ok() =>
           switch JSON.stringify(snapshot) == JSON.stringify(editor->TiptapCore.getJSON) {
           | false => ()
-          | true =>
-            editor->TiptapCore.Commands.commands->TiptapCore.Commands.clearContent
-            onHasContentChangeRef.current(false)
+          | true => editor->TiptapCore.Commands.commands->TiptapCore.Commands.clearContent
           }
         }
         Promise.resolve()
@@ -722,7 +721,15 @@ let make = (
         }
       },
     },
-    onUpdate: ({editor}) => onHasContentChangeRef.current(!(editor->TiptapCore.isEmpty)),
+    onUpdate: ({editor}) => {
+      let hasContent = !(editor->TiptapCore.isEmpty)
+      switch hasContent == hasContentRef.current {
+      | true => ()
+      | false =>
+        hasContentRef.current = hasContent
+        onHasContentChangeRef.current(hasContent)
+      }
+    },
   })
 
   React.useEffect1(() => {
@@ -746,53 +753,36 @@ let make = (
     editor
     ->Null.toOption
     ->Option.forEach(editor =>
-      editor->TiptapCore.setEditable(!(disabled || isEnrichingAnnotations))
+      editor->TiptapCore.setEditable(!(disabled || isEnrichingAnnotations), ~emitUpdate=false)
     )
     None
   }, (editor, disabled, isEnrichingAnnotations))
 
-  React.useEffect2(() => {
-    switch (editor->Null.toOption, submitSignal == lastSubmitSignalRef.current) {
-    | (Some(editor), false) =>
-      lastSubmitSignalRef.current = submitSignal
-      submitEditor(editor)->ignore
-    | _ => ()
-    }
-    None
-  }, (editor, submitSignal))
-
-  React.useEffect3(() => {
-    switch attachSignal == lastAttachSignalRef.current {
-    | true => ()
-    | false =>
-      lastAttachSignalRef.current = attachSignal
-      switch disabledRef.current || isEnrichingAnnotationsRef.current {
-      | true => ()
-      | false =>
-        fileInputRef.current
-        ->Nullable.toOption
-        ->Option.forEach(element => (element->ReactDOM.domElementToObj)["click"]())
-      }
-    }
-    None
-  }, (attachSignal, disabled, isEnrichingAnnotations))
-
-  React.useEffect3(() => {
-    switch dropFilesSignal == lastDropFilesSignalRef.current {
-    | true => ()
-    | false =>
-      lastDropFilesSignalRef.current = dropFilesSignal
-      switch (
-        editorRef.current->Null.toOption,
-        droppedFiles->Array.length == 0,
-        disabledRef.current || isEnrichingAnnotationsRef.current,
-      ) {
-      | (Some(currentEditor), false, false) => addFiles(currentEditor, droppedFiles)->ignore
-      | _ => ()
-      }
-    }
-    None
-  }, (dropFilesSignal, editor, droppedFiles))
+  React.useImperativeHandleOnEveryRender(Nullable.make(commandsRef), () =>
+    Nullable.make({
+      submit: () => {
+        switch (editor->Null.toOption, isInputBlocked()) {
+        | (Some(editor), false) => submitEditor(editor)->ignore
+        | _ => ()
+        }
+      },
+      attach: () => {
+        switch isInputBlocked() {
+        | true => ()
+        | false =>
+          fileInputRef.current
+          ->Nullable.toOption
+          ->Option.forEach(element => (element->ReactDOM.domElementToObj)["click"]())
+        }
+      },
+      dropFiles: files => {
+        switch (editor->Null.toOption, isInputBlocked()) {
+        | (Some(editor), false) => addFiles(editor, files)->ignore
+        | _ => ()
+        }
+      },
+    })
+  )
 
   let handleFileInputChange = (event: ReactEvent.Form.t) => {
     let input = ReactEvent.Form.currentTarget(event)

@@ -35,7 +35,6 @@ let session = (sessionId): ACP.session => {
   sessionId,
   connection,
   channel: Obj.magic({"off": _ => (), "leave": () => ()}),
-  onUpdate: (_, _) => (),
 }
 let modelGroups = (~models): array<Connection.ACPTypes.sessionConfigSelectGroup> => [
   {
@@ -130,17 +129,25 @@ module Integration = {
   let options = model => modelConfig(~models=model == a ? [a, b] : [b, a])
   let catalog = model =>
     S.decodeOrThrow(
-      switch model {
-      | None => []
-      | Some(model) => modelGroups(~models=model == a ? [a, b] : [b, a])
+      {
+        Types.groups: switch model {
+        | None => []
+        | Some(model) => modelGroups(~models=model == a ? [a, b] : [b, a])
+        },
       },
-      ~from=S.array(Types.sessionConfigSelectGroupSchema),
+      ~from=Types.modelCatalogUpdatedSchema,
       ~to=S.json,
     )
   let payload = ((_, _, _, _, payload): frame) => payload
   let request = frame => S.parseOrThrow(payload(frame), ~to=requestSchema)
   let sessionId = frame =>
-    S.parseOrThrow(request(frame).params, ~to=Types.deleteSessionParamsSchema).sessionId
+    switch request(frame).method {
+    | "session/new" =>
+      let params = S.parseOrThrow(request(frame).params, ~to=Types.sessionNewParamsSchema)
+      let metadata = params._meta->Option.getOrThrow
+      metadata.sessionId->Option.getOrThrow
+    | _ => S.parseOrThrow(request(frame).params, ~to=Types.deleteSessionParamsSchema).sessionId
+    }
   let start = async () => {
     let window = WebAPI.Window.current
     let wire = makeWire()
@@ -165,11 +172,13 @@ module Integration = {
       },
       ~signal=lifetime.signal,
       ~onConnectionCreated=created => conn := Some(created),
-      ~onReconnecting=() => dispatch(ConnectionAction(ACPReconnecting({signal: lifetime.signal}))),
-      ~onReconnect=result =>
+      ~onConnectionLost=message =>
         dispatch(
           ConnectionAction(
-            ACPReconnected({signal: lifetime.signal, result: Ok(result->Result.getOrThrow)}),
+            ConnectionResultReceived({
+              signal: lifetime.signal,
+              result: Error(ConnectionFailed(ACPError(message))),
+            }),
           ),
         ),
     )

@@ -45,56 +45,41 @@ export const navigationBarData: NavData = {
 		text: 'Frontman'
 	},
 	navItems: [
-		{ name: 'For frameworks', link: '/frameworks/' },
+		{ name: 'WordPress', link: '/' },
 		{
 			name: 'Product',
-			megaMenu: {
-				columns: [
-					{
-						label: 'Website builder',
-						items: [
-							{ name: 'WordPress', link: '/' },
-							{ name: 'Next.js', link: '/docs/integrations/nextjs/' },
-							{ name: 'Astro', link: '/docs/integrations/astro/' },
-							{ name: 'Vite', link: '/docs/integrations/vite/' }
-						]
-					},
-					{
-						label: 'Use cases',
-						items: [
-							{ name: 'Marketing teams', link: '/marketing-teams/' },
-							{ name: 'Designers', link: '/use-cases/designers/' },
-							{ name: 'Frontend developers', link: '/use-cases/frontend-developers/' }
-						]
-					}
-				]
-			}
+			submenu: [
+				{ name: 'WordPress features', link: '/features/' },
+				{ name: 'How it works', link: '/how-it-works/' },
+				{ name: 'Customer story', link: '/blog/autonomyai-wordpress-redesign-case-study/' }
+			]
 		},
 		{
 			name: 'Pricing',
 			link: '/pricing/'
 		},
 		{
-			name: 'Compare',
-			link: '/vs/',
-			submenu: [
-				{ name: 'All comparisons', link: '/vs/' },
-				{ name: 'vs OpenClaw', link: '/vs/openclaw/' },
-				{ name: 'vs Cursor', link: '/vs/cursor/' },
-				{ name: 'vs Copilot', link: '/vs/copilot/' },
-				{ name: 'vs Stagewise', link: '/vs/stagewise/' },
-				{ name: 'vs v0', link: '/vs/v0/' }
-			]
-		},
-		{
 			name: 'Resources',
 			submenu: [
+				{ name: 'WordPress setup', link: '/docs/integrations/wordpress/' },
 				{ name: 'Documentation', link: '/docs/' },
+				{ name: 'Compare tools', link: '/vs/' },
+				{ name: 'vs OpenClaw', link: '/vs/openclaw/' },
 				{ name: 'Blog', link: '/blog/' },
 				{ name: 'Changelog', link: '/changelog/' },
 				{ name: 'FAQ', link: '/faq/' }
 			]
+		},
+		{
+			name: 'For frameworks',
+			link: '/frameworks/',
+			submenu: [
+				{ name: 'Framework overview', link: '/frameworks/' },
+				{ name: 'Marketing and design teams', link: '/marketing-teams/' },
+				{ name: 'Designers', link: '/use-cases/designers/' },
+				{ name: 'Frontend developers', link: '/use-cases/frontend-developers/' }
+			]
 		}
 	],
-	navActions: [{ name: 'Try it now', link: '/frameworks/#install', style: 'white', size: 'lg' }]
+	navActions: [{ name: 'Install plugin', link: 'https://wordpress.org/plugins/frontman-agentic-ai-editor/', style: 'white', size: 'lg' }]
 }

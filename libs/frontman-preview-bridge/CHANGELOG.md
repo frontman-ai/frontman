@@ -1,5 +1,21 @@
 # @frontman-ai/frontman-preview-bridge
 
+## 0.2.6
+
+### Patch Changes
+
+- Updated dependencies [[`9dedf54`](https://github.com/frontman-ai/frontman/commit/9dedf545051b2744a6b364d08d4f3e7a0801788d), [`db72760`](https://github.com/frontman-ai/frontman/commit/db72760b282b87d4c20b72a1527ef3be58e99c05)]:
+  - @frontman/bindings@0.3.4
+  - @frontman-ai/frontman-protocol@4.1.2
+  - @frontman-ai/astro-browser@0.3.0
+
+## 0.2.5
+
+### Patch Changes
+
+- Updated dependencies [[`3e527dc`](https://github.com/frontman-ai/frontman/commit/3e527dc7ec76333f9886926eec02b8de974927ef)]:
+  - @frontman-ai/frontman-protocol@4.1.1
+
 ## 0.2.4
 
 ### Patch Changes

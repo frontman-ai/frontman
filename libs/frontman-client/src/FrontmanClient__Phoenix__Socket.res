@@ -16,6 +16,8 @@ external make: (~endpoint: string, ~opts: socketOptions=?) => t = "Socket"
 
 @send external connect: t => unit = "connect"
 
+@get external channels: t => array<channel> = "channels"
+
 @send external disconnect: (t, ~callback: unit => unit=?) => unit = "disconnect"
 
 @send

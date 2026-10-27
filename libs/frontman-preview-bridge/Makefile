@@ -1,11 +1,12 @@
 .DEFAULT_GOAL := help
-.PHONY: help compile build test format clean
+.PHONY: help compile build test install-browser format clean
 
-HELP_TARGETS := help compile build test format clean
+HELP_TARGETS := help compile build test install-browser format clean
 HELP_help := Display this help message
 HELP_compile := Build ReScript
 HELP_build := Build classic bridge bundle
 HELP_test := Run focused tests
+HELP_install-browser := Install Chromium and its test dependencies
 HELP_format := Format ReScript source
 HELP_clean := Clean build artifacts
 
@@ -17,6 +18,10 @@ compile:
 
 build: compile
 	yarn vite build
+	cat THIRD-PARTY-NOTICES.txt >> dist/bridge-licenses.txt
+
+install-browser:
+	yarn playwright install --with-deps chromium
 
 test: build
 	yarn vitest run

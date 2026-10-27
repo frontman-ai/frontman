@@ -9,7 +9,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
-  import FrontmanServer.DataCase, only: [setup_sandbox: 1]
+  import FrontmanServer.DataCase, only: [setup_sandbox: 1, errors_on: 1]
   alias FrontmanServer.{Repo, Tasks}
   alias FrontmanServer.Tasks.{Interaction, InteractionSchema}
   alias ReqLLM.Error.API.{Request, Stream}
@@ -40,7 +40,23 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       assert reason =~ "image exceeds the maximum allowed size"
     end
 
-    for delivery <- [:error, :stream_raise, :removed_model] do
+    test "removed models are rejected before a turn is recorded", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               submit_user_message_and_run(
+                 scope,
+                 task_id,
+                 execution_request_fixture(model: "openai_codex:gpt-5.4-mini"),
+                 user_content("Hello")
+               )
+
+      assert errors_on(changeset) == %{current_model: ["is unavailable; select another model"]}
+      refute Repo.get_by(InteractionSchema, task_id: task_id, type: :turn_started)
+    end
+
+    for delivery <- [:error, :stream_raise] do
       @tag :capture_log
       test "#{delivery} preserves safe, non-retryable model guidance in storage and PubSub", %{
         task_id: task_id,
@@ -49,42 +65,32 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
         request =
           Request.exception(
             status: 400,
-            reason: "HTTP 400",
+            provider_code: "model_not_found",
+            reason:
+              "The 'gpt-6-astra' model is not supported when using Codex with a ChatGPT account.",
             response_body: %{
-              "detail" =>
-                "The 'gpt-5.4-mini' model is not supported when using Codex with a ChatGPT account."
+              "code" => "model_not_found",
+              "message" =>
+                "The 'gpt-6-astra' model is not supported when using Codex with a ChatGPT account.",
+              "type" => "invalid_request_error"
             }
           )
 
-        execution =
+        failure =
           case unquote(delivery) do
-            :removed_model ->
-              execution_request_fixture(model: "openai_codex:gpt-5.4-mini")
-
-            delivery ->
-              failure =
-                case delivery do
-                  :error ->
-                    request
-
-                  :stream_raise ->
-                    Stream.exception(cause: request, reason: "HTTP 400")
-                end
-
-              expect_llm_responses([{delivery, failure}])
-              execution_request_fixture()
+            :error -> request
+            :stream_raise -> Stream.exception(cause: request, reason: "HTTP 400")
           end
 
-        case unquote(delivery) do
-          :removed_model ->
-            {:ok, task} = Tasks.get_task(scope, task_id)
-            insert_accepted_user_message!(task, "Hello", execution.model)
-            assert :ok = Tasks.execute_next_turn(scope, task_id, execution)
+        expect_llm_responses([{unquote(delivery), failure}])
 
-          _provider_error ->
-            {:ok, _, _} =
-              submit_user_message_and_run(scope, task_id, execution, user_content("Hello"))
-        end
+        {:ok, _, _} =
+          submit_user_message_and_run(
+            scope,
+            task_id,
+            execution_request_fixture(),
+            user_content("Hello")
+          )
 
         assert_receive_interaction(%Interaction.AgentError{} = error, _turn_number)
 

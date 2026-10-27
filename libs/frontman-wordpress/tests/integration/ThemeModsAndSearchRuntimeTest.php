@@ -119,8 +119,18 @@ function test_elementor_pagination_and_unicode( Frontman_Tools $tools ): void {
 		$last = discovery_call( $tools, 'wp_elementor_list_pages', $scope + [ 'offset' => $first['next_offset'] ] );
 		discovery_assert( [ $ids[200] ] === array_column( $last['pages'], 'post_id' ) && null === $last['next_offset'], 'Search missed page beyond 200' );
 		discovery_assert( [ 'settings', 'items', 0, 'label' ] === $last['pages'][0]['matches'][1]['setting_path'], 'Repeater path incorrect' );
+		$context_scope = $scope + [ 'include_context' => true ];
+		$context_first = discovery_call( $tools, 'wp_elementor_list_pages', $context_scope );
+		discovery_assert( $first === $context_first, 'Context changed empty candidate continuation' );
+		$context_last = discovery_call( $tools, 'wp_elementor_list_pages', $context_scope + [ 'offset' => $context_first['next_offset'] ] );
+		$button_context = $context_last['pages'][0]['element_contexts']['button'];
+		discovery_assert( $last['pages'][0]['matches'] === $context_last['pages'][0]['matches'] && null === $context_last['next_offset'], 'Context changed matches or pagination' );
+		discovery_assert( 'stored' === $button_context['source'] && 'parent' === $button_context['parent_id'] && 'parent' === $button_context['container_id'] && 0 === $button_context['position'], 'Stored layout context incorrect' );
+		discovery_assert( 1 === count( $context_last['pages'][0]['element_contexts'] ), 'Repeater matches duplicated context' );
 		$unicode = discovery_call( $tools, 'wp_elementor_list_pages', array_replace( $scope, [ 'text_search' => 'book démo', 'offset' => 200 ] ) );
 		discovery_assert( $excerpt === $unicode['pages'][0]['matches'][0]['excerpt'], 'Unicode excerpt lost context or split a character' );
+		$unicode_context = discovery_call( $tools, 'wp_elementor_list_pages', array_replace( $context_scope, [ 'text_search' => 'book démo', 'offset' => 200 ] ) );
+		discovery_assert( $unicode['pages'][0]['matches'] === $unicode_context['pages'][0]['matches'], 'Context changed Unicode excerpts' );
 		$literal = discovery_call( $tools, 'wp_elementor_list_pages', array_replace( $scope, [ 'text_search' => 'Try.* /', 'offset' => 200 ] ) );
 		discovery_assert( 'Try.* / Playground' === $literal['pages'][0]['matches'][0]['excerpt'], 'Search did not treat metacharacters literally' );
 		$list = [ 'post_type' => 'frontman_search_test', 'per_page' => 2 ];
@@ -132,7 +142,7 @@ function test_elementor_pagination_and_unicode( Frontman_Tools $tools ): void {
 		update_post_meta( $template, '_elementor_data', wp_slash( wp_json_encode( $tree ) ) );
 		$found = []; $offset = 0;
 		do {
-			$batch = discovery_call( $tools, 'wp_elementor_list_pages', [ 'text_search' => 'try playground', 'per_page' => 200, 'offset' => $offset ] );
+			$batch = discovery_call( $tools, 'wp_elementor_list_pages', [ 'text_search' => 'try playground', 'include_context' => true, 'per_page' => 200, 'offset' => $offset ] );
 			$found = array_merge( $found, array_column( $batch['pages'], 'post_id' ) );
 			$offset = $batch['next_offset'];
 		} while ( null !== $offset );

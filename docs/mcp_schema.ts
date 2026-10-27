@@ -1,3 +1,9 @@
+/**
+ * Historical MCP 2024-11-05 reference only, not the active Frontman contract.
+ * Active definitions: ../libs/frontman-protocol/src/FrontmanProtocol__MCP.res
+ * Current baseline: ../libs/frontman-protocol/README.md
+ * Retain this schema and its version constant for historical reference.
+ */
 export type JSONRPCMessage =
 	| JSONRPCRequest
 	| JSONRPCNotification

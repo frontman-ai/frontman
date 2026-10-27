@@ -26,18 +26,34 @@ describe("Relay.connect", _t => {
 
     t->expect(response.protocolVersion)->Expect.toBe("2.0")
     t
-    ->expect(response.tools->Array.get(0)->Option.map(json => JSON.stringify(json)))
+    ->expect(
+      response.tools
+      ->Array.get(0)
+      ->Option.map(tool => tool->S.decodeOrThrow(~from=Relay.Types.remoteToolSchema, ~to=S.json)),
+    )
     ->Expect.toEqual(
       Some(
-        JSON.stringify(
-          JSON.parseOrThrow(`{
-            "name":"wp_list_posts",
-            "description":"List posts",
-            "inputSchema":{"type":"object"},
-            "_meta":{"ai.frontman/tool-metadata":{"access":"read","visibleToAgent":true}}
-          }`),
-        ),
+        JSON.parseOrThrow(`{
+        "name":"wp_list_posts",
+        "description":"List posts",
+        "inputSchema":{"type":"object"},
+        "_meta":{"ai.frontman/tool-metadata":{"access":"read","visibleToAgent":true}}
+      }`),
       ),
+    )
+  })
+
+  test("rejects missing, empty, and non-string v2 tool names", t => {
+    ["", `"name":"",`, `"name":123,`]->Array.forEach(
+      name => {
+        let json = JSON.parseOrThrow(
+          `{
+        "tools":[{${name}"inputSchema":{"type":"object"},"_meta":{"ai.frontman/tool-metadata":{"access":"read","visibleToAgent":true}}}],
+        "serverInfo":{"name":"test","version":"1"},"protocolVersion":"2.0"
+      }`,
+        )
+        t->expect(json->Relay.parseToolsResponse->Result.isError)->Expect.toBe(true)
+      },
     )
   })
 
@@ -82,9 +98,11 @@ testAsync("preserves relayed MCP tool metadata and parses legacy results", async
   let relay = (await Relay.connect(config, ~signal=controller.signal))->Result.getOrThrow
 
   t
-  ->expect(relay->Relay.getToolsJson->Array.get(0)->Option.map(json => JSON.stringify(json)))
-  ->Expect.toEqual(Some(JSON.stringify(tool)))
+  ->expect(relay->Relay.getToolsJson->Array.get(0))
+  ->Expect.toEqual(Some(tool))
+  t->expect((relay.tools->Array.get(0)->Option.getOrThrow).name)->Expect.toBe("tool")
   t->expect(relay->Relay.hasTool("tool"))->Expect.toBe(true)
+  t->expect(relay->Relay.hasTool("missing"))->Expect.toBe(false)
   JSON.parseOrThrow(`{"content":[]}`)
   ->S.parseOrThrow(~to=FrontmanClient__MCP__Types.callToolResultSchema)
   ->ignore

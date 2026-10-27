@@ -46,7 +46,7 @@ let checkVisibleMarker = async (t, ~style, ~scrollY) => {
   )->Client__Task__Reducer.Lens.updatePreviewFrame(frame => {
     ...frame,
     contentDocument: Some(doc),
-    contentWindow: Some(win),
+    contentWindow: Some({window: win}),
   })
   StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
     Client__State__Store.store,

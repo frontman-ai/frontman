@@ -9,7 +9,7 @@
  * - Astro: Programmatic config (Astro has no dedicated Frontman CLI — users run `astro add`)
  */
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { relative, resolve } from "node:path";
 import {
   existsSync,
@@ -22,8 +22,8 @@ const FRONTMAN_SERVER = "localhost:4002";
 
 function resetFixture(fixtureDir: string): void {
   const fixturePath = relative(ROOT, fixtureDir);
-  execSync(`git checkout -- "${fixturePath}"`, { cwd: ROOT, stdio: "pipe" });
-  execSync(`git clean -fd -- "${fixturePath}"`, { cwd: ROOT, stdio: "pipe" });
+  execFileSync("git", ["checkout", "--", fixturePath], { cwd: ROOT, stdio: "pipe" });
+  execFileSync("git", ["clean", "-fd", "--", fixturePath], { cwd: ROOT, stdio: "pipe" });
 }
 
 /**
@@ -45,8 +45,9 @@ export function installNextjs(): void {
   }
 
   console.log("  [e2e] Running Frontman Next.js installer...");
-  execSync(
-    `${process.execPath} ${cli} install --skip-deps --server ${FRONTMAN_SERVER}`,
+  execFileSync(
+    process.execPath,
+    [cli, "install", "--skip-deps", "--server", FRONTMAN_SERVER],
     { cwd: fixtureDir, stdio: "inherit" },
   );
 }
@@ -69,8 +70,9 @@ export function installVite(): void {
   }
 
   console.log("  [e2e] Running Frontman Vite installer...");
-  execSync(
-    `${process.execPath} ${cli} install --skip-deps --server ${FRONTMAN_SERVER}`,
+  execFileSync(
+    process.execPath,
+    [cli, "install", "--skip-deps", "--server", FRONTMAN_SERVER],
     { cwd: fixtureDir, stdio: "inherit" },
   );
 }
@@ -93,8 +95,9 @@ export function installVueVite(): void {
   }
 
   console.log("  [e2e] Running Frontman Vite installer (Vue fixture)...");
-  execSync(
-    `${process.execPath} ${cli} install --skip-deps --server ${FRONTMAN_SERVER}`,
+  execFileSync(
+    process.execPath,
+    [cli, "install", "--skip-deps", "--server", FRONTMAN_SERVER],
     { cwd: fixtureDir, stdio: "inherit" },
   );
 }

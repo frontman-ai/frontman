@@ -1,5 +1,25 @@
 # @frontman-ai/frontman-core
 
+## 2.0.5
+
+### Patch Changes
+
+- [#1919](https://github.com/frontman-ai/frontman/pull/1919) [`db72760`](https://github.com/frontman-ai/frontman/commit/db72760b282b87d4c20b72a1527ef3be58e99c05) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Use a shared typed record for relay tool definitions. Tool names are required strings, and callers no longer decode them from JSON.
+
+  Preserve vendor metadata and JSON Schema extensions. Unknown top-level tool fields are no longer forwarded.
+
+- Updated dependencies [[`9dedf54`](https://github.com/frontman-ai/frontman/commit/9dedf545051b2744a6b364d08d4f3e7a0801788d), [`db72760`](https://github.com/frontman-ai/frontman/commit/db72760b282b87d4c20b72a1527ef3be58e99c05)]:
+  - @frontman/bindings@0.3.4
+  - @frontman-ai/frontman-protocol@4.1.2
+
+## 2.0.4
+
+### Patch Changes
+
+- [#1909](https://github.com/frontman-ai/frontman/pull/1909) [`dbc7125`](https://github.com/frontman-ai/frontman/commit/dbc712584fa4105e4ed103ada401cc5c5e8a36d1) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update Lighthouse from 13.4.1 to 13.5.0 for performance, accessibility, best-practices, and SEO audits.
+- Updated dependencies [[`3e527dc`](https://github.com/frontman-ai/frontman/commit/3e527dc7ec76333f9886926eec02b8de974927ef)]:
+  - @frontman-ai/frontman-protocol@4.1.1
+
 ## 2.0.3
 
 ### Patch Changes

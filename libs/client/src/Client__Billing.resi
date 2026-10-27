@@ -21,7 +21,7 @@ type state =
   | Error(string)
 
 type request = Status | Checkout(interval) | CustomerPortal
-type flow = Idle | Opening | Failed(string)
+type flow = Idle | Opening | AwaitingCheckout | Failed(string)
 type checkoutRequest = {interval: interval}
 type urlResponse = {url: string}
 type errorResponse = {error: string, @as("request_id") requestId: option<string>}
@@ -34,8 +34,11 @@ type checkoutOption
 
 let statusSchema: S.t<status>
 
-let accessAllowed: state => bool
-let isAccessAllowed: status => bool
+let canStartTurnFromState: state => bool
+let canStartTurn: status => bool
+let pretrialRunsRemaining: status => option<int>
+let canStartCheckout: status => bool
+let turnStartBlocked: state => bool
 let canManage: status => bool
 
 let subscriptionStatus: status => subscriptionStatus
@@ -56,3 +59,4 @@ let checkoutOptionDescription: checkoutOption => string
 let checkoutOptionBadge: checkoutOption => option<string>
 let checkoutOptionRequest: checkoutOption => request
 let checkoutOptionRecommended: checkoutOption => bool
+let offeredTrialDays: status => option<int>

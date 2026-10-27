@@ -42,7 +42,7 @@ let request = operation => dispatch(RequestBilling(operation))
 let flush = () => Promise.make((resolve, _) => {setTimeout(() => resolve(), 0)->ignore})
 let urlResponse = () => response(200, `{"url":"https://billing.stripe.test/session"}`)
 let statusJson = (status, access) =>
-  `{"status":"${status}","access_allowed":${Bool.toString(
+  `{"status":"${status}","can_start_turn":${Bool.toString(
       access,
     )},"has_billing_customer":true,"interval":"monthly","current_period_end":null,"trial_end":null,"cancel_at":null,"canceled_at":null}`
 let failed = () =>
@@ -127,9 +127,49 @@ afterEach(() => {
           ->expect(navigations.contents)
           ->Expect.toEqual(["about:blank", "https://billing.stripe.test/session"]),
       )
-      t->expect(state.contents.billingFlow)->Expect.toEqual(Billing.Idle)
+      t
+      ->expect(state.contents.billingFlow)
+      ->Expect.toEqual(
+        switch operation {
+        | Checkout(_) => Billing.AwaitingCheckout
+        | _ => Billing.Idle
+        },
+      )
     },
   )
+})
+
+testAsync("checkout waits for authoritative access and blocks duplicate launches", async t => {
+  request(Checkout(Monthly))
+  pending.contents.resolve(urlResponse())
+  await waitFor(() =>
+    t->expect(state.contents.billingFlow)->Expect.toEqual(Billing.AwaitingCheckout)
+  )
+  request(Checkout(Yearly))
+  t->expect(calls.contents->Array.length)->Expect.toBe(1)
+  let status = S.parseOrThrow(
+    JSON.parseOrThrow(statusJson("none", false)),
+    ~to=Billing.statusSchema,
+  )
+  dispatch(BillingStatusReceived(status))
+  t->expect(state.contents.billingFlow)->Expect.toEqual(Billing.AwaitingCheckout)
+  dispatch(BillingStatusError({error: "Unavailable"}))
+  pending := Promise.withResolvers()
+  dispatch(BillingCheckoutDismissed)
+  t->expect(state.contents.billingFlow)->Expect.toEqual(Billing.Idle)
+  let (url, _) = calls.contents->Array.get(1)->Option.getOrThrow
+  t->expect(url)->Expect.toBe("https://api.example/api/billing/status")
+  pending.contents.resolve(response(200, statusJson("none", false)))
+  await waitFor(() =>
+    t->expect(state.contents.billingStatus)->Expect.toEqual(Billing.Loaded(status))
+  )
+  state := {...state.contents, billingFlow: AwaitingCheckout}
+  dispatch(
+    BillingStatusReceived(
+      S.parseOrThrow(JSON.parseOrThrow(statusJson("trialing", true)), ~to=Billing.statusSchema),
+    ),
+  )
+  t->expect(state.contents.billingFlow)->Expect.toEqual(Billing.Idle)
 })
 
 testAsync("launch effects report URLs without navigating", async t => {
@@ -143,7 +183,11 @@ testAsync("launch effects report URLs without navigating", async t => {
     t
     ->expect(actions)
     ->Expect.toEqual([
-      Reducer.BillingUrlReceived({tab: tab.contents, url: "https://billing.stripe.test/session"}),
+      Reducer.BillingUrlReceived({
+        tab: tab.contents,
+        url: "https://billing.stripe.test/session",
+        request: CustomerPortal,
+      }),
     ])
   )
   t->expect(navigations.contents)->Expect.toEqual(["about:blank"])
@@ -271,7 +315,7 @@ test("blocked popups do not create unused checkout", t => {
       request(Status)
       pending.contents.resolve(response(200, statusJson("active", true)))
       await waitFor(
-        () => t->expect(Reducer.Selectors.billingAccessAllowed(state.contents))->Expect.toBe(true),
+        () => t->expect(Reducer.Selectors.billingCanStartTurn(state.contents))->Expect.toBe(true),
       )
     | _ =>
       dispatch(
@@ -309,7 +353,7 @@ testAsync("status refresh uses same bearer without opening tab", async t => {
   request(Status)
   pending.contents.resolve(response(200, statusJson("trialing", true)))
   await waitFor(() =>
-    t->expect(Reducer.Selectors.billingAccessAllowed(state.contents))->Expect.toBe(true)
+    t->expect(Reducer.Selectors.billingCanStartTurn(state.contents))->Expect.toBe(true)
   )
   t->expect(opened.contents)->Expect.toBe(0)
   let (url, init) = calls.contents->Array.get(0)->Option.getOrThrow

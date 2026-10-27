@@ -99,6 +99,13 @@ let shouldRenderTurnError = (messages: array<Message.t>, turnErrorId: string): b
     )
   )
 
+let retryTurnHandler = (~hasActiveACPSession, ~taskId, ~retryErrorId) =>
+  switch (hasActiveACPSession, taskId, retryErrorId) {
+  | (true, Some(taskId), Some(retriedErrorId)) =>
+    Some(() => Client__State.Actions.retryTurn(~taskId, ~retriedErrorId))
+  | _ => None
+  }
+
 let selectGetStartedTask = (~providerSetupRequired, ~onConfigureProvider, ~onSelect, text) => {
   switch providerSetupRequired {
   | true => onConfigureProvider()
@@ -119,7 +126,6 @@ module ExecutePlanAction = {
 @react.component
 let make = (~onConfigureProvider: unit => unit) => {
   let connectionState = Client__State.useSelector(Client__State.Selectors.getConnectionStatus)
-  let session = Client__State.useSelector(Client__State.Selectors.getSession)
   let sessionError = Client__State.useSelector(Client__State.Selectors.getSessionError)
 
   let isSubmitting = Client__State.useSelector(Client__State.Selectors.isSubmitting)
@@ -127,7 +133,11 @@ let make = (~onConfigureProvider: unit => unit) => {
   let isAgentRunning = Client__State.useSelector(Client__State.Selectors.isAgentRunning)
   let isNewTask = Client__State.useSelector(Client__State.Selectors.isNewTask)
   let tasks = Client__State.useSelector(Client__State.Selectors.tasks)
-  let hasActiveACPSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
+  let hasActiveACPSession = switch connectionState {
+  | SessionActive(_) => true
+  | Connected => isNewTask
+  | Disconnected | Connecting | LoggingOut | Error(_) => false
+  }
   let planEntries = Client__State.useSelector(Client__State.Selectors.currentPlanEntries)
   let queuedUserMessages = Client__State.useSelector(Client__State.Selectors.queuedUserMessages)
   let turnError = Client__State.useSelector(Client__State.Selectors.turnError)
@@ -157,8 +167,17 @@ let make = (~onConfigureProvider: unit => unit) => {
     ~hasActiveACPSession,
   )
 
-  let hasPendingQuestion =
-    Client__State.useSelector(Client__State.Selectors.pendingQuestion)->Option.isSome
+  let pendingQuestion = Client__State.useSelector(Client__State.Selectors.pendingQuestion)
+  let hasPendingQuestion = pendingQuestion->Option.isSome
+  let feedbackQuestion = pendingQuestion->Option.filter(pq =>
+    messages->Array.some(message =>
+      switch message {
+      | Message.ToolCall(call) =>
+        call.id == pq.toolCallId && call.toolName == Client__Tool__CustomerFeedback.name
+      | _ => false
+      }
+    )
+  )
   let hasAnnotations = Array.length(annotations) > 0
 
   let pendingPlanHandoff = Client__State.useSelector(Client__State.Selectors.pendingPlanHandoff)
@@ -327,12 +346,11 @@ let make = (~onConfigureProvider: unit => unit) => {
           error={Message.ErrorMessage.error(err)}
           category={Message.ErrorMessage.category(err)}
           onConfigureProvider
-          onRetry={switch currentTaskId {
-          | Some(taskId) =>
-            () =>
-              Client__State.Actions.retryTurn(~taskId, ~retriedErrorId=Message.ErrorMessage.id(err))
-          | None => () => ()
-          }}
+          onRetry=?{retryTurnHandler(
+            ~hasActiveACPSession,
+            ~taskId=currentTaskId,
+            ~retryErrorId=Message.ErrorMessage.retryErrorId(err),
+          )}
         />
       </div>
     }
@@ -342,35 +360,18 @@ let make = (~onConfigureProvider: unit => unit) => {
     <Client__UpdateBanner />
     <ScrollContainer className="flex-grow overflow-x-hidden">
       <ScrollContainer.ContentWrapper>
-        {switch (hasActiveACPSession, connectionState) {
-        | (true, _) => React.null
-        | (false, Error(message)) =>
+        {switch (hasActiveACPSession, connectionState, sessionError) {
+        | (_, Error(message), _) | (_, _, Some(message)) =>
           <div role="alert" className="py-3 px-4 text-[13px] text-red-400">
-            {React.string(`Could not load project context: ${message}`)}
+            {React.string(message)}
+            {React.string(" ")}
+            <a href="" className="underline"> {React.string("Reload")} </a>
           </div>
-        | (false, Connecting | LoggingOut | Connected | SessionActive(_) | Disconnected) =>
+        | (true, _, None) => React.null
+        | (false, Connecting | LoggingOut | Connected | SessionActive(_) | Disconnected, None) =>
           <div className="flex items-center gap-2 py-3 px-4 text-[13px] text-zinc-400">
             <span className="shimmer-text"> {React.string("Loading project context...")} </span>
           </div>
-        }}
-
-        {switch sessionError {
-        | Some(message) =>
-          <div role="alert" className="py-3 px-4 text-[13px] text-red-400 break-words">
-            <p> {React.string(`Conversation unavailable: ${message}`)} </p>
-            {switch currentTaskId {
-            | Some(taskId) =>
-              <Client__UI__Button
-                variant=Client__UI__Button.Variant.Secondary
-                size=Client__UI__Button.Size.Sm
-                onClick={_ => Client__State.Actions.switchTask(~taskId)}
-              >
-                {React.string("Retry conversation")}
-              </Client__UI__Button>
-            | None => <p> {React.string("Submit your message again to retry.")} </p>
-            }}
-          </div>
-        | None => React.null
         }}
 
         {switch (hasActiveACPSession, isNewTask, totalItems) {
@@ -398,13 +399,10 @@ let make = (~onConfigureProvider: unit => unit) => {
         />
 
         {switch (retryStatus, turnError, currentTaskId) {
-        | (Some(rs), _, _) => <Client__RetryBanner retryStatus=rs />
-        | (None, Some({id, message, category, retryErrorId}), Some(taskId))
+        | (Some(rs), _, _) if hasActiveACPSession => <Client__RetryBanner retryStatus=rs />
+        | (None, Some({id, message, category, retryErrorId}), Some(_))
           if shouldRenderTurnError(messages, id) =>
-          let onRetry =
-            retryErrorId->Option.map(retriedErrorId =>
-              () => Client__State.Actions.retryTurn(~taskId, ~retriedErrorId)
-            )
+          let onRetry = retryTurnHandler(~hasActiveACPSession, ~taskId=currentTaskId, ~retryErrorId)
           <ErrorBanner error=message category onConfigureProvider onRetry=?onRetry />
         | _ => React.null
         }}
@@ -418,9 +416,18 @@ let make = (~onConfigureProvider: unit => unit) => {
     </ScrollContainer>
     <Client__PlanList entries=planEntries />
     {switch billingStatus {
-    | Client__Billing.Loaded(status) if !Client__Billing.isAccessAllowed(status) =>
+    | Client__Billing.Loaded(status)
+      if !Client__Billing.canStartTurn(status) ||
+      Client__Billing.pretrialRunsRemaining(status)->Option.isSome =>
       <Client__UI__Alert className="mx-4 mb-2 w-auto">
-        <Client__UI__Alert.Title> {React.string("Billing required")} </Client__UI__Alert.Title>
+        <Client__UI__Alert.Title>
+          {React.string(
+            switch Client__Billing.pretrialRunsRemaining(status) {
+            | Some(remaining) => `${Int.toString(remaining)} BYOK runs remaining`
+            | None => "Billing required"
+            },
+          )}
+        </Client__UI__Alert.Title>
         <Client__UI__Alert.Description>
           {React.string(Client__Billing.activationMessage(status))}
           <Client__UI__Button
@@ -434,19 +441,50 @@ let make = (~onConfigureProvider: unit => unit) => {
       </Client__UI__Alert>
     | _ => React.null
     }}
-    <Client__QueuedMessagesDrawer
-      messages=queuedUserMessages
-      onUnqueue={messageId =>
-        switch currentTaskId {
-        | Some(taskId) => Client__State.Actions.unqueueMessage(~taskId, ~messageId)
-        | None => ()
-        }}
-    />
+    <fieldset disabled={!hasActiveACPSession} className="contents">
+      <Client__QueuedMessagesDrawer
+        messages=queuedUserMessages
+        onUnqueue={messageId =>
+          switch currentTaskId {
+          | Some(taskId) => Client__State.Actions.unqueueMessage(~taskId, ~messageId)
+          | None => ()
+          }}
+      />
+    </fieldset>
     <div className="border-t border-white/8 shrink-0">
       <Client__SelectedElementDisplay />
-      {switch hasPendingQuestion {
-      | true => <Client__QuestionDrawer />
-      | false =>
+      {switch (feedbackQuestion, currentTaskId, hasPendingQuestion) {
+      | (Some(pq), Some(taskId), _) =>
+        <fieldset disabled={!hasActiveACPSession}>
+          <Client__CustomerFeedbackPanel
+            score={Client__Tool__CustomerFeedback.answerText(pq.answers, 0)->Option.map(text =>
+              text->Int.fromString->Option.getOrThrow
+            )}
+            comment={Client__Tool__CustomerFeedback.answerText(pq.answers, 1)->Option.getOr("")}
+            onScoreChanged={score =>
+              Client__State.Actions.questionCustomTextChanged(
+                ~taskId,
+                ~questionIndex=0,
+                ~text=score->Int.toString,
+              )}
+            onCommentChanged={text =>
+              Client__State.Actions.questionCustomTextChanged(~taskId, ~questionIndex=1, ~text)}
+            onSubmit={() => Client__State.Actions.questionSubmitted(~taskId)}
+            onSkip={() => Client__State.Actions.questionAllSkipped(~taskId)}
+          />
+          <Client__UI__Button
+            variant=Ghost
+            className="w-full min-h-11"
+            onClick={_ => Client__State.Actions.questionCancelled(~taskId)}
+          >
+            {React.string("Cancel (stop agent)")}
+          </Client__UI__Button>
+        </fieldset>
+      | (_, _, true) =>
+        <fieldset disabled={!hasActiveACPSession}>
+          <Client__QuestionDrawer />
+        </fieldset>
+      | (_, _, false) =>
         <PromptInput
           onSubmit={handleSubmit}
           disabled={isSubmitting}
@@ -460,7 +498,7 @@ let make = (~onConfigureProvider: unit => unit) => {
           onAgentChange={agentId => Client__State.Actions.setSelectedAgentId(~agentId)}
           onConfigureProvider
           isAgentRunning
-          hasActiveACPSession={hasActiveACPSession && (isNewTask || session->Option.isSome)}
+          hasActiveACPSession
           onSelectElement={Client__State.Actions.toggleWebPreviewSelection}
           isSelecting={webPreviewIsSelecting}
           hasAnnotations

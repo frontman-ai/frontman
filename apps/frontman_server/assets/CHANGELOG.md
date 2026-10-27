@@ -1,5 +1,51 @@
 # @frontman/frontman-server-assets
 
+## 0.2.1
+
+### Patch Changes
+
+- [#1986](https://github.com/frontman-ai/frontman/pull/1986) [`1f7f45f`](https://github.com/frontman-ai/frontman/commit/1f7f45fca856fb0e629f0223c5aa7ae8602336c3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Bind OAuth sign-in and account linking to browser state, consume matching callbacks once, and return controlled errors for rejected linking and unsupported or absent provider connections.
+- Updated dependencies [[`db72760`](https://github.com/frontman-ai/frontman/commit/db72760b282b87d4c20b72a1527ef3be58e99c05), [`a21ed02`](https://github.com/frontman-ai/frontman/commit/a21ed02aa8c72b395586203c28e96e86dba95780), [`51c42f6`](https://github.com/frontman-ai/frontman/commit/51c42f60bfeccf92ab30866fd6d914b084e5dc7e)]:
+  - @frontman-ai/frontman-client@4.0.5
+
+## 0.2.0
+
+### Minor Changes
+
+- [#1807](https://github.com/frontman-ai/frontman/pull/1807) [`86327f3`](https://github.com/frontman-ai/frontman/commit/86327f316ece79a293277172bbc6a88729c8a590) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Allow five AI runs before a Frontman trial is required. Users must connect their own AI provider; provider access is validated before a turn is claimed for both subscribers and allowance users. The allowance is shared across projects and does not reset when conversations are deleted. Claimed turns can retry and recover without another charge, even after subscription access ends. Pre-turn failures do not offer turn retry; saving provider credentials resumes queued work. Billing status now exposes `can_start_turn` instead of `access_allowed` to distinguish new-turn eligibility from continuation.
+
+### Patch Changes
+
+- [#1880](https://github.com/frontman-ai/frontman/pull/1880) [`582dda1`](https://github.com/frontman-ai/frontman/commit/582dda13c9292800e6c03e1125d8f3d7c7f823ff) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Block new usage as soon as Stripe reports a past-due subscription after a failed payment, rather than allowing access during payment retries. Restore access when the subscription becomes active again. Prevent duplicate subscription checkout for past-due users and direct them to manage payment in Stripe.
+
+- [#1897](https://github.com/frontman-ai/frontman/pull/1897) [`c7261a7`](https://github.com/frontman-ai/frontman/commit/c7261a75f63ed33c7f33ee0590409e5ad250118a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reject MCP tool schemas with map or array containers more than 64 edges below the root before runtime compilation. Previously accepted deeper schemas now fail validation; scalar leaves at depth 65 remain allowed.
+
+- [#1912](https://github.com/frontman-ai/frontman/pull/1912) [`53afe76`](https://github.com/frontman-ai/frontman/commit/53afe7616fe328e1675c5c17d05bca79afe03a3a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reject MCP tool schemas with more than 10,000 JSON nodes before runtime compilation. Previously accepted larger schemas now fail validation. Each schema has its own budget; object keys do not count.
+
+- [#1889](https://github.com/frontman-ai/frontman/pull/1889) [`188c60d`](https://github.com/frontman-ai/frontman/commit/188c60d6d1c37d88542a64508fa76abd407f8153) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add nullable UTC-second first-message observation storage without a default, backfill, index, or writer. Registration input cannot set it. A missing timestamp does not establish observation coverage.
+
+  Deploy the migration before the new binary; old binaries can coexist with the added column. Retain the column and values on application rollback; do not use the schema down-migration for routine rollback.
+
+- [#1895](https://github.com/frontman-ai/frontman/pull/1895) [`2a039ca`](https://github.com/frontman-ai/frontman/commit/2a039ca89dfd1d84146ef0470ebdb3485761d5b6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Record the first accepted prompt atomically and retain it after message or task deletion.
+
+- [#1890](https://github.com/frontman-ai/frontman/pull/1890) [`8d7aa86`](https://github.com/frontman-ai/frontman/commit/8d7aa86b110e5854a0b0d8c290ac7bc7f9c62e3e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Stop explicitly subscribing contacts during Resend contact sync. Repeated requests omit subscription preferences; provider preservation on duplicate creation remains unverified. Old workers and rollback versions can still write subscription preferences until drained.
+
+- [#1896](https://github.com/frontman-ai/frontman/pull/1896) [`06b9440`](https://github.com/frontman-ai/frontman/commit/06b94404fbc7008a5dfecf9505ee5b1c3e286262) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add a fresh scoped activation-candidate check with an inclusive UTC signup age bound, not send authorization. Backfill existing users with the migration timestamp so they do not receive activation emails; preserve recorded first-prompt timestamps.
+
+- [#1891](https://github.com/frontman-ai/frontman/pull/1891) [`05bb541`](https://github.com/frontman-ai/frontman/commit/05bb54129ec266c76ce4150a355932e90a8ba8c2) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Cover OAuth signup, email verification, repeat login, and identity linking through HTTP routes, with local WorkOS responses and persisted account, session, and job assertions.
+
+- [#1837](https://github.com/frontman-ai/frontman/pull/1837) [`d284554`](https://github.com/frontman-ai/frontman/commit/d2845543589542ca366ad102d50024ba229e81d6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Store customer feedback requests and immutable scores in a dedicated context with a per-user rolling 30-day cooldown.
+
+- [#1913](https://github.com/frontman-ai/frontman/pull/1913) [`9ec6dad`](https://github.com/frontman-ai/frontman/commit/9ec6dadae5313f7a26e5ff050ef9f0d0e6bdd974) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Refresh the model picker with GPT-6.1 Sol, Claude Haiku 5.5, Gemini 4 Argon, and current OpenRouter, Fireworks, and NVIDIA models. Update model metadata and documentation. Remove retired GPT-5.5 from Codex sign-in and retired Claude Opus 4 and Sonnet 4 from Anthropic.
+
+- [#1881](https://github.com/frontman-ai/frontman/pull/1881) [`5028992`](https://github.com/frontman-ai/frontman/commit/50289929c765f321a7d821ac53bbeb82e72441f3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Offer a 7-day free Pro trial with a card. Keep five free uses without a card. Unused free uses stay available. Existing trial dates stay unchanged.
+
+- [#1843](https://github.com/frontman-ai/frontman/pull/1843) [`0bfca4e`](https://github.com/frontman-ai/frontman/commit/0bfca4ed2e7cc8bcf7e3bb87e51b277322d000a8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Enable optional customer feedback in WordPress, Astro, Next.js, and Vite through the existing question interaction. Store ratings and skips as ordinary MCP tool results instead of duplicating feedback persistence. Drop the unused customer feedback table and its data. Apply the 30-day cooldown using the user's stored feedback tool interactions. Keep feedback guidance in the tool description.
+
+- [#1892](https://github.com/frontman-ai/frontman/pull/1892) [`2a6995b`](https://github.com/frontman-ai/frontman/commit/2a6995b5d1c0c579c9fc7bc729ffdb52f4462276) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add a pure first-follow-up email builder without sending or scheduling emails.
+- Updated dependencies [[`3e527dc`](https://github.com/frontman-ai/frontman/commit/3e527dc7ec76333f9886926eec02b8de974927ef), [`3e527dc`](https://github.com/frontman-ai/frontman/commit/3e527dc7ec76333f9886926eec02b8de974927ef), [`84fffb0`](https://github.com/frontman-ai/frontman/commit/84fffb0c2badfa3dbed2b2e51c15efd4d76b5161)]:
+  - @frontman-ai/frontman-client@4.0.4
+
 ## 0.1.18
 
 ### Patch Changes

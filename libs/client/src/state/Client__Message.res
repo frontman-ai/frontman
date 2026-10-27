@@ -141,16 +141,31 @@ type toolCall = {
 
 module ErrorMessage: {
   type t
-  let make: (~id: string, ~error: string, ~category: Client__ErrorCategory.t) => t
+  let make: (~id: string=?, ~error: string, ~category: Client__ErrorCategory.t) => t
   let id: t => string
+  let retryErrorId: t => option<string>
   let error: t => string
   let category: t => Client__ErrorCategory.t
 } = {
-  type t = {id: string, error: string, category: Client__ErrorCategory.t}
+  type t = {
+    id: string,
+    retryErrorId: option<string>,
+    error: string,
+    category: Client__ErrorCategory.t,
+  }
 
-  let make = (~id, ~error, ~category) => {id, error, category}
+  let make = (~id=?, ~error, ~category) => {
+    id: switch id {
+    | Some(id) => id
+    | None => WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID
+    },
+    retryErrorId: id,
+    error,
+    category,
+  }
 
   let id = t => t.id
+  let retryErrorId = t => t.retryErrorId
   let error = t => t.error
   let category = t => t.category
 }

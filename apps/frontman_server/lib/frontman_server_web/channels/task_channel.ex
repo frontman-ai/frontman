@@ -16,6 +16,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   require Logger
 
   alias FrontmanServer.Agents
+  alias FrontmanServer.Billing
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Protocols.{ACP, JsonRpc, MCP}
@@ -43,13 +44,14 @@ defmodule FrontmanServerWeb.TaskChannel do
          {:ok, _owner} <-
            Registry.register(FrontmanServer.ProcessRegistry, {:task_channel, task_id}, nil) do
       {:ok, history} = TaskHistory.new(task.interaction_rows)
-
-      SentryContext.set_task_scope_context(scope, task_id)
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope.user.id))
 
       Phoenix.PubSub.subscribe(
         FrontmanServer.PubSub,
         Providers.config_pubsub_topic(scope.user.id)
       )
+
+      SentryContext.set_task_scope_context(scope, task_id)
 
       {init_state, init_actions} = MCPInitializer.start(task_id, scope, task.framework)
 
@@ -159,13 +161,33 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
+  def handle_info(:billing_status_changed, socket) do
+    if Billing.can_start_turn?(socket.assigns.scope), do: wake_runner(socket, nil)
+    {:noreply, socket}
+  end
+
   def handle_info({:execute_next_turn, execution}, socket) do
     case Tasks.execute_next_turn(socket.assigns.scope, socket.assigns.task_id, execution) do
       result when result in [:ok, :already_running, :no_accepted_messages] ->
         :ok
 
+      {:error, :billing_inactive} ->
+        push_agent_error(
+          socket,
+          nil,
+          Tasks.billing_inactive_message(socket.assigns.scope),
+          "frontman_billing"
+        )
+
       {:error, reason} ->
         Logger.error("Failed to execute next turn: #{inspect(reason)}")
+
+        push_agent_error(
+          socket,
+          nil,
+          "Could not start this run. Check your AI provider and selected model.",
+          "billing"
+        )
     end
 
     {:noreply, socket}
@@ -237,6 +259,14 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   def handle_info(event, socket) when event in [:config_options_changed, :model_changed] do
+    case event do
+      :config_options_changed ->
+        if Billing.can_start_turn?(socket.assigns.scope), do: wake_runner(socket, nil)
+
+      :model_changed ->
+        :ok
+    end
+
     case Tasks.get_task(socket.assigns.scope, socket.assigns.task_id) do
       {:ok, task} ->
         push(
@@ -408,6 +438,8 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp handle_tool_call_response_by_id(id, result, socket) when is_integer(id) do
     case pop_mcp_tool_request(socket, id) do
       {:ok, tool_call_id, socket} ->
+        log_mcp_tool_response(id, tool_call_id, :result)
+
         case open_tool_call(socket, tool_call_id) do
           {:ok, tool_call} ->
             handle_tool_call_response(tool_call, result, socket)
@@ -454,6 +486,14 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp unknown_mcp_response(_id, socket) do
     Logger.warning("Received MCP response for unknown request")
     {:noreply, socket}
+  end
+
+  defp log_mcp_tool_response(request_id, tool_call_id, response_kind) do
+    Logger.info("MCP tool response received",
+      mcp_request_id: request_id,
+      tool_call_id: tool_call_id,
+      response_kind: response_kind
+    )
   end
 
   defp handle_tool_call_response(tool_call, result, socket) do
@@ -572,6 +612,8 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp handle_tool_call_error_by_id(id, error, socket) when is_integer(id) do
     case pop_mcp_tool_request(socket, id) do
       {:ok, tool_call_id, socket} ->
+        log_mcp_tool_response(id, tool_call_id, :error)
+
         case open_tool_call(socket, tool_call_id) do
           {:ok, tool_call} ->
             handle_tool_call_error(tool_call, error, socket)
@@ -685,14 +727,16 @@ defmodule FrontmanServerWeb.TaskChannel do
         {:ok, replay} = ACPHistory.build(history, task.id, Agents.list_agents(scope))
         Enum.each(replay.notifications, &push(socket, @acp_message, &1))
 
-        push(
-          socket,
-          @acp_message,
-          JsonRpc.success_response(
-            id,
-            ACP.build_session_load_result(current_config_options(socket, task))
-          )
-        )
+        reply(socket_ref(socket), {
+          :ok,
+          %{
+            @acp_message =>
+              JsonRpc.success_response(
+                id,
+                ACP.build_session_load_result(current_config_options(socket, task))
+              )
+          }
+        })
 
         push_current_todo_plan(socket, Tasks.list_todos(task))
 
@@ -707,12 +751,12 @@ defmodule FrontmanServerWeb.TaskChannel do
         {:noreply, socket}
 
       {:error, :not_found} ->
-        push_acp_error(socket, id, JsonRpc.error_invalid_params(), "Session not found")
+        reply_acp_error(socket, id, JsonRpc.error_invalid_params(), "Session not found")
     end
   end
 
   defp handle_session_load(id, _params, socket) do
-    push_acp_error(socket, id, JsonRpc.error_invalid_params(), "Session does not match channel")
+    reply_acp_error(socket, id, JsonRpc.error_invalid_params(), "Session does not match channel")
   end
 
   defp handle_set_config_option(
@@ -831,11 +875,6 @@ defmodule FrontmanServerWeb.TaskChannel do
     reply_invalid_params(socket, id, invalid_child)
   end
 
-  defp push_acp_error(socket, id, code, message) do
-    push(socket, @acp_message, JsonRpc.error_response(id, code, message))
-    {:noreply, socket}
-  end
-
   defp handle_execution_chunk(
          socket,
          turn_number,
@@ -930,7 +969,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     case payload do
       %{"id" => id} ->
-        push_acp_error(socket, id, JsonRpc.error_invalid_request(), "Invalid JSON-RPC message")
+        reply_acp_error(socket, id, JsonRpc.error_invalid_request(), "Invalid JSON-RPC message")
 
       _ ->
         {:noreply, socket}
@@ -972,7 +1011,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         push_agent_error(
           socket,
-          retried_error_id,
+          nil,
           "That response can no longer be retried. Please send a new message instead.",
           "retry_unavailable"
         )
@@ -1056,8 +1095,24 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp wake_runner(_socket, _meta), do: :ok
 
   defp execution_context(socket, meta) do
+    tools = socket.assigns.mcp_tools
+    feedback_tool = "request_customer_feedback"
+    cutoff = DateTime.add(DateTime.utc_now(), -30, :day)
+
+    execution_tools =
+      case Enum.any?(tools, &(&1.name == feedback_tool)) do
+        true ->
+          case Tasks.tool_used_since?(socket.assigns.scope, feedback_tool, cutoff) do
+            true -> Enum.reject(tools, &(&1.name == feedback_tool))
+            false -> tools
+          end
+
+        false ->
+          tools
+      end
+
     %{
-      mcp_tools: socket.assigns.mcp_tools,
+      mcp_tools: execution_tools,
       project_traits: Frameworks.project_traits_from_meta(meta, socket.assigns.framework)
     }
   end
@@ -1206,6 +1261,12 @@ defmodule FrontmanServerWeb.TaskChannel do
     socket = remember_mcp_tool_request(socket, request_id, tool_call.tool_call_id)
 
     push(socket, "mcp:message", request)
+
+    Logger.info("MCP tool request pushed",
+      mcp_request_id: request_id,
+      tool_call_id: tool_call.tool_call_id
+    )
+
     {:noreply, socket}
   end
 

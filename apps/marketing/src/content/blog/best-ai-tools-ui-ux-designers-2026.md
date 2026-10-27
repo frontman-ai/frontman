@@ -14,7 +14,7 @@ faq:
   - question: 'What''s the difference between AI design tools and AI coding tools for designers?'
     answer: 'AI design tools (Figma AI, Google Stitch, Midjourney) help you create mockups, wireframes, and images. AI coding tools for designers (Frontman, v0) let you generate or modify actual source code. Design tools produce artifacts that need a developer handoff. Coding tools for designers skip or reduce that handoff.'
   - question: 'Can I try an AI tool for UI/UX designers that edits real code?'
-    answer: 'Frontman is source-available and self-hostable. Frontman Pro offers a 14-day trial with a credit card required, followed by a paid subscription. Its browser client and JavaScript framework integrations are Apache-2.0, its WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms. You bring your own provider account for Claude, OpenAI, or OpenRouter and pay the LLM provider directly. It works with Next.js, Astro, and Vite projects (React, Vue, Svelte).'
+    answer: 'Frontman is source-available and self-hostable. Try Frontman free: five uses, no card. Its browser client and JavaScript framework integrations are Apache-2.0, its WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms. You bring your own provider account for Claude, OpenAI, or OpenRouter and pay the LLM provider directly. It works with Next.js, Astro, and Vite projects (React, Vue, Svelte).'
   - question: 'How do AI tools help UI/UX designers ship faster?'
     answer: 'AI tools speed up different parts of the design-to-code pipeline. Image generators speed up asset creation. Prototyping tools speed up concept validation. Code generators like v0 skip the build-from-scratch phase. And browser-based code editors like Frontman eliminate the ticket queue entirely — designers can make visual changes themselves and have them reviewed by engineering, cutting multi-day cycles to minutes.'
 author: 'Danni Friedland'
@@ -41,7 +41,7 @@ If you want a narrower comparison of tools that generate or edit frontend source
 | [UX Pilot](#ux-pilot) | UI screens + heatmaps | Free–$39/mo | Yes |
 | [Uizard](#uizard) | Wireframes + prototypes | Free–$49/mo | Yes |
 | [Relume](#relume) | Wireframes + sitemaps | Free–paid plans | Yes |
-| [Frontman](#frontman) | Source code edits in your codebase | 14-day hosted trial (credit card required); paid Pro subscription | No |
+| [Frontman](#frontman) | Source code edits in your codebase | Five free uses, no card. Pro: EUR 15/seat/month or EUR 150/seat/year. AI costs separate. | No |
 | [Midjourney](#midjourney) | Images | $10–$60/mo | N/A (assets only) |
 | [Adobe Firefly](#adobe-firefly) | Images + vectors | Creative Cloud subscription | N/A (assets only) |
 | [v0 by Vercel](#v0) | React/Next.js code | Free–$30/mo | Minimal (code output) |
@@ -128,7 +128,7 @@ This category is different.
 
 Frontman installs as middleware in your dev server (Next.js, Astro, or Vite). Navigate to `localhost/frontman` and you get a chat interface next to a live view of your running app. Click any element, describe what you want changed, and Frontman edits the actual source file with hot reload.
 
-Designers and PMs can fix visual issues without opening an IDE or filing a ticket. Edits go through your team's normal code review process, so engineering stays in control. Frontman is self-hostable and BYOK with Claude, OpenAI, or OpenRouter. Frontman Pro offers a 14-day trial with a credit card required, followed by a paid subscription.
+Designers and PMs can fix visual issues without opening an IDE or filing a ticket. Edits go through your team's normal code review process, so engineering stays in control. Frontman is self-hostable and BYOK with Claude, OpenAI, or OpenRouter. Try Frontman free: five uses, no card. AI-provider costs are separate.
 
 The hard limits: only three frameworks supported. No Angular, no Ember, no static HTML sites. Source mapping breaks on deeply abstracted component libraries. If your design system wraps every component in three HOCs, Frontman won't reliably trace back to the right source file. The community is small (~130 GitHub stars), documentation has gaps, and complex multi-file refactors are outside its scope. This is a tool for visual tweaks and UI iteration, not for rewriting your data layer.
 
@@ -158,7 +158,7 @@ It's not a UI design tool, and it won't generate layouts or prototypes. But it s
 
 ## AI Code Generation
 
-These tools produce actual code, but they generate new projects rather than editing your existing codebase.
+These tools produce actual code. Creation and existing-project editing can overlap, so check repository support rather than assuming every product only generates a fresh project.
 
 ### v0
 
@@ -166,9 +166,11 @@ These tools produce actual code, but they generate new projects rather than edit
 
 Describe a UI component or page in plain English, get React + Tailwind + shadcn/ui code. The February 2026 update added Git integration, a VS Code-style editor, database connectivity, and agentic workflows.
 
-The code quality is close to production-ready. shadcn/ui components mean the output follows real design system patterns, not random CSS. Git integration lets you create branches and PRs from the chat. The sandbox runtime lets you preview full-stack apps before committing.
+The [v0 GitHub documentation](https://v0.app/docs/github) describes importing existing repositories and working through branches, previews, and pull requests. It is not limited to copying newly generated components into an app. Check framework fit and review routing, data behavior, design-system reuse, and accessibility before accepting any output.
 
-The catch: it's tied to React/Next.js and Tailwind. If your team uses Vue, Svelte, or a custom design system, the output needs significant rework. Complex interactions and state management still need manual work. And the generated code lands in a sandbox — getting it into your existing project's architecture, routing, and data layer is engineering work. v0 is a starting-point generator, not a full implementation tool.
+For one possible handoff after a prototype reaches your repository, follow the [proposed pricing-section editing workflow](/blog/frontman-vs-v0/#1-record-the-existing-pricing-section). It is an illustrative review procedure, not evidence that switching tools is faster or required.
+
+**Scope correction, October 20, 2026:** v0 can work with existing repositories; the earlier fresh-project-only description is withdrawn. This correction does not re-verify the other product or pricing snapshots in this roundup.
 
 ## What's Not on This List
 

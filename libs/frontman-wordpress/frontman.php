@@ -3,7 +3,7 @@
  * Plugin Name:       Frontman - AI Website Editor
  * Plugin URI:        https://frontman.sh
  * Description:       Edit WordPress with AI beside a live preview. Update pages, posts, Elementor layouts, WooCommerce data, menus, and settings faster.
- * Version:           5.3.0
+ * Version:           5.5.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Frontman AI
@@ -43,12 +43,13 @@ if ( ! function_exists( 'frontman_plugin_dir_url' ) ) {
 	}
 }
 
-define( 'FRONTMAN_VERSION', '5.3.0' );
+define( 'FRONTMAN_VERSION', '5.5.0' );
 define( 'FRONTMAN_PLUGIN_DIR', frontman_plugin_dir_path( __FILE__ ) );
 define( 'FRONTMAN_PLUGIN_URL', frontman_plugin_dir_url( __FILE__ ) );
 define( 'FRONTMAN_PLUGIN_FILE', __FILE__ );
 
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-auth.php';
+Frontman_Auth::register();
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-plugin-dependencies.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-tools.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-sentry.php';
@@ -67,12 +68,20 @@ require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-cache.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-public-files.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-seo.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-redirection.php';
+require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-301-redirects.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-angie.php';
 
 /**
  * Main plugin bootstrap.
  */
 function frontman_init(): void {
+	Frontman_Sentry::boundary( 'init', 'frontman_bootstrap' );
+}
+
+/**
+ * Register tools and plugin hooks inside the initialization boundary.
+ */
+function frontman_bootstrap(): void {
 	$tools = Frontman_Tools::instance();
 	( new Frontman_Tool_Posts() )->register( $tools );
 	( new Frontman_Tool_Users() )->register( $tools );
@@ -91,6 +100,10 @@ function frontman_init(): void {
 
 	if ( Frontman_Tool_Redirection::is_available() ) {
 		( new Frontman_Tool_Redirection() )->register( $tools );
+	}
+
+	if ( Frontman_Tool_301_Redirects::is_available() ) {
+		( new Frontman_Tool_301_Redirects() )->register( $tools );
 	}
 
 	if ( null === Frontman_Tool_Seo::unavailable_reason() ) {

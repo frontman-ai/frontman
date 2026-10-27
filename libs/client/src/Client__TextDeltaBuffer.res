@@ -77,15 +77,6 @@ let make = (
     flushUsers()
   }
 
-  let discardTask = taskId => {
-    buffer.contents->Dict.delete(taskId)
-    userBuffer.contents->Dict.delete(taskId)
-    switch buffer.contents->Dict.keysToArray->Array.length == 0 {
-    | true => cancelFlush()
-    | false => ()
-    }
-  }
-
   let add = (~taskId: string, ~messageId: string, ~text: string, ~agentId: string) => {
     flushUsers()
     let messages = taskEntries(buffer, taskId)
@@ -123,6 +114,11 @@ let make = (
     cancelFlush()
     buffer := Dict.make()
     userBuffer := Dict.make()
+  }
+
+  let discardTask = taskId => {
+    buffer.contents->Dict.delete(taskId)
+    userBuffer.contents->Dict.delete(taskId)
   }
 
   {add, addUserBlock, flush, discardTask, reset}

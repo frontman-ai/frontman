@@ -17,6 +17,7 @@ defmodule FrontmanServer.TasksTest do
     ScrubToolResultMetadata
   }
 
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Providers.OAuthToken
   alias FrontmanServer.Tasks
@@ -24,6 +25,7 @@ defmodule FrontmanServer.TasksTest do
   alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tasks.TaskSchema
   alias FrontmanServer.Workers.GenerateTitle
+  alias FrontmanServer.Workers.SyncResendContact
 
   setup do
     scope = user_scope_fixture()
@@ -67,6 +69,25 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "model validation" do
+    test "persists a 256-character custom model ID without truncation", %{scope: scope} do
+      model_id = String.duplicate("m", 256)
+
+      {:ok, provider} =
+        FrontmanServer.Providers.create_custom_provider(scope, %{
+          "name" => "Long model",
+          "base_url" => "https://93.184.216.34/v1",
+          "models" => [model_id]
+        })
+
+      model = "custom:#{provider.id}:#{model_id}"
+      task = task_fixture(scope, current_model: model)
+      assert {:ok, %{current_model: ^model}} = Tasks.get_task(scope, task.id)
+
+      other = task_fixture(scope)
+      assert {:ok, %{current_model: ^model}} = Tasks.set_current_model(scope, other.id, model)
+      assert {:ok, %{current_model: ^model}} = Tasks.get_task(scope, other.id)
+    end
+
     test "rejects invalid models on creation and selection without writing", %{scope: scope} do
       task = task_fixture(scope)
       attrs = %{id: Ecto.UUID.generate(), framework: "nextjs"}
@@ -121,7 +142,7 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "submit_user_message/2 billing access" do
-    for status <- [nil, "canceled", "active"] do
+    for status <- [nil, "past_due", "canceled", "active"] do
       @tag status: status
       test "enforces billing for #{inspect(status)}", %{scope: scope, status: status} do
         case status do
@@ -129,6 +150,7 @@ defmodule FrontmanServer.TasksTest do
           status -> subscription_for_scope_fixture(scope, %{status: status})
         end
 
+        if status in ["past_due", "canceled"], do: run_allowance_fixture(scope, 5)
         task_id = task_fixture(scope).id
 
         result =
@@ -143,14 +165,17 @@ defmodule FrontmanServer.TasksTest do
         {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
         case status do
-          "active" ->
+          status when status in [nil, "active"] ->
             assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} = result
             assert Enum.any?(Tasks.interactions(task), &match?(%Interaction.UserMessage{}, &1))
+            assert Repo.reload!(scope.user).first_message_at
 
           _ ->
             assert {:error, :billing_inactive} = result
+            assert is_nil(Repo.reload!(scope.user).first_message_at)
             refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.UserMessage{}, &1))
             refute_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
+            refute_enqueued(worker: SyncResendContact, args: %{user_id: Scope.user_id(scope)})
         end
       end
     end
@@ -264,7 +289,26 @@ defmodule FrontmanServer.TasksTest do
       task = task_fixture(scope)
       message_id = Ecto.UUID.generate()
 
-      assert {:ok, %InteractionSchema{id: ^message_id}} =
+      arguments = %{
+        task_id: task.id,
+        message_id: Ecto.UUID.generate(),
+        message: user_content("again"),
+        model: "openrouter:openai/gpt-5.5",
+        agent_id: "test-frontman"
+      }
+
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, "task:#{task.id}")
+      assert {:error, _} = Tasks.submit_user_message(scope, %{arguments | message_id: nil})
+      assert is_nil(Repo.reload!(scope.user).first_message_at)
+      refute_enqueued(worker: SyncResendContact, args: %{user_id: Scope.user_id(scope)})
+      assert db_rows(task.id) == []
+      refute_receive {:interaction, _}
+
+      assert {:ok,
+              %InteractionSchema{
+                id: ^message_id,
+                data: %Interaction.UserMessage{id: ^message_id}
+              }} =
                Tasks.submit_user_message(scope, %{
                  task_id: task.id,
                  message_id: message_id,
@@ -284,6 +328,18 @@ defmodule FrontmanServer.TasksTest do
         Tasks.set_current_model(scope, task.id, "openrouter:google/gemini-3.1-pro-preview")
 
       assert [^row] = db_rows(task.id)
+      assert_receive {:interaction, %InteractionSchema{id: ^message_id}}
+      assert %DateTime{} = Repo.reload!(scope.user).first_message_at
+
+      assert [%{args: %{"activation" => true, "user_id" => user_id}}] =
+               all_enqueued(worker: SyncResendContact, args: %{user_id: Scope.user_id(scope)})
+
+      assert user_id == scope.user.id
+      observed_at = ~U[2026-06-02 12:00:00Z]
+      scope.user |> Ecto.Changeset.change(first_message_at: observed_at) |> Repo.update!()
+      assert {:ok, _} = Tasks.submit_user_message(scope, arguments)
+      assert Repo.reload!(scope.user).first_message_at == observed_at
+      assert [_] = all_enqueued(worker: SyncResendContact, args: %{user_id: Scope.user_id(scope)})
     end
 
     test "requires agent id", %{scope: scope} do
@@ -341,9 +397,14 @@ defmodule FrontmanServer.TasksTest do
           agent_id: "test-frontman"
         })
 
+      observed_at = Repo.reload!(scope.user).first_message_at
+      assert %DateTime{} = observed_at
       assert Tasks.unqueue_user_message(scope, task.id, message_id) == :ok
       assert db_rows(task.id) == []
       assert all_enqueued(worker: GenerateTitle) == []
+      assert Repo.reload!(scope.user).first_message_at == observed_at
+      assert :ok = Tasks.delete_task(scope, task.id)
+      assert Repo.reload!(scope.user).first_message_at == observed_at
     end
 
     test "refuses a message already claimed by a turn", %{scope: scope} do
@@ -364,7 +425,7 @@ defmodule FrontmanServer.TasksTest do
       :ok
     end
 
-    test "persists configured agent identity", %{scope: scope} do
+    test "preserves accepted agent identity when the model becomes unavailable", %{scope: scope} do
       task = task_fixture(scope)
 
       assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
@@ -380,7 +441,7 @@ defmodule FrontmanServer.TasksTest do
       on_exit(fn -> Application.put_env(:frontman_server, :providers, providers) end)
       Application.put_env(:frontman_server, :providers, [])
 
-      assert :ok =
+      assert {:error, :unknown_model} =
                Tasks.execute_next_turn(
                  scope,
                  task.id,
@@ -389,11 +450,8 @@ defmodule FrontmanServer.TasksTest do
 
       assert {:ok, loaded_task} = Tasks.get_task_with_history(scope, task.id)
 
-      assert %Interaction.TurnStarted{agent_id: "test-frontman"} =
-               Enum.find(
-                 Tasks.interactions(loaded_task),
-                 &match?(%Interaction.TurnStarted{}, &1)
-               )
+      assert [%Interaction.UserMessage{agent_id: "test-frontman"}] =
+               Tasks.interactions(loaded_task)
     end
 
     test "rejects unknown agents before persisting TurnStarted", %{scope: scope} do
@@ -1448,16 +1506,33 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "rolls back valid rules when one rule is too large", %{scope: scope} do
-      task_id = task_fixture(scope).id
+      for oversized <- [String.duplicate("x", 65_537), String.duplicate("é", 32_769)],
+          field <- [:path, :content] do
+        task_id = task_fixture(scope).id
+        Phoenix.PubSub.subscribe(FrontmanServer.PubSub, "task:#{task_id}")
+        invalid = if field == :path, do: {oversized, "content"}, else: {"oversized", oversized}
 
-      assert_raise Ecto.InvalidChangesetError, fn ->
-        Tasks.add_discovered_project_rules(scope, task_id, [
-          {"valid", "content"},
-          {"oversized", String.duplicate("x", 65_537)}
-        ])
+        assert {:error, {:invalid_project_rule, %Ecto.Changeset{valid?: false}}} =
+                 Tasks.add_discovered_project_rules(scope, task_id, [
+                   {"valid", "content"},
+                   invalid
+                 ])
+
+        refute Repo.exists?(InteractionSchema.for_task(task_id))
+        refute_receive {:interaction, _}
       end
+    end
 
-      refute Repo.exists?(InteractionSchema.for_task(task_id))
+    test "accepts exact byte boundaries without truncation", %{scope: scope} do
+      for content <- [String.duplicate("x", 65_536), String.duplicate("é", 32_768)] do
+        task_id = task_fixture(scope).id
+
+        assert {:ok, [row]} =
+                 Tasks.add_discovered_project_rules(scope, task_id, [{content, content}])
+
+        assert row.data.path == content
+        assert row.data.content == content
+      end
     end
   end
 

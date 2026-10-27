@@ -4,6 +4,7 @@ import GoogleSearchConsole from '../../scripts/googleSearchConsole.astro'
 import Seo from './partials/Seo.astro'
 import StructuredData from './partials/StructuredData.astro'
 import { configData } from '../../../config/config'
+import { markdownPath } from '../../../content/markdownRoutes'
 
 import { googleAnalyticsMeasurementID } from '../../../config/analytics'
 import interLatinUrl from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url'
@@ -65,25 +66,15 @@ const {
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 <link rel="manifest" href="/site.webmanifest" />
 <link rel="sitemap" href="/sitemap-index.xml" />
-<link rel="alternate" type="text/markdown" title="Frontman markdown homepage" href="/index.md" />
+{markdownPath(Astro.url.pathname) && <link rel="alternate" type="text/markdown" title="This page in Markdown" href={markdownPath(Astro.url.pathname)} />}
 <link
-	rel="service-desc"
+	rel="api-catalog"
 	type="application/linkset+json"
 	title="Frontman API catalog"
 	href="/.well-known/api-catalog"
 />
-<link
-	rel="service-desc"
-	type="application/json"
-	title="Frontman agent card"
-	href="/.well-known/agent-card.json"
-/>
-<link
-	rel="service-desc"
-	type="application/json"
-	title="Frontman MCP server card"
-	href="/.well-known/mcp/server-card.json"
-/>
+<link rel="service-desc" type="application/json" href="/openapi.json" />
+<link rel="ard" type="application/json" title="Agent Resource Directory (proposal)" href="/.well-known/ard.json" />
 <link rel="alternate" type="application/rss+xml" title="Frontman Blog" href="/rss.xml" />
 <meta name="generator" content={Astro.generator} />
 <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)" />

@@ -13,10 +13,22 @@ module Provider = {
     ~children: React.element,
   ) => {
     React.useEffect0(() => {
+      let active = ref(true)
       let baseUrl = Client__RelayBaseUrl.current()
       let runtimeConfig = RuntimeConfig.read()
       let relay = switch runtimeConfig.framework {
-      | Wordpress => Client__WordPressRelay.makeConfig(~baseUrl, ~nonce=runtimeConfig.wpNonce)
+      | Wordpress =>
+        Client__WordPressRelay.makeConfig(
+          ~baseUrl,
+          ~nonce=runtimeConfig.wpNonce,
+          ~onAuthenticationRequired=() => {
+            switch active.contents {
+            | true =>
+              Client__State.Actions.wordPressAuthenticationRequired(runtimeConfig.wordpressLoginUrl)
+            | false => ()
+            }
+          },
+        )
       | Nextjs | Vite | Astro => Relay.makeConfig(~baseUrl)
       }
       let acp = ACP.makeConfig(
@@ -55,6 +67,7 @@ module Provider = {
       WebAPI.Window.current->WebAPI.Window.addEventListener(Custom("focus"), refreshBilling)
       Some(
         () => {
+          active := false
           Client__TextDeltaBuffer.reset()
           Client__State.Actions.connection(Dispose)
           WebAPI.Window.current->WebAPI.Window.removeEventListener(Custom("focus"), refreshBilling)
