@@ -7,10 +7,10 @@ type launcher
 type route
 type request
 type response
-type launchOptions = {headless: bool}
-type execOptions = {encoding: string, stdio: array<string>}
-type screenshotOptions = {path: string, fullPage: bool}
-type mkdirOptions = {recursive: bool}
+type launchOptions = {@live headless: bool}
+type execOptions = {@live encoding: string, @live stdio: array<string>}
+type screenshotOptions = {@live path: string, @live fullPage: bool}
+type mkdirOptions = {@live recursive: bool}
 @module("playwright") external chromium: launcher = "chromium"
 @send external launch: (launcher, launchOptions) => promise<browser> = "launch"
 @send external newPage: browser => promise<page> = "newPage"

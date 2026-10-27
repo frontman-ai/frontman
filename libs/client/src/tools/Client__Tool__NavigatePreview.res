@@ -15,10 +15,10 @@ type input = {url: option<string>}
 
 @schema
 type output = {
-  accepted: bool,
-  ready: bool,
-  url: string,
-  message: string,
+  @live accepted: bool,
+  @live ready: bool,
+  @live url: string,
+  @live message: string,
 }
 
 let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
