@@ -108,12 +108,22 @@ defmodule FrontmanServer.Tasks.History do
   end
 
   def active_turn_number(%__MODULE__{active_turn: active_turn}), do: active_turn
+
   def cancelled_mcp_call?(history, turn, logical_id) do
     Enum.any?(history.rows, fn
-      %{turn_number: ^turn, data: %Interaction.ToolCall{
-        tool_call_id: ^logical_id, cancel_requested: true, attempt_id: id
-      }} when is_binary(id) -> true
-      _ -> false
+      %{
+        turn_number: ^turn,
+        data: %Interaction.ToolCall{
+          tool_call_id: ^logical_id,
+          cancel_requested: true,
+          attempt_id: id
+        }
+      }
+      when is_binary(id) ->
+        true
+
+      _ ->
+        false
     end)
   end
 
