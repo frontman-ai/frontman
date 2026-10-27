@@ -82,9 +82,6 @@ test:
 	MIX_ENV=test mix ecto.migrate --quiet
 	mix test $(TEST_ARGS)
 
-test-mcp-retry-policy:
-	elixir -r lib/frontman_server/protocols/mcp/retry_policy.ex -e 'ExUnit.start(); Code.require_file("test/protocols/mcp_retry_policy_test.exs")'
-
 test-record:
 	MIX_ENV=test mix ecto.create --quiet
 	MIX_ENV=test mix ecto.migrate --quiet
