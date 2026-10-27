@@ -447,6 +447,9 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  defp interrupt_tool_call(_, _, {_, %Interaction.ToolCall{cancel_requested: true}}, _, _),
+    do: []
+
   defp interrupt_tool_call(
          task,
          turn,
@@ -488,6 +491,9 @@ defmodule FrontmanServer.Tasks do
   defp publish_outcome({:error, reason}, _task_id), do: {:error, reason}
 
   defp keeps_turn_open_after_restart?({_tool_call, nil}), do: false
+
+  defp keeps_turn_open_after_restart?({_, %Interaction.ToolCall{cancel_requested: true}}),
+    do: false
 
   defp keeps_turn_open_after_restart?({_tool_call, %Interaction.ToolCall{} = dispatch}),
     do: Interaction.ToolCall.execution_mode(dispatch) == :interactive
@@ -1353,7 +1359,7 @@ defmodule FrontmanServer.Tasks do
   defp row_to_messages(
          %InteractionSchema{
            turn_number: turn,
-           data: %Interaction.AgentError{kind: "cancelled"}
+           data: %Interaction.AgentError{}
          },
          history,
          _skills

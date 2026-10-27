@@ -15,7 +15,9 @@ defmodule FrontmanServer.Tasks.MCPCancelledModelHistoryTest do
       call = %SwarmAi.ToolCall{id: "write", name: "write_file", arguments: "{}"}
       {:ok, _} = persist_response_tool_call_fixture(scope, id, turn, "", call)
       :ok = Tasks.start_mcp_attempt(scope, id, {turn, call.id}, 1)
-      :ok = Tasks.handle_swarm_event(scope, id, turn, {:cancelled, :user})
+      :ok = Tasks.request_mcp_cancellation(scope, id, {turn, call.id}, 1)
+      event = if unquote(reconciled?), do: {:cancelled, :user}, else: {:terminated, :shutdown}
+      :ok = Tasks.handle_swarm_event(scope, id, turn, event)
       start_turn_fixture(scope, id, user_content("continue"))
 
       if unquote(reconciled?) do
