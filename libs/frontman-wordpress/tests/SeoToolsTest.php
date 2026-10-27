@@ -12,8 +12,8 @@ $seo   = new Frontman_Tool_Seo();
 $tools = new Frontman_Tools();
 $seo->register( $tools );
 if ( 1 !== $tools->get( 'wp_read_seo' )->input_schema['properties']['id']['minimum']
-	|| isset( $tools->get( 'wp_read_seo' )->input_schema['anyOf'] )
-	|| [ [ 'required' => [ 'title' ] ], [ 'required' => [ 'description' ] ], [ 'required' => [ 'focus_keyphrase' ] ] ] !== $tools->get( 'wp_update_seo' )->input_schema['anyOf'] ) {
+	|| [ 'id' ] !== $tools->get( 'wp_update_seo' )->input_schema['required']
+	|| false === strpos( $tools->get( 'wp_update_seo' )->description, 'Provide at least one of title, description, or focus_keyphrase.' ) ) {
 	throw new RuntimeException( 'SEO schemas do not match runtime requirements.' );
 }
 foreach ( [ [], [ 'wordpress-seo/wp-seo.php' ], [ 'wordpress-seo/wp-seo.php' ] ] as $case => $active_plugins ) {

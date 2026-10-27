@@ -29,10 +29,9 @@ class Frontman_Tool_Seo {
 			'description' => [ 'type' => 'string', 'description' => 'SEO description override.' ],
 			'focus_keyphrase' => [ 'type' => 'string', 'description' => 'Single Yoast focus keyphrase, not secondary keywords.' ],
 		];
-		$schema['anyOf'] = array_map( static fn( string $field ): array => [ 'required' => [ $field ] ], array_keys( self::META ) );
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_update_seo',
-			'Updates SEO overrides or the focus keyphrase. Omitted fields stay unchanged; empty strings restore provider defaults.',
+			'Updates SEO overrides or the focus keyphrase. Provide at least one of title, description, or focus_keyphrase. Omitted fields stay unchanged; empty strings restore provider defaults.',
 			$schema,
 			[ $this, 'update_seo' ],
 			'read-write'
