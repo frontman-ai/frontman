@@ -281,7 +281,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, assign(socket, :active_turn, context)}
   end
 
-  defp dispatch_tool_call(tool_call, socket) do
+  defp dispatch_tool_call(tool_call, turn_number, socket) do
     task_id = socket.assigns.task_id
 
     announced = socket.assigns[:announced_tool_calls] || MapSet.new()
@@ -316,13 +316,13 @@ defmodule FrontmanServerWeb.TaskChannel do
         {:noreply, socket}
 
       :mcp ->
-        route_to_mcp(tool_call, socket)
+        route_to_mcp(tool_call, turn_number, socket)
     end
   end
 
-  defp handle_interaction(%Tasks.Interaction.ToolCall{} = tool_call, _turn_number, socket) do
-    case open_tool_call(socket, tool_call.tool_call_id) do
-      {:ok, pending} -> dispatch_tool_call(pending, socket)
+  defp handle_interaction(%Tasks.Interaction.ToolCall{} = tool_call, turn_number, socket) do
+    case open_tool_call(socket, tool_call.tool_call_id, turn_number) do
+      {:ok, pending} -> dispatch_tool_call(pending, turn_number, socket)
       :error -> {:noreply, socket}
     end
   end
@@ -415,14 +415,14 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_tool_call_response_by_id(id, result, socket) when is_integer(id) do
     case pop_mcp_tool_request(socket, id) do
-      {:ok, tool_call_id, socket} ->
+      {:ok, {{turn_number, tool_call_id} = logical_call, key}, socket} ->
         log_mcp_tool_response(id, tool_call_id, :result)
 
-        case open_tool_call(socket, tool_call_id) do
+        case find_mcp_tool_call(socket, logical_call, key) do
           {:ok, tool_call} ->
-            handle_tool_call_response(tool_call, result, socket)
+            handle_tool_call_response(tool_call, result, socket, {turn_number, key})
 
-          :error ->
+          {:error, reason} when reason in [:not_found, :stale_attempt] ->
             Logger.warning(
               "Received MCP response for unknown tool_call_id: #{inspect(tool_call_id)}"
             )
@@ -442,13 +442,13 @@ defmodule FrontmanServerWeb.TaskChannel do
       {nil, _pending} ->
         :error
 
-      {tool_call_id, pending} ->
-        {:ok, tool_call_id, assign(socket, :pending_mcp_tool_requests, pending)}
+      {attempt, pending} ->
+        {:ok, attempt, assign(socket, :pending_mcp_tool_requests, pending)}
     end
   end
 
-  defp open_tool_call(socket, tool_call_id) do
-    with {:ok, _turn_number, tool_calls} when is_list(tool_calls) <-
+  defp open_tool_call(socket, tool_call_id, turn_number) do
+    with {:ok, ^turn_number, tool_calls} when is_list(tool_calls) <-
            Tasks.get_active_turn_unresolved_tool_calls(
              socket.assigns.scope,
              socket.assigns.task_id
@@ -474,7 +474,16 @@ defmodule FrontmanServerWeb.TaskChannel do
     )
   end
 
-  defp handle_tool_call_response(tool_call, result, socket) do
+  defp find_mcp_tool_call(socket, logical_call, key) do
+    Tasks.get_tool_attempt(
+      socket.assigns.scope,
+      socket.assigns.task_id,
+      logical_call,
+      key
+    )
+  end
+
+  defp handle_tool_call_response(tool_call, result, socket, attempt) do
     tools = socket.assigns.mcp_tools
 
     %{output_schema: output_schema} =
@@ -489,7 +498,7 @@ defmodule FrontmanServerWeb.TaskChannel do
           raise "Invalid MCP tools/call result for task #{socket.assigns.task_id}, tool #{tool_call.tool_name}, call #{tool_call.tool_call_id}"
       end
 
-    {:noreply, persist_tool_call_result(tool_call, result, socket, evidence)}
+    {:noreply, persist_tool_call_result(tool_call, {evidence, result}, socket, attempt)}
   end
 
   defp normalize_tool_call_result(evidence, %{"content" => content} = result) do
@@ -509,7 +518,8 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp supported_tool_result_content?(%{"type" => "resource_link"}), do: false
   defp supported_tool_result_content?(%{"type" => "resource"}), do: false
 
-  defp persist_tool_call_result(tool_call, result, socket, evidence \\ :local_failure) do
+  defp persist_tool_call_result(tool_call, {evidence, result}, socket, attempt) do
+    {turn_number, key} = attempt
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
 
@@ -518,8 +528,13 @@ defmodule FrontmanServerWeb.TaskChannel do
            task_id,
            %{id: tool_call.tool_call_id, name: tool_call.tool_name},
            result,
+           turn_number: turn_number,
+           attempt_id: key,
            evidence: evidence
          ) do
+      {:ok, _interaction, status} when status in [:reconciled, :already_resolved] ->
+        socket
+
       {:ok, interaction, executor_status} ->
         status = ACP.tool_call_status(interaction.is_error)
 
@@ -594,14 +609,14 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_tool_call_error_by_id(id, error, socket) when is_integer(id) do
     case pop_mcp_tool_request(socket, id) do
-      {:ok, tool_call_id, socket} ->
+      {:ok, {{turn_number, tool_call_id} = logical_call, key}, socket} ->
         log_mcp_tool_response(id, tool_call_id, :error)
 
-        case open_tool_call(socket, tool_call_id) do
+        case find_mcp_tool_call(socket, logical_call, key) do
           {:ok, tool_call} ->
-            handle_tool_call_error(tool_call, error, socket)
+            handle_tool_call_error(tool_call, error, socket, {turn_number, key})
 
-          :error ->
+          {:error, reason} when reason in [:not_found, :stale_attempt] ->
             Logger.warning(
               "Received MCP error for unknown tool_call_id: #{inspect(tool_call_id)}"
             )
@@ -621,7 +636,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, socket}
   end
 
-  defp handle_tool_call_error(tool_call, error, socket) do
+  defp handle_tool_call_error(tool_call, error, socket, attempt) do
     task_id = socket.assigns.task_id
     error_message = error["message"] || "Unknown MCP error"
 
@@ -636,7 +651,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     Logger.error("MCP tool execution failed", metadata)
 
     result = MCP.tool_result_error(error_message)
-    {:noreply, persist_tool_call_result(tool_call, result, socket)}
+    {:noreply, persist_tool_call_result(tool_call, {:local_failure, result}, socket, attempt)}
   end
 
   defp handle_prompt(id, params, socket) do
@@ -679,6 +694,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     had_retry = socket.assigns[:retry_state] != nil
     socket = assign(socket, :retry_state, RetryCoordinator.clear(socket.assigns[:retry_state]))
+    request_mcp_cancellation(socket)
 
     case Tasks.cancel_execution(socket.assigns.scope, task_id) do
       :ok ->
@@ -697,6 +713,29 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:error, :not_found} ->
         {:noreply, socket}
     end
+  end
+
+  defp request_mcp_cancellation(socket) do
+    Enum.each(socket.assigns.pending_mcp_tool_requests, fn {request_id, {logical_call, key}} ->
+      case Tasks.request_tool_cancellation(
+             socket.assigns.scope,
+             socket.assigns.task_id,
+             logical_call,
+             key
+           ) do
+        {:ok, _call} ->
+          push(
+            socket,
+            "mcp:message",
+            JsonRpc.notification("notifications/cancelled", %{
+              "requestId" => request_id
+            })
+          )
+
+        {:error, reason} when reason in [:stale_attempt, :already_resolved, :not_found] ->
+          Logger.debug("MCP cancellation not dispatched: #{reason}")
+      end
+    end)
   end
 
   defp handle_session_load(id, %{"sessionId" => task_id}, socket)
@@ -1170,7 +1209,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp redispatch_unresolved_tool_calls(socket), do: socket
 
   defp redispatch_unresolved_tool_call(socket, tool_call, turn_number) do
-    case mcp_tool_request_pending?(socket, tool_call.tool_call_id) do
+    case mcp_tool_request_pending?(socket, {turn_number, tool_call.tool_call_id}) do
       true ->
         socket
 
@@ -1180,44 +1219,58 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  defp mcp_tool_request_pending?(socket, tool_call_id) do
+  defp mcp_tool_request_pending?(socket, logical_call) do
     socket.assigns.pending_mcp_tool_requests
     |> Map.values()
-    |> Enum.member?(tool_call_id)
+    |> Enum.any?(fn {pending_call, _key} -> pending_call == logical_call end)
   end
 
-  defp route_to_mcp(tool_call, socket) do
+  defp route_to_mcp(tool_call, turn_number, socket) do
     task_id = socket.assigns.task_id
     request_id = System.unique_integer([:positive])
+    key = MCP.request_attempt_key(request_id)
+    logical_call = {turn_number, tool_call.tool_call_id}
 
-    request =
-      MCP.build_tool_execution(%MCP.ToolCallParams{
-        request_id: request_id,
-        tool_name: tool_call.tool_name,
-        arguments: tool_call.arguments,
-        task_id: task_id,
-        call_id: tool_call.tool_call_id
-      })
+    case Tasks.start_tool_attempt(socket.assigns.scope, task_id, logical_call, key) do
+      {:ok, _call} ->
+        request =
+          MCP.build_tool_execution(%MCP.ToolCallParams{
+            request_id: request_id,
+            tool_name: tool_call.tool_name,
+            arguments: tool_call.arguments,
+            task_id: task_id,
+            call_id: tool_call.tool_call_id
+          })
 
-    in_progress_notification =
-      ACP.tool_call_update(task_id, tool_call.tool_call_id, ACP.tool_call_status_in_progress())
+        in_progress_notification =
+          ACP.tool_call_update(
+            task_id,
+            tool_call.tool_call_id,
+            ACP.tool_call_status_in_progress()
+          )
 
-    push(socket, @acp_message, in_progress_notification)
+        push(socket, @acp_message, in_progress_notification)
 
-    socket = remember_mcp_tool_request(socket, request_id, tool_call.tool_call_id)
+        socket = remember_mcp_tool_request(socket, request_id, {logical_call, key})
 
-    push(socket, "mcp:message", request)
+        push(socket, "mcp:message", request)
 
-    Logger.info("MCP tool request pushed",
-      mcp_request_id: request_id,
-      tool_call_id: tool_call.tool_call_id
-    )
+        Logger.info("MCP tool request pushed",
+          mcp_request_id: request_id,
+          tool_call_id: tool_call.tool_call_id
+        )
 
-    {:noreply, socket}
+        {:noreply, socket}
+
+      {:error, reason}
+      when reason in [:cancelled, :outcome_unknown, :not_running, :already_resolved, :not_found] ->
+        Logger.debug("MCP attempt not dispatched: #{reason}")
+        {:noreply, socket}
+    end
   end
 
-  defp remember_mcp_tool_request(socket, request_id, tool_call_id) do
-    pending = Map.put(socket.assigns.pending_mcp_tool_requests, request_id, tool_call_id)
+  defp remember_mcp_tool_request(socket, request_id, logical_call) do
+    pending = Map.put(socket.assigns.pending_mcp_tool_requests, request_id, logical_call)
     assign(socket, :pending_mcp_tool_requests, pending)
   end
 
