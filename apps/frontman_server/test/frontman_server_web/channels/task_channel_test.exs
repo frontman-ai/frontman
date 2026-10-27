@@ -1926,7 +1926,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       }
     })
 
-    # The fake executor commits its effect but never delivers its response.
     {:ok, effects} = Agent.start_link(fn -> 0 end)
     on_exit(fn -> if Process.alive?(effects), do: Agent.stop(effects) end)
     Agent.update(effects, &(&1 + 1))

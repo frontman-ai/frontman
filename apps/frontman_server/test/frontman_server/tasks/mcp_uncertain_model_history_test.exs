@@ -19,8 +19,8 @@ defmodule FrontmanServer.Tasks.MCPUncertainModelHistoryTest do
         "tool_calls" => [%{"id" => call.id, "name" => call.name, "arguments" => call.arguments}]
       })
 
-    :ok = Tasks.start_mcp_attempt(scope, id, {turn, call.id}, 1)
-    :ok = Tasks.request_mcp_cancellation(scope, id, {turn, call.id}, 1)
+    {:ok, _} = Tasks.start_tool_attempt(scope, id, {turn, call.id}, "first")
+    {:ok, _} = Tasks.request_tool_cancellation(scope, id, {turn, call.id}, "first")
 
     interaction_changeset(id, %{
       id: Ecto.UUID.generate(),
