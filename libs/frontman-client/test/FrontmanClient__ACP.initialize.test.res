@@ -37,7 +37,7 @@ testAsync("unsupported initialize response disposes connection", async t => {
     ~name="test",
     ~version="1",
     ~_meta=JSON.parseOrThrow(`{"framework":"wordpress"}`),
-    ~onConfigOptionsUpdated=_ => (),
+    ~onModelCatalogUpdated=_ => (),
     ~onBillingStatusUpdated=_ => (),
   )
   let owned = ref(None)
@@ -60,7 +60,7 @@ testAsync("unsupported initialize response disposes connection", async t => {
   ->Expect.toEqual(Error(ACP.ConnectionFailed("Unsupported ACP protocol version: 2")))
   t->expect(ACP.getState(conn))->Expect.toEqual(Client.Disconnected)
   t->expect(isConnected(conn.socket))->Expect.toBe(false)
-  ["acp:message", "config_options_updated", "billing_status_updated"]->Array.forEach(event =>
+  ["acp:message", "model_catalog_updated", "billing_status_updated"]->Array.forEach(event =>
     t->expect(wire->listenerCount(conn.channel, event))->Expect.toBe(0)
   )
   t->expect(Vi.getTimerCount())->Expect.toBe(0)

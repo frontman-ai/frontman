@@ -186,7 +186,7 @@ let loadCleanupEvents = [
   "off:acp:message",
   "off:mcp:message",
   "off:title_updated",
-  "off:config_options_updated",
+  "off:model_catalog_updated",
   "off:billing_status_updated",
   "leave",
 ]

@@ -11,7 +11,7 @@ type channelEvent = [
   | #list_sessions
   | #delete_session
   | #title_updated
-  | #config_options_updated
+  | #model_catalog_updated
   | #phx_error
   | #phx_close
   | #billing_status_updated

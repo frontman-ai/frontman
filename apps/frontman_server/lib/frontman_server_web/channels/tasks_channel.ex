@@ -25,7 +25,7 @@ defmodule FrontmanServerWeb.TasksChannel do
 
   @billing_status_updated "billing_status_updated"
   @acp_message ACP.event_acp_message()
-  @acp_config_updated ACP.event_config_options_updated()
+  @model_catalog_updated "model_catalog_updated"
   @acp_list_sessions ACP.event_list_sessions()
   @acp_delete_session ACP.event_delete_session()
   @acp_method_initialize ACP.method_initialize()
@@ -102,8 +102,11 @@ defmodule FrontmanServerWeb.TasksChannel do
 
         push(
           socket,
-          @acp_config_updated,
-          ACP.build_config_options_updated_payload(current_config_options(socket))
+          @model_catalog_updated,
+          %{
+            "groups" =>
+              socket.assigns.scope |> Providers.available_models() |> ACP.build_model_options()
+          }
         )
 
         push(socket, @billing_status_updated, Billing.status(socket.assigns.scope))
@@ -143,18 +146,20 @@ defmodule FrontmanServerWeb.TasksChannel do
          raw_framework when is_binary(raw_framework) <-
            extract_framework(socket.assigns[:acp_client_info]),
          true <- Billing.can_start_turn?(socket.assigns.scope),
-         {:ok, %Tasks.TaskSchema{id: ^session_id}} <-
+         {:ok, %Tasks.TaskSchema{id: ^session_id} = task} <-
            Tasks.ensure_session(
              socket.assigns.scope,
-             session_id,
-             raw_framework
+             Map.merge(%{id: session_id, framework: raw_framework}, new_model_attrs(params))
            ) do
       reply_response(
         socket,
         id,
         ACP.build_session_new_result(
           session_id,
-          current_config_options(socket)
+          ACP.build_model_config_options(
+            Providers.available_models(socket.assigns.scope),
+            task.current_model
+          )
         )
       )
     else
@@ -179,6 +184,14 @@ defmodule FrontmanServerWeb.TasksChannel do
       nil ->
         reply_error(socket, id, JsonRpc.error_invalid_params(), "Missing framework in clientInfo")
 
+      {:error, %Ecto.Changeset{errors: [{field, {message, _}} | _]}} ->
+        reply_error(
+          socket,
+          id,
+          JsonRpc.error_invalid_params(),
+          "#{Phoenix.Naming.humanize(field)} #{message}"
+        )
+
       {:error, _changeset} ->
         reply_error(socket, id, JsonRpc.error_invalid_params(), "Failed to create session")
     end
@@ -197,8 +210,11 @@ defmodule FrontmanServerWeb.TasksChannel do
   def handle_info(:config_options_changed, socket) do
     push(
       socket,
-      @acp_config_updated,
-      ACP.build_config_options_updated_payload(current_config_options(socket))
+      @model_catalog_updated,
+      %{
+        "groups" =>
+          socket.assigns.scope |> Providers.available_models() |> ACP.build_model_options()
+      }
     )
 
     {:noreply, socket}
@@ -209,11 +225,10 @@ defmodule FrontmanServerWeb.TasksChannel do
     {:noreply, socket}
   end
 
-  defp current_config_options(socket) do
-    socket.assigns.scope
-    |> Providers.available_models()
-    |> ACP.build_model_config_options()
-  end
+  defp new_model_attrs(%{"_meta" => %{"frontman.dev/model" => model}}),
+    do: %{current_model: model}
+
+  defp new_model_attrs(_params), do: %{}
 
   defp session_new_id(params) do
     with {:ok, %{"cwd" => "/"}} <-
@@ -231,7 +246,7 @@ defmodule FrontmanServerWeb.TasksChannel do
   end
 
   defp session_new_retry_id(%{"frontman.dev/sessionId" => _invalid_id}), do: :error
-  defp session_new_retry_id(_metadata), do: {:ok, ACP.generate_session_id()}
+  defp session_new_retry_id(_metadata), do: {:ok, Ecto.UUID.generate()}
 
   defp extract_framework(%{"_meta" => %{"framework" => framework}}) when is_binary(framework),
     do: framework

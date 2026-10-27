@@ -183,7 +183,7 @@ defmodule FrontmanServer.Workers.EnterActivationCampaignTest do
   end
 
   defp accept_prompt(user) do
-    scope = Scope.for_user(user)
+    scope = Fixtures.user_scope_fixture(user)
     FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
     task = FrontmanServer.Test.Fixtures.Tasks.task_fixture(scope)
 

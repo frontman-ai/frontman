@@ -1,5 +1,3 @@
-@get external completedFileChanges: 'record => Nullable.t<'value> = "completedFileChanges"
-
 type prototype
 type descriptor<'target, 'value>
 type setter<'target, 'value>

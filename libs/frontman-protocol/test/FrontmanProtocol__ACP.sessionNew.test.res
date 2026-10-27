@@ -9,13 +9,16 @@ let standard: ACP.sessionNewParams = {
   _meta: None,
 }
 let retryId = "12345678-1234-1234-1234-123456789abc"
-let retry = {...standard, _meta: Some({sessionId: Some(retryId)})}
+let retry = {...standard, _meta: Some({sessionId: Some(retryId), model: None})}
+let preferred = {...retry, _meta: Some({sessionId: Some(retryId), model: Some("test:model")})}
 let standardWire = `{"cwd":"/","mcpServers":[]}`
 let retryWire = `{"cwd":"/","mcpServers":[],"_meta":{"frontman.dev/sessionId":"12345678-1234-1234-1234-123456789abc"}}`
+let preferredWire = `{"cwd":"/","mcpServers":[],"_meta":{"frontman.dev/sessionId":"12345678-1234-1234-1234-123456789abc","frontman.dev/model":"test:model"}}`
 
 [
   ("standard params", standard, standardWire),
   ("namespaced retry identity", retry, retryWire),
+  ("retry identity and model preference", preferred, preferredWire),
 ]->Array.forEach(((name, params, wire)) => {
   test(`session/new serializes ${name}`, t => {
     t
@@ -27,11 +30,12 @@ let retryWire = `{"cwd":"/","mcpServers":[],"_meta":{"frontman.dev/sessionId":"1
 [
   ("standard params", standardWire, standard),
   ("namespaced retry identity", retryWire, retry),
+  ("retry identity and model preference", preferredWire, preferred),
   ("null metadata", `{"cwd":"/","mcpServers":[],"_meta":null}`, standard),
   (
     "unrelated metadata",
     `{"cwd":"/","mcpServers":[],"_meta":{"other.vendor/trace":{"opaque":true}}}`,
-    {...standard, _meta: Some({sessionId: None})},
+    {...standard, _meta: Some({sessionId: None, model: None})},
   ),
 ]->Array.forEach(((name, wire, expected)) => {
   test(`session/new parses ${name}`, t => {

@@ -9,7 +9,13 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #ACP
 })
 
-type requestMethod = [#initialize | #"session/new" | #"session/load" | #"session/prompt"]
+type requestMethod = [
+  | #initialize
+  | #"session/new"
+  | #"session/load"
+  | #"session/prompt"
+  | #"session/set_config_option"
+]
 
 let requestTimeoutMs = 120000
 let connectionLost = "Connection lost. The agent may still be running. Reload to reconnect."
@@ -188,9 +194,12 @@ let sendInitialize = (
   )
 }
 
-let sendSessionNew = (~channel: Channel.t, ~state: ref<Client.state>, ~sessionId: string): promise<
-  result<Types.sessionNewResult, Client.requestError>,
-> => {
+let sendSessionNew = (
+  ~channel: Channel.t,
+  ~state: ref<Client.state>,
+  ~sessionId: string,
+  ~modelPreference: option<string>=?,
+): promise<result<Types.sessionNewResult, Client.requestError>> => {
   let capability = switch state.contents.acpState {
   | Initialized(result) =>
     switch result.agentCapabilities->Option.flatMap(capabilities => capabilities._meta) {
@@ -206,7 +215,7 @@ let sendSessionNew = (~channel: Channel.t, ~state: ref<Client.state>, ~sessionId
       cwd: "/",
       mcpServers: [],
       additionalDirectories: None,
-      _meta: Some({sessionId: Some(sessionId)}),
+      _meta: Some({sessionId: Some(sessionId), model: modelPreference}),
     }
     let params = params->S.decodeOrThrow(~from=Types.sessionNewParamsSchema, ~to=S.json)
     sendRequest(

@@ -17,6 +17,7 @@ type t = {
     ~agentId: string,
   ) => unit,
   flush: unit => unit,
+  discardTask: string => unit,
   reset: unit => unit,
 }
 
@@ -115,7 +116,12 @@ let make = (
     userBuffer := Dict.make()
   }
 
-  {add, addUserBlock, flush, reset}
+  let discardTask = taskId => {
+    buffer.contents->Dict.delete(taskId)
+    userBuffer.contents->Dict.delete(taskId)
+  }
+
+  {add, addUserBlock, flush, discardTask, reset}
 }
 
 let active: ref<option<t>> = ref(None)
@@ -126,3 +132,6 @@ let reset = () => {
 }
 
 let flush = () => active.contents->Option.forEach(instance => instance.flush())
+
+let discardTask = taskId =>
+  active.contents->Option.forEach(instance => instance.discardTask(taskId))

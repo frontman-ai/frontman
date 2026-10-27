@@ -6,7 +6,7 @@ module Types = Client__State__Types
 let _makeState = (~openaiOAuthStatus: Types.openaiOAuthStatus): Types.state => {
   ...Reducer.defaultState,
   openaiOAuthStatus,
-  selectedModelValue: None,
+  draftModelPreference: None,
 }
 
 let _makeShowingCodeState = (~deviceAuthId: string): Types.state => {

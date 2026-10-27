@@ -2,10 +2,10 @@ defmodule FrontmanServer.Tasks.PretrialRunsTest do
   use FrontmanServerWeb.ChannelCase, async: false
 
   import FrontmanServer.ExecutionCase, only: [refute_running_eventually: 1]
-  import FrontmanServer.Test.Fixtures.Accounts, only: [user_fixture: 0]
+  import FrontmanServer.Test.Fixtures.Accounts, only: [user_scope_fixture: 0]
   import FrontmanServer.Test.Fixtures.Tasks, only: [task_topic: 1]
 
-  alias FrontmanServer.{Accounts, Billing, Providers}
+  alias FrontmanServer.{Billing, Providers, Repo}
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Test.Fixtures.LLMProvider
 
@@ -58,12 +58,13 @@ defmodule FrontmanServer.Tasks.PretrialRunsTest do
   end
 
   test "saving provider credentials starts the exact queued message without offering turn retry" do
-    scope = Accounts.Scope.for_user(user_fixture())
+    scope = user_scope_fixture()
     {socket, task_id} = join_task_channel(scope)
     Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
     message_id = Ecto.UUID.generate()
     ref = push(socket, "acp:message", build_prompt_request(message_id: message_id))
     assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
+    {1, _} = Repo.delete_all(Providers.ApiKey.for_user_and_provider(scope.user.id, "openrouter"))
     complete_mcp_handshake(socket)
     :sys.get_state(socket.channel_pid)
 

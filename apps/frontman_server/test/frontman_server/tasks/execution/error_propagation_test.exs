@@ -9,7 +9,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
-  import FrontmanServer.DataCase, only: [setup_sandbox: 1]
+  import FrontmanServer.DataCase, only: [setup_sandbox: 1, errors_on: 1]
   alias FrontmanServer.{Repo, Tasks}
   alias FrontmanServer.Tasks.{Interaction, InteractionSchema}
   alias ReqLLM.Error.API.{Request, Stream}
@@ -44,7 +44,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       task_id: task_id,
       scope: scope
     } do
-      assert {:error, :unknown_model} =
+      assert {:error, %Ecto.Changeset{} = changeset} =
                submit_user_message_and_run(
                  scope,
                  task_id,
@@ -52,6 +52,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
                  user_content("Hello")
                )
 
+      assert errors_on(changeset) == %{current_model: ["is unavailable; select another model"]}
       refute Repo.get_by(InteractionSchema, task_id: task_id, type: :turn_started)
     end
 

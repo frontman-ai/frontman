@@ -63,75 +63,57 @@ defmodule FrontmanServer.Protocols.ACPTest do
     end
   end
 
-  describe "build_model_config_options/1" do
-    defp config_data(groups) do
-      %{groups: groups}
+  describe "build_model_config_options/2" do
+    test "encodes grouped options using the supplied selection, not the first model" do
+      catalog = %{
+        groups: [
+          %{id: "empty", name: "Empty", options: []},
+          %{
+            id: "anthropic",
+            name: "Anthropic",
+            options: [%{name: "Sonnet", value: "anthropic:sonnet"}]
+          },
+          %{
+            id: "openrouter",
+            name: "OpenRouter",
+            options: [%{name: "GPT", value: "openrouter:gpt"}]
+          }
+        ]
+      }
+
+      assert [
+               %{
+                 "type" => "select",
+                 "id" => "model",
+                 "name" => "Model",
+                 "category" => "model",
+                 "currentValue" => "openrouter:gpt",
+                 "options" => [
+                   %{
+                     "group" => "anthropic",
+                     "name" => "Anthropic",
+                     "options" => [%{"name" => "Sonnet", "value" => "anthropic:sonnet"}]
+                   },
+                   %{
+                     "group" => "openrouter",
+                     "name" => "OpenRouter",
+                     "options" => [%{"name" => "GPT", "value" => "openrouter:gpt"}]
+                   }
+                 ]
+               }
+             ] = ACP.build_model_config_options(catalog, "openrouter:gpt")
     end
 
-    defp model_group(id, name, options) do
-      %{id: id, name: name, options: options}
-    end
+    test "omits configuration for an unselected legacy session without inventing a default" do
+      assert ACP.build_model_config_options(%{groups: []}, nil) == []
 
-    defp model_option(name, value), do: %{name: name, value: value}
+      for value <- ["", 42] do
+        assert_raise FunctionClauseError, fn ->
+          ACP.build_model_config_options(%{groups: []}, value)
+        end
+      end
 
-    test "returns a single select config option with category model" do
-      data =
-        config_data([
-          model_group("anthropic", "Anthropic", [
-            model_option("Claude Sonnet 4.5", "anthropic:claude-sonnet-4-5")
-          ])
-        ])
-
-      [option] = ACP.build_model_config_options(data)
-      assert option["type"] == "select"
-      assert option["id"] == "model"
-      assert option["name"] == "Model"
-      assert option["category"] == "model"
-    end
-
-    test "groups models by provider" do
-      data =
-        config_data([
-          model_group("anthropic", "Anthropic", [
-            model_option("Claude Sonnet 4.5", "anthropic:claude-sonnet-4-5")
-          ]),
-          model_group("openrouter", "OpenRouter", [
-            model_option("GPT-5.5", "openrouter:openai/gpt-5.5")
-          ])
-        ])
-
-      [option] = ACP.build_model_config_options(data)
-
-      groups = option["options"]
-      assert length(groups) == 2
-
-      [anthropic_group, openrouter_group] = groups
-      assert anthropic_group["group"] == "anthropic"
-      assert openrouter_group["group"] == "openrouter"
-    end
-
-    test "option values are passed through verbatim" do
-      data =
-        config_data([
-          model_group("anthropic", "Anthropic", [
-            model_option("Claude Sonnet 4.5", "anthropic:claude-sonnet-4-5"),
-            model_option("Claude Opus 4.6", "anthropic:claude-opus-4-6")
-          ])
-        ])
-
-      [option] = ACP.build_model_config_options(data)
-      [group] = option["options"]
-      values = Enum.map(group["options"], & &1["value"])
-
-      assert Enum.all?(values, &String.starts_with?(&1, "anthropic:"))
-    end
-
-    test "does not set currentValue" do
-      data = config_data([])
-
-      [option] = ACP.build_model_config_options(data)
-
-      refute Map.has_key?(option, "currentValue")
+      refute function_exported?(ACP, :build_model_config_options, 1)
     end
   end
 
