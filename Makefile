@@ -23,7 +23,7 @@ delta-dev delta-preflight delta-prepare delta-up delta-start delta-stop delta-st
 	@DEV_IMAGE="$(DEV_IMAGE)" SERVICE="$(SERVICE)" CONFIRM="$(CONFIRM)" bash bin/delta-stack $(@:delta-%=%)
 
 delta-syntax:
-	@for script in bin/delta-stack infra/local/delta-dev.sh infra/local/delta-processes.sh infra/local/delta-processes.test.sh infra/local/worktree-setup.sh .agents/prepare; do bash -n "$$script" || exit; done
+	@for script in bin/delta-stack bin/prepare-server-deps infra/local/delta-dev.sh infra/local/delta-processes.sh infra/local/delta-processes.test.sh infra/local/worktree-setup.sh .agents/prepare; do bash -n "$$script" || exit; done
 	@python3 -c 'import ast, pathlib; [ast.parse(pathlib.Path(p).read_text()) for p in ("infra/local/delta-lifecycle.py", "infra/local/delta-lifecycle.test.py", "infra/local/delta-cleanup.test.py")]'
 
 .PHONY: delta-test-processes
@@ -105,8 +105,9 @@ HELP_dev-nextjs-prebuilt := Start Next.js test site with prebuilt integration
 HELP_dev-marketing := Start development server for marketing site
 
 HELP_BUILD_TITLE := Build & Quality
-HELP_BUILD_TARGETS := install hooks-install setup-elixir-tools verify-toolchain-pins build rescript-watch rescript-build rescript-format reanalyze check-source-comments clean
+HELP_BUILD_TARGETS := install prepare-deps hooks-install setup-elixir-tools verify-toolchain-pins build rescript-watch rescript-build rescript-format reanalyze check-source-comments clean
 HELP_install := Install dependencies
+HELP_prepare-deps := Fetch locked JS and server dependencies without compiling applications
 HELP_hooks-install := Install git pre-commit hooks via Lefthook
 HELP_setup-elixir-tools := Install Hex/Rebar for the active mise Elixir
 HELP_verify-toolchain-pins := Verify Docker Elixir image matches mise.toml
@@ -239,6 +240,16 @@ install:
 	@printf "$(YELLOW)Installing dependencies...$(RESET)\n"
 	yarn install
 	@$(MAKE) hooks-install
+
+.PHONY: prepare-deps prepare-server-deps
+prepare-deps: prepare-server-deps
+	YARN_ENABLE_GLOBAL_CACHE=true yarn install --immutable
+
+prepare-server-deps:
+	@command -v mise >/dev/null || { printf 'Install mise and the tools pinned in mise.toml first.\n' >&2; exit 1; }
+	@MISE_YES=false MISE_AUTO_INSTALL=false mise exec elixir erlang -- bash bin/prepare-server-deps </dev/null || { \
+		printf 'Server dependency preparation failed. For toolchain errors, run mise trust and mise install elixir erlang explicitly, then retry make prepare-deps.\n' >&2; exit 1; \
+	}
 
 hooks-install:
 	@printf "$(YELLOW)Installing git hooks...$(RESET)\n"

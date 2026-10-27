@@ -25,8 +25,20 @@ These mounts support Delta checkouts whose Git configuration contains absolute p
 
 `make delta-preflight` checks Podman, the dev image, `op` availability, DNS, and host mkcert CA trust.
 It does not check vault authentication, browser-specific trust stores, or WorkOS configuration.
-It creates nothing. The executable `.agents/prepare` runs this same check, prints
-the next commands, and exits. It never starts long-running services or installs tools.
+It creates nothing.
+
+The executable `.agents/prepare` runs `make prepare-deps`, not the stack preflight.
+It fetches locked JS workspace and server dependencies without application builds, databases, secrets, or containers.
+Yarn uses a shared download cache and checkout-local dependencies.
+Mix uses its normal package cache and checkout-local server dependencies.
+Hex and Rebar install only when missing.
+Dependency install scripts can run, but the hook does not start services.
+
+The hook requires mise and the pinned Node, Yarn, Erlang, and Elixir tools.
+Before the first run, run `mise trust` for this checkout and install the missing pinned tools explicitly.
+The hook does not install the toolchain or accept trust prompts.
+Cold downloads take longer than repeat runs.
+Container setup still uses separate dependency volumes and requires `make delta-prepare`.
 
 ## Lifecycle
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-make delta-preflight
-printf '\nNext: make delta-prepare (one-time build/migrate), then run make delta-dev in a Delta background terminal.\n'
+make prepare-deps
+printf '\nJS and server dependencies ready. For the full stack: make delta-prepare, then make delta-dev in a Delta background terminal.\n'
