@@ -7,6 +7,7 @@
           "lib/",
           "src/",
           "test/",
+          "test_isolated/",
           "web/",
           "apps/*/lib/",
           "apps/*/src/",
