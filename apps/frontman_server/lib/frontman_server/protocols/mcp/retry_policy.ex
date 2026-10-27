@@ -3,8 +3,6 @@ defmodule FrontmanServer.Protocols.MCP.RetryPolicy do
   Pure admission policy for a future MRTR coordinator, not dispatch authorization.
   Caller supplies budgets; attempts include the initial request, elapsed time is monotonic.
   Permission must come from trusted operation policy, never remote tool hints.
-  Tasks must atomically check cancellation, attempt fencing and terminal resolution.
-  Opaque state, arguments and tool output deliberately never enter this policy.
   """
 
   @type observation ::
@@ -39,11 +37,9 @@ defmodule FrontmanServer.Protocols.MCP.RetryPolicy do
              :outcome_unknown,
              :unsupported_input,
              :protocol_failure
-           ] and permission in [:authorized, :denied] and
-             is_integer(attempts) and attempts > 0 and
-             is_integer(attempts_max) and attempts_max > 0 and
-             is_integer(elapsed_ms) and elapsed_ms >= 0 and
-             is_integer(elapsed_ms_max) and elapsed_ms_max > 0 do
+           ] and permission in [:authorized, :denied] do
+    validate_budget!(attempts, attempts_max, elapsed_ms, elapsed_ms_max)
+
     case {observation, permission} do
       {:acknowledged_interim, :denied} ->
         {:stop, :retry_not_permitted}
@@ -59,4 +55,11 @@ defmodule FrontmanServer.Protocols.MCP.RetryPolicy do
         {:stop, reason}
     end
   end
+
+  defp validate_budget!(attempts, attempts_max, elapsed_ms, elapsed_ms_max)
+       when is_integer(attempts) and attempts > 0 and
+              is_integer(attempts_max) and attempts_max > 0 and
+              is_integer(elapsed_ms) and elapsed_ms >= 0 and
+              is_integer(elapsed_ms_max) and elapsed_ms_max > 0,
+       do: :ok
 end
