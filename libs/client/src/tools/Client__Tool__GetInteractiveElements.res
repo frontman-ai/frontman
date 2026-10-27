@@ -89,6 +89,7 @@ let errorResult = (error: string): Tool.MCP.CallToolResult.t =>
     outputSchema,
   )
 
+@live
 let execute = async (
   input: input,
   ~taskId as _taskId: string,

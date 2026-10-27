@@ -92,7 +92,7 @@ let executeLocalTool = async (
   ~arguments: option<Dict.t<JSON.t>>,
   ~taskId: string,
   ~toolCallId: string,
-  ~signal: option<WebAPI.EventTypes.abortSignal>=?,
+  ~signal: WebAPI.EventTypes.abortSignal,
 ): Types.executeToolResult => {
   module T = unpack(toolModule)
   Log.debug(~ctx={"tool": T.name}, "Executing local tool")
@@ -118,7 +118,7 @@ let executeLocalTool = async (
   | Ok(input) =>
     Log.debug(~ctx={"tool": T.name}, "Calling execute")
     try {
-      let result = await T.execute(input, ~taskId, ~toolCallId, ~signal?)
+      let result = await T.execute(input, ~taskId, ~toolCallId, ~signal)
       Log.debug(~ctx={"tool": T.name}, "Execute returned")
       Completed(result)
     } catch {
@@ -188,11 +188,11 @@ let executeTool = async (
   ~arguments: option<Dict.t<JSON.t>>=?,
   ~taskId: string,
   ~callId: string,
-  ~signal: option<WebAPI.EventTypes.abortSignal>=?,
+  ~signal: WebAPI.EventTypes.abortSignal,
 ): Types.executeToolResult => {
   switch getToolByName(server, name) {
   | Some(toolModule) =>
-    await executeLocalTool(toolModule, ~arguments, ~taskId, ~toolCallId=callId, ~signal?)
+    await executeLocalTool(toolModule, ~arguments, ~taskId, ~toolCallId=callId, ~signal)
   | None =>
     switch server.relay->Relay.hasTool(name) {
     | false =>

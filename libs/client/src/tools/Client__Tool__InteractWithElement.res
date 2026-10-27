@@ -190,6 +190,7 @@ let errorResult = (error: string, ~matchCount: option<int>=?): Tool.MCP.CallTool
     ~isError=true,
   )
 
+@live
 let execute = async (
   input: input,
   ~taskId as _taskId: string,

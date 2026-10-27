@@ -46,6 +46,7 @@ let imageResultFromDataUrl = (dataUrl: string): Tool.MCP.CallToolResult.t => {
   }
 }
 
+@live
 let execute = async (
   input: input,
   ~taskId as _taskId: string,

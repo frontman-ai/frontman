@@ -93,6 +93,7 @@ let okOutput = (~success, ~error) =>
 let okOutputWithPresets = (~success, ~presets) =>
   Tool.structuredResult(makeOutput(~success, ~error=None, ~presets=Some(presets)), outputSchema)
 
+@live
 let execute = async (
   input: input,
   ~taskId as _taskId: string,

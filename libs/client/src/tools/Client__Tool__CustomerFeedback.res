@@ -50,6 +50,7 @@ let answerText = (answers: Dict.t<Client__Question__Types.questionAnswer>, index
   | Some(Answered(_)) => failwith("Feedback requires a single answer")
   }
 
+@live
 let execute = async (
   _input: input,
   ~taskId: string,

@@ -130,6 +130,7 @@ let executeInWindow: (
   }
 `)
 
+@live
 let execute = async (
   input: input,
   ~taskId as _: string,

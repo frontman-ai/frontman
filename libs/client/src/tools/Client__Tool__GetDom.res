@@ -140,6 +140,7 @@ let inspect = (input: input, {doc, win}: Tool.previewContext, ~additionalAttribu
   }
 }
 
+@live
 let execute = async (
   input: input,
   ~taskId as _taskId: string,

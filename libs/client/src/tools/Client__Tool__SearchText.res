@@ -119,6 +119,7 @@ let buildContextSnippet = (~text: string, ~query: string, ~contextChars: int): s
   }
 }
 
+@live
 let execute = async (
   input: input,
   ~taskId as _taskId: string,
