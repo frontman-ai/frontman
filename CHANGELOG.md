@@ -147,6 +147,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Remove GPT-5.6 Terra, Sol, and Luna from the Codex model picker to keep its selection on the GPT-6 generation. OpenRouter options are unchanged.
 - Remove GPT-5.3-Codex-Spark from the model catalog after its retirement on September 14, 2026.
 - Show safe model-selection guidance when Codex rejects a model with `model_not_found`, instead of a generic bad-request error.
 - Clarify that `wp_update_option` supports only allowlisted core WordPress options, not arbitrary plugin-private options.
