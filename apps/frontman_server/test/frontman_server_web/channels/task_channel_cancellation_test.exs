@@ -42,7 +42,8 @@ defmodule FrontmanServerWeb.TaskChannelCancellationTest do
       "mcp:message",
       JsonRpc.success_response(request_id, %{
         "resultType" => "input_required",
-        "requestState" => "opaque-state"
+        "requestState" => "opaque-state",
+        "_meta" => %{"ai.frontman/evidence" => "peer_final"}
       })
     )
 
