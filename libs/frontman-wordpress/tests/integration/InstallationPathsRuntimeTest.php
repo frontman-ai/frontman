@@ -6,7 +6,7 @@ function installation_paths_assert( bool $condition, string $message ): void {
 	}
 }
 
-$alias = sys_get_temp_dir() . '/frontman-installation-' . getmypid();
+$alias = '/tmp/frontman-installation-runtime';
 installation_paths_assert( ! file_exists( $alias ) && ! is_link( $alias ), 'Installation alias must not already exist.' );
 installation_paths_assert( symlink( '/var/www/html', $alias ), 'Could not create the WordPress installation alias.' );
 try {
@@ -36,8 +36,9 @@ try {
 		'resolved_abspath' => null,
 	] === $call( [ 'include_installation_paths' => true ] )['installation'], 'Failed resolution must return null, not an inferred root.' );
 } finally {
-	if ( is_link( $alias ) ) {
-		unlink( $alias );
+	if ( ! is_link( $alias ) ) {
+		installation_paths_assert( symlink( '/var/www/html', $alias ), 'Could not restore the installation alias for WordPress shutdown.' );
 	}
+	clearstatcache( true );
 }
 echo "OK (real WordPress installation alias, opt-in and failed resolution)\n";
