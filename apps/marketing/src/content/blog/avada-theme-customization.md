@@ -11,7 +11,7 @@ tags: ['wordpress', 'avada', 'website-customization']
 
 Avada theme customization gets confusing when the same design can come from a site-wide default, a page setting, or an individual element. Before changing your Avada website, identify which layer controls the result. Then edit the layout, style, or imported content at that layer.
 
-Start with one outcome: replace a page layout, change a heading font, or give one campaign page a different background. Keep a staging copy and a current backup. The workflows below follow Avada's documentation; they are not recordings of a hands-on test.
+Start with one outcome: replace a page layout, change a heading font, or give one campaign page a different background. Keep a [staging copy and a current backup](/blog/wordpress-maintenance-checklist/#before-you-change-production). The workflows below follow Avada's documentation; they are not recordings of a hands-on test.
 
 ## Choose the scope for Avada theme customization
 
@@ -85,7 +85,7 @@ The documentation describes both the front-end Avada Live Builder and the backen
 
 Before rebuilding an existing layout, inspect its Containers and Columns. A text change does not require replacing its Container. When the layout itself needs work, change the relevant structure and check the content around it.
 
-For mobile review, use the [WordPress layout and usability checklist](/blog/how-to-make-wordpress-website-mobile-friendly/). Its Gutenberg example is a different editing path; use the checklist to review navigation, overflow, forms, and readable content rather than copy Gutenberg controls into Avada.
+For mobile review, use the [WordPress layout and usability checklist](/blog/how-to-make-wordpress-website-mobile-friendly/#before-you-publish-check-the-experience-and-recovery-path). Its Gutenberg example is a different editing path; use the checklist to review navigation, overflow, forms, and readable content rather than copy Gutenberg controls into Avada.
 
 ## Change colors and typography without chasing overrides
 
@@ -114,7 +114,7 @@ For navigation design, Avada Mega Menu Builder is the dedicated menu-design tool
 
 Avada Form Builder is the corresponding tool for forms. If a template includes a form, reviewing its appearance is only part of the job. Submit a staging test and confirm that the form's intended destination receives it.
 
-For help identifying what controls a WordPress header or footer, use the [header and footer editing guide](/blog/how-to-edit-wordpress-header-footer/). Keep that investigation separate from editing the main page content.
+For help identifying what controls a WordPress header or footer, use the [header and footer editing guide](/blog/how-to-edit-wordpress-header-footer/#find-what-controls-the-header-or-footer). Keep that investigation separate from editing the main page content.
 
 ## Review the finished page before changing performance settings
 
@@ -131,6 +131,6 @@ Before publishing the customization:
 
 Do not assume every design change has a one-click undo.
 
-Choose one task from this guide and complete it on staging before broadening the change. For a repeatable backup, review, and recovery process, use the [WordPress maintenance checklist](/blog/wordpress-maintenance-checklist/).
+Choose one task from this guide and complete it on staging before broadening the change. For a repeatable backup, review, and recovery process, use the [WordPress maintenance checklist](/blog/wordpress-maintenance-checklist/#our-verification-checks-after-a-production-change).
 
 Source review: October 27, 2026.
