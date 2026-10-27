@@ -850,11 +850,13 @@ defmodule FrontmanServer.Tasks do
       when is_binary(attempt_id) or is_integer(attempt_id),
       do: transition_mcp_attempt(scope, task_id, logical_id, Jason.encode!(attempt_id), :cancel)
 
-  defp transition_mcp_attempt(scope, task_id, logical_id, attempt_id, event) do
+  defp transition_mcp_attempt(scope, task_id, {turn, logical_id}, attempt_id, event)
+       when is_integer(turn) and turn > 0 do
     Repo.transact(fn ->
       with %TaskSchema{} <- get_task_by_id_for_update(scope, task_id),
            %InteractionSchema{} = row <-
              InteractionSchema.for_task(task_id)
+             |> InteractionSchema.for_turn(turn)
              |> InteractionSchema.of_type(:tool_call)
              |> InteractionSchema.data_equals("tool_call_id", logical_id)
              |> Repo.one(),
