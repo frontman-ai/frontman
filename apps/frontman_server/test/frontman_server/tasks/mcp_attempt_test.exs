@@ -26,4 +26,58 @@ defmodule FrontmanServer.Tasks.MCPAttemptTest do
     {:ok, _} = Tasks.request_client_tool(scope, id, next_turn, call, :synchronous)
     assert :ok = Tasks.start_mcp_attempt(scope, id, {next_turn, call.id}, 2)
   end
+
+  test "late actual evidence resolves once without reopening a cancelled turn" do
+    scope = user_scope_fixture()
+    id = task_fixture(scope).id
+    turn = start_turn_fixture(scope, id)
+    call = %SwarmAi.ToolCall{id: "late", name: "write_file", arguments: "{}"}
+    {:ok, _} = Tasks.request_client_tool(scope, id, turn, call, :synchronous)
+    :ok = Tasks.start_mcp_attempt(scope, id, {turn, call.id}, 1)
+    :ok = Tasks.handle_swarm_event(scope, id, turn, {:cancelled, :user})
+    {:ok, task} = Tasks.get_task_with_history(scope, id)
+    refute Enum.any?(Tasks.interactions(task), &match?(%Tasks.Interaction.ToolResult{}, &1))
+    next_turn = start_turn_fixture(scope, id)
+
+    Registry.register(FrontmanServer.ProcessRegistry, {:tool_call, id, call.id}, %{
+      caller_pid: self()
+    })
+
+    result = %{"content" => [%{"type" => "text", "text" => "actual success"}]}
+
+    assert {:ok, winner, :reconciled} =
+             Tasks.resolve_tool_request(scope, id, call, result, turn_number: turn)
+
+    assert {:ok, ^winner, :reconciled} =
+             Tasks.resolve_tool_request(scope, id, call, %{"content" => []}, turn_number: turn)
+
+    refute_receive {:tool_result, _, _, _}
+    assert {:ok, ^next_turn, []} = Tasks.get_active_turn_unresolved_tool_calls(scope, id)
+  end
+
+  test "parked cancellation closes the turn but retains attempt-fenced late lookup" do
+    scope = user_scope_fixture()
+    id = task_fixture(scope).id
+    turn = start_turn_fixture(scope, id)
+    call = %SwarmAi.ToolCall{id: "parked", name: "write_file", arguments: "{}"}
+    {:ok, _} = Tasks.request_client_tool(scope, id, turn, call, :synchronous)
+    :ok = Tasks.start_mcp_attempt(scope, id, {turn, call.id}, 1)
+    assert :ok = Tasks.cancel_execution(scope, id)
+    assert {:ok, :no_active_turn} = Tasks.get_active_turn_unresolved_tool_calls(scope, id)
+
+    assert {:ok, %{cancel_requested: true}} =
+             Tasks.get_mcp_tool_call(scope, id, {turn, call.id}, 1)
+
+    assert {:error, :stale_attempt} =
+             Tasks.resolve_tool_request(scope, id, call, %{"content" => []},
+               turn_number: turn,
+               attempt_id: "1"
+             )
+
+    assert {:ok, _, :reconciled} =
+             Tasks.resolve_tool_request(scope, id, call, %{"content" => []},
+               turn_number: turn,
+               attempt_id: 1
+             )
+  end
 end

@@ -108,6 +108,25 @@ defmodule FrontmanServer.Tasks.History do
   end
 
   def active_turn_number(%__MODULE__{active_turn: active_turn}), do: active_turn
+
+  def cancelled_mcp_call?(history, turn, logical_id) do
+    Enum.any?(history.rows, fn
+      %{
+        turn_number: ^turn,
+        data: %Interaction.ToolCall{
+          tool_call_id: ^logical_id,
+          cancel_requested: true,
+          attempt_id: id
+        }
+      }
+      when is_binary(id) ->
+        true
+
+      _ ->
+        false
+    end)
+  end
+
   def active_turn_context(%__MODULE__{} = history), do: turn_context(history, history.active_turn)
 
   def next_turn_number(%__MODULE__{turns_by_number: turns}) do
@@ -291,6 +310,17 @@ defmodule FrontmanServer.Tasks.History do
        when type in @active_turn_types do
     with {:ok, context, state} <- turn_context(history, row, state) do
       {:ok, context, %{state | active_turn: active_turn_after(type, turn_number)}}
+    end
+  end
+
+  defp row_context(
+         history,
+         %InteractionSchema{type: :tool_result, turn_number: turn, data: result} = row,
+         state
+       ) do
+    case cancelled_mcp_call?(history, turn, result.tool_call_id) do
+      true -> turn_context(history, row, state)
+      false -> {:error, {:inactive_turn, :tool_result, turn, state.active_turn}}
     end
   end
 

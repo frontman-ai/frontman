@@ -421,12 +421,7 @@ defmodule FrontmanServer.Tasks do
       end
 
     results =
-      Enum.map(interrupted, fn {call, _dispatch} ->
-        {:ok, {row, true}} =
-          store_tool_result(task, turn_number, call, MCP.tool_result_error(reason))
-
-        row
-      end)
+      Enum.flat_map(interrupted, &interrupt_tool_call(task, turn_number, &1, kind, reason))
 
     case preserved do
       [] ->
@@ -450,6 +445,31 @@ defmodule FrontmanServer.Tasks do
            }) do
       {:ok, [row]}
     end
+  end
+
+  defp interrupt_tool_call(
+         task,
+         turn,
+         {call, %Interaction.ToolCall{attempt_id: id}},
+         :cancelled,
+         _
+       )
+       when is_binary(id) do
+    row =
+      InteractionSchema.for_task(task.id)
+      |> InteractionSchema.for_turn(turn)
+      |> InteractionSchema.of_type(:tool_call)
+      |> InteractionSchema.data_equals("tool_call_id", call.id)
+      |> Repo.one!()
+
+    {:ok, data} = mcp_attempt_transition(row.data, id, :cancel)
+    {:ok, _} = row |> Ecto.Changeset.change(data: data) |> Repo.update()
+    []
+  end
+
+  defp interrupt_tool_call(task, turn, {call, _dispatch}, _kind, reason) do
+    {:ok, {row, true}} = store_tool_result(task, turn, call, MCP.tool_result_error(reason))
+    [row]
   end
 
   defp publish_outcome({:ok, rows}, task_id) do
@@ -850,6 +870,25 @@ defmodule FrontmanServer.Tasks do
       when is_binary(attempt_id) or is_integer(attempt_id),
       do: transition_mcp_attempt(scope, task_id, logical_id, Jason.encode!(attempt_id), :cancel)
 
+  @doc "Finds an attempt in its original turn, including after cancellation closed that turn."
+  def get_mcp_tool_call(%Scope{} = scope, task_id, {turn, logical_id}, attempt_id)
+      when is_integer(turn) and turn > 0 do
+    with {:ok, _} <- get_task(scope, task_id),
+         %InteractionSchema{data: call} <-
+           InteractionSchema.for_task(task_id)
+           |> InteractionSchema.for_turn(turn)
+           |> InteractionSchema.of_type(:tool_call)
+           |> InteractionSchema.data_equals("tool_call_id", logical_id)
+           |> Repo.one(),
+         true <- call.attempt_id == Jason.encode!(attempt_id) do
+      {:ok, call}
+    else
+      nil -> {:error, :not_found}
+      false -> {:error, :stale_attempt}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   defp transition_mcp_attempt(scope, task_id, {turn, logical_id}, attempt_id, event)
        when is_integer(turn) and turn > 0 do
     Repo.transact(fn ->
@@ -917,7 +956,7 @@ defmodule FrontmanServer.Tasks do
   def resolve_tool_request(
         scope,
         task_id,
-        %{id: tool_call_id, name: _} = tool_call_data,
+        %{id: _, name: _} = tool_call_data,
         result,
         opts \\ []
       )
@@ -925,8 +964,7 @@ defmodule FrontmanServer.Tasks do
     Repo.transact(fn ->
       case get_task_by_id_for_update(scope, task_id) do
         %TaskSchema{} = task ->
-          turn_number = tool_result_turn_number(task_id, tool_call_id, opts)
-          store_tool_result(task, turn_number, tool_call_data, result)
+          resolve_task_tool_result(scope, task, tool_call_data, result, opts)
 
         nil ->
           {:error, :not_found}
@@ -939,6 +977,21 @@ defmodule FrontmanServer.Tasks do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  defp resolve_task_tool_result(scope, task, call, result, opts) do
+    turn = tool_result_turn_number(task.id, call.id, opts)
+
+    with {:ok, _} <- validate_mcp_result_attempt(scope, task.id, {turn, call.id}, opts) do
+      store_tool_result(task, turn, call, result)
+    end
+  end
+
+  defp validate_mcp_result_attempt(scope, task_id, logical_id, opts) do
+    case Keyword.fetch(opts, :attempt_id) do
+      {:ok, attempt_id} -> get_mcp_tool_call(scope, task_id, logical_id, attempt_id)
+      :error -> {:ok, nil}
     end
   end
 
@@ -964,7 +1017,7 @@ defmodule FrontmanServer.Tasks do
           turn_number: turn_number
         }
 
-        with ^turn_number <- History.active_turn_number(history),
+        with true <- tool_result_allowed?(history, turn_number, tool_call.id),
              {:ok, row} <- insert_interaction_row(task, attrs) do
           {:ok, {row, true}}
         else
@@ -974,13 +1027,25 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp publish_tool_result(task_id, row, true) do
-    broadcast_task(task_id, {:interaction, row})
-    ToolExecutor.notify_tool_result(task_id, row.data)
+  defp tool_result_allowed?(history, turn, logical_id) do
+    case History.active_turn_number(history) do
+      ^turn -> true
+      _ -> History.cancelled_mcp_call?(history, turn, logical_id)
+    end
   end
 
-  defp publish_tool_result(task_id, row, false),
-    do: ToolExecutor.notify_tool_result(task_id, row.data)
+  defp publish_tool_result(task_id, row, inserted?) do
+    {:ok, history} = load_history(task_id)
+
+    case History.cancelled_mcp_call?(history, row.turn_number, row.data.tool_call_id) do
+      true ->
+        :reconciled
+
+      false ->
+        if inserted?, do: broadcast_task(task_id, {:interaction, row})
+        ToolExecutor.notify_tool_result(task_id, row.data)
+    end
+  end
 
   defp tool_result_turn_number(task_id, tool_call_id, opts) do
     case Keyword.fetch(opts, :turn_number) do
@@ -1127,7 +1192,22 @@ defmodule FrontmanServer.Tasks do
   """
   def cancel_execution(scope, task_id) do
     with {:ok, _schema} <- get_task(scope, task_id) do
-      SwarmAi.cancel(FrontmanServer.AgentRuntime, task_id)
+      case SwarmAi.cancel(FrontmanServer.AgentRuntime, task_id) do
+        {:error, :not_running} -> cancel_parked_turn(scope, task_id)
+        result -> result
+      end
+    end
+  end
+
+  defp cancel_parked_turn(scope, task_id) do
+    {:ok, history} = load_history(task_id)
+
+    case History.active_turn_number(history) do
+      nil ->
+        {:error, :not_running}
+
+      turn ->
+        with {:ok, _} <- record_execution_outcome(scope, task_id, turn, :cancelled), do: :ok
     end
   end
 
@@ -1201,6 +1281,7 @@ defmodule FrontmanServer.Tasks do
 
     history.rows
     |> Enum.filter(&(is_nil(&1.turn_number) or &1.turn_number <= turn_number))
+    |> Enum.sort_by(&{&1.turn_number || 0, &1.sequence})
     |> Enum.flat_map(fn row ->
       row
       |> row_to_messages(history, skill_used_by_user_message_id)
@@ -1221,6 +1302,35 @@ defmodule FrontmanServer.Tasks do
       user_interaction = History.user_row(history, user_message_id).data
 
       Interaction.to_swarm_messages(skill_interactions ++ [user_interaction])
+    end)
+  end
+
+  defp row_to_messages(
+         %InteractionSchema{
+           turn_number: turn,
+           data: %Interaction.AgentError{kind: "cancelled"}
+         },
+         history,
+         _skills
+       ) do
+    history.rows
+    |> History.unresolved_tool_calls(turn)
+    |> Enum.flat_map(fn
+      {call, %Interaction.ToolCall{cancel_requested: true}} ->
+        [
+          %Tool{
+            tool_call_id: call.id,
+            name: call.name,
+            content: [
+              ContentPart.text(
+                "Outcome unknown after cancellation; do not assume failure or repeat the operation."
+              )
+            ]
+          }
+        ]
+
+      _ ->
+        []
     end)
   end
 
