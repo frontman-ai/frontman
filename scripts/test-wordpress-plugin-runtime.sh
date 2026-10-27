@@ -29,10 +29,12 @@ DATABASE="${RUN_ID}-database"
 WORDPRESS="${RUN_ID}-wordpress"
 IMAGE="${RUN_ID}-image"
 BUILD_DIR="$(mktemp -d)"
+NETWORK_CREATED=false
 
 cleanup() {
-  "$RUNTIME" rm -f "$WORDPRESS" "$DATABASE" >/dev/null 2>&1 || true
-  "$RUNTIME" network rm "$NETWORK" >/dev/null 2>&1 || true
+  "$RUNTIME" rm -f "$WORDPRESS" >/dev/null 2>&1 || true
+  "$RUNTIME" rm -f "$DATABASE" >/dev/null 2>&1 || true
+  if "$NETWORK_CREATED"; then "$RUNTIME" network rm "$NETWORK" >/dev/null 2>&1 || true; fi
   "$RUNTIME" image rm "$IMAGE" >/dev/null 2>&1 || true
   rm -rf "$BUILD_DIR"
 }
@@ -55,16 +57,26 @@ fi
   -t "$IMAGE" \
   "$BUILD_DIR" >/dev/null
 
-"$RUNTIME" network create "$NETWORK" >/dev/null
-"$RUNTIME" run -d --name "$DATABASE" --network "$NETWORK" \
+if "$RUNTIME" --version | grep -qi podman; then
+  DB_NETWORK=pasta
+  WP_NETWORK="container:$DATABASE"
+  DB_HOST=127.0.0.1
+else
+  "$RUNTIME" network create "$NETWORK" >/dev/null
+  NETWORK_CREATED=true
+  DB_NETWORK="$NETWORK"
+  WP_NETWORK="$NETWORK"
+  DB_HOST="$DATABASE"
+fi
+"$RUNTIME" run -d --name "$DATABASE" --network "$DB_NETWORK" \
   -e MARIADB_DATABASE=wordpress \
   -e MARIADB_USER=wordpress \
   -e MARIADB_PASSWORD=wordpress \
   -e MARIADB_ROOT_PASSWORD=wordpress \
   docker.io/library/mariadb:11 >/dev/null
 
-"$RUNTIME" run -d --name "$WORDPRESS" --network "$NETWORK" \
-  -e WORDPRESS_DB_HOST="$DATABASE" \
+"$RUNTIME" run -d --name "$WORDPRESS" --network "$WP_NETWORK" \
+  -e WORDPRESS_DB_HOST="$DB_HOST" \
   -e WORDPRESS_DB_USER=wordpress \
   -e WORDPRESS_DB_PASSWORD=wordpress \
   -e WORDPRESS_DB_NAME=wordpress \
@@ -127,17 +139,32 @@ fi
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/WidgetWithoutWooRuntimeTest.php" "$WORDPRESS:/tmp/WidgetWithoutWooRuntimeTest.php"
 "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/WidgetWithoutWooRuntimeTest.php
 case "$WORDPRESS_VERSION" in
-6.[0-6].*) printf 'Skipping WooCommerce 9.9.5: requires WordPress 6.7+.\n' ;;
+6.[0-6].*) printf 'Skipping WooCommerce: requires WordPress 6.7+.\n' ;;
+6.7.*)
+  WOOCOMMERCE_VERSION="9.9.5"
+  WOOCOMMERCE_SHA256="9afd8ef47ce5286412053083cd74c3d5abf0388e8e4a723902162259977241c2"
+  ;;
 *)
-curl -fsSL 'https://downloads.wordpress.org/plugin/woocommerce.9.9.5.zip' -o "$BUILD_DIR/woocommerce.zip"
+  WOOCOMMERCE_VERSION="10.4.3"
+  WOOCOMMERCE_SHA256="3b1bbe109a0ab653863a6c8b4ccbdf75c519fd5ebf51151c54b8ca37b325f242"
+  ;;
+esac
+if [[ -n "${WOOCOMMERCE_VERSION:-}" ]]; then
+curl -fsSL "https://downloads.wordpress.org/plugin/woocommerce.${WOOCOMMERCE_VERSION}.zip" -o "$BUILD_DIR/woocommerce.zip"
+printf '%s  %s\n' "$WOOCOMMERCE_SHA256" "$BUILD_DIR/woocommerce.zip" | sha256sum --check --status
 unzip -q "$BUILD_DIR/woocommerce.zip" -d "$BUILD_DIR/woocommerce"
 "$RUNTIME" cp "$BUILD_DIR/woocommerce/woocommerce" "$WORDPRESS:/var/www/html/wp-content/plugins/woocommerce"
 "$RUNTIME" exec "$WORDPRESS" php -r 'require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/plugin.php"; $result = activate_plugin("woocommerce/woocommerce.php"); if (is_wp_error($result)) { throw new RuntimeException($result->get_error_message()); }'
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/WidgetVisibilityRuntimeTest.php" "$WORDPRESS:/tmp/WidgetVisibilityRuntimeTest.php"
 "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/WidgetVisibilityRuntimeTest.php
+if [[ "$WOOCOMMERCE_VERSION" == "10.4.3" ]]; then
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/WooCommerceCatalogRuntimeTest.php" "$WORDPRESS:/tmp/WooCommerceCatalogRuntimeTest.php"
+"$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/WooCommerceCatalogRuntimeTest.php
+else
+printf 'Skipping catalog runtime tests: WooCommerce 10.4.3 requires WordPress 6.8+.\n'
+fi
 "$RUNTIME" exec "$WORDPRESS" php -r 'require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/plugin.php"; deactivate_plugins("woocommerce/woocommerce.php");'
-;;
-esac
+fi
 
 "$RUNTIME" exec "$WORDPRESS" cp -a /var/www/html /tmp/frontman-multisite
 "$RUNTIME" exec "$WORDPRESS" php -r '$path = "/tmp/frontman-multisite/wp-config.php"; $config = file_get_contents($path); $config = str_replace("\x27wp_\x27", "\x27fm_multi_\x27", $config); file_put_contents($path, $config);'
