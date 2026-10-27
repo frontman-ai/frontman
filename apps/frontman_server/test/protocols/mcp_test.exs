@@ -198,6 +198,9 @@ defmodule FrontmanServer.Protocols.MCPTest do
     Logger.configure(level: previous_level)
 
     assert_received {:request, request}
+    assert request["id"] == 789
+    assert MCP.request_attempt_key(1) == "1"
+    assert MCP.request_attempt_key("1") == ~s("1")
     assert request["method"] == "tools/call"
     assert request["params"]["name"] == "search_files"
     refute Map.has_key?(request["params"], "callId")
