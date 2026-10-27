@@ -27,7 +27,10 @@ defmodule FrontmanServer.Tasks.MCPAttemptTest do
     assert stored.attempt_id == "first"
 
     {:ok, _, _} =
-      Tasks.resolve_tool_request(scope, id, call, %{"content" => []}, attempt_id: "first")
+      Tasks.resolve_tool_request(scope, id, call, %{"content" => []},
+        attempt_id: "first",
+        evidence: :peer_final
+      )
 
     {:ok, _} = Tasks.record_execution_outcome(scope, id, turn, :completed)
     next_turn = start_turn_fixture(scope, id)
@@ -57,13 +60,15 @@ defmodule FrontmanServer.Tasks.MCPAttemptTest do
     assert {:ok, winner, :reconciled} =
              Tasks.resolve_tool_request(scope, id, call, result,
                turn_number: turn,
-               attempt_id: "late"
+               attempt_id: "late",
+               evidence: :peer_final
              )
 
     assert {:ok, ^winner, :reconciled} =
              Tasks.resolve_tool_request(scope, id, call, %{"content" => []},
                turn_number: turn,
-               attempt_id: "late"
+               attempt_id: "late",
+               evidence: :peer_final
              )
 
     refute_receive {:tool_result, _, _, _}
@@ -92,7 +97,8 @@ defmodule FrontmanServer.Tasks.MCPAttemptTest do
     assert {:ok, _, :reconciled} =
              Tasks.resolve_tool_request(scope, id, call, %{"content" => []},
                turn_number: turn,
-               attempt_id: "parked"
+               attempt_id: "parked",
+               evidence: :peer_final
              )
   end
 
@@ -109,13 +115,21 @@ defmodule FrontmanServer.Tasks.MCPAttemptTest do
       ToolExecutor.handle_error(scope, id, turn, :timeout, call)
     end)
 
+    assert {:error, :outcome_unknown} =
+             Tasks.resolve_tool_request(scope, id, call, %{"content" => []},
+               turn_number: turn,
+               attempt_id: "timeout",
+               evidence: :local_failure
+             )
+
     {:ok, task} = Tasks.get_task_with_history(scope, id)
     refute Enum.any?(Tasks.interactions(task), &match?(%Tasks.Interaction.ToolResult{}, &1))
 
-    assert {:ok, _, :reconciled} =
-             Tasks.resolve_tool_request(scope, id, call, %{"content" => []},
+    assert {:ok, %{is_error: true}, :reconciled} =
+             Tasks.resolve_tool_request(scope, id, call, %{"content" => [], "isError" => true},
                turn_number: turn,
-               attempt_id: "timeout"
+               attempt_id: "timeout",
+               evidence: :peer_final
              )
   end
 

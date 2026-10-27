@@ -1024,10 +1024,29 @@ defmodule FrontmanServer.Tasks do
 
   defp validate_tool_result_attempt(scope, task_id, logical_id, opts) do
     case Keyword.fetch(opts, :attempt_id) do
-      {:ok, attempt_id} -> get_tool_attempt(scope, task_id, logical_id, attempt_id)
-      :error -> validate_unfenced_tool_result(task_id, logical_id)
+      {:ok, attempt_id} ->
+        validate_fenced_tool_result(scope, task_id, logical_id, attempt_id, opts)
+
+      :error ->
+        validate_unfenced_tool_result(task_id, logical_id)
     end
   end
+
+  defp validate_fenced_tool_result(scope, task_id, logical_id, attempt_id, opts) do
+    with {:ok, call} <- get_tool_attempt(scope, task_id, logical_id, attempt_id),
+         :ok <- validate_tool_evidence(call, Keyword.get(opts, :evidence, :local_failure)) do
+      {:ok, call}
+    end
+  end
+
+  defp validate_tool_evidence(%Interaction.ToolCall{outcome: :outcome_unknown}, :local_failure),
+    do: {:error, :outcome_unknown}
+
+  defp validate_tool_evidence(%Interaction.ToolCall{}, evidence)
+       when evidence in [:peer_final, :local_failure],
+       do: :ok
+
+  defp validate_tool_evidence(%Interaction.ToolCall{}, _), do: {:error, :invalid_evidence}
 
   defp validate_unfenced_tool_result(task_id, {turn, logical_id}) do
     {:ok, history} = load_history(task_id)
