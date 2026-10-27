@@ -1120,15 +1120,21 @@ describe("Task - Interactive wait contract", () => {
       })
     )
 
-    testAsync("session release clears the question and abort settles it locally", async t => {
+    testAsync("session release clears the question and abort settles it after task removal", async t => {
       let controller = WebAPI.AbortController.make()
       let pending = ask(controller.signal)
       Store.dispatch(store, ConnectionAction(ClearSession))
       t->expect(pendingQuestion())->Expect.toEqual(None)
+      Store.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(store, {
+        ...Store.getState(store),
+        tasks: Dict.make(),
+        currentTask: App.defaultState.currentTask,
+      })
       WebAPI.AbortController.abort(controller)
       t->expect(await pending)->Expect.toEqual(
         Tool.Tool.MCP.CallToolResult.makeError("Question request aborted"),
       )
+      t->expect(Store.getState(store).tasks)->Expect.toEqual(Dict.make())
     })
 
     testAsync("a late callback cannot clear a replacement session's question", async t => {
