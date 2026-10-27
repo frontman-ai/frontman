@@ -1925,6 +1925,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     on_exit(fn -> if Process.alive?(effects), do: Agent.stop(effects) end)
     Agent.update(effects, &(&1 + 1))
     monitor = Process.monitor(socket.channel_pid)
+    Process.unlink(socket.channel_pid)
     leave_ref = leave(socket)
     assert_reply(leave_ref, :ok)
     assert_receive {:DOWN, ^monitor, :process, _, _}
