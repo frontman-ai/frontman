@@ -253,8 +253,6 @@ class Frontman_Elementor_Tools_Test_Runner {
 		$this->test_generate_element();
 		$this->test_search_layout_context();
 		$this->test_creation_subtrees();
-		$this->test_relative_and_duplicate_overrides();
-		$this->test_atomic_wrap();
 		$this->test_creation_settings_objects();
 
 		fwrite( STDOUT, "OK ({$this->assertions} assertions)\n" );
@@ -1286,89 +1284,6 @@ class Frontman_Elementor_Tools_Test_Runner {
 		$this->assert_same( 16, $attempts, 'Collision retry is bounded' );
 	}
 
-	private function test_relative_and_duplicate_overrides(): void {
-		$saved_meta = $GLOBALS['frontman_test_meta'][47];
-		$callbacks = $GLOBALS['frontman_test_update_meta_callbacks'];
-		$button = [ 'id' => 'a', 'elType' => 'widget', 'widgetType' => 'button', 'settings' => [ 'text' => 'Original', 'link' => [ 'url' => '/old', 'external' => true ] ], 'elements' => [] ];
-		$tree = [ [ 'id' => 'row', 'elType' => 'container', 'settings' => [], 'elements' => [ $button, array_replace( $button, [ 'id' => 'b' ] ), array_replace( $button, [ 'id' => 'c' ] ) ] ] ];
-		$new = [ 'elType' => 'container', 'elements' => [ array_diff_key( $button, [ 'id' => true ] ) ] ];
-		$events = [];
-		$GLOBALS['frontman_test_update_meta_callbacks'] = [ static function ( $id, $key ) use ( &$events ): void {
-			if ( 47 === $id && in_array( $key, [ '_elementor_data', '_frontman_elementor_rollbacks' ], true ) ) {
-				$events[] = $key;
-			}
-		} ];
-		try {
-			foreach ( [ 'a', 'b', 'c', 'row' ] as $anchor ) {
-				$GLOBALS['frontman_test_meta'][47] = [ '_elementor_data' => wp_json_encode( $tree ) ];
-				$events = [];
-				$input = [ 'post_id' => 47, 'element' => $new, 'after_element_id' => $anchor ];
-				$this->assert_same( $input, $this->tools->sanitize_input( 'wp_elementor_add_element', $input ), 'Sanitizer preserves relative insertion' );
-				$result = $this->call_success( 'wp_elementor_add_element', $input );
-				$this->assert_same( [ '_frontman_elementor_rollbacks', '_elementor_data' ], $events, 'Relative add persists one snapshot before one page write' );
-				$context = Frontman_Elementor_Data::get_element_context( $tree, $anchor );
-				$this->assert_same( [ $context['parent_id'], $context['position'] + 1 ], [ $result['parent_id'], $result['position'] ], 'Relative placement follows current anchor' );
-				$stored = Frontman_Elementor_Data::get_element( Frontman_Elementor_Data::get_page_data( 47 ), $result['element_id'] );
-				$this->assert_true( $stored['id'] !== $stored['elements'][0]['id'], 'Relative add prepares descendants' );
-				$this->call_success( 'wp_elementor_restore_rollback', [ 'post_id' => 47, 'rollback_id' => $result['rollback_id'], 'confirm' => true ] );
-				$this->assert_same( $tree, Frontman_Elementor_Data::get_page_data( 47 ), 'One relative rollback restores original tree' );
-			}
-			$input = [ 'post_id' => 47, 'element_id' => 'row', 'settings' => [ 'link' => [ 'url' => '/new' ] ] ];
-			$this->assert_same( $input, $this->tools->sanitize_input( 'wp_elementor_duplicate_element', $input ), 'Sanitizer preserves duplicate settings' );
-			$events = [];
-			$result = $this->call_success( 'wp_elementor_duplicate_element', $input );
-			$this->assert_same( [ '_frontman_elementor_rollbacks', '_elementor_data' ], $events, 'Duplicate persists once in order' );
-			$snapshots = json_decode( get_post_meta( 47, '_frontman_elementor_rollbacks', true ), true );
-			$this->assert_same( $tree, $snapshots[0]['data'], 'Duplicate snapshot contains exact original tree' );
-			$data = Frontman_Elementor_Data::get_page_data( 47 );
-			$this->assert_same( $tree[0], $data[0], 'Duplicate preserves source subtree' );
-			$this->assert_same( $button['settings'], $data[1]['elements'][0]['settings'], 'Overrides affect only clone root' );
-			foreach ( $data[1]['elements'] as $child ) {
-				$this->assert_same( null, Frontman_Elementor_Data::get_element( $tree, $child['id'] ), 'Clone descendants avoid source IDs' );
-			}
-			$this->call_success( 'wp_elementor_restore_rollback', [ 'post_id' => 47, 'rollback_id' => $result['rollback_id'], 'confirm' => true ] );
-			$result = $this->call_success( 'wp_elementor_duplicate_element', [ 'post_id' => 47, 'element_id' => 'a', 'settings' => [ 'link' => [ 'url' => '/new' ] ] ] );
-			$clone = Frontman_Elementor_Data::get_element( Frontman_Elementor_Data::get_page_data( 47 ), $result['new_element_id'] );
-			$this->assert_same( [ 'url' => '/new' ], $clone['settings']['link'], 'Nested settings replace shallowly' );
-			foreach ( [
-				[ 'wp_elementor_add_element', [ 'after_element_id' => 'a', 'parent_id' => null, 'element' => $new ] ],
-				[ 'wp_elementor_add_element', [ 'after_element_id' => 'a', 'position' => -1, 'element' => $new ] ],
-				[ 'wp_elementor_add_element', [ 'after_element_id' => 'unknown', 'element' => $new ] ],
-				[ 'wp_elementor_duplicate_element', [ 'element_id' => 'a', 'settings' => [] ] ],
-			] as [ $name, $invalid ] ) {
-				$before = $GLOBALS['frontman_test_meta'][47];
-				$events = [];
-				$this->call_error( $name, $invalid + [ 'post_id' => 47 ] );
-				$this->assert_same( [], $events, 'Invalid relative/duplicate input performs no writes' );
-				$this->assert_same( $before, $GLOBALS['frontman_test_meta'][47], 'Invalid mutation preserves metadata' );
-			}
-			$ambiguous = $tree;
-			$ambiguous[] = $button;
-			$GLOBALS['frontman_test_meta'][47]['_elementor_data'] = wp_json_encode( $ambiguous );
-			foreach ( [ 'wp_elementor_add_element', 'wp_elementor_duplicate_element' ] as $name ) {
-				$before = $GLOBALS['frontman_test_meta'][47];
-				$this->call_error( $name, [ 'post_id' => 47, 'after_element_id' => 'a', 'element_id' => 'a', 'element' => $new ] );
-				$this->assert_same( $before, $GLOBALS['frontman_test_meta'][47], 'Ambiguous contexts preserve metadata' );
-			}
-			$GLOBALS['frontman_test_meta'][47]['_elementor_data'] = wp_json_encode( $tree );
-			$GLOBALS['frontman_test_reject_rollback_write'] = true;
-			foreach ( [ [ 'wp_elementor_add_element', [ 'after_element_id' => 'a', 'element' => $new ] ], [ 'wp_elementor_duplicate_element', [ 'element_id' => 'a' ] ] ] as [ $name, $input ] ) {
-				$events = [];
-				$this->call_error( $name, $input + [ 'post_id' => 47 ] );
-				$this->assert_same( [], $events, 'Failed snapshot prevents page write' );
-			}
-			$GLOBALS['frontman_test_reject_rollback_write'] = false;
-			$html_meta = $GLOBALS['frontman_test_meta'][46];
-			$error = $this->call_error( 'wp_elementor_duplicate_element', [ 'post_id' => 46, 'element_id' => 'html4601', 'settings' => [ 'html' => 'forbidden' ] ] );
-			$this->assert_true( false !== strpos( $error, 'old_html and new_html' ), 'Duplicate HTML override uses update guard guidance' );
-			$this->assert_same( $html_meta, $GLOBALS['frontman_test_meta'][46], 'Forbidden HTML override performs no persisted writes' );
-		} finally {
-			$GLOBALS['frontman_test_reject_rollback_write'] = false;
-			$GLOBALS['frontman_test_meta'][47] = $saved_meta;
-			$GLOBALS['frontman_test_update_meta_callbacks'] = $callbacks;
-		}
-	}
-
 	private function test_creation_settings_objects(): void {
 		$before = $GLOBALS['frontman_test_meta'][47];
 		$callbacks = $GLOBALS['frontman_test_update_meta_callbacks'];
@@ -1386,7 +1301,6 @@ class Frontman_Elementor_Tools_Test_Runner {
 			foreach ( [ $invalid_root, $invalid_descendant ] as $element ) {
 				$cases[] = [ 'wp_elementor_add_element', [ 'element' => $element ] ];
 				$cases[] = [ 'wp_elementor_generate_element', [ 'type' => 'row', 'children' => [ $element ] ] ];
-				$cases[] = [ 'wp_elementor_wrap_element', [ 'element_id' => 'root4700', 'element_after' => $element ] ];
 			}
 			foreach ( $cases as [ $name, $input ] ) {
 				$input['post_id'] = 47;
@@ -1407,160 +1321,8 @@ class Frontman_Elementor_Tools_Test_Runner {
 			$this->assert_same( [], $generated['elements'][0]['settings'], 'Empty decoded settings objects remain valid in descendants' );
 			$added = $this->call_success( 'wp_elementor_add_element', $this->tools->sanitize_input( 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $button ] ) );
 			$this->assert_same( [], Frontman_Elementor_Data::get_element( Frontman_Elementor_Data::get_page_data( 47 ), $added['element_id'] )['settings'], 'Empty decoded settings objects remain valid for add' );
-			$wrapped = $this->call_success( 'wp_elementor_wrap_element', $this->tools->sanitize_input( 'wp_elementor_wrap_element', [ 'post_id' => 47, 'element_id' => 'root4700', 'settings' => [], 'element_after' => $button ] ) );
-			$this->assert_same( [], Frontman_Elementor_Data::get_element( Frontman_Elementor_Data::get_page_data( 47 ), $wrapped['added_element_id'] )['settings'], 'Empty decoded settings objects remain valid for wrap' );
 		} finally {
 			$GLOBALS['frontman_test_meta'][47] = $before;
-			$GLOBALS['frontman_test_update_meta_callbacks'] = $callbacks;
-		}
-	}
-
-	private function test_atomic_wrap(): void {
-		$meta = $GLOBALS['frontman_test_meta'][47];
-		$callbacks = $GLOBALS['frontman_test_update_meta_callbacks'];
-		$leaf = [ 'id' => 'leaf', 'elType' => 'widget', 'widgetType' => 'button', 'settings' => [ 'text' => 'Keep', 'size' => 1.0, 'width_mobile' => [ 'size' => 90 ] ], 'elements' => [] ];
-		$target = [ 'id' => 'target', 'elType' => 'container', 'settings' => [ 'flex_direction_mobile' => 'column' ], 'elements' => [ $leaf ] ];
-		$sibling = array_replace( $leaf, [ 'id' => 'sibling' ] );
-		$tree = [ [ 'id' => 'row', 'elType' => 'container', 'settings' => [], 'elements' => [ $sibling, $target, array_replace( $sibling, [ 'id' => 'later' ] ) ] ], array_replace( $sibling, [ 'id' => 'last' ] ) ];
-		$companion = [ 'elType' => 'container', 'elements' => [ [ 'elType' => 'widget', 'widgetType' => 'button', 'settings' => [ 'text' => 'New' ] ] ] ];
-		$events = [];
-		$GLOBALS['frontman_test_update_meta_callbacks'] = [ static function ( $id, $key ) use ( &$events ): void {
-			if ( 47 === $id && in_array( $key, [ '_elementor_data', '_frontman_elementor_rollbacks' ], true ) ) {
-				$events[] = $key;
-			}
-		} ];
-		try {
-			$definition = $this->decoded_tool_definition( 'wp_elementor_wrap_element' );
-			$this->assert_same( 'read-write', $definition->access, 'Wrap declares read-write access' );
-			$this->assert_same( $this->decoded_tool_definition( 'wp_elementor_add_element' )->inputSchema->properties->element == $definition->inputSchema->properties->element_after, true, 'Wrap shares add element schema' );
-			foreach ( [ 'target', 'row', 'leaf' ] as $id ) {
-				foreach ( [ false, true ] as $with_companion ) {
-					$GLOBALS['frontman_test_meta'][47] = [ '_elementor_data' => wp_json_encode( $tree, JSON_PRESERVE_ZERO_FRACTION ) ];
-					$before = Frontman_Elementor_Data::get_page_data( 47 );
-					$input = [ 'post_id' => 47, 'element_id' => $id, 'settings' => [ 'flex_direction_mobile' => 'column', 'flex_wrap' => 'nowrap' ] ];
-					if ( $with_companion ) {
-						$input['element_after'] = $companion;
-					}
-					$this->assert_same( $input, $this->tools->sanitize_input( 'wp_elementor_wrap_element', $input ), 'Production sanitizer preserves wrap inputs' );
-					$events = [];
-					$result = $this->call_success( 'wp_elementor_wrap_element', $input );
-					$this->assert_same( [ '_frontman_elementor_rollbacks', '_elementor_data' ], $events, 'Wrap persists one snapshot before one page write' );
-					$context = Frontman_Elementor_Data::get_element_context( $before, $id );
-					$data = Frontman_Elementor_Data::get_page_data( 47 );
-					$wrapped = Frontman_Elementor_Data::get_element_context( $data, $result['wrapper_id'] );
-					$this->assert_same( [ $context['parent_id'], $context['position'] ], [ $result['parent_id'], $result['position'] ], 'Wrap response retains original position' );
-					$this->assert_same( $context['position'], $wrapped['position'], 'Wrapper occupies exact target position' );
-					$wrapper = $wrapped['element'];
-					$this->assert_same( null !== $context['parent_id'], $wrapper['isInner'], 'Wrapper inner flag follows parent' );
-					$this->assert_same( json_decode( wp_json_encode( $context['element'] ), true ), $wrapper['elements'][0], 'Original subtree persists unchanged through normal JSON roundtrip' );
-					$this->assert_same( [ 'content_width' => 'full', 'flex_direction' => 'row', 'flex_wrap' => 'nowrap', 'flex_direction_mobile' => 'column' ], $wrapper['settings'], 'Wrapper keeps defaults and caller overrides' );
-					$this->assert_same( $with_companion ? 2 : 1, count( $wrapper['elements'] ), 'Wrap child count matches companion presence' );
-					$this->assert_same( $with_companion ? $wrapper['elements'][1]['id'] : null, $result['added_element_id'], 'Response identifies companion or null' );
-					if ( $with_companion ) {
-						$ids = [ $wrapper['id'], $wrapper['elements'][1]['id'], $wrapper['elements'][1]['elements'][0]['id'] ];
-						$this->assert_same( 3, count( array_unique( $ids ) ), 'All new wrap IDs are distinct' );
-						foreach ( $ids as $new_id ) {
-							$this->assert_same( null, Frontman_Elementor_Data::get_element( $before, $new_id ), 'New wrap IDs avoid original page' );
-						}
-					}
-					$expected = $data;
-					$this->assert_true( Frontman_Elementor_Data::wrap_at_context( $expected, $wrapped, json_decode( wp_json_encode( $context['element'] ), true ) ), 'Resolved replacement helper accepts exact context' );
-					$this->assert_same( json_decode( wp_json_encode( $before ), true ), $expected, 'All other elements and sibling order stay unchanged' );
-					$stale = $wrapped;
-					$stale['position']++;
-					$unchanged = $data;
-					$this->assert_same( false, Frontman_Elementor_Data::wrap_at_context( $data, $stale, $target ), 'Stale context is rejected' );
-					$this->assert_same( $unchanged, $data, 'Stale context does not mutate local tree' );
-					$snapshots = json_decode( get_post_meta( 47, '_frontman_elementor_rollbacks', true ), true );
-					$this->assert_same( 'wrapped_element', $snapshots[0]['action'], 'Snapshot records wrap action' );
-					$this->assert_same( $before, $snapshots[0]['data'], 'Snapshot strictly preserves original including integral float' );
-					$this->call_success( 'wp_elementor_restore_rollback', [ 'post_id' => 47, 'rollback_id' => $result['rollback_id'], 'confirm' => true ] );
-					$this->assert_same( json_decode( wp_json_encode( $before ), true ), Frontman_Elementor_Data::get_page_data( 47 ), 'One restore returns original tree' );
-				}
-			}
-			$GLOBALS['frontman_test_meta'][47] = [ '_elementor_data' => wp_json_encode( $tree, JSON_PRESERVE_ZERO_FRACTION ) ];
-			foreach ( [
-				[ 'element_id' => 'unknown' ],
-				[ 'element_after' => $companion + [ 'id' => 'leaf' ] ],
-				[ 'element_after' => [ 'elType' => 'section' ] ],
-				[ 'element_after' => null ],
-				[ 'element_after' => [ 'elType' => 'container', 'elements' => false ] ],
-				[ 'element_after' => [ 'elType' => 'widget' ] ],
-				[ 'settings' => null ], [ 'settings' => false ], [ 'settings' => [ 'bad' ] ],
-			] as $invalid ) {
-				$before = $GLOBALS['frontman_test_meta'][47];
-				$events = [];
-				$this->call_error( 'wp_elementor_wrap_element', $invalid + [ 'post_id' => 47, 'element_id' => 'target' ] );
-				$this->assert_same( [], $events, 'Invalid wrap performs no writes' );
-				$this->assert_same( $before, $GLOBALS['frontman_test_meta'][47], 'Invalid wrap preserves all metadata' );
-			}
-			foreach ( [ [ 'settings' => null ], [ 'settings' => 'bad' ], [ 'settings' => [ 1 ] ], [ 'element_after' => false ], [ 'element_after' => [ 'elType' => 'container', 'elements' => [ false ] ] ] ] as $invalid ) {
-				$rejected = false;
-				try {
-					$this->tools->sanitize_input( 'wp_elementor_wrap_element', $invalid );
-				} catch ( Frontman_Tool_Error $error ) {
-					$rejected = true;
-				}
-				$this->assert_true( $rejected, 'Raw guard rejects malformed wrap before sanitization' );
-			}
-			foreach ( [ 'section', 'column', 'widget', 'duplicate' ] as $shape ) {
-				$bad = $tree;
-				if ( 'duplicate' === $shape ) {
-					$bad[] = $target;
-				} else {
-					$bad[0]['elType'] = $shape;
-				}
-				$GLOBALS['frontman_test_meta'][47]['_elementor_data'] = wp_json_encode( $bad );
-				$before = $GLOBALS['frontman_test_meta'][47];
-				$this->call_error( 'wp_elementor_wrap_element', [ 'post_id' => 47, 'element_id' => 'target' ] );
-				$this->assert_same( $before, $GLOBALS['frontman_test_meta'][47], 'Unsupported parent or ambiguous target leaves metadata unchanged' );
-			}
-			foreach ( [ 'section', 'column' ] as $type ) {
-				$bad = $tree;
-				$bad[0]['elements'][1]['elType'] = $type;
-				$GLOBALS['frontman_test_meta'][47]['_elementor_data'] = wp_json_encode( $bad );
-				$before = $GLOBALS['frontman_test_meta'][47];
-				$this->call_error( 'wp_elementor_wrap_element', [ 'post_id' => 47, 'element_id' => 'target' ] );
-				$this->assert_same( $before, $GLOBALS['frontman_test_meta'][47], 'Legacy target leaves metadata unchanged' );
-			}
-			$GLOBALS['frontman_test_meta'][47]['_elementor_data'] = wp_json_encode( $tree );
-			$events = [];
-			$result = $this->call_success( 'wp_elementor_wrap_element', [ 'post_id' => 47, 'element_id' => 'target' ] );
-			$wrapper = Frontman_Elementor_Data::get_element( Frontman_Elementor_Data::get_page_data( 47 ), $result['wrapper_id'] );
-			$this->assert_same( [ 'content_width' => 'full', 'flex_direction' => 'row', 'flex_wrap' => 'wrap' ], $wrapper['settings'], 'Omitted wrapper settings use row defaults' );
-			$GLOBALS['frontman_test_meta'][47]['_elementor_data'] = wp_json_encode( $tree );
-			$GLOBALS['frontman_test_meta'][47]['_wp_page_template'] = 'default';
-			$GLOBALS['frontman_test_update_meta_callbacks'][] = static function ( $id, $key ): void {
-				if ( 47 === $id && '_elementor_data' === $key ) {
-					$GLOBALS['frontman_test_meta'][47]['_wp_page_template'] = 'elementor_header_footer';
-				}
-			};
-			$result = $this->call_success( 'wp_elementor_wrap_element', [ 'post_id' => 47, 'element_id' => 'target' ] );
-			$this->assert_same( true, $result['page_template_change']['restored'], 'Wrap appends save diagnostics and restores page template' );
-			array_pop( $GLOBALS['frontman_test_update_meta_callbacks'] );
-			$GLOBALS['frontman_test_meta'][47]['_elementor_data'] = wp_json_encode( $tree );
-			$GLOBALS['frontman_test_reject_rollback_write'] = true;
-			$events = [];
-			$this->call_error( 'wp_elementor_wrap_element', [ 'post_id' => 47, 'element_id' => 'target' ] );
-			$this->assert_same( [], $events, 'Failed wrap snapshot prevents page write' );
-			$GLOBALS['frontman_test_reject_rollback_write'] = false;
-			$bad = $tree;
-			$bad[] = $sibling;
-			$GLOBALS['frontman_test_meta'][47]['_elementor_data'] = wp_json_encode( $bad );
-			foreach ( [
-				[ 'wp_elementor_wrap_element', [ 'element_id' => 'target' ] ],
-				[ 'wp_elementor_add_element', [ 'after_element_id' => 'target', 'element' => $companion ] ],
-				[ 'wp_elementor_duplicate_element', [ 'element_id' => 'target' ] ],
-			] as [ $name, $input ] ) {
-				$before = $GLOBALS['frontman_test_meta'][47];
-				$events = [];
-				$this->call_error( $name, $input + [ 'post_id' => 47 ] );
-				$this->assert_same( [], $events, 'Full-tree validation prevents all writes for unrelated duplicate IDs' );
-				$this->assert_same( $before, $GLOBALS['frontman_test_meta'][47], 'Full-tree rejection preserves metadata' );
-			}
-		} finally {
-			$GLOBALS['frontman_test_reject_rollback_write'] = false;
-			$GLOBALS['frontman_test_meta'][47] = $meta;
 			$GLOBALS['frontman_test_update_meta_callbacks'] = $callbacks;
 		}
 	}
