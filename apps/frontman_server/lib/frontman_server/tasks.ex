@@ -59,6 +59,7 @@ defmodule FrontmanServer.Tasks do
     History,
     Interaction,
     InteractionSchema,
+    ModelHistory,
     TaskSchema,
     Todos
   }
@@ -67,8 +68,6 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Workers.GenerateTitle
   alias FrontmanServer.Workers.SyncResendContact
   alias SwarmAi.{Loop, Message}
-  alias SwarmAi.Message.ContentPart
-  alias SwarmAi.Message.Tool
   require Logger
 
   @doc "Gets task metadata by ID without loading its interaction history."
@@ -1159,7 +1158,7 @@ defmodule FrontmanServer.Tasks do
            Providers.resolve_model_access(scope, requested_model) do
       loop =
         Loop.new(%{
-          messages: [Message.system(system_prompt) | prompt_messages(history, turn_number)],
+          messages: [Message.system(system_prompt) | ModelHistory.messages(history, turn_number)],
           llm:
             LLMClient.new(
               tools: Tools.to_swarm_tools(tools),
@@ -1202,99 +1201,6 @@ defmodule FrontmanServer.Tasks do
       timestamp: metadata.timestamp
     }
   end
-
-  defp prompt_messages(%History{} = history, turn_number)
-       when is_integer(turn_number) and turn_number > 0 do
-    skill_used_by_user_message_id = skill_used_by_user_message_id(history.rows)
-
-    history.rows
-    |> Enum.filter(&(is_nil(&1.turn_number) or &1.turn_number <= turn_number))
-    |> Enum.sort_by(&{&1.turn_number || 0, &1.sequence})
-    |> Enum.flat_map(fn row ->
-      row
-      |> row_to_messages(history, skill_used_by_user_message_id)
-      |> decay_historical_images(row.turn_number, turn_number)
-    end)
-  end
-
-  defp row_to_messages(
-         %InteractionSchema{
-           type: :turn_started,
-           data: %Interaction.TurnStarted{user_message_ids: user_message_ids}
-         },
-         history,
-         skill_used_by_user_message_id
-       ) do
-    Enum.flat_map(user_message_ids, fn user_message_id ->
-      skill_interactions = Map.get(skill_used_by_user_message_id, user_message_id, [])
-      user_interaction = History.user_row(history, user_message_id).data
-
-      Interaction.to_swarm_messages(skill_interactions ++ [user_interaction])
-    end)
-  end
-
-  defp row_to_messages(
-         %InteractionSchema{
-           turn_number: turn,
-           data: %Interaction.AgentError{}
-         },
-         history,
-         _skills
-       ) do
-    history.rows
-    |> History.unresolved_tool_calls(turn)
-    |> Enum.flat_map(fn
-      {call, %Interaction.ToolCall{cancel_requested: true}} ->
-        [
-          %Tool{
-            tool_call_id: call.id,
-            name: call.name,
-            content: [
-              ContentPart.text(
-                "Outcome unknown after cancellation; do not assume failure or repeat the operation."
-              )
-            ]
-          }
-        ]
-
-      _ ->
-        []
-    end)
-  end
-
-  defp row_to_messages(%InteractionSchema{turn_number: nil}, _history, _skills), do: []
-
-  defp row_to_messages(%InteractionSchema{type: :skill_used}, _history, _skills), do: []
-
-  defp row_to_messages(%InteractionSchema{data: data}, _history, _skills) do
-    Interaction.to_swarm_messages([data])
-  end
-
-  defp decay_historical_images(messages, row_turn, turn_number)
-       when is_integer(row_turn) and row_turn < turn_number,
-       do: Enum.map(messages, &decay_images/1)
-
-  defp decay_historical_images(messages, _row_turn, _turn_number), do: messages
-
-  defp skill_used_by_user_message_id(rows) do
-    rows
-    |> Enum.filter(&(&1.type == :skill_used))
-    |> Enum.group_by(& &1.data.user_message_id, & &1.data)
-  end
-
-  defp decay_images(%Tool{content: content, tool_call_id: tool_call_id} = msg)
-       when is_list(content) do
-    %{msg | content: Enum.map(content, &decay_image_part(&1, tool_call_id))}
-  end
-
-  defp decay_images(msg), do: msg
-
-  defp decay_image_part(%ContentPart{type: type}, tool_call_id)
-       when type in [:image, :image_url] do
-    ContentPart.text("[image: omitted, tool_call_id: #{tool_call_id}]")
-  end
-
-  defp decay_image_part(part, _tool_call_id), do: part
 
   defp project_context(%TaskSchema{} = task, rows, execution) do
     interactions = Enum.map(rows, &Map.fetch!(&1, :data))
