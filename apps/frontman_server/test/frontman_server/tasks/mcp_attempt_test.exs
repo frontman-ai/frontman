@@ -118,4 +118,21 @@ defmodule FrontmanServer.Tasks.MCPAttemptTest do
                attempt_id: "timeout"
              )
   end
+
+  test "cancellation fences queued dispatch and rejects publication from the stopped turn" do
+    scope = user_scope_fixture()
+    id = task_fixture(scope).id
+    turn = start_turn_fixture(scope, id)
+    call = %SwarmAi.ToolCall{id: "queued", name: "write_file", arguments: "{}"}
+    {:ok, _} = Tasks.request_client_tool(scope, id, turn, call, :synchronous)
+    assert :ok = Tasks.cancel_execution(scope, id)
+
+    assert {:error, :already_resolved} =
+             Tasks.start_tool_attempt(scope, id, {turn, call.id}, "queued")
+
+    assert {:error, :not_running} =
+             Tasks.request_client_tool(scope, id, turn, %{call | id: "too-late"}, :synchronous)
+
+    assert {:ok, :no_active_turn} = Tasks.get_active_turn_unresolved_tool_calls(scope, id)
+  end
 end
