@@ -6,6 +6,11 @@ on:
     branches:
       - main
   workflow_call:
+    inputs:
+      full-verification:
+        description: Reusable calls always run full verification, regardless of this value.
+        type: boolean
+        default: true
 
 
 
@@ -19,6 +24,48 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  self-hosted-changes:
+    name: Select self-hosted checks
+    runs-on: ubuntu-latest
+    outputs:
+      swarm: ${{ steps.detect.outputs.swarm }}
+      server: ${{ steps.detect.outputs.server }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Verify selection policy
+        run: make test-ci-scope
+
+      - name: Detect changes
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          FULL_VERIFICATION: ${{ contains(toJSON(inputs), '"full-verification"') }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 .github/self_hosted_checks.py detect
+
+  self-hosted-checks:
+    name: Self-hosted checks
+    if: always()
+    needs:
+      - self-hosted-changes
+      - test-swarm-ai
+      - test-frontman-server
+      - lint-frontman-server
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Require selected checks to succeed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: python3 .github/self_hosted_checks.py aggregate
+
   source-comments:
     name: Check source comments
     runs-on: ubuntu-latest
@@ -515,6 +562,8 @@ jobs:
 
   test-swarm-ai:
     name: Test swarm_ai
+    needs: self-hosted-changes
+    if: needs.self-hosted-changes.outputs.swarm == 'true'
     runs-on: self-hosted
     steps:
       - name: Checkout code
@@ -589,6 +638,8 @@ jobs:
 
   test-frontman-server:
     name: Test frontman-server
+    needs: self-hosted-changes
+    if: needs.self-hosted-changes.outputs.server == 'true'
     runs-on: self-hosted
     permissions:
       contents: read
@@ -709,6 +760,8 @@ jobs:
 
   lint-frontman-server:
     name: Lint frontman-server
+    needs: self-hosted-changes
+    if: needs.self-hosted-changes.outputs.server == 'true'
     runs-on: self-hosted
     steps:
       - name: Checkout code

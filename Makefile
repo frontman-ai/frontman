@@ -266,6 +266,10 @@ check-source-comments:
 	node --test test/no-comments/no-comments.test.mjs
 	node scripts/no-comments.mjs --check
 
+.PHONY: test-ci-scope
+test-ci-scope:
+	PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s test/ci-scope -p '*_test.py' -v
+
 clean:
 	@printf "$(YELLOW)Cleaning build artifacts...$(RESET)\n"
 	yarn rescript clean
