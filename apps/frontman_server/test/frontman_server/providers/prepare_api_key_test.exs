@@ -131,7 +131,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       expect_openai_refresh_success()
 
       {:ok, {_model, llm_opts}} =
-        Providers.resolve_model_access(scope, "openai_codex:gpt-5.3-codex-spark")
+        Providers.resolve_model_access(scope, "openai_codex:gpt-6-sol")
 
       assert llm_opts[:access_token] == "fresh_openai_access"
       assert llm_opts[:auth_mode] == :oauth
@@ -143,7 +143,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       expect_openai_refresh_permanent_failure()
 
       assert {:error, :no_api_key} =
-               Providers.resolve_model_access(scope, "openai_codex:gpt-5.3-codex-spark")
+               Providers.resolve_model_access(scope, "openai_codex:gpt-6-sol")
 
       refute oauth_token(scope, "openai_codex")
     end

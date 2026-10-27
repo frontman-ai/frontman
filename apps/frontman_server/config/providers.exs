@@ -11,8 +11,7 @@ providers = [
        {"GPT-6 Luna", "gpt-6-luna"},
        {"GPT-5.6 Terra", "gpt-5.6-terra"},
        {"GPT-5.6 Sol", "gpt-5.6-sol"},
-       {"GPT-5.6 Luna", "gpt-5.6-luna"},
-       {"GPT-5.3 Codex Spark", "gpt-5.3-codex-spark"}
+       {"GPT-5.6 Luna", "gpt-5.6-luna"}
      ]
    }},
   {:anthropic,
