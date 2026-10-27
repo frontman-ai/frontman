@@ -997,7 +997,16 @@ defmodule FrontmanServer.Tasks do
   defp validate_mcp_result_attempt(scope, task_id, logical_id, opts) do
     case Keyword.fetch(opts, :attempt_id) do
       {:ok, attempt_id} -> get_mcp_tool_call(scope, task_id, logical_id, attempt_id)
-      :error -> {:ok, nil}
+      :error -> validate_unfenced_tool_result(task_id, logical_id)
+    end
+  end
+
+  defp validate_unfenced_tool_result(task_id, {turn, logical_id}) do
+    {:ok, history} = load_history(task_id)
+
+    case History.cancelled_mcp_call?(history, turn, logical_id) do
+      true -> {:error, :outcome_unknown}
+      false -> {:ok, nil}
     end
   end
 

@@ -331,9 +331,17 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   end
 
   defp persist_tool_result(scope, task_id, turn_number, tool_call, result) do
-    {:ok, interaction, _status} =
-      Tasks.resolve_tool_request(scope, task_id, tool_call, result, turn_number: turn_number)
+    case Tasks.resolve_tool_request(scope, task_id, tool_call, result, turn_number: turn_number) do
+      {:ok, interaction, _status} ->
+        interaction.result
 
-    interaction.result
+      {:error, :outcome_unknown} ->
+        MCP.tool_result_error(
+          "Outcome unknown after cancellation; no terminal result was recorded."
+        )
+
+      {:error, reason} ->
+        raise "Failed to persist tool result: #{inspect(reason)}"
+    end
   end
 end
