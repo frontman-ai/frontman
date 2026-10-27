@@ -1910,6 +1910,61 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
+  test "characterizes ambiguous write replay after losing its response", %{scope: scope} do
+    {socket, task_id} = join_task_channel(scope, framework: "wordpress")
+    complete_mcp_handshake(socket, load_project_context: false)
+    turn_number = start_turn_fixture(scope, task_id)
+    call = tool_call("lost-write-response", "write_file", %{"content" => "test only"})
+    {:ok, _} = persist_tool_call_fixture(scope, task_id, turn_number, call)
+
+    assert_push("mcp:message", %{
+      "method" => "tools/call",
+      "id" => first_attempt,
+      "params" => %{
+        "name" => "write_file",
+        "_meta" => %{"ai.frontman/execution-context" => %{"callId" => logical_id}}
+      }
+    })
+
+    # The fake executor commits its effect but never delivers its response.
+    {:ok, effects} = Agent.start_link(fn -> 0 end)
+    on_exit(fn -> if Process.alive?(effects), do: Agent.stop(effects) end)
+    Agent.update(effects, &(&1 + 1))
+    monitor = Process.monitor(socket.channel_pid)
+    leave_ref = leave(socket)
+    assert_reply(leave_ref, :ok)
+    assert_receive {:DOWN, ^monitor, :process, _, _}
+
+    {:ok, _reply, reconnected} =
+      UserSocket
+      |> socket("user_id", %{scope: scope})
+      |> subscribe_and_join("task:#{task_id}", %{})
+
+    complete_mcp_handshake(reconnected, load_project_context: false)
+
+    push(
+      reconnected,
+      "acp:message",
+      build_acp_request("session/load", 92, %{"sessionId" => task_id})
+    )
+
+    :sys.get_state(reconnected.channel_pid)
+
+    assert_push("mcp:message", %{
+      "method" => "tools/call",
+      "id" => second_attempt,
+      "params" => %{
+        "name" => "write_file",
+        "_meta" => %{"ai.frontman/execution-context" => %{"callId" => ^logical_id}}
+      }
+    })
+
+    Agent.update(effects, &(&1 + 1))
+    assert first_attempt != second_attempt
+    assert Agent.get(effects, & &1) == 2
+    assert {:ok, ^turn_number, [_]} = Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
+  end
+
   describe "reconnect re-executes unresolved tool calls" do
     setup %{scope: scope} do
       FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
