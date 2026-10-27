@@ -37,7 +37,22 @@ defmodule FrontmanServerWeb.TaskChannelCancellationTest do
       "params" => %{"requestId" => ^request_id}
     })
 
+    push(
+      socket,
+      "mcp:message",
+      JsonRpc.success_response(request_id, %{
+        "resultType" => "input_required",
+        "requestState" => "opaque-state"
+      })
+    )
+
     :sys.get_state(socket.channel_pid)
+
+    refute Map.has_key?(
+             :sys.get_state(socket.channel_pid).assigns.pending_mcp_tool_requests,
+             request_id
+           )
+
     assert {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
     refute Enum.any?(
