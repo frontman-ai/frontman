@@ -1910,7 +1910,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
-  test "characterizes ambiguous write replay after losing its response", %{scope: scope} do
+  test "prevents ambiguous write replay after losing its response", %{scope: scope} do
     {socket, task_id} = join_task_channel(scope, framework: "wordpress")
     complete_mcp_handshake(socket, load_project_context: false)
     turn_number = start_turn_fixture(scope, task_id)
@@ -1926,7 +1926,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       }
     })
 
-    # The fake executor commits its effect but never delivers its response.
+    assert is_integer(first_attempt)
     {:ok, effects} = Agent.start_link(fn -> 0 end)
     on_exit(fn -> if Process.alive?(effects), do: Agent.stop(effects) end)
     Agent.update(effects, &(&1 + 1))
@@ -1951,18 +1951,15 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     :sys.get_state(reconnected.channel_pid)
 
-    assert_push("mcp:message", %{
+    refute_push("mcp:message", %{
       "method" => "tools/call",
-      "id" => second_attempt,
       "params" => %{
         "name" => "write_file",
         "_meta" => %{"ai.frontman/execution-context" => %{"callId" => ^logical_id}}
       }
     })
 
-    Agent.update(effects, &(&1 + 1))
-    assert first_attempt != second_attempt
-    assert Agent.get(effects, & &1) == 2
+    assert Agent.get(effects, & &1) == 1
     assert {:ok, ^turn_number, [_]} = Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
   end
 
