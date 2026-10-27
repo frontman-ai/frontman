@@ -2,6 +2,7 @@ defmodule FrontmanServer.IsolatedSuite do
   @moduledoc false
 
   def run([]) do
+    Process.flag(:trap_exit, true)
     {:ok, _} = Application.ensure_all_started(:postgrex)
     database = "frontman_server_test_isolated_" <> Base.encode16(:crypto.strong_rand_bytes(12))
     owner = self()
@@ -19,32 +20,41 @@ defmodule FrontmanServer.IsolatedSuite do
         end)
     end
 
-    config =
-      FrontmanServer.Repo.config()
-      |> Keyword.take([:hostname, :port, :username, :password, :socket_dir, :ssl])
-      |> Keyword.merge(database: "postgres", backoff_type: :stop, timeout: 10_000)
+    repo_config = FrontmanServer.Repo.config()
 
-    {:ok, connection} = Postgrex.start_link(config)
-    Postgrex.query!(connection, ~s(CREATE DATABASE "#{database}"), [], timeout: 10_000)
+    config =
+      repo_config
+      |> Keyword.take([:hostname, :port, :username, :password, :socket_dir, :ssl])
+      |> Keyword.merge(
+        database: Keyword.get(repo_config, :maintenance_database, "postgres"),
+        backoff_type: :stop,
+        connect_timeout: 5_000,
+        timeout: 10_000
+      )
+
+    with_connection(config, database, :create, fn connection ->
+      Postgrex.query!(connection, ~s(CREATE DATABASE "#{database}"), [], timeout: 10_000)
+    end)
 
     {status, handler} =
       try do
         IO.puts("Created isolated database #{database}")
         run_child(database)
       after
-        Postgrex.query!(connection, ~s|DROP DATABASE "#{database}" WITH (FORCE)|, [],
-          timeout: 10_000
-        )
-
-        %{rows: [[false]]} =
-          Postgrex.query!(
-            connection,
-            "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)",
-            [database],
+        with_connection(config, database, :cleanup, fn connection ->
+          Postgrex.query!(connection, ~s|DROP DATABASE "#{database}" WITH (FORCE)|, [],
             timeout: 10_000
           )
 
-        GenServer.stop(connection, :normal, 5_000)
+          %{rows: [[false]]} =
+            Postgrex.query!(
+              connection,
+              "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)",
+              [database],
+              timeout: 10_000
+            )
+        end)
+
         IO.puts("Dropped isolated database #{database}")
       end
 
@@ -74,6 +84,42 @@ defmodule FrontmanServer.IsolatedSuite do
     %{failures: failures} = ExUnit.run()
     :ok = Application.stop(:frontman_server)
     System.halt(if failures == 0, do: 0, else: 1)
+  end
+
+  defp with_connection(config, database, operation, callback) do
+    config = Keyword.put(config, :parameters, application_name: "#{database}:#{operation}")
+
+    case Postgrex.start_link(config) do
+      {:ok, connection} ->
+        Process.unlink(connection)
+        monitor = Process.monitor(connection)
+
+        try do
+          callback.(connection)
+        rescue
+          error ->
+            reraise RuntimeError,
+                    [
+                      message:
+                        "Isolated database #{operation} failed for #{database}: #{Exception.message(error)}"
+                    ],
+                    __STACKTRACE__
+        catch
+          :exit, reason ->
+            raise "Isolated database #{operation} failed for #{database}: #{inspect(reason)}"
+        after
+          Process.exit(connection, :kill)
+
+          receive do
+            {:DOWN, ^monitor, :process, ^connection, _reason} -> :ok
+          after
+            5_000 -> raise "Isolated database #{operation} connection did not exit"
+          end
+        end
+
+      {:error, reason} ->
+        raise "Isolated database #{operation} connection failed for #{database}: #{inspect(reason)}"
+    end
   end
 
   defp run_child(database) do
