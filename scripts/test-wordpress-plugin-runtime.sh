@@ -48,7 +48,6 @@ BUILD_DIR="$(mktemp -d)"
 NETWORK_CREATED=false
 
 cleanup() {
-  # Podman must release the shared network namespace before removing its owner.
   "$RUNTIME" rm -f "$WORDPRESS" >/dev/null 2>&1 || true
   "$RUNTIME" rm -f "$DATABASE" >/dev/null 2>&1 || true
   if "$NETWORK_CREATED"; then "$RUNTIME" network rm "$NETWORK" >/dev/null 2>&1 || true; fi
@@ -161,7 +160,6 @@ fi
 
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/WidgetWithoutWooRuntimeTest.php" "$WORDPRESS:/tmp/WidgetWithoutWooRuntimeTest.php"
 "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/WidgetWithoutWooRuntimeTest.php
-# Share one WooCommerce installation; keep widget coverage on WordPress 6.7.
 WOOCOMMERCE_VERSION=""
 case "$WORDPRESS_VERSION" in
 6.[0-6].*) printf 'Skipping WooCommerce: requires WordPress 6.7+.\n' ;;

@@ -117,7 +117,6 @@ catalog_call( $tools, 'wc_get_catalog_display', [], true );
 catalog_call( $tools, 'wc_update_catalog_display', [ 'name' => 'woocommerce_shop_page_display', 'value' => '' ], true );
 catalog_assert( $unrelated === [ get_option( 'blogname' ), get_option( 'woocommerce_currency' ) ], 'Unrelated options changed' );
 
-// Exercise WooCommerce's real classic archive loop and header, not a theme override.
 $old_query = $GLOBALS['wp_query'];
 $old_shop = get_option( 'woocommerce_shop_page_id' );
 $old_display = get_option( 'woocommerce_shop_page_display', null );

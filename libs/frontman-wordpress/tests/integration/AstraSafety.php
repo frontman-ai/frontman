@@ -1,5 +1,4 @@
 <?php
-// Disposable local fixture only: never deliver email or contact remote services.
 add_filter( 'pre_wp_mail', '__return_false' );
 add_filter( 'pre_http_request', static function () {
 	return new WP_Error( 'fixture_offline', 'External HTTP disabled in local fixture.' );

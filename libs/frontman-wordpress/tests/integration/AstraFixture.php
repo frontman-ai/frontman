@@ -3,7 +3,6 @@ define( 'WP_ADMIN', false );
 require '/var/www/html/wp-load.php';
 wp_set_current_user( get_user_by( 'login', 'admin' )->ID );
 
-// Use the plugin's initialized registry, sanitation, callbacks, and persistence.
 $tools = Frontman_Tools::instance();
 if ( 'fixture_banner' === $argv[1] ) {
 	$enabled = 'on' === $argv[2];
@@ -36,7 +35,6 @@ update_option( 'siteurl', getenv( 'FIXTURE_URL' ) );
 update_option( 'blog_public', 0 );
 $password = bin2hex( random_bytes( 32 ) );
 wp_set_password( $password, get_current_user_id() );
-// Private, container-local test credential. Never copy it to browser evidence.
 $password_file = '/tmp/frontman-fixture-admin-password';
 if ( false === file_put_contents( $password_file, $password ) || ! chmod( $password_file, 0600 ) ) {
 	throw new RuntimeException( 'Could not create the private fixture credential.' );
@@ -53,7 +51,6 @@ foreach ( [
 	update_option( "woocommerce_{$slug}_page_id", $id );
 	update_post_meta( $id, 'site-sidebar-layout', 'left-sidebar' );
 }
-// Remove prior integration-test catalog data, in this disposable database only.
 foreach ( wc_get_products( [ 'limit' => -1 ] ) as $product ) { $product->delete( true ); }
 foreach ( [ 'Amber', 'Indigo' ] as $name ) {
 	$term = wp_insert_term( "Synthetic $name category", 'product_cat' );
@@ -74,7 +71,6 @@ wp_set_sidebars_widgets( [ 'astra-woo-shop-sidebar' => [ 'woocommerce_recently_v
 update_option( 'frontman_widget_visibility', [] );
 update_option( 'woocommerce_shop_page_display', '' );
 update_option( 'woocommerce_category_archive_display', '' );
-// Query URLs remain stable; AstraRouting.htaccess also routes /frontman to WP.
 update_option( 'permalink_structure', '' );
 flush_rewrite_rules();
 echo "Ready: synthetic Astra 4.12.3 / WooCommerce 10.4.3\n";

@@ -266,10 +266,6 @@ class Frontman_Tool_WooCommerce {
 			remove_action( 'customize_register', [ $wp_customize, 'register_controls' ] );
 			$wp_customize->register_controls();
 		}
-		// Frontman runs after frontend theme bootstrap. Replaying customize_register
-		// here is unsafe: themes may only load its dependencies during a real
-		// Customizer request. Register only these two WooCommerce-owned settings;
-		// reuse theme-altered settings when a real manager already registered them.
 		if ( ! $wp_customize->get_setting( $name ) ) {
 			$customizer = new \WC_Shop_Customizer();
 			$customizer->add_product_catalog_section( $wp_customize );

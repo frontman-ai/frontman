@@ -87,7 +87,6 @@ testAsync("synthetic Astra storefront and registry mutations in Chromium", ~skip
       await capture(`catalog-${index->Int.toString}`)
     }
     mode("")
-    // This is a fixture variation, not a Frontman tool or a customer diagnosis.
     mutate("fixture_banner", "on")
     await visit("/?post_type=product")
     t->expect((await page->locator("body")->textContent)->String.includes("Synthetic shop introduction."))->Expect.toBe(false)
@@ -105,7 +104,6 @@ testAsync("synthetic Astra storefront and registry mutations in Chromium", ~skip
   try {
     await verify()
     let adminPage = await browser->newPage
-    // Safety boundary, not a mocked dependency: no hosted client/API traffic.
     await adminPage->route("**/*", async route => {
       switch route->request->requestUrl->String.startsWith(base ++ "/") {
       | true => await route->continueRequest
