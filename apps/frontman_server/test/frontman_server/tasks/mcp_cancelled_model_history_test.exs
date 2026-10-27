@@ -30,7 +30,8 @@ defmodule FrontmanServer.Tasks.MCPCancelledModelHistoryTest do
               "content" => [%{"type" => "text", "text" => "actual success"}]
             },
             turn_number: turn,
-            attempt_id: 1
+            attempt_id: 1,
+            evidence: :peer_final
           )
       end
 
