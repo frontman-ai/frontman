@@ -34,7 +34,8 @@ defmodule FrontmanServer.Tasks.MCPAttemptTest do
     call = %SwarmAi.ToolCall{id: "late", name: "write_file", arguments: "{}"}
     {:ok, _} = Tasks.request_client_tool(scope, id, turn, call, :synchronous)
     :ok = Tasks.start_mcp_attempt(scope, id, {turn, call.id}, 1)
-    :ok = Tasks.handle_swarm_event(scope, id, turn, {:cancelled, :user})
+    :ok = Tasks.request_mcp_cancellation(scope, id, {turn, call.id}, 1)
+    :ok = Tasks.handle_swarm_event(scope, id, turn, {:terminated, :shutdown})
     {:ok, task} = Tasks.get_task_with_history(scope, id)
     refute Enum.any?(Tasks.interactions(task), &match?(%Tasks.Interaction.ToolResult{}, &1))
     next_turn = start_turn_fixture(scope, id)

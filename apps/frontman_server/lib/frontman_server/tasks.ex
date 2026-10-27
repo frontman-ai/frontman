@@ -447,6 +447,9 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  defp interrupt_tool_call(_, _, {_, %Interaction.ToolCall{cancel_requested: true}}, _, _),
+    do: []
+
   defp interrupt_tool_call(
          task,
          turn,
@@ -488,6 +491,9 @@ defmodule FrontmanServer.Tasks do
   defp publish_outcome({:error, reason}, _task_id), do: {:error, reason}
 
   defp keeps_turn_open_after_restart?({_tool_call, nil}), do: false
+
+  defp keeps_turn_open_after_restart?({_, %Interaction.ToolCall{cancel_requested: true}}),
+    do: false
 
   defp keeps_turn_open_after_restart?({_tool_call, %Interaction.ToolCall{} = dispatch}),
     do: Interaction.ToolCall.execution_mode(dispatch) == :interactive
@@ -1003,11 +1009,14 @@ defmodule FrontmanServer.Tasks do
 
   defp publish_tool_result(task_id, row, inserted?) do
     {:ok, history} = load_history(task_id)
-    if inserted?, do: broadcast_task(task_id, {:interaction, row})
 
     case History.cancelled_mcp_call?(history, row.turn_number, row.data.tool_call_id) do
-      true -> :reconciled
-      false -> ToolExecutor.notify_tool_result(task_id, row.data)
+      true ->
+        :reconciled
+
+      false ->
+        if inserted?, do: broadcast_task(task_id, {:interaction, row})
+        ToolExecutor.notify_tool_result(task_id, row.data)
     end
   end
 
