@@ -4,7 +4,7 @@ defmodule FrontmanServerWeb.TaskChannelCancellationTest do
   import FrontmanServer.InteractionCase.Helpers, only: [tool_call: 2]
   import FrontmanServer.Test.Fixtures.Tasks
 
-  alias FrontmanServer.Protocols.JsonRpc
+  alias FrontmanServer.Protocols.{JsonRpc, MCP}
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Test.Fixtures.{LLMProvider, Tools}
@@ -136,5 +136,44 @@ defmodule FrontmanServerWeb.TaskChannelCancellationTest do
     refute_push("acp:message", %{
       "params" => %{"update" => %{"toolCallId" => "reused-id", "status" => "completed"}}
     })
+
+    assert_timed_out_response_ignored(socket, scope, task_id, turn, newer_request, actual)
+  end
+
+  defp assert_timed_out_response_ignored(socket, scope, task_id, turn, request_id, actual) do
+    assert {:ok, _timeout, :no_executor} =
+             Tasks.resolve_tool_request(
+               scope,
+               task_id,
+               %{id: "reused-id", name: "write_file"},
+               MCP.tool_result_error("tool timed out"),
+               turn_number: turn
+             )
+
+    assert {:ok, _} = Tasks.record_execution_outcome(scope, task_id, turn, :completed)
+    :sys.get_state(socket.channel_pid)
+    flush_mailbox()
+    next_turn = start_turn_fixture(scope, task_id)
+
+    {:ok, _} =
+      persist_tool_call_fixture(scope, task_id, next_turn, tool_call("reused-id", "write_file"))
+
+    assert_push("mcp:message", %{"method" => "tools/call", "id" => next_request})
+    assert next_request != request_id
+
+    {:ok, _} =
+      Registry.register(FrontmanServer.ProcessRegistry, {:tool_call, task_id, "reused-id"}, %{
+        caller_pid: self()
+      })
+
+    push(socket, "mcp:message", JsonRpc.success_response(request_id, actual))
+    :sys.get_state(socket.channel_pid)
+    refute_receive {:tool_result, "reused-id", _, _}
+
+    refute_push("acp:message", %{
+      "params" => %{"update" => %{"toolCallId" => "reused-id", "status" => "failed"}}
+    })
+
+    assert {:ok, ^next_turn, [_]} = Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
   end
 end
