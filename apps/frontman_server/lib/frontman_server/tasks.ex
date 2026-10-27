@@ -852,6 +852,66 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  @doc "Fences a tool attempt using an opaque key; previous attempts are not implicitly replayable."
+  def start_tool_attempt(%Scope{} = scope, task_id, logical_id, attempt_id)
+      when is_binary(attempt_id) and byte_size(attempt_id) > 0,
+      do: transition_tool_attempt(scope, task_id, logical_id, attempt_id, :start)
+
+  @doc "Records cancellation intent and uncertainty, not proof that an external effect stopped."
+  def request_tool_cancellation(%Scope{} = scope, task_id, logical_id, attempt_id)
+      when is_binary(attempt_id) and byte_size(attempt_id) > 0,
+      do: transition_tool_attempt(scope, task_id, logical_id, attempt_id, :cancel)
+
+  defp transition_tool_attempt(scope, task_id, {turn, logical_id}, attempt_id, event)
+       when is_integer(turn) and turn > 0 do
+    Repo.transact(fn ->
+      with %TaskSchema{} <- get_task_by_id_for_update(scope, task_id),
+           %InteractionSchema{} = row <-
+             InteractionSchema.for_task(task_id)
+             |> InteractionSchema.for_turn(turn)
+             |> InteractionSchema.of_type(:tool_call)
+             |> InteractionSchema.data_equals("tool_call_id", logical_id)
+             |> Repo.one(),
+           false <-
+             InteractionSchema.for_task(task_id)
+             |> InteractionSchema.for_turn(row.turn_number)
+             |> InteractionSchema.of_type(:tool_result)
+             |> InteractionSchema.data_equals("tool_call_id", logical_id)
+             |> Repo.exists?(),
+           {:ok, history} <- load_history(task_id),
+           true <- tool_attempt_turn_open?(event, history, row.turn_number),
+           {:ok, data} <- tool_attempt_transition(row.data, attempt_id, event),
+           {:ok, row} <- row |> Ecto.Changeset.change(data: data) |> Repo.update() do
+        {:ok, row.data}
+      else
+        nil -> {:error, :not_found}
+        true -> {:error, :already_resolved}
+        false -> {:error, :not_running}
+        {:error, reason} -> {:error, reason}
+      end
+    end)
+  end
+
+  defp tool_attempt_turn_open?(:cancel, _history, _turn), do: true
+
+  defp tool_attempt_turn_open?(:start, history, turn),
+    do: History.active_turn_number(history) == turn
+
+  defp tool_attempt_transition(%Interaction.ToolCall{cancel_requested: true}, _, :start),
+    do: {:error, :cancelled}
+
+  defp tool_attempt_transition(%Interaction.ToolCall{attempt_id: nil} = call, attempt_id, :start),
+    do: {:ok, %{call | attempt_id: attempt_id, outcome: :in_flight}}
+
+  defp tool_attempt_transition(%Interaction.ToolCall{}, _, :start),
+    do: {:error, :outcome_unknown}
+
+  defp tool_attempt_transition(%Interaction.ToolCall{attempt_id: id} = call, id, :cancel),
+    do: {:ok, %{call | cancel_requested: true, outcome: :outcome_unknown}}
+
+  defp tool_attempt_transition(%Interaction.ToolCall{}, _, :cancel),
+    do: {:error, :stale_attempt}
+
   @doc """
   Resolves a tool request.
 

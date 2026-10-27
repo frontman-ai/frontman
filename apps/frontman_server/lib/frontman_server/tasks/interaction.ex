@@ -28,6 +28,7 @@ defmodule FrontmanServer.Tasks.Interaction do
   ]
 
   alias FrontmanServer.CurrentPageContext
+  alias FrontmanServer.Protocols.MCP.ToolOutput
   alias FrontmanServer.Tasks.Interaction
   alias SwarmAi.Message, as: SwarmMessage
   alias SwarmAi.Message.ContentPart, as: SwarmContentPart
@@ -794,6 +795,9 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :tool_name, :string
       field :arguments, :map
       field :execution_mode, Ecto.Enum, values: [:synchronous, :interactive]
+      field :attempt_id, :string
+      field :outcome, Ecto.Enum, values: [:in_flight, :outcome_unknown]
+      field :cancel_requested, :boolean, default: false
       field :timestamp, :utc_datetime_usec
     end
 
@@ -804,6 +808,9 @@ defmodule FrontmanServer.Tasks.Interaction do
         :tool_name,
         :arguments,
         :execution_mode,
+        :attempt_id,
+        :outcome,
+        :cancel_requested,
         :timestamp
       ])
       |> Ecto.Changeset.validate_required([:execution_mode])
@@ -1202,8 +1209,12 @@ defmodule FrontmanServer.Tasks.Interaction do
   defp text_parts(text), do: [SwarmContentPart.text(text)]
 
   @doc "Projects MCP tool-result content into Swarm content parts."
-  def tool_result_content_parts(%{"content" => content}) when is_list(content) do
-    Enum.map(content, &tool_result_content_part/1)
+  def tool_result_content_parts(%{"content" => content} = result) when is_list(content) do
+    {:ok, output} = ToolOutput.new(result)
+
+    output
+    |> ToolOutput.content_blocks()
+    |> Enum.map(&tool_result_content_part/1)
   end
 
   defp tool_result_content_part(%{"type" => "text", "text" => text}),

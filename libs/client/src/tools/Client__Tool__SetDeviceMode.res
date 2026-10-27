@@ -93,10 +93,12 @@ let okOutput = (~success, ~error) =>
 let okOutputWithPresets = (~success, ~presets) =>
   Tool.structuredResult(makeOutput(~success, ~error=None, ~presets=Some(presets)), outputSchema)
 
+@live
 let execute = async (
   input: input,
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
+  ~signal as _=?,
 ): Tool.MCP.CallToolResult.t => {
   switch input.action {
   | #set_preset =>
