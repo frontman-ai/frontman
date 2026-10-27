@@ -1285,14 +1285,14 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     let (task, questionEffects) = resolveQuestion(task, ~skippedAll=false, ~cancelled=true)
     (task, Array.concat(questionEffects, [SessionCommand(ACP.Cancel)]))
 
-  | (
-      Task.Loaded({pendingQuestion: Some(pq)} as data),
-      QuestionExecutionCancelled({toolCallId, resolveError}),
-    ) if pq.toolCallId == toolCallId && pq.resolveError === resolveError => (
-      Task.Loaded({...data, pendingQuestion: None}),
-      [RejectQuestionToolEffect({resolveError, message: "Question execution cancelled"})],
-    )
-  | (_, QuestionExecutionCancelled(_)) => (task, [])
+  | (task, QuestionExecutionCancelled({toolCallId, resolveError})) =>
+    let task = switch task {
+    | Task.Loaded({pendingQuestion: Some(pq)} as data)
+      if pq.toolCallId == toolCallId && pq.resolveError === resolveError =>
+      Task.Loaded({...data, pendingQuestion: None})
+    | _ => task
+    }
+    (task, [RejectQuestionToolEffect({resolveError, message: "Question execution cancelled"})])
 
   | (
       Task.New(_) | Task.Unloaded(_),

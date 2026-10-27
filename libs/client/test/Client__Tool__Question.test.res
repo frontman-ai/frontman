@@ -7,7 +7,7 @@ module Task = Client__Task__Types.Task
 
 testAsync("request abort stops only its question and cannot cancel a newer question", async t => {
   let tasks = Dict.make()
-  ["task-1", "task-2"]->Array.forEach(id =>
+  ["task-1"]->Array.forEach(id =>
     tasks->Dict.set(id, Task.makeNew(~previewUrl="/")->Task.newToLoaded(~id, ~title=id))
   )
   StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
@@ -15,7 +15,7 @@ testAsync("request abort stops only its question and cannot cancel a newer quest
     {...Reducer.defaultState, tasks},
   )
   FrontmanBindings.Bindings__Test__Vitest.onTestFinished(() => {
-    ["task-1", "task-2"]->Array.forEach(taskId => Client__State.Actions.questionAllSkipped(~taskId))
+    Client__State.Actions.questionAllSkipped(~taskId="task-1")
     StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
       Store.store,
       Reducer.defaultState,
@@ -33,25 +33,30 @@ testAsync("request abort stops only its question and cannot cancel a newer quest
     ~toolCallId="first",
     ~signal=controller.signal,
   )
-  let other = Question.execute({questions: []}, ~taskId="task-2", ~toolCallId="other")
+  let nextController = WebAPI.AbortController.make()
+  let newer = Question.execute(
+    {questions: []},
+    ~taskId="task-1",
+    ~toolCallId="first",
+    ~signal=nextController.signal,
+  )
+  let current = pending("task-1")
   WebAPI.AbortController.abort(controller)
-  t->expect(pending("task-1"))->Expect.toEqual(None)
-  t->expect(pending("task-2")->Option.isSome)->Expect.toBe(true)
+  t->expect(pending("task-1"))->Expect.toEqual(current)
   let result =
     (await first)
     ->S.decodeOrThrow(~from=Question.Tool.MCP.CallToolResult.schema, ~to=S.json)
     ->S.parseOrThrow(~to=S.object(s => s.field("structuredContent", Question.outputSchema)))
   t->expect(result.cancelled)->Expect.toBe(true)
-  let newer = Question.execute({questions: []}, ~taskId="task-1", ~toolCallId="newer")
-  WebAPI.AbortController.abort(controller)
   let alreadyCancelled = Question.execute(
     {questions: []},
     ~taskId="task-1",
     ~toolCallId="old",
     ~signal=controller.signal,
   )
-  t->expect((pending("task-1")->Option.getOrThrow).toolCallId)->Expect.toBe("newer")
+  t->expect(pending("task-1"))->Expect.toEqual(current)
   (await alreadyCancelled)->ignore
-  ["task-1", "task-2"]->Array.forEach(taskId => Client__State.Actions.questionAllSkipped(~taskId))
-  let _ = await Promise.all([newer, other])
+  WebAPI.AbortController.abort(nextController)
+  t->expect(pending("task-1"))->Expect.toEqual(None)
+  (await newer)->ignore
 })

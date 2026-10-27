@@ -81,10 +81,6 @@ let execute = async (
         ~resolveOk,
         ~resolveError,
       )
-      switch signal.aborted {
-      | true => onAbort()
-      | false => ()
-      }
     })
     WebAPI.AbortController.abort(listeners)
 
