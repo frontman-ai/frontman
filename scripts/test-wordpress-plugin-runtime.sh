@@ -103,6 +103,9 @@ done
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ElementorSnapshotRuntimeTest.php" "$WORDPRESS:/tmp/ElementorSnapshotRuntimeTest.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ActivateWordPressPlugin.php" "$WORDPRESS:/tmp/ActivateWordPressPlugin.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/RunWordPressRuntimeTest.php" "$WORDPRESS:/tmp/RunWordPressRuntimeTest.php"
+for file in RuntimeTestSupport CoreRuntimeCases IsolatedRuntimeCases InstallationPathsRuntimeTest SeoCoexistenceRuntimeTest SureRankRuntimeTest; do
+  "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/$file.php" "$WORDPRESS:/tmp/$file.php"
+done
 "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/mu-plugins
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PostAuthorsRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-authors-runtime.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PostAuthorsRuntimeTest.php" "$WORDPRESS:/tmp/PostAuthorsRuntimeTest.php"
@@ -115,6 +118,16 @@ if [[ -n "$YOAST_VERSION" ]]; then
   "$RUNTIME" cp "$BUILD_DIR/yoast/wordpress-seo/." "$WORDPRESS:/var/www/html/wp-content/plugins/wordpress-seo/"
   "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/SeoRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-seo-runtime.php"
 fi
+
+case "$WORDPRESS_VERSION" in
+6.[0-8].*) ;;
+*)
+  curl -fsSL 'https://downloads.wordpress.org/plugin/surerank.1.10.2.zip' -o "$BUILD_DIR/surerank.zip"
+  printf '%s  %s\n' '2ed0ada73535e8c22498e4354b13ca5aa15e45e06fe2bc4e0f78afea0b840287' "$BUILD_DIR/surerank.zip" | sha256sum --check --status
+  unzip -q "$BUILD_DIR/surerank.zip" -d "$BUILD_DIR/surerank"
+  "$RUNTIME" cp "$BUILD_DIR/surerank/surerank" "$WORDPRESS:/var/www/html/wp-content/plugins/surerank"
+  ;;
+esac
 
 "$RUNTIME" exec "$WORDPRESS" php -r 'define("WP_INSTALLING", true); define("WP_SITEURL", "http://frontman-runtime.example.test"); require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/upgrade.php"; if (!is_blog_installed()) { wp_install("Frontman Runtime", "admin", "admin@example.test", true, "", "frontman-runtime-password"); }'
 "$RUNTIME" exec "$WORDPRESS" php -r '$db = new mysqli(getenv("WORDPRESS_DB_HOST"), getenv("WORDPRESS_DB_USER"), getenv("WORDPRESS_DB_PASSWORD"), getenv("WORDPRESS_DB_NAME")); $result = $db->query("SELECT option_value FROM wp_options WHERE option_name = '\''siteurl'\''"); $row = $result ? $result->fetch_row() : false; if (!$row || !$row[0]) { throw new RuntimeException("WordPress installation did not persist a site URL."); }'
@@ -135,24 +148,6 @@ fi
 
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ThemeModsAndSearchRuntimeTest.php" "$WORDPRESS:/tmp/ThemeModsAndSearchRuntimeTest.php"
 "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/ThemeModsAndSearchRuntimeTest.php
-"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/InstallationPathsRuntimeTest.php" "$WORDPRESS:/tmp/InstallationPathsRuntimeTest.php"
-"$RUNTIME" exec "$WORDPRESS" sh -c 'php -d display_errors=1 -d error_reporting=E_ALL /tmp/InstallationPathsRuntimeTest.php; status=$?; if [ -L /tmp/frontman-installation-runtime ]; then rm /tmp/frontman-installation-runtime || exit; fi; exit "$status"'
-
-case "$WORDPRESS_VERSION" in
-6.[0-8].*) printf 'Skipping SureRank SEO tools: SureRank 1.10.2 requires WordPress 6.7+, and Frontman SEO tools require 6.9+.\n' ;;
-*)
-  curl -fsSL 'https://downloads.wordpress.org/plugin/surerank.1.10.2.zip' -o "$BUILD_DIR/surerank.zip"
-  printf '%s  %s\n' '2ed0ada73535e8c22498e4354b13ca5aa15e45e06fe2bc4e0f78afea0b840287' "$BUILD_DIR/surerank.zip" | sha256sum --check --status
-  unzip -q "$BUILD_DIR/surerank.zip" -d "$BUILD_DIR/surerank"
-  "$RUNTIME" cp "$BUILD_DIR/surerank/surerank" "$WORDPRESS:/var/www/html/wp-content/plugins/surerank"
-  "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/SureRankRuntimeTest.php" "$WORDPRESS:/tmp/SureRankRuntimeTest.php"
-  "$RUNTIME" exec "$WORDPRESS" php /tmp/SureRankRuntimeTest.php --setup
-  if [[ -n "$YOAST_VERSION" ]]; then
-    "$RUNTIME" exec "$WORDPRESS" php /tmp/SureRankRuntimeTest.php --coexist
-  fi
-  "$RUNTIME" exec -e EXPECTED_YOAST_VERSION="$YOAST_VERSION" "$WORDPRESS" php /tmp/SureRankRuntimeTest.php
-  ;;
-esac
 
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/WidgetWithoutWooRuntimeTest.php" "$WORDPRESS:/tmp/WidgetWithoutWooRuntimeTest.php"
 "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/WidgetWithoutWooRuntimeTest.php
