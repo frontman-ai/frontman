@@ -23,6 +23,20 @@ class Frontman_Tool_Widgets {
 	 */
 	public function register( Frontman_Tools $tools ): void {
 		$tools->add( new Frontman_Tool_Definition(
+			'wp_set_widget_visibility',
+			'Sets a per-widget WooCommerce visibility rule: all clears the rule; exclude_checkout preserves other routes; cart_only shows only on cart, never checkout. Uses semantic WooCommerce predicates, not URLs. Read back and verify the storefront.',
+			[
+				'type' => 'object',
+				'additionalProperties' => false,
+				'properties' => [
+					'widget_id' => [ 'type' => 'string' ],
+					'visibility' => [ 'type' => 'string', 'enum' => [ 'all', 'exclude_checkout', 'cart_only' ] ],
+				],
+				'required' => [ 'widget_id', 'visibility' ],
+			],
+			[ $this, 'set_widget_visibility' ]
+		) );
+		$tools->add( new Frontman_Tool_Definition(
 			'wp_list_widget_areas',
 			'Lists all registered widget areas (sidebars) and their active widget IDs.',
 			[
@@ -69,7 +83,7 @@ class Frontman_Tool_Widgets {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_update_widget',
-			'Updates a text, custom_html, or block widget without moving it. Text accepts title/text strings and filter/visual booleans; custom_html accepts title/content strings; block requires content containing the complete replacement markup, including all blocks. Omitted settings and plugin metadata are preserved. Read back and verify the rendered page.',
+			'Updates text, custom_html, block, or an existing woocommerce_recently_viewed_products widget without moving it. Recently viewed accepts title string and number integer (1–15); empty browsing history produces no output. Text accepts title/text strings and filter/visual booleans; custom_html accepts title/content strings; block requires complete replacement content. Omitted settings and metadata are preserved. Verify the rendered page in the same browsing session.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -175,12 +189,24 @@ class Frontman_Tool_Widgets {
 	}
 
 	private function sanitized_settings( string $widget_base, $raw ): array {
-		$this->assert_mutation_supported( $widget_base );
+		if ( 'woocommerce_recently_viewed_products' !== $widget_base ) {
+			$this->assert_mutation_supported( $widget_base );
+		}
 		$settings = is_string( $raw ) ? json_decode( $raw ) : null;
 		if ( ! $settings instanceof \stdClass ) {
 			throw new Frontman_Tool_Error( 'settings must be a JSON object of widget settings.' );
 		}
 		$settings = get_object_vars( $settings );
+		if ( 'woocommerce_recently_viewed_products' === $widget_base ) {
+			foreach ( $settings as $key => $value ) {
+				if ( 'title' === $key && is_string( $value ) ) {
+					$settings[ $key ] = sanitize_text_field( $value );
+				} elseif ( 'number' !== $key || ! is_int( $value ) || $value < 1 || $value > 15 ) {
+					throw new Frontman_Tool_Error( 'Recently viewed accepts only title (string) and number (integer, 1–15).' );
+				}
+			}
+			return $settings;
+		}
 		switch ( $widget_base ) {
 			case 'text':
 				$fields = [ 'title', 'text', 'filter', 'visual' ];
@@ -262,6 +288,7 @@ class Frontman_Tool_Widgets {
 			'settings'   => $settings[ $parts['number'] ],
 			'sidebar_id' => $map[ $widget_id ]['sidebar_id'] ?? null,
 			'position'   => $map[ $widget_id ]['position'] ?? null,
+			'visibility'=> get_option( 'frontman_widget_visibility', [] )[ $widget_id ] ?? 'all',
 		];
 	}
 
@@ -272,6 +299,7 @@ class Frontman_Tool_Widgets {
 		$this->assert_can_edit_widgets();
 		$sidebar_id  = sanitize_key( $input['sidebar_id'] ?? '' );
 		$widget_base = sanitize_key( $input['widget_base'] ?? '' );
+		$this->assert_mutation_supported( $widget_base );
 		$settings    = $this->sanitized_settings( $widget_base, $input['settings'] ?? null );
 		$before      = $this->sidebar_snapshot( $sidebar_id );
 		$defaults    = 'block' === $widget_base ? [ 'content' => '' ] : ( 'text' === $widget_base ? [ 'title' => '', 'text' => '' ] : [ 'title' => '', 'content' => '' ] );
@@ -330,6 +358,21 @@ class Frontman_Tool_Widgets {
 		$option = 'widget_' . sanitize_key( $parts['base'] );
 		$all_settings = get_option( $option, [] );
 		$all_settings[ $parts['number'] ] = array_merge( $widget['settings'], $settings );
+		if ( 'woocommerce_recently_viewed_products' === $parts['base'] ) {
+			global $wp_widget_factory;
+			$native = $wp_widget_factory->widgets['WC_Widget_Recently_Viewed'] ?? null;
+			if ( ! $native instanceof \WC_Widget_Recently_Viewed ) {
+				throw new Frontman_Tool_Error( 'The native WooCommerce recently viewed widget is not available.' );
+			}
+			$native->_set( $parts['number'] );
+			$new_instance = array_merge( [ 'title' => '', 'number' => 10 ], $all_settings[ $parts['number'] ] );
+			$instance = $native->update( $new_instance, $widget['settings'] );
+			$instance = apply_filters( 'widget_update_callback', $instance, $new_instance, $widget['settings'], $native );
+			if ( ! is_array( $instance ) ) {
+				throw new Frontman_Tool_Error( 'The native widget update was rejected.' );
+			}
+			$all_settings[ $parts['number'] ] = $instance;
+		}
 		$this->save_settings( $option, $all_settings );
 
 		return [
@@ -338,6 +381,46 @@ class Frontman_Tool_Widgets {
 			'widget_id' => $widget_id,
 			'settings'  => $this->read_widget( [ 'widget_id' => $widget_id ] )['settings'],
 		];
+	}
+
+	/**
+	 * Persist a bounded, reversible rule independently of native widget settings.
+	 */
+	public function set_widget_visibility( array $input ): array {
+		$this->assert_can_edit_widgets();
+		$widget = $this->read_widget( $input );
+		$rule = $input['visibility'] ?? null;
+		if ( ! in_array( $rule, [ 'all', 'exclude_checkout', 'cart_only' ], true ) ) {
+			throw new Frontman_Tool_Error( 'Invalid widget visibility rule.' );
+		}
+		if ( 'all' !== $rule && ( ! function_exists( 'is_cart' ) || ! function_exists( 'is_checkout' ) ) ) {
+			throw new Frontman_Tool_Error( 'WooCommerce is required to set this visibility rule.' );
+		}
+		$rules = get_option( 'frontman_widget_visibility', [] );
+		unset( $rules[ $widget['widget_id'] ] );
+		if ( 'all' !== $rule ) {
+			$rules[ $widget['widget_id'] ] = $rule;
+		}
+		$this->save_settings( 'frontman_widget_visibility', $rules );
+		return [ 'before' => $widget['visibility'], 'widget' => $this->read_widget( $input ) ];
+	}
+
+	/**
+	 * Registered at plugin load, not during tool execution. Never resurrect a
+	 * widget suppressed by another filter. Without WooCommerce, cart-only
+	 * stays hidden and checkout exclusion leaves unrelated pages alone.
+	 */
+	public static function filter_visibility( $instance, $widget, $args ) {
+		if ( false === $instance ) {
+			return false;
+		}
+		$rule = get_option( 'frontman_widget_visibility', [] )[ $args['widget_id'] ?? $widget->id ] ?? 'all';
+		$checkout = function_exists( 'is_checkout' ) && is_checkout();
+		if ( ( 'exclude_checkout' === $rule && $checkout ) ||
+			( 'cart_only' === $rule && ( $checkout || ! function_exists( 'is_cart' ) || ! is_cart() ) ) ) {
+			return false;
+		}
+		return $instance;
 	}
 
 	/**
