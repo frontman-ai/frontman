@@ -120,8 +120,10 @@ defmodule FrontmanServer.Tasks.MCPAttemptTest do
     {:ok, _} = Tasks.request_client_tool(scope, id, turn, call, :synchronous)
     assert :ok = Tasks.cancel_execution(scope, id)
     assert {:error, :already_resolved} = Tasks.start_mcp_attempt(scope, id, {turn, call.id}, 1)
+
     assert {:error, :not_running} =
              Tasks.request_client_tool(scope, id, turn, %{call | id: "too-late"}, :synchronous)
+
     assert {:ok, :no_active_turn} = Tasks.get_active_turn_unresolved_tool_calls(scope, id)
   end
 end
