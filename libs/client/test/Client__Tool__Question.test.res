@@ -15,7 +15,6 @@ testAsync("request abort stops only its question and cannot cancel a newer quest
     {...Reducer.defaultState, tasks},
   )
   FrontmanBindings.Bindings__Test__Vitest.onTestFinished(() => {
-    Client__State.Actions.questionAllSkipped(~taskId="task-1")
     StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
       Store.store,
       Reducer.defaultState,
@@ -59,4 +58,14 @@ testAsync("request abort stops only its question and cannot cancel a newer quest
   WebAPI.AbortController.abort(nextController)
   t->expect(pending("task-1"))->Expect.toEqual(None)
   (await newer)->ignore
+  let teardown = WebAPI.AbortController.make()
+  let deleted = Question.execute(
+    {questions: []},
+    ~taskId="task-1",
+    ~toolCallId="deleted",
+    ~signal=teardown.signal,
+  )
+  Store.dispatch(DeleteTask({taskId: "task-1"}))
+  WebAPI.AbortController.abort(teardown)
+  (await deleted)->ignore
 })

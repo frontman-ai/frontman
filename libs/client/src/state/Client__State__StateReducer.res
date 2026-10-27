@@ -2249,6 +2249,16 @@ let rec next = (state: state, action) => {
       }
       flush([...settings, task(action)])
     }
+  | TaskAction({
+      target: ForTask(taskId) as target,
+      action: QuestionExecutionCancelled({resolveError}),
+    }) if !(state.tasks->Dict.has(taskId)) =>
+    state->StateReducer.update(~sideEffects=[
+      TaskEffect({
+        target,
+        effect: RejectQuestionToolEffect({resolveError, message: "Question task removed"}),
+      }),
+    ])
   | TaskAction({target, action: taskAction}) => state->Lens.delegateToTask(target, taskAction)
 
   | PromptFailed({requestId, taskId, id, error}) =>
