@@ -3,6 +3,7 @@ defmodule FrontmanServer.Tasks.MCPAttemptTest do
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Execution.ToolExecutor
 
   test "cancellation is durable, attempt-fenced, and does not fabricate a result" do
     scope = user_scope_fixture()
@@ -97,7 +98,7 @@ defmodule FrontmanServer.Tasks.MCPAttemptTest do
     :ok = Tasks.request_mcp_cancellation(scope, id, {turn, call.id}, 1)
 
     ExUnit.CaptureLog.capture_log(fn ->
-      FrontmanServer.Tasks.Execution.ToolExecutor.handle_error(scope, id, turn, :timeout, call)
+      ToolExecutor.handle_error(scope, id, turn, :timeout, call)
     end)
 
     {:ok, task} = Tasks.get_task_with_history(scope, id)
