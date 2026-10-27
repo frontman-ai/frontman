@@ -860,7 +860,10 @@ defmodule FrontmanServer.Tasks do
            true <- History.active_turn_number(history) == turn_number,
            {:ok, attrs} <- Interaction.ToolCall.attrs(tool_call_data, execution_mode) do
         insert_interaction_row(task, %{
-          id: Ecto.UUID.generate(), type: :tool_call, data: attrs, turn_number: turn_number
+          id: Ecto.UUID.generate(),
+          type: :tool_call,
+          data: attrs,
+          turn_number: turn_number
         })
       else
         nil -> {:error, :not_found}
@@ -873,7 +876,8 @@ defmodule FrontmanServer.Tasks do
         broadcast_task(task_id, {:interaction, row})
         {:ok, row.data}
 
-      {:error, reason} -> {:error, reason}
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -1240,12 +1244,15 @@ defmodule FrontmanServer.Tasks do
 
       turn ->
         with {:ok, rows} <- finish_turn(task, history, turn, :cancelled) do
-          # Kill the registered runtime while the task lock still prevents a new turn.
-          case SwarmAi.cancel(FrontmanServer.AgentRuntime, task.id) do
-            :ok -> {:ok, rows}
-            {:error, :not_running} -> {:ok, rows}
-          end
+          stop_cancelled_runtime(task.id, rows)
         end
+    end
+  end
+
+  defp stop_cancelled_runtime(task_id, rows) do
+    case SwarmAi.cancel(FrontmanServer.AgentRuntime, task_id) do
+      :ok -> {:ok, rows}
+      {:error, :not_running} -> {:ok, rows}
     end
   end
 
