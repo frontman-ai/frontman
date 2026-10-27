@@ -212,7 +212,20 @@ describe("MCP 2026-07-28", () => {
         let expectedResponses = rejectAfterCancel == 0 ? 2 : 1
         t->expect(calls.contents->Array.length)->Expect.toBe(expectedResponses)
         switch rejectAfterCancel {
-        | 0 => ()
+        | 0 =>
+          let completed =
+            calls.contents
+            ->Array.find(
+              call =>
+                call.payload->S.parseOrThrow(~to=JsonRpc.Response.schema)->JsonRpc.Response.id ==
+                  Some(JsonRpc.Id.fromInt(1)),
+            )
+            ->Option.getOrThrow
+          t
+          ->expect(completed.payload)
+          ->Expect.toEqual(
+            JSON.parseOrThrow(`{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[{"type":"text","text":"actually completed"}]}}`),
+          )
         | _ =>
           t
           ->expect(rpcResponse(calls)->JsonRpc.Response.id)
