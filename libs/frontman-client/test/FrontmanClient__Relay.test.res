@@ -150,7 +150,6 @@ testAsync("isolates running tool cancellation from the relay and sibling calls",
   t->expect((requests.contents->Array.get(0)->Option.getOrThrow).aborted)->Expect.toBe(true)
   t->expect((requests.contents->Array.get(1)->Option.getOrThrow).aborted)->Expect.toBe(false)
   t->expect(connection.signal.aborted)->Expect.toBe(false)
-  // An executor may ignore cancellation and still return its actual result.
   complete.contents->Array.forEach(resolve =>
     resolve(
       WebAPI.Response.fromString(`event: result\ndata: {"resultType":"complete","content":[{"type":"text","text":"done"}]}\n\n`),

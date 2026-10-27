@@ -164,7 +164,6 @@ let executeTool = async (
     Log.debug(~ctx={"tool": name}, "Executing relay tool")
     let input: Types.toolCallRequest = {name, arguments}
     let body = input->S.decodeOrThrow(~from=Types.toolCallRequestSchema, ~to=S.jsonString)
-    // Aborting this fetch cannot establish whether an external write took effect.
     let signal = WebAPI.AbortSignal.any([relay.signal, requestSignal])
     await request(relay.config, ~path="tools/call", ~body, ~signal, ~decode=async response => {
       (await SSE.readStream(response))->Result.flatMap(json =>
