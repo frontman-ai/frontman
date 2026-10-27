@@ -54,8 +54,9 @@ let execute = async (
   _input: input,
   ~taskId: string,
   ~toolCallId: string,
+  ~signal=?,
 ): Tool.MCP.CallToolResult.t => {
-  let result = await Question.execute({questions: questions}, ~taskId, ~toolCallId)
+  let result = await Question.execute({questions: questions}, ~taskId, ~toolCallId, ~signal?)
   let (isError, output) =
     result->S.decodeOrThrow(
       ~from=Tool.MCP.CallToolResult.schema,

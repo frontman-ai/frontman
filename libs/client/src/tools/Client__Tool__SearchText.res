@@ -123,6 +123,7 @@ let execute = async (
   input: input,
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
+  ~signal as _=?,
 ): Tool.MCP.CallToolResult.t => {
   switch input.query->String.trim {
   | "" => errorResult(~error="Query string cannot be empty")

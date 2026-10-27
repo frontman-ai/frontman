@@ -92,6 +92,7 @@ let executeLocalTool = async (
   ~arguments: option<Dict.t<JSON.t>>,
   ~taskId: string,
   ~toolCallId: string,
+  ~signal: option<WebAPI.EventTypes.abortSignal>=?,
 ): Types.executeToolResult => {
   module T = unpack(toolModule)
   Log.debug(~ctx={"tool": T.name}, "Executing local tool")
@@ -117,7 +118,7 @@ let executeLocalTool = async (
   | Ok(input) =>
     Log.debug(~ctx={"tool": T.name}, "Calling execute")
     try {
-      let result = await T.execute(input, ~taskId, ~toolCallId)
+      let result = await T.execute(input, ~taskId, ~toolCallId, ~signal?)
       Log.debug(~ctx={"tool": T.name}, "Execute returned")
       Completed(result)
     } catch {
@@ -187,9 +188,11 @@ let executeTool = async (
   ~arguments: option<Dict.t<JSON.t>>=?,
   ~taskId: string,
   ~callId: string,
+  ~signal: option<WebAPI.EventTypes.abortSignal>=?,
 ): Types.executeToolResult => {
   switch getToolByName(server, name) {
-  | Some(toolModule) => await executeLocalTool(toolModule, ~arguments, ~taskId, ~toolCallId=callId)
+  | Some(toolModule) =>
+    await executeLocalTool(toolModule, ~arguments, ~taskId, ~toolCallId=callId, ~signal?)
   | None =>
     switch server.relay->Relay.hasTool(name) {
     | false =>
@@ -256,12 +259,13 @@ let toInterface = (server: t): Types.serverInterface<t> => {
   server,
   buildDiscoverResult,
   buildToolsListResult,
-  executeTool: (server, toolCall) =>
+  executeTool: (server, toolCall, ~signal) =>
     executeTool(
       server,
       ~name=Types.AuthorizedToolCall.name(toolCall),
       ~arguments=?Types.AuthorizedToolCall.arguments(toolCall),
       ~taskId=Types.AuthorizedToolCall.taskId(toolCall),
       ~callId=Types.AuthorizedToolCall.callId(toolCall),
+      ~signal,
     ),
 }

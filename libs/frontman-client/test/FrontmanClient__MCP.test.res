@@ -43,8 +43,11 @@ module ThrowingTool = {
   let outputJsonSchema = None
   let visibleToAgent = true
   let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
-  let execute = async (_input, ~taskId as _, ~toolCallId as _) =>
+  let lastSignal = ref(None)
+  let execute = async (_input, ~taskId as _, ~toolCallId as _, ~signal=?) => {
+    lastSignal := signal
     JsError.throwWithMessage("tool exploded")
+  }
 }
 
 type failure = Discover | List | Tool
@@ -66,7 +69,7 @@ let makeInterface = async (
       let result = serverInterface.buildToolsListResult(server)
       {...result, tools: failure == Some(List) ? [JSON.Encode.null] : result.tools}
     },
-    executeTool: async (_, toolCall) => {
+    executeTool: async (_, toolCall, ~signal as _) => {
       switch failure == Some(Tool) {
       | true => JsError.throwWithMessage("tool exploded")
       | false => ()
@@ -158,6 +161,40 @@ let cancel = (handler, params) =>
 
 describe("MCP 2026-07-28", () => {
   testAsync(
+    "cancels only the matching running request and preserves a late actual result",
+    async t => {
+      let server = await makeServer()
+      let signals = ref([])
+      let resolve = ref(_ => ())
+      let deferred = Promise.make((complete, _) => resolve := complete)
+      let (handler, calls, _) = fixture({
+        ...MCPServer.toInterface(server),
+        executeTool: (_, _, ~signal) => {
+          signals := signals.contents->Array.concat([signal])
+          deferred
+        },
+      })
+      let pending = MCP.handleMessage(
+        handler,
+        request(~id=1, ~method="tools/call", ~params=toolParams),
+      )
+      let sibling = MCP.handleMessage(
+        handler,
+        requestWithId(~id=`"1"`, ~method="tools/call", ~params=toolParams),
+      )
+      await cancel(handler, `{"requestId":1}`)
+      await cancel(handler, `{"requestId":1}`)
+      t->expect((signals.contents->Array.get(0)->Option.getOrThrow).aborted)->Expect.toBe(true)
+      t->expect((signals.contents->Array.get(1)->Option.getOrThrow).aborted)->Expect.toBe(false)
+      resolve.contents(Types.Completed(Types.CallToolResult.makeText("actually completed")))
+      let _ = await Promise.all([pending, sibling])
+      t->expect(calls.contents->Array.length)->Expect.toBe(2)
+      await cancel(handler, `{"requestId":1}`)
+      t->expect(calls.contents->Array.length)->Expect.toBe(2)
+    },
+  )
+
+  testAsync(
     "acknowledges attached streams and reserves tool IDs until completion or teardown",
     async t => {
       let server = await makeServer()
@@ -173,10 +210,14 @@ describe("MCP 2026-07-28", () => {
       ->Array.map(
         async ((outcome, event)) => {
           let resolve = ref(_ => ())
+          let signal = ref(None)
           let deferred = Promise.make((complete, _) => resolve := complete)
           let (handler, calls, listeners) = fixture({
             ...MCPServer.toInterface(server),
-            executeTool: (_, _) => deferred,
+            executeTool: (_, _, ~signal as requestSignal) => {
+              signal := Some(requestSignal)
+              deferred
+            },
           })
           let pending = MCP.handleMessage(
             handler,
@@ -218,6 +259,7 @@ describe("MCP 2026-07-28", () => {
             | "detach" => MCP.detach(handler)
             | _ => (listeners->Dict.get(event)->Option.getOrThrow)(JSON.Encode.null)
             }
+            t->expect((signal.contents->Option.getOrThrow).aborted)->Expect.toBe(true)
             let sent = calls.contents
             resolve.contents(outcome)
             await pending
@@ -476,6 +518,10 @@ describe("MCP 2026-07-28", () => {
     ->expect(result->Option.flatMap(result => result->Dict.get("isError")))
     ->Expect.toEqual(Some(JSON.Encode.bool(true)))
     t->expect(response(calls)->Dict.get("error")->Option.isNone)->Expect.toBe(true)
+    let signal = ThrowingTool.lastSignal.contents->Option.getOrThrow
+    t->expect(signal.aborted)->Expect.toBe(false)
+    await cancel(handler, `{"requestId":22}`)
+    t->expect(signal.aborted)->Expect.toBe(false)
   })
 
   testAsync("preserves readable ids on invalid requests", async t => {
