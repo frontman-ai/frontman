@@ -124,6 +124,20 @@ fi
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ThemeModsAndSearchRuntimeTest.php" "$WORDPRESS:/tmp/ThemeModsAndSearchRuntimeTest.php"
 "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/ThemeModsAndSearchRuntimeTest.php
 
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/WidgetWithoutWooRuntimeTest.php" "$WORDPRESS:/tmp/WidgetWithoutWooRuntimeTest.php"
+"$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/WidgetWithoutWooRuntimeTest.php
+case "$WORDPRESS_VERSION" in
+6.[0-6].*) printf 'Skipping WooCommerce 9.9.5: requires WordPress 6.7+.\n' ;;
+*)
+curl -fsSL 'https://downloads.wordpress.org/plugin/woocommerce.9.9.5.zip' -o "$BUILD_DIR/woocommerce.zip"
+unzip -q "$BUILD_DIR/woocommerce.zip" -d "$BUILD_DIR/woocommerce"
+"$RUNTIME" cp "$BUILD_DIR/woocommerce/woocommerce" "$WORDPRESS:/var/www/html/wp-content/plugins/woocommerce"
+"$RUNTIME" exec "$WORDPRESS" php -r 'require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/plugin.php"; $result = activate_plugin("woocommerce/woocommerce.php"); if (is_wp_error($result)) { throw new RuntimeException($result->get_error_message()); }'
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/WidgetVisibilityRuntimeTest.php" "$WORDPRESS:/tmp/WidgetVisibilityRuntimeTest.php"
+"$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/WidgetVisibilityRuntimeTest.php
+;;
+esac
+
 "$RUNTIME" exec "$WORDPRESS" cp -a /var/www/html /tmp/frontman-multisite
 "$RUNTIME" exec "$WORDPRESS" php -r '$path = "/tmp/frontman-multisite/wp-config.php"; $config = file_get_contents($path); $config = str_replace("\x27wp_\x27", "\x27fm_multi_\x27", $config); file_put_contents($path, $config);'
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/SetupAuthorsMultisite.php" "$WORDPRESS:/tmp/SetupAuthorsMultisite.php"

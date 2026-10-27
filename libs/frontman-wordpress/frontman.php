@@ -64,6 +64,9 @@ require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-menus.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-options.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-templates.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-widgets.php';
+add_action( 'widgets_init', static function(): void {
+	add_filter( 'widget_display_callback', [ 'Frontman_Tool_Widgets', 'filter_visibility' ], 10, 3 );
+} );
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-cache.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-public-files.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-seo.php';
