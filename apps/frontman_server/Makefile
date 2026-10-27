@@ -81,16 +81,24 @@ test:
 	MIX_ENV=test mix ecto.create --quiet
 	MIX_ENV=test mix ecto.migrate --quiet
 	mix test $(TEST_ARGS)
+	bash test_isolated/run.sh
 
 test-record:
 	MIX_ENV=test mix ecto.create --quiet
 	MIX_ENV=test mix ecto.migrate --quiet
 	REQ_LLM_FIXTURES_MODE=record mix test
+	bash test_isolated/run.sh
 
 test-coverage:
+	mkdir -p cover
+	rm -f cover/cobertura.xml
 	MIX_ENV=test mix ecto.create --quiet
 	MIX_ENV=test mix ecto.migrate --quiet
-	MIX_ENV=test mix coveralls.cobertura
+	@set -eu; \
+		coverage_dir=$$(mktemp -d cover/isolated.XXXXXXXX); \
+		trap 'rm -r "$$coverage_dir"' EXIT; \
+		ISOLATED_COVERAGE_DIR="$$coverage_dir" bash test_isolated/run.sh; \
+		MIX_ENV=test mix coveralls.cobertura --import-cover "$$coverage_dir"
 
 format:
 	mix format $(FORMAT_ARGS)
