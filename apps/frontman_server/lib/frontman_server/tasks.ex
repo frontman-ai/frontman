@@ -1228,7 +1228,7 @@ defmodule FrontmanServer.Tasks do
   defp row_to_messages(
          %InteractionSchema{
            turn_number: turn,
-           data: %Interaction.AgentError{kind: "cancelled"}
+           data: %Interaction.AgentError{}
          },
          history,
          _skills

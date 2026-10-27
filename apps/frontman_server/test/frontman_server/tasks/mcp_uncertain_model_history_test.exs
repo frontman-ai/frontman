@@ -21,7 +21,6 @@ defmodule FrontmanServer.Tasks.MCPUncertainModelHistoryTest do
 
     :ok = Tasks.start_mcp_attempt(scope, id, {turn, call.id}, 1)
     :ok = Tasks.request_mcp_cancellation(scope, id, {turn, call.id}, 1)
-    # Seed the nonterminal external outcome independently of lifecycle cancellation wiring.
     interaction_changeset(id, %{
       id: Ecto.UUID.generate(),
       type: :agent_error,
