@@ -2,6 +2,8 @@ defmodule FrontmanServerWeb.SupportQuestionControllerTest do
   use FrontmanServerWeb.ConnCase, async: false
   use Oban.Testing, repo: FrontmanServer.Repo
 
+  import Ecto.Query, only: [where: 2]
+
   alias Ecto.Adapters.SQL
   alias FrontmanServer.Repo
   alias FrontmanServer.Workers.SendAgentFeedbackToDiscord
@@ -132,6 +134,7 @@ defmodule FrontmanServerWeb.SupportQuestionControllerTest do
   end
 
   test "ten unfinished jobs occupy all slots regardless of state or age", %{conn: conn} do
+    Oban.insert!(SendAgentFeedbackToDiscord.new(%{"message" => "Unrelated feedback"}))
     fill_slots(conn)
     jobs = all_enqueued(worker: SendSupportQuestionToDiscord)
     assert Enum.sort(Enum.map(jobs, & &1.args["slot"])) == Enum.to_list(0..9)
@@ -149,8 +152,10 @@ defmodule FrontmanServerWeb.SupportQuestionControllerTest do
 
       response = conn |> recycle() |> submit(%{"question" => "Overflow"}) |> json_response(503)
       assert response == %{"status" => "unavailable", "submitted" => false}
-      assert Repo.aggregate(Oban.Job, :count) == 10
+      assert support_job_count() == 10
     end
+
+    assert_enqueued(worker: SendAgentFeedbackToDiscord, args: %{message: "Unrelated feedback"})
   end
 
   for state <- ~w(completed cancelled discarded) do
@@ -158,6 +163,7 @@ defmodule FrontmanServerWeb.SupportQuestionControllerTest do
     test "a #{@terminal_state} job releases its slot without replacing its question", %{
       conn: conn
     } do
+      Oban.insert!(SendAgentFeedbackToDiscord.new(%{"message" => "Unrelated feedback"}))
       fill_slots(conn)
       [job | _] = all_enqueued(worker: SendSupportQuestionToDiscord)
       job |> Ecto.Changeset.change(state: @terminal_state) |> Repo.update!()
@@ -175,10 +181,17 @@ defmodule FrontmanServerWeb.SupportQuestionControllerTest do
       )
 
       assert Repo.get!(Oban.Job, job.id).args == job.args
-      assert Repo.aggregate(Oban.Job, :count) == 11
+      assert support_job_count() == 11
       assert length(all_enqueued(worker: SendSupportQuestionToDiscord)) == 10
       assert conn |> recycle() |> submit(%{"question" => "Overflow"}) |> json_response(503)
+      assert_enqueued(worker: SendAgentFeedbackToDiscord, args: %{message: "Unrelated feedback"})
     end
+  end
+
+  defp support_job_count do
+    Oban.Job
+    |> where(worker: ^Oban.Worker.to_string(SendSupportQuestionToDiscord))
+    |> Repo.aggregate(:count)
   end
 
   defp fill_slots(conn) do
