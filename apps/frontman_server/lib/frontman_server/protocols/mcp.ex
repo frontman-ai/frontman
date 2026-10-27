@@ -46,6 +46,9 @@ defmodule FrontmanServer.Protocols.MCP do
 
   def protocol_version, do: @protocol_version
 
+  @doc "Encodes a request ID as an opaque key while retaining integer/string identity."
+  def request_attempt_key(id) when is_integer(id) or is_binary(id), do: Jason.encode!(id)
+
   def client_info do
     %{
       "name" => @client_name,
