@@ -87,8 +87,6 @@ defmodule FrontmanServer.Protocols.MCP.Schema do
   No optional input capabilities are advertised by this client, so nonempty
   inputRequests violate the negotiated contract. Opaque state is only type-checked.
   """
-  @spec resolve_call_tool_result(map(), map() | nil) ::
-          {:ok, :peer_final | :local_failure, map()} | :error
   def resolve_call_tool_result(result, output_schema \\ nil)
 
   def resolve_call_tool_result(%{"resultType" => "input_required"} = result, _schema) do
