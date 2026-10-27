@@ -795,6 +795,9 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :tool_name, :string
       field :arguments, :map
       field :execution_mode, Ecto.Enum, values: [:synchronous, :interactive]
+      field :attempt_id, :string
+      field :outcome, Ecto.Enum, values: [:in_flight, :outcome_unknown]
+      field :cancel_requested, :boolean, default: false
       field :timestamp, :utc_datetime_usec
     end
 
@@ -805,6 +808,9 @@ defmodule FrontmanServer.Tasks.Interaction do
         :tool_name,
         :arguments,
         :execution_mode,
+        :attempt_id,
+        :outcome,
+        :cancel_requested,
         :timestamp
       ])
       |> Ecto.Changeset.validate_required([:execution_mode])
