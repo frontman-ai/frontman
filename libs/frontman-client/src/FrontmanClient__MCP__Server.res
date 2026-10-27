@@ -118,10 +118,12 @@ let executeLocalTool = async (
   | Ok(input) =>
     Log.debug(~ctx={"tool": T.name}, "Calling execute")
     try {
+      WebAPI.AbortSignal.throwIfAborted(signal)
       let result = await T.execute(input, ~taskId, ~toolCallId, ~signal)
       Log.debug(~ctx={"tool": T.name}, "Execute returned")
       Completed(result)
     } catch {
+    | _ if signal.aborted => OutcomeUnknown
     | exn =>
       let message =
         exn
@@ -221,9 +223,10 @@ let executeTool = async (
       switch resolvedArgs {
       | Error(msg) => Completed(toolError(msg))
       | Ok(finalArgs) =>
-        let result = await server.relay->Relay.executeTool(~name, ~arguments=?finalArgs)
+        let result = await server.relay->Relay.executeTool(~name, ~arguments=?finalArgs, ~signal)
         switch result {
         | Ok(toolResult) => Completed(toolResult)
+        | Error(_) if signal.aborted => OutcomeUnknown
         | Error(msg) => Completed(toolError(msg))
         }
       }

@@ -11,10 +11,12 @@ module TestPhoenix = FrontmanBindings.Bindings__Test__Phoenix
 @val @scope("JSON")
 external stringifyLogContext: 'a => string = "stringify"
 
-let makeServer = async (~tools=[]) => {
-  let config = Relay.makeConfig(~baseUrl="http://relay.invalid", ~fetch=async (_, _) =>
-    WebAPI.Response.fromString(`{"tools":[],"serverInfo":{"name":"test","version":"1"},"protocolVersion":"2.0"}`)
-  )
+let makeServer = async (
+  ~tools=[],
+  ~fetch=async (_, _) =>
+    WebAPI.Response.fromString(`{"tools":[],"serverInfo":{"name":"test","version":"1"},"protocolVersion":"2.0"}`),
+) => {
+  let config = Relay.makeConfig(~baseUrl="http://relay.invalid", ~fetch)
   let relay =
     (await Relay.connect(config, ~signal=WebAPI.AbortController.make().signal))->Result.getOrThrow
   MCPServer.make(MCPServer.makeConfig(~tools), ~relay)
@@ -163,34 +165,62 @@ describe("MCP 2026-07-28", () => {
   testAsync(
     "cancels only the matching running request and preserves a late actual result",
     async t => {
-      let server = await makeServer()
-      let signals = ref([])
-      let resolve = ref(_ => ())
-      let deferred = Promise.make((complete, _) => resolve := complete)
-      let (handler, calls, _) = fixture({
-        ...MCPServer.toInterface(server),
-        executeTool: (_, _, ~signal) => {
-          signals := signals.contents->Array.concat([signal])
-          deferred
-        },
-      })
-      let pending = MCP.handleMessage(
-        handler,
-        request(~id=1, ~method="tools/call", ~params=toolParams),
-      )
-      let sibling = MCP.handleMessage(
-        handler,
-        requestWithId(~id=`"1"`, ~method="tools/call", ~params=toolParams),
-      )
-      await cancel(handler, `{"requestId":1}`)
-      await cancel(handler, `{"requestId":1}`)
-      t->expect((signals.contents->Array.get(0)->Option.getOrThrow).aborted)->Expect.toBe(true)
-      t->expect((signals.contents->Array.get(1)->Option.getOrThrow).aborted)->Expect.toBe(false)
-      resolve.contents(Types.Completed(Types.CallToolResult.makeText("actually completed")))
-      let _ = await Promise.all([pending, sibling])
-      t->expect(calls.contents->Array.length)->Expect.toBe(2)
-      await cancel(handler, `{"requestId":1}`)
-      t->expect(calls.contents->Array.length)->Expect.toBe(2)
+      for rejectAfterCancel in 0 to 1 {
+        let signals = ref([])
+        let resolve = ref(_ => ())
+        let reject = ref(_ => ())
+        let deferred = Promise.make(
+          (complete, fail) => {
+            resolve := complete
+            reject := fail
+          },
+        )
+        let server = await makeServer(
+          ~fetch=(url, init) =>
+            switch url->String.endsWith("/tools/call") {
+            | true =>
+              signals :=
+                signals.contents->Array.concat([init.signal->Option.getOrThrow->Null.getOrThrow])
+              deferred
+            | false =>
+              Promise.resolve(
+                WebAPI.Response.fromString(`{"tools":[{"name":"question","inputSchema":{"type":"object"},"_meta":{"ai.frontman/tool-metadata":{"access":"read","visibleToAgent":true}}}],"serverInfo":{"name":"test","version":"1"},"protocolVersion":"2.0"}`),
+              )
+            },
+        )
+        let (handler, calls, _) = fixture(MCPServer.toInterface(server))
+        let pending = MCP.handleMessage(
+          handler,
+          request(~id=1, ~method="tools/call", ~params=toolParams),
+        )
+        let sibling = MCP.handleMessage(
+          handler,
+          requestWithId(~id=`"1"`, ~method="tools/call", ~params=toolParams),
+        )
+        await cancel(handler, `{"requestId":1}`)
+        await cancel(handler, `{"requestId":1}`)
+        t->expect((signals.contents->Array.get(0)->Option.getOrThrow).aborted)->Expect.toBe(true)
+        t->expect((signals.contents->Array.get(1)->Option.getOrThrow).aborted)->Expect.toBe(false)
+        switch rejectAfterCancel {
+        | 0 =>
+          resolve.contents(
+            WebAPI.Response.fromString(`event: result\ndata: {"resultType":"complete","content":[{"type":"text","text":"actually completed"}]}\n\n`),
+          )
+        | _ => reject.contents(JsError.make("Fetch aborted after possible write"))
+        }
+        let _ = await Promise.all([pending, sibling])
+        let expectedResponses = rejectAfterCancel == 0 ? 2 : 1
+        t->expect(calls.contents->Array.length)->Expect.toBe(expectedResponses)
+        switch rejectAfterCancel {
+        | 0 => ()
+        | _ =>
+          t
+          ->expect(rpcResponse(calls)->JsonRpc.Response.id)
+          ->Expect.toEqual(Some(JSON.parseOrThrow(`"1"`)->S.parseOrThrow(~to=JsonRpc.Id.schema)))
+        }
+        await cancel(handler, `{"requestId":1}`)
+        t->expect(calls.contents->Array.length)->Expect.toBe(expectedResponses)
+      }
     },
   )
 
@@ -202,6 +232,7 @@ describe("MCP 2026-07-28", () => {
       let _ = await [
         (complete, None),
         (Types.Suspended, None),
+        (Types.OutcomeUnknown, None),
         (Types.ProtocolError({code: Types.ErrorCode.invalidParams, message: "Invalid tool"}), None),
         (complete, Some("detach")),
         (complete, Some("phx_error")),
@@ -246,14 +277,13 @@ describe("MCP 2026-07-28", () => {
           | None =>
             resolve.contents(outcome)
             await pending
-            t->expect(calls.contents->Array.length)->Expect.toBe(outcome == Types.Suspended ? 0 : 1)
+            let unresolved = outcome == Types.Suspended || outcome == Types.OutcomeUnknown
+            t->expect(calls.contents->Array.length)->Expect.toBe(unresolved ? 0 : 1)
             calls := []
             await listen(handler, "1")
             t
             ->expect(errorCode(calls))
-            ->Expect.toEqual(
-              outcome == Types.Suspended ? Some(Types.ErrorCode.invalidRequest) : None,
-            )
+            ->Expect.toEqual(unresolved ? Some(Types.ErrorCode.invalidRequest) : None)
           | Some(event) =>
             switch event {
             | "detach" => MCP.detach(handler)
@@ -522,6 +552,20 @@ describe("MCP 2026-07-28", () => {
     t->expect(signal.aborted)->Expect.toBe(false)
     await cancel(handler, `{"requestId":22}`)
     t->expect(signal.aborted)->Expect.toBe(false)
+    let controller = WebAPI.AbortController.make()
+    WebAPI.AbortController.abort(controller)
+    t
+    ->expect(
+      await MCPServer.executeLocalTool(
+        module(ThrowingTool),
+        ~arguments=None,
+        ~taskId="task-1",
+        ~toolCallId="cancelled-local",
+        ~signal=controller.signal,
+      ),
+    )
+    ->Expect.toEqual(Types.OutcomeUnknown)
+    t->expect(ThrowingTool.lastSignal.contents)->Expect.toEqual(Some(signal))
   })
 
   testAsync("preserves readable ids on invalid requests", async t => {
