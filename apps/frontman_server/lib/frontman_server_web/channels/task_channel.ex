@@ -479,25 +479,26 @@ defmodule FrontmanServerWeb.TaskChannel do
     %{output_schema: output_schema} =
       Enum.find(tools, %{output_schema: nil}, &(&1.name == tool_call.tool_name))
 
-    result =
+    {evidence, result} =
       case MCPSchema.resolve_call_tool_result(result, output_schema) do
-        {:ok, result} ->
-          normalize_tool_call_result(result)
+        {:ok, evidence, result} ->
+          normalize_tool_call_result(evidence, result)
 
         :error ->
           raise "Invalid MCP tools/call result for task #{socket.assigns.task_id}, tool #{tool_call.tool_name}, call #{tool_call.tool_call_id}"
       end
 
-    {:noreply, persist_tool_call_result(tool_call, result, socket, attempt)}
+    {:noreply, persist_tool_call_result(tool_call, result, socket, attempt, evidence)}
   end
 
-  defp normalize_tool_call_result(%{"content" => content} = result) do
+  defp normalize_tool_call_result(evidence, %{"content" => content} = result) do
     case Enum.find(content, &(not supported_tool_result_content?(&1))) do
       nil ->
-        result
+        {evidence, result}
 
       %{"type" => type} ->
-        MCP.tool_result_error("Unsupported MCP tool result content type: #{type}")
+        {:local_failure,
+         MCP.tool_result_error("Unsupported MCP tool result content type: #{type}")}
     end
   end
 
@@ -507,7 +508,13 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp supported_tool_result_content?(%{"type" => "resource_link"}), do: false
   defp supported_tool_result_content?(%{"type" => "resource"}), do: false
 
-  defp persist_tool_call_result(tool_call, result, socket, {turn_number, request_id}) do
+  defp persist_tool_call_result(
+         tool_call,
+         result,
+         socket,
+         {turn_number, request_id},
+         evidence \\ :local_failure
+       ) do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
 
@@ -517,7 +524,8 @@ defmodule FrontmanServerWeb.TaskChannel do
            %{id: tool_call.tool_call_id, name: tool_call.tool_name},
            result,
            turn_number: turn_number,
-           attempt_id: request_id
+           attempt_id: request_id,
+           evidence: evidence
          ) do
       {:ok, _interaction, :reconciled} ->
         socket
@@ -539,6 +547,9 @@ defmodule FrontmanServerWeb.TaskChannel do
         Logger.info("Tool #{interaction.tool_name} #{status}")
 
         resume_after_tool_result(executor_status, socket, scope, task_id)
+
+      {:error, :outcome_unknown} ->
+        socket
 
       {:error, reason} ->
         raise "Failed to store MCP tools/call result for task #{task_id}, tool #{tool_call.tool_name}, call #{tool_call.tool_call_id}: #{inspect(reason)}"
