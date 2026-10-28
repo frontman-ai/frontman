@@ -404,6 +404,7 @@ defmodule FrontmanServer.Tasks do
 
     Sentry.capture_message("Agent execution failed",
       level: :error,
+      fingerprint: ["agent_execution_error", category],
       tags: %{error_type: "agent_execution_error", category: category},
       extra: %{task_id: task_id, reason: reason_str, retryable: retryable}
     )
