@@ -437,7 +437,6 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
   | (_, SessionCommand(_)) => (state, [LogError("Cannot send session command: no active session")])
 
-  // Keep the original request and its completion owner while activation is pending.
   | (
       Ok(Some({phase: Ready({session: SessionCreating({sessionId: Some(sessionId)})})})),
       LoadTask(request),
