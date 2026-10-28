@@ -683,7 +683,7 @@ let addUserMessageToState = (
       TaskReducer.AddUserMessage({id, content, annotations, agentId}),
     )
   let (state, runningEffects) = switch handoff {
-  | true => state->Lens.delegateToTask(ForTask(taskId), TaskReducer.ExecutionStateRunning)
+  | true => state->Lens.delegateToTask(ForTask(taskId), TaskReducer.ExecutionStateRunning([]))
   | false => (state, [])
   }
   state->StateReducer.update(
@@ -2156,10 +2156,7 @@ let rec next = (state: state, action) => {
       failwith("Frontman UI requires negotiated agent attribution")
     | AgentMessageChunk(_) | Unknown(_) => state->StateReducer.update
     | MessageUnqueued({messageId}) =>
-      state->Lens.delegateToTask(
-        ForTask(taskId),
-        TaskReducer.MessageUnqueued({messageId: messageId}),
-      )
+      flush([task(TaskReducer.MessageUnqueued({messageId: messageId}))])
     | ToolCall({
         toolCallId,
         title,
@@ -2215,9 +2212,17 @@ let rec next = (state: state, action) => {
       }
       flush([input, result, error]->Array.filterMap(value => value))
     | Plan({entries}) => flush([task(PlanReceived({entries: entries}))])
+    | SessionInfoUpdate({_meta}) =>
+      let ids = _meta->Option.flatMap(meta => meta->Dict.get("frontman.dev/turnMessageIds"))
+      switch ids {
+      | Some(ids) =>
+        let ids = ids->S.parseOrThrow(~to=S.array(S.string->S.min(1)))
+        flush([task(TaskReducer.ExecutionStateRunning(ids))])
+      | None => flush([])
+      }
     | StateUpdate({state: executionState}) =>
       let action = switch executionState {
-      | Running => TaskReducer.ExecutionStateRunning
+      | Running => TaskReducer.ExecutionStateRunning([])
       | Idle => TaskReducer.ExecutionStateIdle
       | RequiresAction => TaskReducer.ExecutionStateRequiresAction
       }

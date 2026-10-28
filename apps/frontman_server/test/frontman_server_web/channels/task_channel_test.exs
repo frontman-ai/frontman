@@ -20,6 +20,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   import ExUnit.CaptureLog
 
   alias FrontmanServer.InteractionCase.Helpers
+  alias FrontmanServer.ProtocolSchema
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.LLMProviderMock
   alias FrontmanServer.Test.Fixtures.LLMProvider
@@ -189,6 +190,20 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   defp assert_state_update_running(task_id) do
     receive do
+      %Phoenix.Socket.Message{
+        event: "acp:message",
+        payload: %{
+          "params" => %{
+            "sessionId" => ^task_id,
+            "update" => %{
+              "sessionUpdate" => "session_info_update",
+              "_meta" => %{"frontman.dev/turnMessageIds" => _ids}
+            }
+          }
+        }
+      } ->
+        :ok
+
       %Phoenix.Socket.Message{
         event: "acp:message",
         payload: %{
@@ -411,7 +426,25 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert_reply(ref, :ok, %{"acp:message" => response})
       assert response["result"] == %{}
 
-      assert_state_update_running(task_id)
+      assert_push(
+        "acp:message",
+        %{
+          "params" => %{
+            "sessionId" => ^task_id,
+            "update" => %{
+              "sessionUpdate" => "session_info_update",
+              "_meta" => %{"frontman.dev/turnMessageIds" => [^message_id]}
+            }
+          }
+        } = turn_started
+      )
+
+      assert ProtocolSchema.upstream_acp_definition_valid?(
+               turn_started["params"]["update"],
+               "SessionUpdate"
+             )
+
+      ProtocolSchema.validate_upstream_acp!(turn_started)
 
       assert_push("acp:message", %{
         "params" => %{
@@ -1660,7 +1693,18 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     test "pushes history before a standard load result", %{scope: scope} do
       task = task_fixture(scope)
-      {:ok, _message} = user_message_fixture(scope, task.id, user_content("history"))
+      {:ok, message} = user_message_fixture(scope, task.id, user_content("history"))
+      claimed_id = message.id
+      queued_id = Ecto.UUID.generate()
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, %{
+          task_id: task.id,
+          message_id: queued_id,
+          message: user_content("queued follow-up"),
+          model: @persisted_restart_model,
+          agent_id: "test-frontman"
+        })
 
       {:ok, _reply, socket} =
         UserSocket
@@ -1685,8 +1729,29 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert [
                %{
                  "method" => "session/update",
-                 "params" => %{"update" => %{"sessionUpdate" => "user_message_chunk"}}
+                 "params" => %{
+                   "update" => %{
+                     "sessionUpdate" => "user_message_chunk",
+                     "messageId" => ^claimed_id
+                   }
+                 }
                },
+               %{
+                 "params" => %{
+                   "update" => %{
+                     "sessionUpdate" => "user_message_chunk",
+                     "messageId" => ^queued_id
+                   }
+                 }
+               },
+               %{
+                 "params" => %{
+                   "update" => %{
+                     "sessionUpdate" => "session_info_update",
+                     "_meta" => %{"frontman.dev/turnMessageIds" => [^claimed_id]}
+                   }
+                 }
+               } = turn_started,
                %{
                  "id" => 90,
                  "result" => %{"configOptions" => _config_options}
@@ -1696,6 +1761,18 @@ defmodule FrontmanServerWeb.TaskChannelTest do
                  "params" => %{"update" => %{"sessionUpdate" => "plan", "entries" => []}}
                }
              ] = messages
+
+      assert ProtocolSchema.upstream_acp_definition_valid?(
+               turn_started["params"]["update"],
+               "SessionUpdate"
+             )
+
+      ProtocolSchema.validate_upstream_acp!(turn_started)
+
+      refute Enum.any?(
+               messages,
+               &Map.has_key?(get_in(&1, ["params", "update"]) || %{}, "pending")
+             )
     end
 
     test "restores current todo plan after the load result", %{scope: scope} do

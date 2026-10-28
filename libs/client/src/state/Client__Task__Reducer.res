@@ -67,38 +67,29 @@ module Lens = {
     updateMessages(task, store => MessageStore.insert(store, message))
   }
 
-  let drainQueuedUserMessages = (task: Task.t): Task.t =>
-    switch task {
-    | Task.Loaded({queuedUserMessages: []}) => task
-    | Task.Loaded(data) =>
-      let messageAgentId = message =>
-        switch message {
-        | Message.User({agentId, _}) => agentId
-        | _ => failwith("[Lens.drainQueuedUserMessages] Queue contains non-user message")
+  let assignMessagesToTurn = (task: Task.t, ~messageIds): Task.t =>
+    Task.updateLoadedData(task, data => {
+      let claimed = messageIds->Set.fromArray->Set.toArray->Array.filterMap(id =>
+        switch data.queuedUserMessages->Array.find(message => Message.getId(message) == id) {
+        | Some(message) => Some(message)
+        | None =>
+          switch (Task.isLoading(task), data.messages->Array.some(message => Message.getId(message) == id)) {
+          | (true, _) | (false, true) => None
+          | (false, false) => failwith(`[TaskReducer] Server claimed unknown message ${id}`)
+          }
         }
-      let firstAgentId = data.queuedUserMessages->Array.getUnsafe(0)->messageAgentId
-      let prefixLength = switch data.queuedUserMessages->Array.findIndex(message =>
-        data.pendingUserMessageIds->Array.includes(Message.getId(message)) ||
-          message->messageAgentId != firstAgentId
-      ) {
-      | -1 => data.queuedUserMessages->Array.length
-      | index => index
-      }
-      Task.Loaded({
+      )
+      {
         ...data,
-        messages: MessageStore.fromArray(
-          Array.concat(
-            MessageStore.toArray(data.messages),
-            data.queuedUserMessages->Array.slice(~start=0, ~end=prefixLength),
-          ),
+        messages: Array.concat(data.messages, claimed),
+        queuedUserMessages: data.queuedUserMessages->Array.filter(message =>
+          !(messageIds->Array.includes(Message.getId(message)))
         ),
-        queuedUserMessages: data.queuedUserMessages->Array.slice(
-          ~start=prefixLength,
-          ~end=data.queuedUserMessages->Array.length,
+        pendingUserMessageIds: data.pendingUserMessageIds->Array.filter(id =>
+          !(messageIds->Array.includes(id))
         ),
-      })
-    | _ => task
-    }
+      }
+    })
 
   let getStreamingMessage = (task: Task.t): option<Message.assistantMessage> => {
     let messages = Task.getMessages(task)
@@ -367,7 +358,7 @@ type action =
   | SetOrientation({orientation: Client__DeviceMode.orientation})
   | ToggleDeviceMode
   | PlanReceived({entries: array<ACPTypes.planEntry>})
-  | ExecutionStateRunning
+  | ExecutionStateRunning(array<string>)
   | ExecutionStateIdle
   | ExecutionStateRequiresAction
   | CancelTurn
@@ -442,7 +433,7 @@ let actionToString = (action: action): string =>
   | SetOrientation(_) => "SetOrientation"
   | ToggleDeviceMode => "ToggleDeviceMode"
   | PlanReceived(_) => "PlanReceived"
-  | ExecutionStateRunning => "ExecutionStateRunning"
+  | ExecutionStateRunning(_) => "ExecutionStateRunning"
   | ExecutionStateIdle => "ExecutionStateIdle"
   | ExecutionStateRequiresAction => "ExecutionStateRequiresAction"
   | CancelTurn => "CancelTurn"
@@ -873,57 +864,53 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
-  | (Task.Loading(_), UserMessageReceived({id, content, annotations, agentId})) =>
-    switch Task.getMessages(task)->Array.find(message => Message.getId(message) == id) {
-    | Some(message) =>
-      let updated = mergeUserMessage(message, ~id, ~content, ~annotations, ~agentId)
-      (Lens.updateMessage(task, id, _ => updated), [])
-    | None =>
-      let userMessage = Message.User({id, content, annotations, agentId})
-      (task->Lens.completeStreamingMessage->Lens.insertMessage(userMessage), [])
-    }
-
-  | (Task.Loaded(data), UserMessageReceived({id, content, annotations, agentId})) =>
-    let wasPending = data.pendingUserMessageIds->Array.includes(id)
-    let pendingUserMessageIds =
-      data.pendingUserMessageIds->Array.filter(pendingId => pendingId != id)
-    switch data.queuedUserMessages->Array.findIndex(message => Message.getId(message) == id) {
-    | index if index >= 0 =>
-      let queuedUserMessages = data.queuedUserMessages->Array.copy
-      let existing = queuedUserMessages->Array.getUnsafe(index)
-      let updated = switch wasPending {
-      | true =>
-        switch existing {
-        | Message.User({agentId: existingAgentId, _}) =>
-          requireSameAgent(
-            ~existingAgentId,
-            ~agentId,
-            ~message=`[TaskReducer] Agent changed within message ${id}`,
-          )
-          Message.User({id, content, annotations, agentId})
-        | _ => failwith(`[TaskReducer] Message ${id} changed roles`)
+  | (Task.Loading(_) | Task.Loaded(_), UserMessageReceived({id, content, annotations, agentId})) => (
+      Task.updateLoadedData(task, data => {
+        let wasPending = data.pendingUserMessageIds->Array.includes(id)
+        let data = {
+          ...data,
+          pendingUserMessageIds:
+            data.pendingUserMessageIds->Array.filter(pendingId => pendingId != id),
         }
-      | false => mergeUserMessage(existing, ~id, ~content, ~annotations, ~agentId)
-      }
-      queuedUserMessages->Array.setUnsafe(index, updated)
-      (Task.Loaded({...data, queuedUserMessages, pendingUserMessageIds}), [])
-    | _ =>
-      switch Task.getMessages(task)->Array.find(message => Message.getId(message) == id) {
-      | Some(message) =>
-        let updated = mergeUserMessage(message, ~id, ~content, ~annotations, ~agentId)
-        (Lens.updateMessage(Task.Loaded({...data, pendingUserMessageIds}), id, _ => updated), [])
-      | None =>
-        let userMessage = Message.User({id, content, annotations, agentId})
-        (
-          Task.Loaded({
-            ...data,
-            queuedUserMessages: Array.concat(data.queuedUserMessages, [userMessage]),
-            pendingUserMessageIds,
-          }),
-          [],
-        )
-      }
-    }
+        switch data.queuedUserMessages->Array.findIndex(message => Message.getId(message) == id) {
+        | index if index >= 0 =>
+          let queuedUserMessages = data.queuedUserMessages->Array.copy
+          let existing = queuedUserMessages->Array.getUnsafe(index)
+          let updated = switch (wasPending, existing) {
+          | (true, Message.User({agentId: existingAgentId})) =>
+            requireSameAgent(
+              ~existingAgentId,
+              ~agentId,
+              ~message=`[TaskReducer] Agent changed within message ${id}`,
+            )
+            Message.User({id, content, annotations, agentId})
+          | (true, _) => failwith(`[TaskReducer] Message ${id} changed roles`)
+          | (false, _) => mergeUserMessage(existing, ~id, ~content, ~annotations, ~agentId)
+          }
+          queuedUserMessages->Array.setUnsafe(index, updated)
+          {...data, queuedUserMessages}
+        | _ =>
+          switch data.messages->Array.find(message => Message.getId(message) == id) {
+          | Some(message) =>
+            let updated = mergeUserMessage(message, ~id, ~content, ~annotations, ~agentId)
+            {
+              ...data,
+              messages: data.messages->Array.map(message =>
+                Message.getId(message) == id ? updated : message
+              ),
+            }
+          | None => {
+              ...data,
+              queuedUserMessages: Array.concat(
+                data.queuedUserMessages,
+                [Message.User({id, content, annotations, agentId})],
+              ),
+            }
+          }
+        }
+      }),
+      [],
+    )
 
   | (Task.Loaded(data), AddUserMessage({id, content, annotations, agentId})) =>
     let attachments = extractAttachmentsFromUserContent(content)
@@ -983,20 +970,20 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }
     }
 
-  | (Task.Loaded(data), PlanReceived({entries})) => (
-      Task.Loaded({...data, planEntries: entries}),
+  | (Task.Loaded(_) | Task.Loading(_), PlanReceived({entries})) => (
+      Task.updateLoadedData(task, data => {...data, planEntries: entries}),
       [],
     )
 
-  | (Task.Loaded(data), ExecutionStateRunning) =>
+  | (Task.Loaded(data), ExecutionStateRunning(messageIds)) =>
     let task = Task.Loaded({
       ...data,
       isAgentRunning: true,
       lastTurnCancelled: false,
       turnError: None,
       retryStatus: None,
-    })
-    (Lens.drainQueuedUserMessages(task), [])
+    })->Lens.assignMessagesToTurn(~messageIds)
+    (task, [])
 
   | (Task.Loaded(_data), ExecutionStateIdle) =>
     let completed = task->Lens.completeStreamingMessage
@@ -1018,8 +1005,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
-  | (Task.Loading(data), ExecutionStateRunning) => (
-      Task.Loading({...data, isAgentRunning: true}),
+  | (Task.Loading(data), ExecutionStateRunning(messageIds)) => (
+      Task.Loading({...data, isAgentRunning: true})->Lens.assignMessagesToTurn(~messageIds),
       [],
     )
 
@@ -1067,7 +1054,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }
     }
 
-  | (Task.Loading(_), AgentError({id, error, category})) =>
+  | (Task.Loading(data), AgentError({id, error, category})) =>
+    let task = Task.Loading({...data, isAgentRunning: false})
     let errorMsg = Message.Error(Message.ErrorMessage.make(~id?, ~error, ~category))
     (task->Lens.completeStreamingMessage->Lens.insertMessage(errorMsg), [])
 
@@ -1111,20 +1099,16 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     | true => (task, [SessionCommand(ACP.UnqueueMessage(messageId))])
     }
 
-  | (Task.Loaded(data), MessageUnqueued({messageId})) =>
-    switch data.queuedUserMessages->Array.some(message => Message.getId(message) == messageId) {
-    | false => (task, [])
-    | true => (
-        Task.Loaded({
-          ...data,
-          queuedUserMessages: data.queuedUserMessages->Array.filter(message =>
-            Message.getId(message) != messageId
-          ),
-          pendingUserMessageIds: data.pendingUserMessageIds->Array.filter(id => id != messageId),
-        }),
-        [],
-      )
-    }
+  | (Task.Loaded(_) | Task.Loading(_), MessageUnqueued({messageId})) => (
+      Task.updateLoadedData(task, data => {
+        ...data,
+        queuedUserMessages: data.queuedUserMessages->Array.filter(message =>
+          Message.getId(message) != messageId
+        ),
+        pendingUserMessageIds: data.pendingUserMessageIds->Array.filter(id => id != messageId),
+      }),
+      [],
+    )
 
   | (Task.Loaded(data), RetryTurn({retriedErrorId})) => (
       Task.Loaded({...data, turnError: None, isAgentRunning: true, lastTurnCancelled: false}),
@@ -1150,6 +1134,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         annotations: [],
         activePopupAnnotationId: None,
         isAgentRunning: false,
+        queuedUserMessages: [],
+        planEntries: [],
       }),
       [],
     )
@@ -1167,6 +1153,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         annotations,
         activePopupAnnotationId,
         isAgentRunning,
+        queuedUserMessages,
+        planEntries,
       }) => (
         Task.Loaded({
           id,
@@ -1181,8 +1169,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           activePopupAnnotationId,
           isAgentRunning,
           lastTurnCancelled: false,
-          planEntries: [],
-          queuedUserMessages: [],
+          planEntries,
+          queuedUserMessages,
           pendingUserMessageIds: [],
           turnError: None,
           retryStatus: None,
@@ -1331,7 +1319,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       AddUserMessage(_)
       | UserMessageSendFailed(_)
       | PlanReceived(_)
-      | ExecutionStateRunning
+      | ExecutionStateRunning(_)
       | ExecutionStateIdle
       | ExecutionStateRequiresAction
       | CancelTurn

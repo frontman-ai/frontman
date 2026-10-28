@@ -294,7 +294,10 @@ defmodule FrontmanServer.Protocols.ACP do
   Used when a user message is persisted as accepted session history. `message_id` is the
   client-generated UUID accepted as the interaction row ID.
   """
-  def build_user_message_chunk_notification(session_id, message_id, content, agent_id, timestamp)
+  def build_user_message_chunk_notification(
+        session_id,
+        %{id: message_id, content: content, agent_id: agent_id, timestamp: timestamp}
+      )
       when is_binary(agent_id) and agent_id != "" do
     session_update_notification(session_id, %{
       "sessionUpdate" => "user_message_chunk",
@@ -339,6 +342,14 @@ defmodule FrontmanServer.Protocols.ACP do
       end
 
     session_update_notification(session_id, update)
+  end
+
+  @doc "Builds a turn membership session/update notification."
+  def build_turn_started_notification(session_id, ids) when is_list(ids) do
+    session_update_notification(session_id, %{
+      "sessionUpdate" => "session_info_update",
+      "_meta" => %{"frontman.dev/turnMessageIds" => ids}
+    })
   end
 
   @doc """

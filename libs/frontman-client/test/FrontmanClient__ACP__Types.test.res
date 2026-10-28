@@ -301,8 +301,20 @@ describe("sessionUpdate schema parsing", () => {
     }
   })
 
-  test("state_update variants", t => {
+  test("state and session info update variants", t => {
     [
+      (
+        JSON.parseOrThrow(`{"sessionUpdate":"session_info_update","title":null,"updatedAt":null}`),
+        Types.SessionInfoUpdate({_meta: None}),
+      ),
+      (
+        JSON.parseOrThrow(`{"sessionUpdate":"session_info_update","_meta":{"frontman.dev/turnMessageIds":["user-1","user-1"]}}`),
+        Types.SessionInfoUpdate({
+          _meta: Some(Dict.fromArray([
+            ("frontman.dev/turnMessageIds", JSON.parseOrThrow(`["user-1","user-1"]`)),
+          ])),
+        }),
+      ),
       (
         Fixtures.makeStateUpdate(~state="running"),
         Types.StateUpdate({state: Types.Running, stopReason: None}),

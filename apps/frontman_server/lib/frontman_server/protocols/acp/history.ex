@@ -14,10 +14,7 @@ defmodule FrontmanServer.Protocols.ACP.History do
   alias FrontmanServer.Tasks.InteractionSchema
 
   @ignored_types [
-    :turn_started,
     :skill_used,
-    :agent_completed,
-    :agent_retry,
     :discovered_project_rule,
     :discovered_project_structure
   ]
@@ -37,8 +34,14 @@ defmodule FrontmanServer.Protocols.ACP.History do
           into: MapSet.new(),
           do: {turn_number, id}
 
+    {user_rows, other_rows} =
+      Enum.split_with(rows, &match?(%{row: %{data: %Interaction.UserMessage{}}}, &1))
+
     notifications =
-      Enum.flat_map(rows, &encode_row(&1, session_id, standalone_tool_call_ids))
+      Enum.flat_map(
+        user_rows ++ other_rows,
+        &encode_row(&1, session_id, standalone_tool_call_ids)
+      )
 
     {:ok, %{notifications: notifications}}
   end
@@ -104,6 +107,22 @@ defmodule FrontmanServer.Protocols.ACP.History do
   end
 
   defp encode_row(
+         %{row: %InteractionSchema{data: %Interaction.TurnStarted{} = turn}},
+         session_id,
+         _standalone_tool_call_ids
+       ) do
+    [ACP.build_turn_started_notification(session_id, turn.user_message_ids)]
+  end
+
+  defp encode_row(
+         %{row: %InteractionSchema{data: %Interaction.AgentRetry{}}},
+         session_id,
+         _standalone_tool_call_ids
+       ) do
+    [ACP.build_state_update_notification(session_id, "running")]
+  end
+
+  defp encode_row(
          %{row: %InteractionSchema{data: data, type: type} = row} = context,
          session_id,
          _standalone_tool_call_ids
@@ -115,10 +134,12 @@ defmodule FrontmanServer.Protocols.ACP.History do
         |> Enum.map(fn content ->
           ACP.build_user_message_chunk_notification(
             session_id,
-            row.id,
-            content,
-            context.agent_id,
-            message.timestamp
+            %{
+              id: row.id,
+              content: content,
+              agent_id: context.agent_id,
+              timestamp: message.timestamp
+            }
           )
         end)
 
@@ -157,6 +178,9 @@ defmodule FrontmanServer.Protocols.ACP.History do
 
       %Interaction.AgentPaused{} ->
         [ACP.build_state_update_notification(session_id, "requires_action")]
+
+      %Interaction.AgentCompleted{} ->
+        [ACP.build_state_update_notification(session_id, "idle")]
 
       _ignored when type in @ignored_types ->
         []

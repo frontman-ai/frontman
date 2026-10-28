@@ -62,10 +62,12 @@ defmodule FrontmanServer.Protocols.ACP.ContentTest do
       |> Enum.each(fn {content, index} ->
         ACP.build_user_message_chunk_notification(
           "session-1",
-          "resource-#{index}",
-          content,
-          "executor-id",
-          @timestamp
+          %{
+            id: "resource-#{index}",
+            content: content,
+            agent_id: "executor-id",
+            timestamp: @timestamp
+          }
         )
         |> ProtocolSchema.validate_upstream_acp!()
       end)

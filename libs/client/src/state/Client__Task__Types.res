@@ -55,6 +55,8 @@ module Task = {
         annotations: array<Annotation.t>,
         activePopupAnnotationId: option<string>,
         isAgentRunning: bool,
+        queuedUserMessages: array<Message.t>,
+        planEntries: array<ACPTypes.planEntry>,
       })
     | Loaded({
         id: string,
@@ -372,6 +374,8 @@ module Task = {
         annotations,
         activePopupAnnotationId,
         isAgentRunning,
+        queuedUserMessages,
+        planEntries,
       }) => {
         let data = {
           messages: Client__MessageStore.toArray(messages),
@@ -380,8 +384,8 @@ module Task = {
           activePopupAnnotationId,
           isAgentRunning,
           lastTurnCancelled: false,
-          planEntries: [],
-          queuedUserMessages: [],
+          planEntries,
+          queuedUserMessages,
           pendingUserMessageIds: [],
           turnError: None,
           pendingQuestion: None,
@@ -398,6 +402,8 @@ module Task = {
           annotations: updated.annotations,
           activePopupAnnotationId: updated.activePopupAnnotationId,
           isAgentRunning: updated.isAgentRunning,
+          queuedUserMessages: updated.queuedUserMessages,
+          planEntries: updated.planEntries,
         })
       }
     | New({clientId, previewFrame, annotationMode, annotations, activePopupAnnotationId}) => {

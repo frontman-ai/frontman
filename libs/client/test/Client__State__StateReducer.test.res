@@ -734,7 +734,10 @@ describe("Client State Reducer", () => {
 
     let (state, _) = Reducer.next(
       state,
-      TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}),
+      TaskAction({
+        target: ForTask(taskId),
+        action: ExecutionStateRunning([testUserMessageId->UserMessageId.toString]),
+      }),
     )
     let (state, _) = Reducer.next(
       state,

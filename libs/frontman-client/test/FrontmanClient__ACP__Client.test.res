@@ -742,8 +742,12 @@ describe("ACP session channel lifetime", () => {
 describe("ACP session/load ordering", () => {
   testAsync("validates replay with connection configuration before delivery", async t => {
     let events = ref([])
-    let connection =
-      loadConnection([userUpdate("user-1"), userUpdate("user-2")], loadResult)->negotiateV1
+    let membership = JSON.parseOrThrow(
+      `{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"task-1","update":{"sessionUpdate":"session_info_update","_meta":{"frontman.dev/turnMessageIds":["user-1","user-2"]}}}}`,
+    )
+    let (connection, transport) =
+      loadConnectionWithTransport([userUpdate("user-1"), userUpdate("user-2"), membership], loadResult)
+    let connection = connection->negotiateV1
 
     let result = await loadSession(
       connection,
@@ -752,12 +756,19 @@ describe("ACP session/load ordering", () => {
         switch update {
         | UserMessageChunk({messageId}) =>
           events := events.contents->Array.concat([`update:${messageId}`])
+        | SessionInfoUpdate({_meta}) =>
+          t
+          ->expect(_meta->Option.getOrThrow->Dict.get("frontman.dev/turnMessageIds"))
+          ->Expect.toEqual(Some(JSON.parseOrThrow(`["user-1","user-2"]`)))
+          events := events.contents->Array.concat(["turn"])
         | _ => ()
         },
     )
 
     t->expect(result->Result.isOk)->Expect.toBe(true)
-    t->expect(events.contents)->Expect.toEqual(["load", "update:user-1", "update:user-2"])
+    t->expect(events.contents)->Expect.toEqual(["load", "update:user-1", "update:user-2", "turn"])
+    transport.emit(membership)
+    t->expect(events.contents)->Expect.toEqual(["load", "update:user-1", "update:user-2", "turn", "turn"])
   })
 
   testAsync("generic load without extension metadata still releases replay", async t => {
