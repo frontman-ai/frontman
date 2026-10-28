@@ -98,7 +98,7 @@ let replay = actions => {
 }
 
 describe("ACP message identity", () => {
-  test("load results reject stale requests, flush history, and preserve cached tasks", t => {
+  test("same-task loads coalesce, flush history, and preserve cached tasks", t => {
     module App = Client__State__StateReducer
     module Store = StateStore
     module Connection = Client__ConnectionReducer
@@ -137,8 +137,7 @@ describe("ACP message identity", () => {
     switchTask()
     switchTask()
     t->expect(store->Store.getState->getTask->Task.isLoading)->Expect.toBe(true)
-    finish(0)
-    t->expect(store->Store.getState->getTask->Task.isLoading)->Expect.toBe(true)
+    t->expect(requests->Array.length)->Expect.toBe(1)
     let dispatch = action => store->Store.dispatch(action)
     App.getSessionTextBuffer(dispatch).add(
       ~taskId="task-1",
@@ -146,7 +145,7 @@ describe("ACP message identity", () => {
       ~text="History",
       ~agentId="executor-id",
     )
-    finish(1)
+    finish(0)
     let loaded = store->Store.getState->getTask
     t->expect(Task.isLoaded(loaded))->Expect.toBe(true)
     t->expect(summary(loaded))->Expect.toEqual([("assistant-1", "History")])
@@ -155,11 +154,11 @@ describe("ACP message identity", () => {
     | _ => failwith("History must flush before LoadComplete")
     }
     switchTask()
-    t->expect(requests->Array.length)->Expect.toBe(2)
+    t->expect(requests->Array.length)->Expect.toBe(1)
     store->Store.dispatch(ClearCurrentTask)
     switchTask()
-    finish(2)
-    t->expect(operations)->Expect.toEqual([#load("task-1"), #load("task-1"), #join("task-1")])
+    finish(1)
+    t->expect(operations)->Expect.toEqual([#load("task-1"), #join("task-1")])
     t->expect(store->Store.getState->getTask)->Expect.toBe(loaded)
     Buffer.reset()
   })
