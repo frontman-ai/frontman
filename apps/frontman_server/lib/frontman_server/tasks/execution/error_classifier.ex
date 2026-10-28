@@ -9,7 +9,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
   Classifies an error reason into `{message, category, retryable}`.
 
   `category` is one of: "auth", "billing", "quota", "rate_limit", "overload",
-  "payload_too_large", "output_truncated", "unknown".
+  "payload_too_large", "output_truncated", "provider_bad_request", "model_unavailable", "unknown".
   """
   def classify_error(%ReqLLM.Error.API.Stream{cause: %ReqLLM.Error.API.Request{} = cause}) do
     classify_reqllm_request(cause)
@@ -31,7 +31,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
   def classify_error(:unknown_model),
     do:
       {"This model is unavailable for your connection. Select another model and send a new message.",
-       "unknown", false}
+       "model_unavailable", false}
 
   def classify_error(:registration_timeout),
     do: {"Agent failed to start. Please try again.", "unknown", false}
@@ -123,7 +123,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
   end
 
   defp classify_reqllm_request(400, _reason) do
-    {"Bad request — the provider rejected the request.", "unknown", false}
+    {"Bad request — the provider rejected the request.", "provider_bad_request", false}
   end
 
   defp classify_reqllm_request(402, _reason) do

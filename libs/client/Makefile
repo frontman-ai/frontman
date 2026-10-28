@@ -30,7 +30,7 @@ install:
 	npm install
 
 test: build
-	yarn vitest run
+	yarn vitest run $(TEST_FILTER)
 
 test-screenshots: build
 	$(MAKE) build-lib
