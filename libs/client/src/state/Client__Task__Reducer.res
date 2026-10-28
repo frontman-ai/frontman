@@ -69,15 +69,15 @@ module Lens = {
     updateMessages(task, store => MessageStore.insert(store, message))
   }
 
-  let claimUserMessages = (task: Task.t, messageIds): Task.t =>
+  let assignMessagesToTurn = (task: Task.t, ~messageIds): Task.t =>
     Task.updateLoadedData(task, data => {
-      let claimed = messageIds->Array.filterMap(id =>
+      let claimed = messageIds->Set.fromArray->Set.toArray->Array.filterMap(id =>
         switch data.queuedUserMessages->Array.find(message => Message.getId(message) == id) {
         | Some(message) => Some(message)
         | None =>
-          switch data.messages->Array.some(message => Message.getId(message) == id) {
-          | true => None
-          | false => failwith(`[TaskReducer] Server claimed unknown message ${id}`)
+          switch (Task.isLoading(task), data.messages->Array.some(message => Message.getId(message) == id)) {
+          | (true, _) | (false, true) => None
+          | (false, false) => failwith(`[TaskReducer] Server claimed unknown message ${id}`)
           }
         }
       )
@@ -349,10 +349,9 @@ type action =
   | SetOrientation({orientation: Client__DeviceMode.orientation})
   | ToggleDeviceMode
   | PlanReceived({entries: array<ACPTypes.planEntry>})
-  | ExecutionStateRunning
+  | ExecutionStateRunning(array<string>)
   | ExecutionStateIdle
   | ExecutionStateRequiresAction
-  | UserMessagesClaimed({messageIds: array<string>})
   | CancelTurn
   | AgentError({id: option<string>, error: string, category: Client__ErrorCategory.t})
   | UserMessageSendFailed({id: Message.UserMessageId.t, error: string})
@@ -369,7 +368,6 @@ type action =
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
-      pending: bool,
     })
   | QuestionReceived({
       questions: array<Client__Question__Types.questionItem>,
@@ -427,10 +425,9 @@ let actionToString = (action: action): string =>
   | SetOrientation(_) => "SetOrientation"
   | ToggleDeviceMode => "ToggleDeviceMode"
   | PlanReceived(_) => "PlanReceived"
-  | ExecutionStateRunning => "ExecutionStateRunning"
+  | ExecutionStateRunning(_) => "ExecutionStateRunning"
   | ExecutionStateIdle => "ExecutionStateIdle"
   | ExecutionStateRequiresAction => "ExecutionStateRequiresAction"
-  | UserMessagesClaimed(_) => "UserMessagesClaimed"
   | CancelTurn => "CancelTurn"
   | AgentError(_) => "AgentError"
   | UserMessageSendFailed(_) => "UserMessageSendFailed"
@@ -604,14 +601,14 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     | false => (updated->Lens.setAnnotations([])->Lens.setActivePopupAnnotationId(None), [])
     }
 
-  | (Task.Unloaded(_), SetDeviceMode(_) | SetOrientation(_) | ToggleDeviceMode) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetDeviceMode({deviceMode})) =>
+  | (Task.Unloaded({retained: None}), SetDeviceMode(_) | SetOrientation(_) | ToggleDeviceMode) => (task, [])
+  | (_, SetDeviceMode({deviceMode})) =>
     let updated = Lens.setDeviceMode(task, deviceMode)
     (updated, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetOrientation({orientation})) =>
+  | (_, SetOrientation({orientation})) =>
     let updated = Lens.setOrientation(task, orientation)
     (updated, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleDeviceMode) =>
+  | (_, ToggleDeviceMode) =>
     let currentDeviceMode = Selectors.deviceMode(task)
     let newDeviceMode = switch currentDeviceMode {
     | Client__DeviceMode.Responsive =>
@@ -857,75 +854,50 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
-  | (
-      Task.Loading(_) | Task.Loaded(_),
-      UserMessageReceived({id, content, annotations, agentId, pending: false}),
-    ) =>
-    switch Task.getMessages(task)->Array.find(message => Message.getId(message) == id) {
-    | Some(message) =>
-      let updated = mergeUserMessage(message, ~id, ~content, ~annotations, ~agentId)
-      (Lens.updateMessage(task, id, _ => updated), [])
-    | None =>
-      let userMessage = Message.User({id, content, annotations, agentId})
-      (task->Lens.completeStreamingMessage->Lens.insertMessage(userMessage), [])
-    }
-
-  | (Task.Loaded(data), UserMessageReceived({id, content, annotations, agentId, pending: true})) =>
-    let wasPending = data.pendingUserMessageIds->Array.includes(id)
-    let pendingUserMessageIds =
-      data.pendingUserMessageIds->Array.filter(pendingId => pendingId != id)
-    switch data.queuedUserMessages->Array.findIndex(message => Message.getId(message) == id) {
-    | index if index >= 0 =>
-      let queuedUserMessages = data.queuedUserMessages->Array.copy
-      let existing = queuedUserMessages->Array.getUnsafe(index)
-      let updated = switch wasPending {
-      | true =>
-        switch existing {
-        | Message.User({agentId: existingAgentId, _}) =>
-          requireSameAgent(
-            ~existingAgentId,
-            ~agentId,
-            ~message=`[TaskReducer] Agent changed within message ${id}`,
-          )
-          Message.User({id, content, annotations, agentId})
-        | _ => failwith(`[TaskReducer] Message ${id} changed roles`)
-        }
-      | false => mergeUserMessage(existing, ~id, ~content, ~annotations, ~agentId)
-      }
-      queuedUserMessages->Array.setUnsafe(index, updated)
-      (Task.Loaded({...data, queuedUserMessages, pendingUserMessageIds}), [])
-    | _ =>
-      switch Task.getMessages(task)->Array.find(message => Message.getId(message) == id) {
-      | Some(message) =>
-        let updated = mergeUserMessage(message, ~id, ~content, ~annotations, ~agentId)
-        (Lens.updateMessage(Task.Loaded({...data, pendingUserMessageIds}), id, _ => updated), [])
-      | None =>
-        let userMessage = Message.User({id, content, annotations, agentId})
-        (
-          Task.Loaded({
-            ...data,
-            queuedUserMessages: Array.concat(data.queuedUserMessages, [userMessage]),
-            pendingUserMessageIds,
-          }),
-          [],
-        )
-      }
-    }
-
-  | (Task.Loading(_), UserMessageReceived({id, content, annotations, agentId, pending: true})) => (
+  | (Task.Loading(_) | Task.Loaded(_), UserMessageReceived({id, content, annotations, agentId})) => (
       Task.updateLoadedData(task, data => {
-        let queuedUserMessages = switch data.queuedUserMessages->Array.findIndex(message =>
-          Message.getId(message) == id
-        ) {
-        | index if index >= 0 =>
-          data.queuedUserMessages->Array.map(message =>
-            Message.getId(message) == id
-              ? mergeUserMessage(message, ~id, ~content, ~annotations, ~agentId)
-              : message
-          )
-        | _ => Array.concat(data.queuedUserMessages, [Message.User({id, content, annotations, agentId})])
+        let wasPending = data.pendingUserMessageIds->Array.includes(id)
+        let data = {
+          ...data,
+          pendingUserMessageIds:
+            data.pendingUserMessageIds->Array.filter(pendingId => pendingId != id),
         }
-        {...data, queuedUserMessages}
+        switch data.queuedUserMessages->Array.findIndex(message => Message.getId(message) == id) {
+        | index if index >= 0 =>
+          let queuedUserMessages = data.queuedUserMessages->Array.copy
+          let existing = queuedUserMessages->Array.getUnsafe(index)
+          let updated = switch (wasPending, existing) {
+          | (true, Message.User({agentId: existingAgentId})) =>
+            requireSameAgent(
+              ~existingAgentId,
+              ~agentId,
+              ~message=`[TaskReducer] Agent changed within message ${id}`,
+            )
+            Message.User({id, content, annotations, agentId})
+          | (true, _) => failwith(`[TaskReducer] Message ${id} changed roles`)
+          | (false, _) => mergeUserMessage(existing, ~id, ~content, ~annotations, ~agentId)
+          }
+          queuedUserMessages->Array.setUnsafe(index, updated)
+          {...data, queuedUserMessages}
+        | _ =>
+          switch data.messages->Array.find(message => Message.getId(message) == id) {
+          | Some(message) =>
+            let updated = mergeUserMessage(message, ~id, ~content, ~annotations, ~agentId)
+            {
+              ...data,
+              messages: data.messages->Array.map(message =>
+                Message.getId(message) == id ? updated : message
+              ),
+            }
+          | None => {
+              ...data,
+              queuedUserMessages: Array.concat(
+                data.queuedUserMessages,
+                [Message.User({id, content, annotations, agentId})],
+              ),
+            }
+          }
+        }
       }),
       [],
     )
@@ -993,17 +965,14 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
-  | (Task.Loaded(_) | Task.Loading(_), UserMessagesClaimed({messageIds})) =>
-    (Lens.claimUserMessages(task, messageIds), [])
-
-  | (Task.Loaded(data), ExecutionStateRunning) =>
+  | (Task.Loaded(data), ExecutionStateRunning(messageIds)) =>
     let task = Task.Loaded({
       ...data,
       isAgentRunning: true,
       lastTurnCancelled: false,
       turnError: None,
       retryStatus: None,
-    })
+    })->Lens.assignMessagesToTurn(~messageIds)
     (task, [])
 
   | (Task.Loaded(_data), ExecutionStateIdle) =>
@@ -1026,8 +995,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
-  | (Task.Loading(data), ExecutionStateRunning) => (
-      Task.Loading({...data, isAgentRunning: true}),
+  | (Task.Loading(data), ExecutionStateRunning(messageIds)) => (
+      Task.Loading({...data, isAgentRunning: true})->Lens.assignMessagesToTurn(~messageIds),
       [],
     )
 
@@ -1075,7 +1044,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }
     }
 
-  | (Task.Loading(_), AgentError({id, error, category})) =>
+  | (Task.Loading(data), AgentError({id, error, category})) =>
+    let task = Task.Loading({...data, isAgentRunning: false})
     let errorMsg = Message.Error(Message.ErrorMessage.make(~id?, ~error, ~category))
     (task->Lens.completeStreamingMessage->Lens.insertMessage(errorMsg), [])
 
@@ -1135,7 +1105,12 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [SessionCommand(ACP.RetryTurn(retriedErrorId))],
     )
 
-  | (Task.Unloaded({id, title, createdAt, updatedAt}), LoadStarted({previewUrl})) => (
+  | (
+      Task.Unloaded({id, title, createdAt, updatedAt})
+      | Task.Loaded({id, title, createdAt, updatedAt})
+      | Task.Loading({id, title, createdAt, updatedAt}),
+      LoadStarted({previewUrl}),
+    ) => (
       Task.Loading({
         id,
         title,
@@ -1149,50 +1124,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         isAgentRunning: false,
         pendingQuestion: None,
         imageAttachments: Task.getImageAttachments(task),
-        queuedUserMessages: [],
-        planEntries: [],
-      }),
-      [],
-    )
-
-  | (
-      Task.Loaded({
-        id,
-        title,
-        createdAt,
-        updatedAt,
-        previewFrame,
-        annotationMode,
-        annotations,
-        activePopupAnnotationId,
-        imageAttachments,
-      })
-      | Task.Loading({
-        id,
-        title,
-        createdAt,
-        updatedAt,
-        previewFrame,
-        annotationMode,
-        annotations,
-        activePopupAnnotationId,
-        imageAttachments,
-      }),
-      LoadStarted(_),
-    ) => (
-      Task.Loading({
-        id,
-        title,
-        createdAt,
-        updatedAt,
-        messages: MessageStore.make(),
-        previewFrame,
-        annotationMode,
-        annotations,
-        activePopupAnnotationId,
-        isAgentRunning: false,
-        pendingQuestion: None,
-        imageAttachments,
         queuedUserMessages: [],
         planEntries: [],
       }),
@@ -1270,9 +1201,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         updatedAt,
         retained: Some({
           previewFrame,
-          annotationMode: Annotation.Off,
           annotations,
-          activePopupAnnotationId: None,
           imageAttachments,
         }),
       }),
@@ -1421,10 +1350,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       AddUserMessage(_)
       | UserMessageSendFailed(_)
       | PlanReceived(_)
-      | ExecutionStateRunning
+      | ExecutionStateRunning(_)
       | ExecutionStateIdle
       | ExecutionStateRequiresAction
-      | UserMessagesClaimed(_)
       | CancelTurn
       | ClearTurnError
       | RetryingUpdate(_)

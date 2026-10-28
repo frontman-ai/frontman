@@ -152,7 +152,6 @@ type effect =
       messageId: string,
       block: FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock.t,
       agentId: string,
-      pending: bool,
     })
   | FlushSessionActions(array<action>)
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
@@ -684,7 +683,7 @@ let addUserMessageToState = (
       TaskReducer.AddUserMessage({id, content, annotations, agentId}),
     )
   let (state, runningEffects) = switch handoff {
-  | true => state->Lens.delegateToTask(ForTask(taskId), TaskReducer.ExecutionStateRunning)
+  | true => state->Lens.delegateToTask(ForTask(taskId), TaskReducer.ExecutionStateRunning([]))
   | false => (state, [])
   }
   state->StateReducer.update(
@@ -1103,9 +1102,9 @@ let getSessionTextBuffer = dispatch =>
     let buffer = Client__TextDeltaBuffer.make(
       ~onFlush=(~taskId, ~messageId, ~text, ~agentId) =>
         dispatchTask(taskId, TextDeltaReceived({messageId, text, agentId})),
-      ~onUserFlush=(~taskId, ~messageId, ~blocks, ~agentId, ~pending) => {
+      ~onUserFlush=(~taskId, ~messageId, ~blocks, ~agentId) => {
         let (content, annotations) = Client__ACP__MessageCodec.parseUserMessageBlocks(blocks)
-        dispatchTask(taskId, UserMessageReceived({id: messageId, content, annotations, agentId, pending}))
+        dispatchTask(taskId, UserMessageReceived({id: messageId, content, annotations, agentId}))
       },
     )
     Client__TextDeltaBuffer.active := Some(buffer)
@@ -1421,7 +1420,6 @@ module ConnectionEffects = {
           )
           result->Result.map(((session, result)) => (session, result.configOptions))
         | #load(_) =>
-          Log.info(~ctx={"sessionId": sessionId}, "Loading task session and replaying history")
           let result = await ACP.loadSession(
             connection,
             sessionId,
@@ -1460,8 +1458,8 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
   | ReloadFrontman => WebAPI.Window.current->WebAPI.Window.location->WebAPI.Location.reload
   | BufferAssistantText({taskId, messageId, text, agentId}) =>
     getSessionTextBuffer(dispatch).add(~taskId, ~messageId, ~text, ~agentId)
-  | BufferUserBlock({taskId, messageId, block, agentId, pending}) =>
-    getSessionTextBuffer(dispatch).addUserBlock(~taskId, ~messageId, ~block, ~agentId, ~pending)
+  | BufferUserBlock({taskId, messageId, block, agentId}) =>
+    getSessionTextBuffer(dispatch).addUserBlock(~taskId, ~messageId, ~block, ~agentId)
   | FlushSessionActions(actions) =>
     Client__TextDeltaBuffer.flush()
     actions->Array.forEach(action => dispatch(action))
@@ -2148,9 +2146,9 @@ let rec next = (state: state, action) => {
       state->StateReducer.update(
         ~sideEffect=BufferAssistantText({taskId, messageId, text, agentId}),
       )
-    | UserMessageChunk({messageId, content, _meta: {agentId}, pending}) =>
+    | UserMessageChunk({messageId, content, _meta: {agentId}}) =>
       state->StateReducer.update(
-        ~sideEffect=BufferUserBlock({taskId, messageId, block: content, agentId, pending}),
+        ~sideEffect=BufferUserBlock({taskId, messageId, block: content, agentId}),
       )
     | GenericAgentMessageChunk(_) | GenericUserMessageChunk(_) =>
       failwith("Frontman UI requires negotiated agent attribution")
@@ -2212,14 +2210,21 @@ let rec next = (state: state, action) => {
       }
       flush([input, result, error]->Array.filterMap(value => value))
     | Plan({entries}) => flush([task(PlanReceived({entries: entries}))])
-    | StateUpdate({state: executionState, claimedMessageIds}) =>
+    | SessionInfoUpdate({_meta}) =>
+      let ids = _meta->Option.flatMap(meta => meta->Dict.get("frontman.dev/turnMessageIds"))
+      switch ids {
+      | Some(ids) =>
+        let ids = ids->S.parseOrThrow(~to=S.array(S.string->S.min(1)))
+        flush([task(TaskReducer.ExecutionStateRunning(ids))])
+      | None => flush([])
+      }
+    | StateUpdate({state: executionState}) =>
       let action = switch executionState {
-      | Running => TaskReducer.ExecutionStateRunning
+      | Running => TaskReducer.ExecutionStateRunning([])
       | Idle => TaskReducer.ExecutionStateIdle
       | RequiresAction => TaskReducer.ExecutionStateRequiresAction
       }
-      let claimed = claimedMessageIds->Option.map(ids => task(UserMessagesClaimed({messageIds: ids})))
-      flush([claimed, Some(task(action))]->Array.filterMap(value => value))
+      flush([task(action)])
     | ConfigOptionUpdate({configOptions}) =>
       flush([ConfigOptionsReceived({configOptions: configOptions})])
     | CurrentModeUpdate(_) => flush([])
@@ -2424,12 +2429,10 @@ let rec next = (state: state, action) => {
     state->StateReducer.update
   | SwitchTask({taskId}) => {
       let (state, connectionEffects) = next(state, ConnectionAction(ClearSession))
-      let (updatedState, taskEffects) = {
-        state->Lens.delegateToTask(
-          ForTask(taskId),
-          TaskReducer.LoadStarted({previewUrl: getInitialUrl()}),
-        )
-      }
+      let (updatedState, taskEffects) = state->Lens.delegateToTask(
+        ForTask(taskId),
+        TaskReducer.LoadStarted({previewUrl: getInitialUrl()}),
+      )
       let (updatedState, loadEffects) = next(
         {
           ...updatedState,

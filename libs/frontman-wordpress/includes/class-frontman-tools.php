@@ -162,6 +162,10 @@ class Frontman_Tools {
 		if ( class_exists( 'Frontman_Tool_Seo' ) && in_array( $name, [ 'wp_read_seo', 'wp_update_seo' ], true ) ) {
 			return Frontman_Tool_Seo::validate_input( $name, $input );
 		}
+		if ( class_exists( 'Frontman_Tool_WooCommerce' ) && in_array( $name, [ 'wc_get_catalog_display', 'wc_update_catalog_display' ], true ) ) {
+			Frontman_Tool_WooCommerce::validate_catalog_display_input( $input, 'wc_update_catalog_display' === $name );
+			return array_intersect_key( $input, array_flip( [ 'name', 'value', 'confirm' ] ) );
+		}
 
 		if ( class_exists( 'Frontman_Tool_Public_Files' ) && in_array( $name, [ 'wp_read_public_file', 'wp_write_public_file' ], true ) ) {
 			return Frontman_Tool_Public_Files::validate_input( $name, $input );

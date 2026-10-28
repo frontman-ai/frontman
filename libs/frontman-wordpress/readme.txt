@@ -86,13 +86,15 @@ Consider the remaining pages before selecting an account. If multiple accounts c
 
 == Optional SEO Tools ==
 
-`wp_read_seo` reads stored SEO title and description overrides. `wp_update_seo` updates one or both overrides. Eligibility depends on Yoast SEO Free runtime capabilities, not an exact version list. Frontman does not install Yoast.
+`wp_read_seo` reads stored SEO overrides from Yoast SEO Free or SureRank. `wp_update_seo` supports Yoast SEO Free only. Frontman does not install either plugin.
 
 Both tools also support one `focus_keyphrase`, stored through Yoast Free as `focuskw`. A focus-only update preserves title and description. Omission preserves the keyphrase; an empty string clears it. Reads and mutation snapshots include it. This is an analysis input, not a rendered keywords tag. Secondary keywords, synonyms, related keyphrases, and Premium support are not included.
 
-The route requires WordPress 6.9 or later, initialized Yoast metadata methods, and registered metadata sanitizers. The integration-test matrix includes Yoast 28.6 on WordPress 7.0.2 with PHP 8.4, Yoast 28.4 on WordPress 7.0.2 with PHP 7.4 and 8.4, and Yoast 19.9 on WordPress 6.9.9 with PHP 8.2. These pins define test coverage, not production eligibility. Future Yoast versions must pass the same runtime contract. Premium and active Rank Math, All in One SEO, or The SEO Framework disable these tools. Frontman cannot detect every custom SEO owner.
+SureRank support is read-only. The reader returns stored `page_title`, `page_description`, and `focus_keyword` values through SureRank's raw metadata accessor. Missing values return empty strings, not inherited templates or generated text. Reads do not initialize or update metadata. SureRank 1.10.2 defines the integration-test contract. Runtime eligibility requires the active, loaded plugin and its raw metadata reader. Canonical URLs and social overrides are outside this tool's field set.
 
-`wp_get_site_info` returns `seo_unavailable_reason`. A nonempty reason explains why Frontman does not register the SEO tools. A null reason means the compatibility checks pass. Each post still requires edit permissions.
+Both providers require WordPress 6.9 or later. Yoast reads require its initialized metadata reader. Yoast updates also require its setters, deleter, and registered metadata sanitizers. The integration-test matrix includes Yoast 28.6 on WordPress 7.0.2 with PHP 8.4, Yoast 28.4 on WordPress 7.0.2 with PHP 7.4 and 8.4, and Yoast 19.9 on WordPress 6.9.9 with PHP 8.2. These pins define test coverage, not production eligibility. Future Yoast versions must pass the same runtime contract. Premium and active Rank Math, All in One SEO, or The SEO Framework disable these tools. Frontman cannot detect every custom SEO owner.
+
+`wp_get_site_info.seo_unavailable_reason` retains its existing meaning: the reason that SEO updates are unavailable. The additive `seo_capabilities` object reports `provider`, `read`, `write`, `supported_fields`, and separate read/write reasons. For SureRank, reads are available but writes are not. Each post still requires post and metadata edit permissions. Simultaneously active Yoast and SureRank disable both SEO tools because ownership is ambiguous.
 
 Supported objects are posts, pages, and editable non-attachment custom post types with an admin interface, including authorized drafts and private content. Revisions, autosaves, attachments, and internal WordPress object types are not supported.
 

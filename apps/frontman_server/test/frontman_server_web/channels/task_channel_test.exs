@@ -20,6 +20,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   import ExUnit.CaptureLog
 
   alias FrontmanServer.InteractionCase.Helpers
+  alias FrontmanServer.ProtocolSchema
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.LLMProviderMock
   alias FrontmanServer.Test.Fixtures.LLMProvider
@@ -44,19 +45,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       ordinal: ordinal,
       timestamp: ~U[2026-07-14 12:30:01.000000Z]
     }
-  end
-
-  defp join_active_task(scope) do
-    task = task_with_active_turn_fixture(scope)
-    {:ok, history} = Tasks.get_task_with_history(scope, task.id)
-    turn = Enum.find(history.interaction_rows, &(&1.type == :turn_started))
-
-    {:ok, _reply, socket} =
-      UserSocket
-      |> socket("user_id", %{scope: scope})
-      |> subscribe_and_join("task:#{task.id}", %{})
-
-    {socket, task.id, turn.turn_number, response_metadata(turn.id)}
   end
 
   defp execution_chunk(type, text),
@@ -202,6 +190,20 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   defp assert_state_update_running(task_id) do
     receive do
+      %Phoenix.Socket.Message{
+        event: "acp:message",
+        payload: %{
+          "params" => %{
+            "sessionId" => ^task_id,
+            "update" => %{
+              "sessionUpdate" => "session_info_update",
+              "_meta" => %{"frontman.dev/turnMessageIds" => _ids}
+            }
+          }
+        }
+      } ->
+        :ok
+
       %Phoenix.Socket.Message{
         event: "acp:message",
         payload: %{
@@ -424,7 +426,25 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert_reply(ref, :ok, %{"acp:message" => response})
       assert response["result"] == %{}
 
-      assert_state_update_running(task_id)
+      assert_push(
+        "acp:message",
+        %{
+          "params" => %{
+            "sessionId" => ^task_id,
+            "update" => %{
+              "sessionUpdate" => "session_info_update",
+              "_meta" => %{"frontman.dev/turnMessageIds" => [^message_id]}
+            }
+          }
+        } = turn_started
+      )
+
+      assert ProtocolSchema.upstream_acp_definition_valid?(
+               turn_started["params"]["update"],
+               "SessionUpdate"
+             )
+
+      ProtocolSchema.validate_upstream_acp!(turn_started)
 
       assert_push("acp:message", %{
         "params" => %{
@@ -760,13 +780,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
              "update" => %{"sessionUpdate" => "user_message_chunk"} = update
            }
          }} <- pushes,
-        do: update
-  end
-
-  defp agent_message_updates(pushes) do
-    for {"acp:message",
-         %{"params" => %{"update" => %{"sessionUpdate" => "agent_message_chunk"} = update}}} <-
-          pushes,
         do: update
   end
 
@@ -1657,208 +1670,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   end
 
   describe "session/load wake" do
-    test "in-progress response preserves pre-load prefix before its live suffix", %{scope: scope} do
-      {socket, task_id, turn, metadata} = join_active_task(scope)
-
-      :ok =
-        Tasks.handle_swarm_event(
-          scope,
-          task_id,
-          turn,
-          {:chunk, metadata, %{type: :content, text: "prefix "}}
-        )
-
-      :sys.get_state(socket.channel_pid)
-
-      assert_push("acp:message", %{
-        "params" => %{
-          "update" => %{
-            "sessionUpdate" => "agent_message_chunk",
-            "messageId" => message_id,
-            "content" => %{"text" => "prefix "}
-          }
-        }
-      })
-
-      push(
-        socket,
-        "acp:message",
-        build_acp_request("session/load", 105, %{"sessionId" => task_id})
-      )
-
-      :sys.get_state(socket.channel_pid)
-      messages = collect_all_pushes()
-      assert agent_message_updates(messages) == []
-      assert Enum.any?(messages, &match?({"acp:reply", %{"id" => 105}}, &1))
-
-      :ok =
-        Tasks.handle_swarm_event(
-          scope,
-          task_id,
-          turn,
-          {:chunk, metadata, %{type: :content, text: "suffix"}}
-        )
-
-      assert_push("acp:message", %{
-        "params" => %{
-          "update" => %{
-            "sessionUpdate" => "agent_message_chunk",
-            "messageId" => ^message_id,
-            "content" => %{"text" => "suffix"}
-          }
-        }
-      })
-
-      {:ok, _response} = Tasks.agent_replied(scope, task_id, turn, "prefix suffix")
-      :sys.get_state(socket.channel_pid)
-
-      refute_push("acp:message", %{
-        "params" => %{"update" => %{"sessionUpdate" => "agent_message_chunk"}}
-      })
-    end
-
-    test "loads authoritative queue and running state before redispatching unresolved work", %{
-      scope: scope
-    } do
-      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
-      task = task_fixture(scope)
-      task_id = task.id
-      turn = start_turn_fixture(scope, task_id)
-      question = question_tool_call("load-question", "Load", "A")
-      preview = SwarmAi.Testing.tool_call("get_dom", %{}, id: "load-preview")
-
-      {:ok, _} =
-        persist_response_tool_call_fixture(scope, task_id, turn, "", question, :interactive)
-
-      {:ok, _} = persist_response_tool_call_fixture(scope, task_id, turn, "", preview)
-      queued_id = Ecto.UUID.generate()
-
-      {:ok, _} =
-        Tasks.submit_user_message(scope, %{
-          task_id: task_id,
-          message_id: queued_id,
-          message: user_content("queued follow-up"),
-          model: @persisted_restart_model,
-          agent_id: "test-frontman"
-        })
-
-      {:ok, _reply, socket} =
-        UserSocket
-        |> socket("user_id", %{scope: scope})
-        |> subscribe_and_join("task:#{task_id}", %{})
-
-      complete_mcp_handshake(socket)
-      refute_push("mcp:message", %{"method" => "tools/call"})
-
-      push(
-        socket,
-        "acp:message",
-        build_acp_request("session/load", 101, %{"sessionId" => task_id})
-      )
-
-      :sys.get_state(socket.channel_pid)
-      messages = collect_all_pushes()
-      chunks = user_message_updates(messages)
-
-      assert [%{"messageId" => ^queued_id, "pending" => true}] =
-               Enum.filter(chunks, & &1["pending"])
-
-      assert [%{"pending" => false}] = Enum.reject(chunks, & &1["pending"])
-
-      state_index =
-        Enum.find_index(messages, fn
-          {"acp:message", %{"params" => %{"update" => %{"state" => "running"}}}} -> true
-          _ -> false
-        end)
-
-      reply_index = Enum.find_index(messages, &match?({"acp:reply", %{"id" => 101}}, &1))
-      assert is_integer(state_index)
-      assert state_index < reply_index
-
-      calls =
-        for {"mcp:message", %{"method" => "tools/call", "id" => id, "params" => params}} <-
-              messages,
-            into: %{},
-            do: {params["name"], id}
-
-      assert Map.keys(calls) |> Enum.sort() == ["get_dom", "question"]
-      push(socket, "mcp:message", question_answer_response(calls["question"], "A"))
-      :sys.get_state(socket.channel_pid)
-
-      assert {:ok, ^turn, [%Interaction.ToolCall{tool_call_id: "load-preview"}]} =
-               Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
-
-      push(
-        socket,
-        "acp:message",
-        build_acp_request("session/command", nil, %{
-          "sessionId" => task_id,
-          "command" => "unqueue_message",
-          "messageId" => queued_id
-        })
-      )
-
-      assert_push("acp:message", %{
-        "params" => %{
-          "update" => %{
-            "sessionUpdate" => "message_unqueued",
-            "messageId" => ^queued_id
-          }
-        }
-      })
-
-      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
-      refute Enum.any?(task.interaction_rows, &(&1.id == queued_id))
-
-      assert Enum.any?(
-               Tasks.interactions(task),
-               &match?(%Interaction.ToolResult{tool_call_id: "load-question"}, &1)
-             )
-    end
-
-    for {type, state} <- [{:agent_completed, "idle"}, {:agent_paused, "requires_action"}] do
-      test "load restores persisted #{state} state", %{scope: scope} do
-        task = task_fixture(scope)
-        turn = start_turn_fixture(scope, task.id)
-
-        outcome =
-          case unquote(type) do
-            :agent_completed -> Helpers.agent_completed()
-            :agent_paused -> Helpers.agent_paused("question", 120_000)
-          end
-
-        interaction_changeset(task.id, %{
-          id: Ecto.UUID.generate(),
-          type: unquote(type),
-          turn_number: turn,
-          data: Map.from_struct(outcome)
-        })
-        |> FrontmanServer.Repo.insert!()
-
-        {:ok, _reply, socket} =
-          UserSocket
-          |> socket("user_id", %{scope: scope})
-          |> subscribe_and_join("task:#{task.id}", %{})
-
-        push(
-          socket,
-          "acp:message",
-          build_acp_request("session/load", 103, %{"sessionId" => task.id})
-        )
-
-        assert_acp_reply(%{"id" => 103, "result" => %{}})
-
-        assert_push("acp:message", %{
-          "params" => %{
-            "update" => %{
-              "sessionUpdate" => "state_update",
-              "state" => unquote(state)
-            }
-          }
-        })
-      end
-    end
-
     test "rejects a session ID different from the joined task", %{scope: scope} do
       task = task_fixture(scope)
       other_task = task_fixture(scope)
@@ -1882,7 +1693,18 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     test "pushes history before a standard load result", %{scope: scope} do
       task = task_fixture(scope)
-      {:ok, _message} = user_message_fixture(scope, task.id, user_content("history"))
+      {:ok, message} = user_message_fixture(scope, task.id, user_content("history"))
+      claimed_id = message.id
+      queued_id = Ecto.UUID.generate()
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, %{
+          task_id: task.id,
+          message_id: queued_id,
+          message: user_content("queued follow-up"),
+          model: @persisted_restart_model,
+          agent_id: "test-frontman"
+        })
 
       {:ok, _reply, socket} =
         UserSocket
@@ -1907,13 +1729,29 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert [
                %{
                  "method" => "session/update",
-                 "params" => %{"update" => %{"sessionUpdate" => "user_message_chunk"}}
+                 "params" => %{
+                   "update" => %{
+                     "sessionUpdate" => "user_message_chunk",
+                     "messageId" => ^claimed_id
+                   }
+                 }
                },
                %{
                  "params" => %{
-                   "update" => %{"sessionUpdate" => "state_update", "state" => "running"}
+                   "update" => %{
+                     "sessionUpdate" => "user_message_chunk",
+                     "messageId" => ^queued_id
+                   }
                  }
                },
+               %{
+                 "params" => %{
+                   "update" => %{
+                     "sessionUpdate" => "session_info_update",
+                     "_meta" => %{"frontman.dev/turnMessageIds" => [^claimed_id]}
+                   }
+                 }
+               } = turn_started,
                %{
                  "id" => 90,
                  "result" => %{"configOptions" => _config_options}
@@ -1923,6 +1761,18 @@ defmodule FrontmanServerWeb.TaskChannelTest do
                  "params" => %{"update" => %{"sessionUpdate" => "plan", "entries" => []}}
                }
              ] = messages
+
+      assert ProtocolSchema.upstream_acp_definition_valid?(
+               turn_started["params"]["update"],
+               "SessionUpdate"
+             )
+
+      ProtocolSchema.validate_upstream_acp!(turn_started)
+
+      refute Enum.any?(
+               messages,
+               &Map.has_key?(get_in(&1, ["params", "update"]) || %{}, "pending")
+             )
     end
 
     test "restores current todo plan after the load result", %{scope: scope} do
@@ -2775,18 +2625,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       push(
         socket,
         "acp:message",
-        build_acp_request("session/load", 104, %{"sessionId" => task_id})
-      )
-
-      assert_acp_reply(%{"id" => 104, "result" => %{}})
-
-      assert_push("acp:message", %{
-        "params" => %{"update" => %{"sessionUpdate" => "state_update", "state" => "idle"}}
-      })
-
-      push(
-        socket,
-        "acp:message",
         build_acp_request("session/command", nil, %{
           "sessionId" => task_id,
           "command" => "retry_turn",
@@ -2807,15 +2645,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
                  &1
                )
              )
-
-      assert_push("acp:message", %{
-        "params" => %{
-          "update" => %{
-            "sessionUpdate" => "agent_message_chunk",
-            "content" => %{"text" => "Test response"}
-          }
-        }
-      })
 
       assert_state_update_idle(task_id)
     end

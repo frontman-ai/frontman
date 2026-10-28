@@ -426,7 +426,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       {...state, connection: Ok(Some({...runtime, phase: Ready(ready)}))},
       [
         SessionCompletionEffect({sessionId, ready, result: Error(error), onComplete}),
-        LogError(`Session failed (${sessionId}): ${ACP.requestErrorMessage(error)}`),
+        LogError(`Session failed: ${ACP.requestErrorMessage(error)}`),
       ],
     )
   | (_, SessionResultReceived({result: Error(_)})) => (
@@ -446,6 +446,10 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
   | (_, SessionCommand(_)) => (state, [LogError("Cannot send session command: no active session")])
 
+  | (
+      Ok(Some({phase: Ready({session: SessionCreating({sessionId: Some(sessionId)})})})),
+      LoadTask(request),
+    ) if sessionId == request.taskId => (state, [])
   | (
       Ok(Some({phase: Ready({session: SessionActive({session: {sessionId}})} as ready)})),
       LoadTask(request),

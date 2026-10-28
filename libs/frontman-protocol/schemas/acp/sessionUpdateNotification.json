@@ -620,10 +620,6 @@
                     "frontman.dev/agentId",
                     "frontman.dev/timestamp"
                   ]
-                },
-                "pending": {
-                  "default": true,
-                  "type": "boolean"
                 }
               },
               "required": [
@@ -1587,6 +1583,29 @@
               "properties": {
                 "sessionUpdate": {
                   "type": "string",
+                  "const": "session_info_update"
+                },
+                "_meta": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "sessionUpdate"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "sessionUpdate": {
+                  "type": "string",
                   "const": "state_update"
                 },
                 "state": {
@@ -1604,13 +1623,6 @@
                     "refusal",
                     "cancelled"
                   ]
-                },
-                "claimedMessageIds": {
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "type": "array"
                 }
               },
               "required": [

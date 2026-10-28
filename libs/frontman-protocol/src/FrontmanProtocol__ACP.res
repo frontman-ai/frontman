@@ -565,7 +565,6 @@ type sessionUpdate =
       messageId: string,
       content: FrontmanProtocol__ContentBlock.t,
       _meta: messageMetadata,
-      pending: bool,
     })
   | GenericAgentMessageChunk({
       messageId: option<string>,
@@ -576,7 +575,6 @@ type sessionUpdate =
       messageId: option<string>,
       content: FrontmanProtocol__ContentBlock.t,
       _meta: option<JSON.t>,
-      pending: bool,
     })
   | Unknown({sessionUpdate: string})
   | ToolCall({
@@ -601,10 +599,12 @@ type sessionUpdate =
   | Plan({entries: array<planEntry>})
   | ConfigOptionUpdate({configOptions: array<sessionConfigOption>})
   | CurrentModeUpdate({currentModeId: sessionModeId})
+  | SessionInfoUpdate({
+      _meta: option<Dict.t<JSON.t>>,
+    })
   | StateUpdate({
       state: sessionState,
       stopReason: option<stopReason>,
-      claimedMessageIds: option<array<string>>,
     })
   | Error({
       _meta: option<JSON.t>,
@@ -665,11 +665,16 @@ let commonSessionUpdateSchema = S.union([
     })
   }),
   S.object(s => {
+    s.tag("sessionUpdate", "session_info_update")
+    SessionInfoUpdate({
+      _meta: s.field("_meta", S.nullableAsOption(S.dict(S.json))),
+    })
+  }),
+  S.object(s => {
     s.tag("sessionUpdate", "state_update")
     StateUpdate({
       state: s.field("state", sessionStateSchema),
       stopReason: s.field("stopReason", S.option(stopReasonSchema)),
-      claimedMessageIds: s.field("claimedMessageIds", S.option(S.array(nonEmptyStringSchema))),
     })
   }),
   S.object(s => {
@@ -701,7 +706,6 @@ let sessionUpdateSchema = S.union([
       messageId: s.field("messageId", nonEmptyStringSchema),
       content: s.field("content", FrontmanProtocol__ContentBlock.schema),
       _meta: s.field("_meta", messageMetadataSchema),
-      pending: s.fieldOr("pending", S.bool, true),
     })
   }),
   commonSessionUpdateSchema,
@@ -722,7 +726,6 @@ let genericSessionUpdateSchema = S.union([
       messageId: s.field("messageId", S.option(nonEmptyStringSchema)),
       content: s.field("content", FrontmanProtocol__ContentBlock.schema),
       _meta: s.field("_meta", S.option(S.json)),
-      pending: s.fieldOr("pending", S.bool, true),
     })
   }),
   commonSessionUpdateSchema,

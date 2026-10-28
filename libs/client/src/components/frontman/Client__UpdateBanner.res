@@ -113,11 +113,12 @@ let make = () => {
   let updateBanner = switch (updateBannerDismissed, updateInfo) {
   | (false, Some({target, installedVersion, latestVersion})) =>
     <div
-      className="flex items-center gap-3 mx-4 mt-3 px-4 py-3 bg-amber-950/40 border border-amber-700/40 rounded-lg animate-in fade-in slide-in-from-top-2 duration-200"
+      className="flex items-start gap-3 mx-4 mt-3 px-4 py-3 bg-white/5 border border-white/10 rounded-lg animate-in fade-in slide-in-from-top-2 duration-200"
     >
-      <div className="flex-shrink-0">
+      <div className="flex-shrink-0 mt-0.5">
         <svg
           className="w-4 h-4 text-amber-400"
+          ariaHidden=true
           fill="none"
           viewBox="0 0 24 24"
           strokeWidth="2"
@@ -131,51 +132,62 @@ let make = () => {
         </svg>
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs text-amber-300/90">
-          {React.string(`${updateDisplayName(target)} ${installedVersion} `)}
-          <span className="text-amber-500/70"> {React.string(`\u2192`)} </span>
-          {React.string(` ${latestVersion}`)}
+        <p className="text-sm font-medium text-zinc-100">
+          {React.string(switch target {
+          | WordPressPlugin => "Plugin update available"
+          | NpmPackage(_) => "Update available"
+          })}
+        </p>
+        <p className="text-xs leading-relaxed text-zinc-400 mt-1 break-words">
+          {React.string(`${updateDisplayName(target)} · `)}
+          <span className="inline-block">
+            {React.string(`${installedVersion} → ${latestVersion}`)}
+          </span>
         </p>
         {switch updateActionForTarget(
           target,
           ~wordpressPluginsUrl=runtimeConfig.wordpressPluginsUrl,
         ) {
         | WordPressUpdate(_) =>
-          <p className="text-xs text-amber-400/70 mt-1">
-            {React.string("Update from Plugins in wp-admin, then reload Frontman.")}
+          <p className="text-xs leading-relaxed text-zinc-400 mt-2">
+            {React.string("Update the plugin in WordPress, then reload Frontman.")}
           </p>
         | AgentUpdate(_) => React.null
         }}
+        <div className="mt-3">
+          {switch updateActionForTarget(
+            target,
+            ~wordpressPluginsUrl=runtimeConfig.wordpressPluginsUrl,
+          ) {
+          | AgentUpdate(_) =>
+            <button
+              type_="button"
+              onClick={_ => handleUpdateClick()}
+              className="inline-flex text-xs font-medium text-zinc-200 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
+            >
+              {React.string("Update")}
+            </button>
+          | WordPressUpdate(href) =>
+            <a
+              href
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex text-xs font-medium text-zinc-200 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
+            >
+              {React.string("Open WordPress admin")}
+            </a>
+          }}
+        </div>
       </div>
-      {switch updateActionForTarget(
-        target,
-        ~wordpressPluginsUrl=runtimeConfig.wordpressPluginsUrl,
-      ) {
-      | AgentUpdate(_) =>
-        <button
-          type_="button"
-          onClick={_ => handleUpdateClick()}
-          className="flex-shrink-0 text-xs font-medium text-amber-300 hover:text-amber-200 bg-amber-800/30 hover:bg-amber-800/50 px-2.5 py-1 rounded transition-colors"
-        >
-          {React.string("Update")}
-        </button>
-      | WordPressUpdate(href) =>
-        <a
-          href
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex-shrink-0 text-xs font-medium text-amber-300 hover:text-amber-200 bg-amber-800/30 hover:bg-amber-800/50 px-2.5 py-1 rounded transition-colors"
-        >
-          {React.string("Update in wp-admin")}
-        </a>
-      }}
       <button
         type_="button"
         onClick={_ => handleDismiss()}
-        className="flex-shrink-0 text-amber-500/50 hover:text-amber-400/80 transition-colors"
+        ariaLabel="Dismiss update notification"
+        className="flex-shrink-0 p-1 -mr-1 -mt-0.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
       >
         <svg
           className="w-3.5 h-3.5"
+          ariaHidden=true
           fill="none"
           viewBox="0 0 24 24"
           strokeWidth="2"

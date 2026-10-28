@@ -190,11 +190,7 @@ let handleToolsCall = async (
   handler.toolCalls := handler.toolCalls.contents->Array.concat([(id, active, controller)])
   let finish = send =>
     switch active.contents {
-    | false =>
-      Log.info(
-        ~ctx={"sessionId": handler.sessionId, "requestId": id},
-        "Dropped late tool completion after session detach",
-      )
+    | false => ()
     | true =>
       active := false
       handler.toolCalls :=
@@ -307,14 +303,6 @@ let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit 
 }
 
 let dropRequests = handler => {
-  switch handler.toolCalls.contents->Array.length {
-  | 0 => ()
-  | count =>
-    Log.info(
-      ~ctx={"sessionId": handler.sessionId, "pendingToolCalls": count},
-      "Detaching session with pending tool requests",
-    )
-  }
   handler.subscriptions := []
   handler.toolCalls.contents->Array.forEach(((_, active, controller)) => {
     active := false

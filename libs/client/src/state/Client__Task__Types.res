@@ -37,9 +37,7 @@ module Task = {
 
   type retainedState = {
     previewFrame: previewFrame,
-    annotationMode: Annotation.annotationMode,
     annotations: array<Annotation.t>,
-    activePopupAnnotationId: option<string>,
     imageAttachments: Dict.t<Client__Message.fileAttachmentData>,
   }
 
@@ -160,7 +158,7 @@ module Task = {
   let getAnnotationMode = (task: t): Annotation.annotationMode =>
     switch task {
     | New({annotationMode}) => annotationMode
-    | Unloaded({retained}) => retained->Option.mapOr(Annotation.Off, view => view.annotationMode)
+    | Unloaded(_) => Annotation.Off
     | Loading({annotationMode}) | Loaded({annotationMode}) => annotationMode
     }
 
@@ -174,7 +172,7 @@ module Task = {
   let getActivePopupAnnotationId = (task: t): option<string> =>
     switch task {
     | New({activePopupAnnotationId}) => activePopupAnnotationId
-    | Unloaded({retained}) => retained->Option.flatMap(view => view.activePopupAnnotationId)
+    | Unloaded(_) => None
     | Loading({activePopupAnnotationId})
     | Loaded({activePopupAnnotationId}) => activePopupAnnotationId
     }
@@ -455,9 +453,9 @@ module Task = {
     | Unloaded({retained: Some(view)} as data) =>
       let updated = fn({
         messages: [],
-        annotationMode: view.annotationMode,
+        annotationMode: Annotation.Off,
         annotations: view.annotations,
-        activePopupAnnotationId: view.activePopupAnnotationId,
+        activePopupAnnotationId: None,
         isAgentRunning: false,
         lastTurnCancelled: false,
         planEntries: [],
@@ -470,9 +468,7 @@ module Task = {
         ...data,
         retained: Some({
           ...view,
-          annotationMode: updated.annotationMode,
           annotations: updated.annotations,
-          activePopupAnnotationId: updated.activePopupAnnotationId,
         }),
       })
     | Unloaded({retained: None}) => task
