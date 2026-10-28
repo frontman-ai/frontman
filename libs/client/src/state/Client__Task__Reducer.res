@@ -73,7 +73,6 @@ module Lens = {
         switch data.queuedUserMessages->Array.find(message => Message.getId(message) == id) {
         | Some(message) => Some(message)
         | None =>
-          // A live assignment may precede replay; history repeats assignment with authoritative IDs.
           switch (Task.isLoading(task), data.messages->Array.some(message => Message.getId(message) == id)) {
           | (true, _) | (false, true) => None
           | (false, false) => failwith(`[TaskReducer] Server claimed unknown message ${id}`)
