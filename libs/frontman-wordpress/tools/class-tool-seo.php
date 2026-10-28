@@ -1,6 +1,6 @@
 <?php
 /**
- * Provider-neutral SEO tools for the runtime-validated Yoast route.
+ * Stored SEO inspection and runtime-validated Yoast updates.
  * @package Frontman
  */
 if ( ! defined( 'ABSPATH' ) ) {
@@ -9,8 +9,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Frontman_Tool_Seo {
 	private const YOAST = 'wordpress-seo/wp-seo.php';
+	private const SURERANK = 'surerank/surerank.php';
 	private const META = [ 'title' => 'title', 'description' => 'metadesc', 'focus_keyphrase' => 'focuskw' ];
+	private const SURERANK_META = [
+		'title' => 'surerank_settings_page_title',
+		'description' => 'surerank_settings_page_description',
+		'focus_keyphrase' => 'surerank_settings_focus_keyword',
+	];
 	public function register( Frontman_Tools $tools ): void {
+		if ( null !== self::read_unavailable_reason() ) {
+			return;
+		}
 		$schema = [
 			'type'                 => 'object',
 			'additionalProperties' => false,
@@ -19,11 +28,14 @@ class Frontman_Tool_Seo {
 		];
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_read_seo',
-			'Reads stored SEO title, description, and focus keyphrase for an editable post.',
+			'Reads stored SEO title, description, and focus keyphrase for an editable post, not computed tags.',
 			$schema,
 			[ $this, 'read_seo' ],
 			'read'
 		) );
+		if ( null !== self::unavailable_reason() ) {
+			return;
+		}
 		$schema['properties'] += [
 			'title'       => [ 'type' => 'string', 'description' => 'SEO title override.' ],
 			'description' => [ 'type' => 'string', 'description' => 'SEO description override.' ],
@@ -37,12 +49,36 @@ class Frontman_Tool_Seo {
 			'read-write'
 		) );
 	}
+	public static function read_unavailable_reason(): ?string {
+		return self::compatibility_reason( false );
+	}
 	public static function unavailable_reason(): ?string {
+		return self::compatibility_reason( true );
+	}
+	public static function capabilities(): array {
+		$read_reason = self::read_unavailable_reason();
+		$write_reason = self::unavailable_reason();
+		return [
+			'provider' => null === $read_reason ? self::provider() : null,
+			'read' => null === $read_reason,
+			'write' => null === $write_reason,
+			'supported_fields' => null === $read_reason ? array_keys( self::META ) : [],
+			'read_unavailable_reason' => $read_reason,
+			'write_unavailable_reason' => $write_reason,
+		];
+	}
+	private static function provider(): string {
+		return Frontman_Plugin_Dependencies::is_available( self::SURERANK ) ? 'surerank' : 'yoast';
+	}
+	private static function compatibility_reason( bool $write ): ?string {
 		global $wp_version;
-		if ( ! Frontman_Plugin_Dependencies::is_available( self::YOAST ) || ! defined( 'WPSEO_VERSION' ) ) {
-			return __( 'Yoast SEO Free is absent or not loaded.', 'frontman-agentic-ai-editor' );
+		$yoast = Frontman_Plugin_Dependencies::is_available( self::YOAST );
+		$surerank = Frontman_Plugin_Dependencies::is_available( self::SURERANK );
+		if ( ! $yoast && ! $surerank ) {
+			return __( 'Yoast SEO Free and SureRank are absent or not loaded.', 'frontman-agentic-ai-editor' );
 		}
-		if ( Frontman_Plugin_Dependencies::is_available( 'wordpress-seo-premium/wp-seo-premium.php' )
+		if ( ( $yoast && $surerank )
+			|| Frontman_Plugin_Dependencies::is_available( 'wordpress-seo-premium/wp-seo-premium.php' )
 			|| Frontman_Plugin_Dependencies::is_available( 'seo-by-rank-math/rank-math.php', 'RankMath' )
 			|| Frontman_Plugin_Dependencies::is_available( 'all-in-one-seo-pack/all_in_one_seo_pack.php' ) || function_exists( 'aioseo' )
 			|| Frontman_Plugin_Dependencies::is_available( 'all-in-one-seo-pack-pro/all_in_one_seo_pack.php' )
@@ -52,14 +88,25 @@ class Frontman_Tool_Seo {
 		if ( ! isset( $wp_version ) || version_compare( (string) $wp_version, '6.9', '<' ) ) {
 			return __( 'SEO tools require WordPress 6.9 or later.', 'frontman-agentic-ai-editor' );
 		}
+		if ( $surerank ) {
+			return $write
+				? __( 'SureRank SEO support is read-only; updates are not available.', 'frontman-agentic-ai-editor' )
+				: self::surerank_unavailable_reason();
+		}
+		if ( ! defined( 'WPSEO_VERSION' ) ) {
+			return __( 'Yoast SEO Free is absent or not loaded.', 'frontman-agentic-ai-editor' );
+		}
 		$runtime_reason = __( 'Yoast SEO runtime methods, initialization, or metadata sanitizers are unavailable.', 'frontman-agentic-ai-editor' );
-		if ( did_action( 'wpseo_loaded' ) < 1 || ! function_exists( 'sanitize_meta' ) ) {
+		if ( did_action( 'wpseo_loaded' ) < 1 || ( $write && ! function_exists( 'sanitize_meta' ) ) ) {
 			return $runtime_reason;
 		}
-		foreach ( [ 'get_value', 'set_value', 'delete', 'sanitize_post_meta' ] as $method ) {
+		foreach ( $write ? [ 'get_value', 'set_value', 'delete', 'sanitize_post_meta' ] : [ 'get_value' ] as $method ) {
 			if ( ! is_callable( [ 'WPSEO_Meta', $method ] ) ) {
 				return $runtime_reason;
 			}
+		}
+		if ( ! $write ) {
+			return null;
 		}
 		$registered = get_registered_meta_keys( 'post' );
 		foreach ( self::META as $key ) {
@@ -70,6 +117,29 @@ class Frontman_Tool_Seo {
 			}
 		}
 		return null;
+	}
+	private static function surerank_unavailable_reason(): ?string {
+		if ( ! defined( 'SURERANK_VERSION' )
+			|| ! is_callable( [ '\SureRank\Inc\Functions\Get', 'post_meta' ] ) ) {
+			return __( 'SureRank SEO runtime metadata reader is unavailable.', 'frontman-agentic-ai-editor' );
+		}
+		return null;
+	}
+	private function surerank_snapshot( int $id ): array {
+		$values = [];
+		try {
+			foreach ( self::SURERANK_META as $field => $key ) {
+				$values[ $field ] = \SureRank\Inc\Functions\Get::post_meta( $id, $key, true );
+			}
+		} catch ( \Throwable $error ) {
+			throw new Frontman_Tool_Error( __( 'SureRank could not read the stored SEO overrides.', 'frontman-agentic-ai-editor' ) );
+		}
+		foreach ( $values as $value ) {
+			if ( ! is_string( $value ) || 1 !== preg_match( '//u', $value ) ) {
+				throw new Frontman_Tool_Error( __( 'SureRank returned invalid SEO overrides.', 'frontman-agentic-ai-editor' ) );
+			}
+		}
+		return $values;
 	}
 	public static function validate_input( string $tool, array $input ): array {
 		$allowed = 'wp_read_seo' === $tool ? [ 'id' ] : array_merge( [ 'id' ], array_keys( self::META ) );
@@ -91,8 +161,8 @@ class Frontman_Tool_Seo {
 	}
 	public function read_seo( array $input ): array {
 		$input = self::validate_input( 'wp_read_seo', $input );
-		$this->guard( $input['id'] );
-		return [ 'id' => $input['id'], 'provider' => 'yoast' ] + $this->snapshot( $input['id'] );
+		$this->guard( $input['id'], false );
+		return [ 'id' => $input['id'], 'provider' => self::provider() ] + $this->snapshot( $input['id'] );
 	}
 	public function update_seo( array $input ): array {
 		$input     = self::validate_input( 'wp_update_seo', $input );
@@ -144,8 +214,8 @@ class Frontman_Tool_Seo {
 			'before' => $before, 'after' => $after, 'changed' => $before !== $after,
 		];
 	}
-	private function guard( int $id ): string {
-		$reason = self::unavailable_reason();
+	private function guard( int $id, bool $write = true ): string {
+		$reason = $write ? self::unavailable_reason() : self::read_unavailable_reason();
 		if ( null !== $reason ) {
 			throw new Frontman_Tool_Error( $reason );
 		}
@@ -159,14 +229,18 @@ class Frontman_Tool_Seo {
 		if ( ! current_user_can( 'edit_post', $id ) ) {
 			throw new Frontman_Tool_Error( __( 'You cannot edit this post.', 'frontman-agentic-ai-editor' ) );
 		}
-		foreach ( self::META as $key ) {
-			if ( ! current_user_can( 'edit_post_meta', $id, '_yoast_wpseo_' . $key ) ) {
+		$keys = 'surerank' === self::provider() ? self::SURERANK_META : array_map( static fn( string $key ): string => '_yoast_wpseo_' . $key, self::META );
+		foreach ( $keys as $key ) {
+			if ( ! current_user_can( 'edit_post_meta', $id, $key ) ) {
 				throw new Frontman_Tool_Error( __( 'You cannot edit this post SEO metadata.', 'frontman-agentic-ai-editor' ) );
 			}
 		}
 		return $post->post_type;
 	}
 	private function snapshot( int $id ): array {
+		if ( 'surerank' === self::provider() ) {
+			return $this->surerank_snapshot( $id );
+		}
 		$values = [];
 		try {
 			foreach ( self::META as $field => $key ) {

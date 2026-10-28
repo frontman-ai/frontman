@@ -10,12 +10,6 @@ function sanitize_meta() { throw new RuntimeException( 'Unavailable handler reac
 $wp_version = '7.0.2';
 $seo   = new Frontman_Tool_Seo();
 $tools = new Frontman_Tools();
-$seo->register( $tools );
-if ( 1 !== $tools->get( 'wp_read_seo' )->input_schema['properties']['id']['minimum']
-	|| [ 'id' ] !== $tools->get( 'wp_update_seo' )->input_schema['required']
-	|| false === strpos( $tools->get( 'wp_update_seo' )->description, 'Provide at least one of title, description, or focus_keyphrase.' ) ) {
-	throw new RuntimeException( 'SEO schemas do not match runtime requirements.' );
-}
 foreach ( [ [], [ 'wordpress-seo/wp-seo.php' ], [ 'wordpress-seo/wp-seo.php' ] ] as $case => $active_plugins ) {
 	$expected = 'absent or not loaded';
 	if ( 2 === $case ) {
@@ -63,6 +57,12 @@ function get_registered_meta_keys( string $type ): array {
 function has_filter( string $hook, $callback ) { return 10; }
 if ( null !== Frontman_Tool_Seo::unavailable_reason() ) {
 	throw new RuntimeException( 'A valid runtime was rejected for Yoast ' . WPSEO_VERSION );
+}
+$seo->register( $tools );
+if ( 1 !== $tools->get( 'wp_read_seo' )->input_schema['properties']['id']['minimum']
+	|| [ 'id' ] !== $tools->get( 'wp_update_seo' )->input_schema['required']
+	|| false === strpos( $tools->get( 'wp_update_seo' )->description, 'Provide at least one of title, description, or focus_keyphrase.' ) ) {
+	throw new RuntimeException( 'SEO schemas do not match runtime requirements.' );
 }
 $valid = [ 'id' => 7, 'title' => "  Café %%title%% \\ \"quoted\"  ", 'description' => '' ];
 if ( $valid !== $tools->sanitize_input( 'wp_update_seo', $valid ) ) {

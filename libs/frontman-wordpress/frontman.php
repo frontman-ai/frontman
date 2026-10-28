@@ -109,9 +109,7 @@ function frontman_bootstrap(): void {
 		( new Frontman_Tool_301_Redirects() )->register( $tools );
 	}
 
-	if ( null === Frontman_Tool_Seo::unavailable_reason() ) {
-		( new Frontman_Tool_Seo() )->register( $tools );
-	}
+	( new Frontman_Tool_Seo() )->register( $tools );
 
 	if ( Frontman_Plugin_Dependencies::is_available( 'elementor/elementor.php', '\Elementor\Plugin' ) ) {
 		require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-elementor-data.php';
