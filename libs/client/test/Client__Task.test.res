@@ -44,7 +44,6 @@ module TestHelpers = {
         content: [Client__Task__Types.UserContentPart.Text({text: text})],
         annotations,
         agentId,
-        pending: Task.isLoaded(task),
       }),
     )->Pair.first
   }
@@ -62,8 +61,7 @@ module TestHelpers = {
   }
 
   let startTurn = (task, ~messageIds) => {
-    let (claimed, _) = TaskReducer.next(task, UserMessagesClaimed({messageIds: messageIds}))
-    TaskReducer.next(claimed, ExecutionStateRunning)->Pair.first
+    TaskReducer.next(task, ExecutionStateRunning(messageIds))->Pair.first
   }
 }
 
@@ -198,20 +196,27 @@ describe("Task - Agent Running State", () => {
     t->expect(queued->Array.length)->Expect.toBe(1)
     t->expect(TestHelpers.getMessages(submitted)->Array.length)->Expect.toBe(0)
 
-    let (prematurelyRunning, _) = TaskReducer.next(submitted, ExecutionStateRunning)
+    let (prematurelyRunning, _) = TaskReducer.next(submitted, ExecutionStateRunning([]))
     t->expect(TestHelpers.getMessages(prematurelyRunning)->Array.length)->Expect.toBe(0)
 
     let accepted = TestHelpers.acceptUserMessage(
       prematurelyRunning,
       ~id=testUserMessageId->UserMessageId.toString,
+      ~text="Accepted",
     )
     t->expect(TestHelpers.getQueuedUserMessages(accepted)->Array.length)->Expect.toBe(1)
+    let accepted = TestHelpers.acceptUserMessage(
+      accepted,
+      ~id=testUserMessageId->UserMessageId.toString,
+      ~text="suffix",
+    )
 
     let running = TestHelpers.startTurn(accepted, ~messageIds=[testUserMessageId->UserMessageId.toString])
     let messages = TestHelpers.getMessages(running)
     t->expect(TestHelpers.getQueuedUserMessages(running)->Array.length)->Expect.toBe(0)
     switch messages->Array.get(0) {
-    | Some(Message.User({content, _})) => t->expect(content->Array.length)->Expect.toBe(1)
+    | Some(Message.User({content, _})) =>
+      t->expect(TaskReducer.extractTextFromUserContent(content))->Expect.toBe("Accepted suffix")
     | _ => t->expect("User message")->Expect.toBe("missing")
     }
   })
@@ -229,7 +234,7 @@ describe("Task - Agent Running State", () => {
     )
     t->expect(TaskReducer.Selectors.isAgentRunning(task2))->Expect.toEqual(Some(false))
 
-    let (task3, _) = TaskReducer.next(task2, ExecutionStateRunning)
+    let (task3, _) = TaskReducer.next(task2, ExecutionStateRunning([]))
     t->expect(TaskReducer.Selectors.isAgentRunning(task3))->Expect.toEqual(Some(true))
 
     let (task4, _) = TaskReducer.next(task3, ExecutionStateIdle)
@@ -239,9 +244,11 @@ describe("Task - Agent Running State", () => {
     t->expect(TaskReducer.Selectors.isAgentRunning(task5))->Expect.toEqual(Some(false))
   })
 
-  test("history user messages stay in transcript while loading", t => {
+  test("history user messages enter the transcript when their turn starts", t => {
     let task = TestHelpers.makeLoadingTask()
-    let loadedHistory = TestHelpers.acceptUserMessage(task, ~id="history-1", ~text="History")
+    let queued = TestHelpers.acceptUserMessage(task, ~id="history-1", ~text="History")
+    t->expect(TestHelpers.getMessages(queued))->Expect.toEqual([])
+    let loadedHistory = TestHelpers.startTurn(queued, ~messageIds=["history-1"])
 
     let messages = TestHelpers.getMessages(loadedHistory)
     t->expect(messages->Array.length)->Expect.toBe(1)
@@ -265,9 +272,9 @@ describe("Task - Agent Running State", () => {
       ~agentId="planner-id",
     )
 
-    let (runningTask, _) = TaskReducer.next(task, ExecutionStateRunning)
+    let (runningTask, _) = TaskReducer.next(task, ExecutionStateRunning([]))
     t->expect(TestHelpers.getQueuedUserMessages(runningTask)->Array.length)->Expect.toBe(3)
-    let (runningTask, _) = TaskReducer.next(runningTask, UserMessagesClaimed({messageIds: ["queued-2"]}))
+    let (runningTask, _) = TaskReducer.next(runningTask, ExecutionStateRunning(["queued-2"]))
 
     let queued = TestHelpers.getQueuedUserMessages(runningTask)
     t->expect(queued->Array.length)->Expect.toBe(2)
@@ -379,11 +386,11 @@ describe("Task - Plan Entries", () => {
       TestHelpers.makeLoadedTask(),
       PlanReceived({entries: entries}),
     )
-    let (running, _) = TaskReducer.next(planned, ExecutionStateRunning)
+    let (running, _) = TaskReducer.next(planned, ExecutionStateRunning([]))
     let (cancelled, _) = TaskReducer.next(running, CancelTurn)
     let (idle, _) = TaskReducer.next(cancelled, ExecutionStateIdle)
     let nextTurn = TestHelpers.acceptUserMessage(idle, ~id="continue", ~text="Continue")
-    let (resumed, _) = TaskReducer.next(nextTurn, ExecutionStateRunning)
+    let (resumed, _) = TaskReducer.next(nextTurn, ExecutionStateRunning([]))
 
     [cancelled, idle, resumed]->Array.forEach(task => {
       t->expect(TaskReducer.Selectors.planEntries(task))->Expect.toEqual(Some(entries))
@@ -935,7 +942,7 @@ describe("Task - Interactive wait contract", () => {
       t => {
         let resolutions = ref([])
         let rejections = ref([])
-        let (running, _) = TaskReducer.next(TestHelpers.makeLoadedTask(), ExecutionStateRunning)
+        let (running, _) = TaskReducer.next(TestHelpers.makeLoadedTask(), ExecutionStateRunning([]))
         let (waiting, effects) = TaskReducer.next(
           running,
           QuestionReceived({

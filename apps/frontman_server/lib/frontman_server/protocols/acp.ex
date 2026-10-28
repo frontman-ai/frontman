@@ -296,18 +296,13 @@ defmodule FrontmanServer.Protocols.ACP do
   """
   def build_user_message_chunk_notification(
         session_id,
-        message_id,
-        content,
-        agent_id,
-        timestamp,
-        pending \\ true
+        %{id: message_id, content: content, agent_id: agent_id, timestamp: timestamp}
       )
       when is_binary(agent_id) and agent_id != "" do
     session_update_notification(session_id, %{
       "sessionUpdate" => "user_message_chunk",
       "messageId" => message_id,
       "content" => content,
-      "pending" => pending,
       "_meta" => message_metadata(agent_id, timestamp)
     })
   end
@@ -334,7 +329,7 @@ defmodule FrontmanServer.Protocols.ACP do
   @doc """
   Builds a state_update session/update notification.
   """
-  def build_state_update_notification(session_id, state, stop_reason \\ nil, claimed_ids \\ nil) do
+  def build_state_update_notification(session_id, state, stop_reason \\ nil) do
     update = %{
       "sessionUpdate" => "state_update",
       "state" => state
@@ -346,13 +341,15 @@ defmodule FrontmanServer.Protocols.ACP do
         stop_reason -> Map.put(update, "stopReason", stop_reason)
       end
 
-    update =
-      case claimed_ids do
-        nil -> update
-        ids when is_list(ids) -> Map.put(update, "claimedMessageIds", ids)
-      end
-
     session_update_notification(session_id, update)
+  end
+
+  @doc "Builds a turn membership session/update notification."
+  def build_turn_started_notification(session_id, ids) when is_list(ids) do
+    session_update_notification(session_id, %{
+      "sessionUpdate" => "session_info_update",
+      "_meta" => %{"frontman.dev/turnMessageIds" => ids}
+    })
   end
 
   @doc """

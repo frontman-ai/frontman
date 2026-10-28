@@ -12,7 +12,7 @@ type flushEntry = {
 
 let makeBuffer = (
   ~onFlush=(~taskId as _, ~messageId as _, ~text as _, ~agentId as _) => (),
-  ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks as _, ~agentId as _, ~pending as _) => (),
+  ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks as _, ~agentId as _) => (),
 ) => Buffer.make(~onFlush, ~onUserFlush)
 
 let addAssistant = (
@@ -24,7 +24,7 @@ let addAssistant = (
 ) => buffer.add(~taskId, ~messageId, ~text, ~agentId)
 
 let addUserBlock = (buffer: Buffer.t, ~block, ~messageId) =>
-  buffer.addUserBlock(~taskId="task-1", ~messageId, ~block, ~agentId="executor-id", ~pending=true)
+  buffer.addUserBlock(~taskId="task-1", ~messageId, ~block, ~agentId="executor-id")
 
 describe("TextDeltaBuffer", () => {
   test("groups user blocks by message before flushing", t => {
@@ -32,8 +32,8 @@ describe("TextDeltaBuffer", () => {
     let first = ContentBlock.TextContent({text: "one", _meta: None, annotations: None})
     let second = ContentBlock.TextContent({text: "two", _meta: None, annotations: None})
     let buffer = makeBuffer(
-      ~onUserFlush=(~taskId, ~messageId, ~blocks, ~agentId, ~pending) =>
-        flushed := Some((taskId, messageId, blocks, agentId, pending)),
+      ~onUserFlush=(~taskId, ~messageId, ~blocks, ~agentId) =>
+        flushed := Some((taskId, messageId, blocks, agentId)),
     )
 
     addUserBlock(buffer, ~messageId="user-1", ~block=first)
@@ -42,7 +42,7 @@ describe("TextDeltaBuffer", () => {
 
     t
     ->expect(flushed.contents)
-    ->Expect.toEqual(Some(("task-1", "user-1", [first, second], "executor-id", true)))
+    ->Expect.toEqual(Some(("task-1", "user-1", [first, second], "executor-id")))
   })
 
   test("session failure flushes valid received text before reporting completion", t => {
@@ -108,30 +108,13 @@ describe("TextDeltaBuffer", () => {
       ~onFlush=(~taskId as _, ~messageId as _, ~text as _, ~agentId as _) => {
         callCount := callCount.contents + 1
       },
-      ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks as _, ~agentId as _, ~pending as _) =>
-        callCount := callCount.contents + 1,
     )
     addAssistant(buffer, ~text="Hello")
-    let previous = Buffer.active.contents
-    Buffer.active := Some(buffer)
-    Buffer.reset()
-    t->expect(Buffer.active.contents)->Expect.toEqual(None)
-    buffer.flush()
+    buffer.reset()
     t->expect(callCount.contents)->Expect.toBe(0)
 
-    addUserBlock(
-      buffer,
-      ~messageId="old-session-user",
-      ~block=ContentBlock.TextContent({
-        text: "Discard on activation",
-        _meta: None,
-        annotations: None,
-      }),
-    )
-    buffer.reset()
     addAssistant(buffer, ~taskId="task-2", ~text="Reused after reset", ~agentId="planner-id")
     buffer.flush()
     t->expect(callCount.contents)->Expect.toBe(1)
-    Buffer.active := previous
   })
 })

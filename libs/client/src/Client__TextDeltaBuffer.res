@@ -6,7 +6,6 @@ type entry = {
 type userEntry = {
   blocks: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock.t>,
   agentId: string,
-  pending: bool,
 }
 
 type t = {
@@ -16,7 +15,6 @@ type t = {
     ~messageId: string,
     ~block: FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock.t,
     ~agentId: string,
-    ~pending: bool,
   ) => unit,
   flush: unit => unit,
   reset: unit => unit,
@@ -39,7 +37,6 @@ let make = (
     ~messageId: string,
     ~blocks: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock.t>,
     ~agentId: string,
-    ~pending: bool,
   ) => unit,
 ): t => {
   let buffer: ref<Dict.t<Dict.t<entry>>> = ref(Dict.make())
@@ -69,7 +66,7 @@ let make = (
     userBuffer := Dict.make()
     pending->Dict.forEachWithKey((messages, taskId) =>
       messages->Dict.forEachWithKey((entry, messageId) =>
-        onUserFlush(~taskId, ~messageId, ~blocks=entry.blocks, ~agentId=entry.agentId, ~pending=entry.pending)
+        onUserFlush(~taskId, ~messageId, ~blocks=entry.blocks, ~agentId=entry.agentId)
       )
     )
   }
@@ -94,7 +91,7 @@ let make = (
       rafId := Some(WebAPI.Window.requestAnimationFrame(WebAPI.Window.current, _ => flush()))
     }
   }
-  let addUserBlock = (~taskId, ~messageId, ~block, ~agentId, ~pending) => {
+  let addUserBlock = (~taskId, ~messageId, ~block, ~agentId) => {
     flushAssistant()
     let current =
       userBuffer.contents
@@ -104,14 +101,10 @@ let make = (
       )
     switch current {
     | Some((messages, entry)) =>
-      switch entry.pending == pending {
-      | true => ()
-      | false => failwith("User message changed queue ownership within a chunk")
-      }
       messages->Dict.set(messageId, {...entry, blocks: entry.blocks->Array.concat([block])})
     | None => {
         flushUsers()
-        taskEntries(userBuffer, taskId)->Dict.set(messageId, {blocks: [block], agentId, pending})
+        taskEntries(userBuffer, taskId)->Dict.set(messageId, {blocks: [block], agentId})
       }
     }
   }

@@ -223,7 +223,6 @@ module Fixtures = {
       Dict.fromArray([
         ("sessionUpdate", JSON.Encode.string(sessionUpdate)),
         ("messageId", JSON.Encode.string(messageId)),
-        ("pending", JSON.Encode.bool(true)),
         (
           "content",
           JSON.Encode.object(
@@ -302,19 +301,31 @@ describe("sessionUpdate schema parsing", () => {
     }
   })
 
-  test("state_update variants", t => {
+  test("state and session info update variants", t => {
     [
       (
+        JSON.parseOrThrow(`{"sessionUpdate":"session_info_update","title":null,"updatedAt":null}`),
+        Types.SessionInfoUpdate({_meta: None}),
+      ),
+      (
+        JSON.parseOrThrow(`{"sessionUpdate":"session_info_update","_meta":{"frontman.dev/turnMessageIds":["user-1","user-1"]}}`),
+        Types.SessionInfoUpdate({
+          _meta: Some(Dict.fromArray([
+            ("frontman.dev/turnMessageIds", JSON.parseOrThrow(`["user-1","user-1"]`)),
+          ])),
+        }),
+      ),
+      (
         Fixtures.makeStateUpdate(~state="running"),
-        Types.StateUpdate({state: Types.Running, stopReason: None, claimedMessageIds: None}),
+        Types.StateUpdate({state: Types.Running, stopReason: None}),
       ),
       (
         Fixtures.makeStateUpdate(~state="idle", ~stopReason="end_turn"),
-        Types.StateUpdate({state: Types.Idle, stopReason: Some(Types.EndTurn), claimedMessageIds: None}),
+        Types.StateUpdate({state: Types.Idle, stopReason: Some(Types.EndTurn)}),
       ),
       (
         Fixtures.makeStateUpdate(~state="requires_action"),
-        Types.StateUpdate({state: Types.RequiresAction, stopReason: None, claimedMessageIds: None}),
+        Types.StateUpdate({state: Types.RequiresAction, stopReason: None}),
       ),
     ]->Array.forEach(
       ((json, expected)) =>
