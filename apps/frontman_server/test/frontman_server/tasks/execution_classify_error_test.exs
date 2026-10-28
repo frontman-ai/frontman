@@ -7,7 +7,7 @@ defmodule FrontmanServer.Tasks.ExecutionClassifyErrorTest do
   describe "classify_error/1" do
     test "request failures give safe guidance without exposing provider data" do
       for {status, category, message} <- [
-            {400, "unknown", "Bad request — the provider rejected the request."},
+            {400, "provider_bad_request", "Bad request — the provider rejected the request."},
             {401, "auth",
              "Authentication failed (HTTP 401). In Settings, disconnect and reconnect your provider account. To use an API key instead, disconnect the account first. If you already use an API key, replace it."},
             {403, "auth",

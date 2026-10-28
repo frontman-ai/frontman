@@ -119,7 +119,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
 
   for {label, reason, category} <- [
         {"provider400", %ReqLLM.Error.API.Request{status: 400, reason: "invalid request"},
-         "unknown"},
+         "provider_bad_request"},
         {"provider401", %ReqLLM.Error.API.Request{status: 401, reason: "unauthorized"}, "auth"},
         {"provider402", %ReqLLM.Error.API.Request{status: 402, reason: "payment required"},
          "billing"},
@@ -129,7 +129,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
            reason: "quota exhausted",
            response_body: %{"error" => %{"code" => "insufficient_quota"}}
          }, "quota"},
-        {"unknown_model", :unknown_model, "unknown"}
+        {"unknown_model", :unknown_model, "model_unavailable"}
       ] do
     @tag :capture_log
     test "reports nonretryable #{label} failure exactly once", %{
@@ -154,6 +154,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       assert report.message.formatted == "Agent execution failed"
       assert report.tags[:error_type] == "agent_execution_error"
       assert report.tags[:category] == category
+      assert report.fingerprint == ["agent_execution_error", category]
       assert report.tags[:task_id] == task_id
       assert report.tags[:user_id] == scope.user.id
       assert report.extra[:task_id] == task_id
