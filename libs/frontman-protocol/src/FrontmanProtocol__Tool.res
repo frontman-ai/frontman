@@ -54,6 +54,7 @@ module ToolNames = {
   let question = "question"
   let requestCustomerFeedback = "request_customer_feedback"
   let getAstroAudit = "get_astro_audit"
+  let previewStatus = "preview_status"
 }
 
 module type BrowserTool = {

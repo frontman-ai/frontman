@@ -9,6 +9,7 @@ let coreBrowserTools: array<tool> = [
   module(Client__Tool__TakeScreenshot),
   module(Client__Tool__ExecuteJs),
   module(Client__Tool__NavigatePreview),
+  module(Client__Tool__PreviewStatus),
   module(Client__Tool__SetDeviceMode),
   module(Client__Tool__GetInteractiveElements),
   module(Client__Tool__InteractWithElement),

@@ -143,7 +143,7 @@ let execute = async (
         {
           success: false,
           result: None,
-          error: Some("Preview frame not available. Use navigate_preview with a known same-origin storefront URL such as /shop/ to recover without refreshing Frontman."),
+          error: Some("Preview frame not available. Use navigate_preview with a known same-origin URL such as /shop/ to recover without refreshing Frontman."),
           logs: [],
         },
         outputSchema,
