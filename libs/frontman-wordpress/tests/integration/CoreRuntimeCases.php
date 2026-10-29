@@ -46,7 +46,7 @@ try {
 	require_once ABSPATH . 'wp-admin/includes/template.php';
 	do_action( 'admin_init' );
 	ob_start();
-	Frontman_Sentry::render_settings();
+	Frontman_Settings::render_settings();
 	frontman_runtime_assert( false !== strpos( ob_get_clean(), 'Allow MCP connections' ), 'MCP setting appears on the existing settings page' );
 	$mcp_denied( $mcp_request( $mcp_credentials ) );
 	update_option( 'frontman_mcp_enabled', true );
