@@ -125,7 +125,7 @@ done
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ElementorSnapshotRuntimeTest.php" "$WORDPRESS:/tmp/ElementorSnapshotRuntimeTest.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ActivateWordPressPlugin.php" "$WORDPRESS:/tmp/ActivateWordPressPlugin.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/RunWordPressRuntimeTest.php" "$WORDPRESS:/tmp/RunWordPressRuntimeTest.php"
-for file in RuntimeTestSupport CoreRuntimeCases IsolatedRuntimeCases InstallationPathsRuntimeTest SeoCoexistenceRuntimeTest SureRankRuntimeTest; do
+for file in RuntimeTestSupport CoreRuntimeCases IsolatedRuntimeCases InstallationPathsRuntimeTest SeoCoexistenceRuntimeTest SureRankRuntimeTest DirectoristRuntimeTest; do
   "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/$file.php" "$WORDPRESS:/tmp/$file.php"
 done
 "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/mu-plugins
@@ -140,6 +140,11 @@ if [[ -n "$YOAST_VERSION" ]]; then
   "$RUNTIME" cp "$BUILD_DIR/yoast/wordpress-seo/." "$WORDPRESS:/var/www/html/wp-content/plugins/wordpress-seo/"
   "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/SeoRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-seo-runtime.php"
 fi
+
+curl -fsSL 'https://downloads.wordpress.org/plugin/directorist.8.10.6.zip' -o "$BUILD_DIR/directorist.zip"
+printf '%s  %s\n' 'd2615cb9e29b1003cffd7713b515bb4984b6ba25e32aef76a0e04fff7a2ce28a' "$BUILD_DIR/directorist.zip" | sha256sum --check --status
+unzip -q "$BUILD_DIR/directorist.zip" -d "$BUILD_DIR/directorist"
+"$RUNTIME" cp "$BUILD_DIR/directorist/directorist" "$WORDPRESS:/var/www/html/wp-content/plugins/directorist"
 
 case "$WORDPRESS_VERSION" in
 6.[0-8].*) ;;
@@ -280,6 +285,6 @@ for ANGIE_VERSION in 1.1.0 1.1.16; do
   unzip -q "$BUILD_DIR/angie.zip" -d "$BUILD_DIR/angie-${ANGIE_VERSION}"
   "$RUNTIME" exec "$WORDPRESS" rm -rf /var/www/html/wp-content/plugins/angie
   "$RUNTIME" cp "$BUILD_DIR/angie-${ANGIE_VERSION}/angie" "$WORDPRESS:/var/www/html/wp-content/plugins/angie"
-  "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/AngieRuntimeTest.php --setup
-  "$RUNTIME" exec -e EXPECTED_ANGIE_VERSION="$ANGIE_VERSION" "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/AngieRuntimeTest.php
+  	"$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/AngieRuntimeTest.php --setup
+	"$RUNTIME" exec -e EXPECTED_ANGIE_VERSION="$ANGIE_VERSION" "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/AngieRuntimeTest.php
 done
