@@ -118,6 +118,31 @@ describe("Task - Protocol Message Identity", () => {
 })
 
 describe("Task - Load State Machine", () => {
+  let attachmentUri = "attachment://original-image/original.png"
+  let taskWithAttachment = () =>
+    TaskReducer.next(
+      TestHelpers.makeLoadedTask(),
+      AddUserMessage({
+        id: UserMessageId.make(),
+        content: [Image({
+          id: Some("original-image"),
+          image: "data:image/png;base64,YWJj",
+          mediaType: Some("image/png"),
+          name: Some("original.png"),
+        })],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )->Pair.first
+  let resolveAttachment = task => {
+    module App = Client__State__StateReducer
+    App.Selectors.resolveImageRef(
+      {...App.defaultState, tasks: Dict.fromArray([("test-task-1", task)])},
+      ~taskId="test-task-1",
+      ~uri=attachmentUri,
+    )
+  }
+
   test("LoadStarted and LoadComplete transition Unloaded through Loading to Loaded", t => {
     let task = TestHelpers.makeUnloadedTask()
     t->expect(Task.isUnloaded(task))->Expect.toBe(true)
@@ -137,6 +162,86 @@ describe("Task - Load State Machine", () => {
     let (failedTask, _) = TaskReducer.next(task, LoadError({error: "Network error"}))
 
     t->expect(Task.isUnloaded(failedTask))->Expect.toBe(true)
+  })
+
+  test("replay preserves attachment references whose image IDs are absent from history", t => {
+    let original = taskWithAttachment()
+    let (loading, _) = TaskReducer.next(original, LoadStarted({previewUrl: "http://localhost:3000"}))
+    t->expect(resolveAttachment(loading))->Expect.toEqual(resolveAttachment(original))
+    let (history, _) = TaskReducer.next(loading, UserMessageReceived({
+      id: "image-message",
+      content: [Image({
+        id: None,
+        image: "data:image/png;base64,YWJj",
+        mediaType: Some("image/png"),
+        name: Some("original.png"),
+      })],
+      annotations: [],
+      agentId: "executor-id",
+    }))
+    let (loaded, _) = TaskReducer.next(history, LoadComplete)
+    t->expect(resolveAttachment(loaded))->Expect.toEqual(Some({
+      Message.base64: "YWJj", mediaType: "image/png",
+    }))
+    t->expect(resolveAttachment(TestHelpers.makeLoadingTask()))->Expect.toEqual(None)
+  })
+
+  test("failed reload retains saved view and attachments but suspends selection and popup", t => {
+    let annotation = Client__Annotation__Types.make(
+      ~element=WebAPI.DomGlobal.document->WebAPI.Document.createElement("button"),
+      ~tagName="button",
+    )
+    let original = taskWithAttachment()
+      ->TaskReducer.Lens.setPreviewUrl("http://localhost:3000/retained")
+      ->TaskReducer.Lens.setDeviceMode(CustomSize({width: 700, height: 900}))
+      ->TaskReducer.Lens.setOrientation(Landscape)
+      ->TaskReducer.Lens.setAnnotations([annotation])
+      ->TaskReducer.Lens.setAnnotationMode(Selecting)
+      ->TaskReducer.Lens.setActivePopupAnnotationId(Some(annotation.id))
+    let (loading, _) = TaskReducer.next(original, LoadStarted({previewUrl: "http://localhost:3000"}))
+    t->expect(Task.getWebPreviewIsSelecting(loading))->Expect.toBe(true)
+    t->expect(Task.getActivePopupAnnotationId(loading))->Expect.toEqual(Some(annotation.id))
+    let (failed, _) = TaskReducer.next(loading, LoadError({error: "Load interrupted"}))
+    t->expect(Task.isUnloaded(failed))->Expect.toBe(true)
+    t->expect(Task.getMessages(failed))->Expect.toEqual([])
+    t->expect(Task.getWebPreviewIsSelecting(failed))->Expect.toBe(false)
+    t->expect(Task.getActivePopupAnnotationId(failed))->Expect.toEqual(None)
+    t->expect(Task.getAnnotations(failed))->Expect.toEqual([annotation])
+    t->expect(Task.getPreviewFrame(failed, ~defaultUrl=""))->Expect.toEqual(
+      Task.getPreviewFrame(original, ~defaultUrl=""),
+    )
+    t->expect(resolveAttachment(failed))->Expect.toEqual(resolveAttachment(original))
+    let (failed, _) = TaskReducer.next(failed, AnnotationDetailsResolved({
+      id: annotation.id,
+      selector: Ok(None),
+      elementContext: Ok(None),
+      screenshot: Ok(None),
+      sourceLocation: Ok(None),
+      cssClasses: None,
+      nearbyText: None,
+      boundingBox: None,
+      elementorContext: None,
+      enrichmentStatus: Enriched,
+    }))
+    switch Task.getAnnotations(failed)->Array.get(0) {
+    | Some({enrichmentStatus: Enriched}) => ()
+    | _ => failwith("Retained annotation must accept enrichment after load failure")
+    }
+    let failed = [
+      TaskReducer.SetDeviceMode({deviceMode: Responsive}),
+      SetOrientation({orientation: Portrait}),
+      ToggleDeviceMode,
+    ]->Array.reduce(failed, (task, action) => TaskReducer.next(task, action)->Pair.first)
+    switch Task.getPreviewFrame(failed, ~defaultUrl="") {
+    | {deviceMode: DevicePreset(_), orientation: Portrait} => ()
+    | _ => failwith("Retained preview controls must work after load failure")
+    }
+    let (retry, _) = TaskReducer.next(failed, LoadStarted({previewUrl: "http://localhost:3000"}))
+    let (reloaded, _) = TaskReducer.next(retry, LoadComplete)
+    t->expect(Task.getPreviewFrame(reloaded, ~defaultUrl=""))->Expect.toEqual(
+      Task.getPreviewFrame(failed, ~defaultUrl=""),
+    )
+    t->expect(resolveAttachment(reloaded))->Expect.toEqual(resolveAttachment(original))
   })
 })
 
@@ -919,6 +1024,147 @@ describe("Task - Interactive wait contract", () => {
       multiple: None,
     },
   ]
+
+  describe("question tool lifetime", () => {
+    module Tool = Client__Tool__Question
+    module App = Client__State__StateReducer
+    module Store = StateStore
+    let store = Client__State__Store.store
+    let savedState = ref(None)
+    let pendingQuestion = () =>
+      App.Selectors.currentTask(Store.getState(store))->TaskReducer.Selectors.pendingQuestion
+    let ask = signal =>
+      Tool.execute({questions: questions}, ~taskId="test-task-1", ~toolCallId="question-1", ~signal)
+
+    beforeEach(() => {
+      savedState := Some(Store.getState(store))
+      Store.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(store, {
+        ...App.defaultState,
+        tasks: Dict.fromArray([("test-task-1", TestHelpers.makeLoadedTask())]),
+        currentTask: Task.Selected("test-task-1"),
+        connection: Client__ConnectionTestHelpers.ready(~sessionId=Some("test-task-1")),
+      })
+    })
+    afterEach(() =>
+      Store.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
+        store, savedState.contents->Option.getOrThrow,
+      )
+    )
+
+    [
+      ("no connection", None),
+      ("no active session", Client__ConnectionTestHelpers.ready()),
+      ("another task's session", Client__ConnectionTestHelpers.ready(~sessionId=Some("other-task"))),
+    ]->Array.forEach(((name, connection)) =>
+      test(`registration with ${name} rejects only through a reducer effect`, t => {
+        let rejected = ref(None)
+        let initial = {...Store.getState(store), connection}
+        let (unchanged, effects) = App.next(initial, TaskAction({
+          target: ForTask("test-task-1"),
+          action: QuestionReceived({
+            questions,
+            toolCallId: "question-1",
+            resolveOk: _ => failwith("Invalid question must not resolve"),
+            resolveError: message => rejected := Some(message),
+          }),
+        }))
+        t->expect(unchanged)->Expect.toBe(initial)
+        t->expect(rejected.contents)->Expect.toEqual(None)
+        switch effects {
+        | [App.TaskEffect({effect: RejectQuestionToolEffect(_)})] => ()
+        | _ => failwith("Invalid registration must reject the waiting tool")
+        }
+        effects->Array.forEach(effect =>
+          App.handleEffect(effect, unchanged, _ => failwith("Unexpected dispatch"))
+        )
+        t->expect(rejected.contents)->Expect.toEqual(Some("Question session is no longer active"))
+      })
+    )
+
+    testAsync("a loading task accepts a question while its session is being created", async t => {
+      module Connection = Client__ConnectionReducer
+      let (creating, _) = Connection.reduce(
+        Client__ConnectionTestHelpers.ready()->Option.getOrThrow,
+        LoadTask({taskId: "test-task-1"}),
+      )
+      Store.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(store, {
+        ...Store.getState(store),
+        connection: Some(creating),
+        tasks: Dict.fromArray([("test-task-1", TestHelpers.makeLoadingTask())]),
+      })
+      let controller = WebAPI.AbortController.make()
+      let pending = ask(controller.signal)
+      switch App.Selectors.currentTask(Store.getState(store)) {
+      | Task.Loading({pendingQuestion: Some(_)}) => ()
+      | _ => failwith("Question must register before session loading completes")
+      }
+      Store.dispatch(store, ConnectionAction(SessionResultReceived({
+        requestId: Connection.Selectors.sessionRequestId(creating)->Option.getOrThrow,
+        sessionId: "test-task-1",
+        result: Ok((Client__ConnectionTestHelpers.session("test-task-1"), None)),
+      })))
+      t->expect(pendingQuestion()->Option.isSome)->Expect.toBe(true)
+      Store.dispatch(store, TaskAction({target: ForTask("test-task-1"), action: QuestionAllSkipped}))
+      let _ = await pending
+      t->expect(pendingQuestion())->Expect.toEqual(None)
+    })
+
+    testAsync("registration for a removed task rejects", async t => {
+      Store.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(store, {
+        ...Store.getState(store),
+        tasks: Dict.make(),
+        currentTask: App.defaultState.currentTask,
+      })
+      let controller = WebAPI.AbortController.make()
+      t->expect(await ask(controller.signal))->Expect.toEqual(
+        Tool.Tool.MCP.CallToolResult.makeError("Question session is no longer active"),
+      )
+    })
+
+    test("old cleanup cannot clear a same-call-ID replacement", t => {
+      let registerQuestion = resolveOk =>
+        Client__State.Actions.questionReceived(
+          ~taskId="test-task-1",
+          ~questions,
+          ~toolCallId="question-1",
+          ~resolveOk,
+          ~resolveError=_ => failwith("Valid registration must not reject"),
+        )
+      let cleanup = registerQuestion(_ => failwith("Abandoned question must not resolve"))
+      let answer = ref(None)
+      let resolveOk = json => answer := Some(json)
+      let replacementCleanup = registerQuestion(resolveOk)
+      cleanup()
+      t->expect((pendingQuestion()->Option.getOrThrow).resolveOk === resolveOk)->Expect.toBe(true)
+      replacementCleanup()
+      t->expect(pendingQuestion())->Expect.toEqual(None)
+      t->expect(answer.contents)->Expect.toEqual(None)
+    })
+
+    testAsync("session release clears the question and abort settles it after task removal", async t => {
+      let controller = WebAPI.AbortController.make()
+      let pending = ask(controller.signal)
+      Store.dispatch(store, ConnectionAction(ClearSession))
+      t->expect(pendingQuestion())->Expect.toEqual(None)
+      Store.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(store, {
+        ...Store.getState(store),
+        tasks: Dict.make(),
+        currentTask: App.defaultState.currentTask,
+      })
+      WebAPI.AbortController.abort(controller)
+      t->expect(await pending)->Expect.toEqual(
+        Tool.Tool.MCP.CallToolResult.makeError("Question request aborted"),
+      )
+      t->expect(Store.getState(store).tasks)->Expect.toEqual(Dict.make())
+    })
+
+    testAsync("an already-aborted request never registers a question", async t => {
+      let controller = WebAPI.AbortController.make()
+      WebAPI.AbortController.abort(controller)
+      let _ = await ask(controller.signal)
+      t->expect(pendingQuestion())->Expect.toEqual(None)
+    })
+  })
 
   let runEffects = (effects, ~delegate=_ => failwith("Unexpected delegated effect")) =>
     effects->Array.forEach(effect =>

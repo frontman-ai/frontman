@@ -35,6 +35,12 @@ module Task = {
     orientation: Client__DeviceMode.orientation,
   }
 
+  type retainedState = {
+    previewFrame: previewFrame,
+    annotations: array<Annotation.t>,
+    imageAttachments: Dict.t<Client__Message.fileAttachmentData>,
+  }
+
   type t =
     | New({
         clientId: string,
@@ -43,7 +49,13 @@ module Task = {
         annotations: array<Annotation.t>,
         activePopupAnnotationId: option<string>,
       })
-    | Unloaded({id: string, title: string, createdAt: float, updatedAt: float})
+    | Unloaded({
+        id: string,
+        title: string,
+        createdAt: float,
+        updatedAt: float,
+        retained: option<retainedState>,
+      })
     | Loading({
         id: string,
         title: string,
@@ -55,6 +67,8 @@ module Task = {
         annotations: array<Annotation.t>,
         activePopupAnnotationId: option<string>,
         isAgentRunning: bool,
+        pendingQuestion: option<Client__Question__Types.pendingQuestion>,
+        imageAttachments: Dict.t<Client__Message.fileAttachmentData>,
         queuedUserMessages: array<Message.t>,
         planEntries: array<ACPTypes.planEntry>,
       })
@@ -129,7 +143,8 @@ module Task = {
   let getPreviewFrame = (task: t, ~defaultUrl: string): previewFrame =>
     switch task {
     | New({previewFrame}) => previewFrame
-    | Unloaded(_) => {
+    | Unloaded({retained: Some({previewFrame})}) => previewFrame
+    | Unloaded({retained: None}) => {
         url: defaultUrl,
         navigationKey: 0,
         contentDocument: None,
@@ -150,7 +165,7 @@ module Task = {
   let getAnnotations = (task: t): array<Annotation.t> =>
     switch task {
     | New({annotations}) => annotations
-    | Unloaded(_) => []
+    | Unloaded({retained}) => retained->Option.mapOr([], view => view.annotations)
     | Loading({annotations}) | Loaded({annotations}) => annotations
     }
 
@@ -164,8 +179,9 @@ module Task = {
 
   let getImageAttachments = (task: t): Dict.t<Client__Message.fileAttachmentData> =>
     switch task {
-    | Loaded({imageAttachments}) => imageAttachments
-    | New(_) | Unloaded(_) | Loading(_) => Dict.make()
+    | Loaded({imageAttachments}) | Loading({imageAttachments}) => imageAttachments
+    | Unloaded({retained: Some({imageAttachments})}) => imageAttachments
+    | New(_) | Unloaded({retained: None}) => Dict.make()
     }
 
   let getCompletedFileChanges = (task: t): Client__FileChanges.snapshot =>
@@ -243,6 +259,7 @@ module Task = {
       title: normalizeTitle(title),
       createdAt,
       updatedAt,
+      retained: None,
     })
   }
 
@@ -374,6 +391,8 @@ module Task = {
         annotations,
         activePopupAnnotationId,
         isAgentRunning,
+        pendingQuestion,
+        imageAttachments,
         queuedUserMessages,
         planEntries,
       }) => {
@@ -388,7 +407,7 @@ module Task = {
           queuedUserMessages,
           pendingUserMessageIds: [],
           turnError: None,
-          pendingQuestion: None,
+          pendingQuestion,
         }
         let updated = fn(data)
         Loading({
@@ -402,6 +421,8 @@ module Task = {
           annotations: updated.annotations,
           activePopupAnnotationId: updated.activePopupAnnotationId,
           isAgentRunning: updated.isAgentRunning,
+          pendingQuestion: updated.pendingQuestion,
+          imageAttachments,
           queuedUserMessages: updated.queuedUserMessages,
           planEntries: updated.planEntries,
         })
@@ -429,7 +450,28 @@ module Task = {
           activePopupAnnotationId: updated.activePopupAnnotationId,
         })
       }
-    | Unloaded(_) => task
+    | Unloaded({retained: Some(view)} as data) =>
+      let updated = fn({
+        messages: [],
+        annotationMode: Annotation.Off,
+        annotations: view.annotations,
+        activePopupAnnotationId: None,
+        isAgentRunning: false,
+        lastTurnCancelled: false,
+        planEntries: [],
+        queuedUserMessages: [],
+        pendingUserMessageIds: [],
+        turnError: None,
+        pendingQuestion: None,
+      })
+      Unloaded({
+        ...data,
+        retained: Some({
+          ...view,
+          annotations: updated.annotations,
+        }),
+      })
+    | Unloaded({retained: None}) => task
     }
   }
 }

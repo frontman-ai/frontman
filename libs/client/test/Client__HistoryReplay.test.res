@@ -106,7 +106,16 @@ describe("ACP message identity", () => {
     module App = Client__State__StateReducer
     module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
     Buffer.reset()
-    let loading = makeLoadingTask()
+    let loading =
+      makeLoadingTask()
+      ->apply(LoadComplete)
+      ->apply(user(~id="stale-cache", ~text="Do not restore"))
+      ->apply(ExecutionStateRunning([]))
+      ->apply(LoadStarted({previewUrl: "http://localhost:3000"}))
+    switch loading {
+    | Task.Loading({isAgentRunning: false, queuedUserMessages: []}) => ()
+    | _ => failwith("Reload must clear server-owned execution and queue state")
+    }
     let store = StateStore.make(
       module(App),
       {
@@ -203,7 +212,7 @@ describe("ACP message identity", () => {
         switch effect {
         | ConnectionEffect(ActivateSessionEffect({
             requestId,
-            operation: (#load(sessionId) | #join(sessionId)) as operation,
+            operation: #load(sessionId) as operation,
           })) =>
           operations->Array.push(operation)
           requests->Array.push(
@@ -243,8 +252,9 @@ describe("ACP message identity", () => {
     store->Store.dispatch(ClearCurrentTask)
     switchTask()
     finish(1)
-    t->expect(operations)->Expect.toEqual([#load("task-1"), #join("task-1")])
-    t->expect(store->Store.getState->getTask)->Expect.toBe(loaded)
+    t->expect(operations)->Expect.toEqual([#load("task-1"), #load("task-1")])
+    t->expect(store->Store.getState->getTask->Task.isLoaded)->Expect.toBe(true)
+    t->expect(store->Store.getState->getTask->summary)->Expect.toEqual([])
     Buffer.reset()
   })
 
