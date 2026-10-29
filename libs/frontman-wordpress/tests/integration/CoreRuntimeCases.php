@@ -35,12 +35,16 @@ $mcp_post = wp_insert_post( [ 'post_title' => 'MCP private fixture', 'post_conte
 $mcp_password = WP_Application_Passwords::create_new_application_password( $actor_id, [ 'name' => 'Runtime MCP' ] );
 frontman_runtime_assert( is_array( $mcp_password ), 'Application Password creation failed' );
 $mcp_credentials = 'landing-page-actor:' . $mcp_password[0];
+$mcp_discover = static function( string $credentials, string $browser_cookie = '', ?string $browser_nonce = null ): array {
+	return frontman_runtime_http( 'GET', '/?rest_route=/frontman/v1/tools', $browser_cookie, $browser_nonce, null, '', $credentials );
+};
 $mcp_request = static function( string $credentials, string $name = 'wp_read_post', ?int $id = null, string $browser_cookie = '', ?string $browser_nonce = null ) use ( $mcp_post ): array {
 	return frontman_runtime_http( 'POST', '/?rest_route=/frontman/v1/tools/call', $browser_cookie, $browser_nonce, wp_json_encode( [ 'name' => $name, 'arguments' => [ 'id' => $id ?? $mcp_post, 'content' => 'Unauthorized mutation' ] ] ), '', $credentials );
 };
 $mcp_denied = static function( array $response ): void {
 	frontman_runtime_assert( in_array( $response['status'], [ 401, 403 ], true ), 'MCP request must be denied' );
 	frontman_runtime_assert( false === strpos( $response['body'], 'Private MCP bytes' ), 'Denied MCP response leaked content' );
+	frontman_runtime_assert( false === strpos( $response['body'], '"tools"' ), 'Denied MCP response leaked catalog' );
 };
 try {
 	require_once ABSPATH . 'wp-admin/includes/template.php';
@@ -49,8 +53,14 @@ try {
 	Frontman_Settings::render_settings();
 	frontman_runtime_assert( false !== strpos( ob_get_clean(), 'Allow MCP connections' ), 'MCP setting appears on the existing settings page' );
 	$mcp_denied( $mcp_request( $mcp_credentials ) );
+	$mcp_denied( $mcp_discover( $mcp_credentials ) );
 	update_option( 'frontman_mcp_enabled', true );
-	$response = $mcp_request( $mcp_credentials );
+	$catalog = $mcp_discover( $mcp_credentials );
+	frontman_runtime_same( 200, $catalog['status'], 'Application Password discovery without cookies succeeds' );
+	$catalog = json_decode( $catalog['body'], true, 512, JSON_THROW_ON_ERROR );
+	$definitions = array_values( array_filter( Frontman_Tools::instance()->all_definitions(), static fn( $tool ) => 'wp_read_post' === $tool['name'] ) );
+	frontman_runtime_same( [ 'tools' => $definitions ], $catalog, 'Discovery preserves exactly the registered read definition and argument schema' );
+	$response = $mcp_request( $mcp_credentials, $catalog['tools'][0]['name'], $mcp_post );
 	frontman_runtime_same( 200, $response['status'], 'Application Password HTTP request without cookies succeeds' );
 	$result = json_decode( $response['body'], true, 512, JSON_THROW_ON_ERROR );
 	frontman_runtime_same( false, $result['isError'], 'MCP read succeeds' );
@@ -64,12 +74,17 @@ try {
 	frontman_runtime_assert( $failure['isError'] && false !== strpos( $failure['content'][0]['text'], 'Post not found' ), 'MCP preserves handler failures' );
 	$mcp_denied( $mcp_request( '' ) );
 	$mcp_denied( $mcp_request( 'landing-page-actor:invalid' ) );
+	foreach ( [ '', 'landing-page-actor:invalid' ] as $credentials ) {
+		$mcp_denied( $mcp_discover( $credentials ) );
+	}
 	$_COOKIE[ LOGGED_IN_COOKIE ] = $cookie;
 	$rest_nonce = wp_create_nonce( 'wp_rest' );
 	unset( $_COOKIE[ LOGGED_IN_COOKIE ] );
 	$mcp_denied( $mcp_request( '', 'wp_read_post', null, $cookie, $rest_nonce ) );
+	$mcp_denied( $mcp_discover( '', $cookie, $rest_nonce ) );
 	$actor->set_role( 'subscriber' );
 	$mcp_denied( $mcp_request( $mcp_credentials ) );
+	$mcp_denied( $mcp_discover( $mcp_credentials ) );
 	$actor->set_role( 'administrator' );
 	foreach ( array_merge( array_column( Frontman_Tools::instance()->all_definitions(), 'name' ), [ 'unknown', 'WP_READ_POST' ] ) as $name ) {
 		if ( 'wp_read_post' !== $name ) {
@@ -79,9 +94,11 @@ try {
 	frontman_runtime_same( 'Private MCP bytes', $wpdb->get_var( $wpdb->prepare( "SELECT post_content FROM {$wpdb->posts} WHERE ID = %d", $mcp_post ) ), 'Denied tools did not mutate the post' );
 	update_option( 'frontman_mcp_enabled', false );
 	$mcp_denied( $mcp_request( $mcp_credentials ) );
+	$mcp_denied( $mcp_discover( $mcp_credentials ) );
 	update_option( 'frontman_mcp_enabled', true );
 	WP_Application_Passwords::delete_application_password( $actor_id, $mcp_password[1]['uuid'] );
 	$mcp_denied( $mcp_request( $mcp_credentials ) );
+	$mcp_denied( $mcp_discover( $mcp_credentials ) );
 } finally {
 	$actor->set_role( 'administrator' );
 	WP_Application_Passwords::delete_all_application_passwords( $actor_id );
