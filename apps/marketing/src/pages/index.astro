@@ -113,7 +113,7 @@ const pageJsonLd = {
 					<Button size="lg" style="white" link={pluginUrl} classes="wp-primary-cta" data-ga-event="click_wordpress_plugin" data-ga-category="engagement" data-ga-label="wordpress_home_hero" data-ga-placement="hero" data-ga-destination="wordpress_org">Get Frontman for WordPress <span class="wp-cta-arrow" aria-hidden="true">→</span></Button>
 				</div>
 				<p class="wp-hero__support">Your existing site. Gutenberg and Elementor. No rebuild.</p>
-				<p class="wp-hero__frameworks">Building with Next.js, Astro, or Vite? <a href="/frameworks/" data-ga-event="click_framework_setup" data-ga-category="engagement" data-ga-label="wordpress_home_hero" data-ga-placement="hero" data-ga-destination="framework_guide">Explore Frontman for frameworks →</a></p>
+				<p class="wp-hero__frameworks"><span>Building with Next.js, Astro, or Vite?</span> <a href="/frameworks/" data-ga-event="click_framework_setup" data-ga-category="engagement" data-ga-label="wordpress_home_hero" data-ga-placement="hero" data-ga-destination="framework_guide">Explore frameworks&nbsp;→</a></p>
 			</div>
 			<div id="demo" class="wp-video-wrapper">
 				<iframe
@@ -270,9 +270,10 @@ const pageJsonLd = {
 	.wp-hero__cta { justify-content: center; gap: 20px; }
 	.wp-hero__cta .button { justify-content: center; }
 	.wp-primary-cta { min-width: 268px; }
-	.wp-hero__support { margin-top: 20px; font-size: 14px; line-height: 1.6; }
-	.wp-hero__frameworks { margin-top: 12px; font-size: 14px; line-height: 1.6; }
-	.wp-hero__frameworks a { color: inherit; text-decoration: underline; text-underline-offset: 4px; }
+	.wp-hero__support { margin: 20px 0 0; font-size: 14px; line-height: 1.6; }
+	.wp-hero__frameworks { width: 100%; max-width: 480px; display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 28px 0 0; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.25); color: #ede9fe; font-size: 14px; line-height: 1.6; }
+	.wp-hero .wp-hero__frameworks a { width: auto; max-width: 100%; white-space: nowrap; color: #fff !important; font-weight: 600; text-decoration: underline; text-decoration-color: rgba(255, 255, 255, 0.5); text-underline-offset: 4px; }
+	.wp-hero .wp-hero__frameworks a:hover { color: #fff; text-decoration-color: #fff; }
 	.wp-cta-arrow { margin-left: 8px; }
 	.wp-actions--center { justify-content: center; }
 	.wp-secondary-link { @apply font-semibold text-white underline underline-offset-4 hover:text-primary-100; }
