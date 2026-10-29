@@ -34,6 +34,8 @@ class Frontman_Tool_Definition {
 	public bool   $preserve_input_strings;
 	/** @var callable(array): array */
 	public $handler;
+	/** @var null|callable(\stdClass): bool Remote opt-in; validate native JSON before sanitization. */
+	public $remote_validator;
 
 	/**
 	 * @param string   $name             Tool name (e.g. "wp_list_posts").
@@ -43,6 +45,7 @@ class Frontman_Tool_Definition {
 	 * @param string|null $access              Tool access level: read, write, or read-write. Inferred from name when omitted.
 	 * @param bool     $visible_to_agent       Whether the agent can see this tool.
 	 * @param bool     $preserve_input_strings Whether schema sanitization should preserve raw string values for downstream API validation.
+	 * @param callable|null $remote_validator Remote opt-in. Return true for valid decoded JSON arguments, false for HTTP 400.
 	 */
 	public function __construct(
 		string $name,
@@ -51,7 +54,8 @@ class Frontman_Tool_Definition {
 		callable $handler,
 		?string $access = null,
 		bool $visible_to_agent = true,
-		bool $preserve_input_strings = false
+		bool $preserve_input_strings = false,
+		?callable $remote_validator = null
 	) {
 		$this->name                   = $name;
 		$this->description            = $description;
@@ -60,6 +64,7 @@ class Frontman_Tool_Definition {
 		$this->handler                = $handler;
 		$this->visible_to_agent       = $visible_to_agent;
 		$this->preserve_input_strings = $preserve_input_strings;
+		$this->remote_validator       = $remote_validator;
 	}
 
 	/**
@@ -137,15 +142,15 @@ class Frontman_Tools {
 	}
 
 	/**
-	 * Return all tool definitions as serializable arrays.
+	 * Return serializable tool definitions, optionally limited to remote contracts.
 	 *
 	 * @return array[]
 	 */
-	public function all_definitions(): array {
+	public function all_definitions( bool $remote_only = false ): array {
 		return array_values(
 			array_map(
 				function( Frontman_Tool_Definition $t ) { return $t->to_array(); },
-				$this->tools
+				array_filter( $this->tools, static fn( Frontman_Tool_Definition $t ) => ! $remote_only || null !== $t->remote_validator )
 			)
 		);
 	}

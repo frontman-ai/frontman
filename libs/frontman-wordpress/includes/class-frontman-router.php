@@ -28,8 +28,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class Frontman_Router {
-	private const REMOTE_TOOL_NAME = 'wp_read_post';
-
 	private Frontman_Tools    $tools;
 	private Frontman_UI       $ui;
 
@@ -60,23 +58,25 @@ class Frontman_Router {
 				'methods' => 'GET',
 				'permission_callback' => $permission,
 				'callback' => static function() {
-					return [ 'tools' => [ Frontman_Tools::instance()->get( self::REMOTE_TOOL_NAME )->to_array() ] ];
+					return [ 'tools' => Frontman_Tools::instance()->all_definitions( true ) ];
 				},
 			] );
 			register_rest_route( 'frontman/v1', '/tools/call', [
 				'methods' => 'POST',
 				'permission_callback' => $permission,
 				'callback' => static function( WP_REST_Request $request ) {
-					if ( self::REMOTE_TOOL_NAME !== $request->get_param( 'name' ) ) {
+					$tools = Frontman_Tools::instance();
+					$name = $request->get_param( 'name' );
+					$tool = is_string( $name ) ? $tools->get( $name ) : null;
+					if ( ! $tool || null === $tool->remote_validator ) {
 						return new WP_Error( 'frontman_mcp_forbidden', 'MCP access denied.', [ 'status' => 403 ] );
 					}
 					$body = json_decode( $request->get_body() );
 					if ( ! is_object( $body ) || ! isset( $body->arguments ) || ! is_object( $body->arguments )
-						|| ! isset( $body->arguments->id ) || ! is_int( $body->arguments->id ) || $body->arguments->id < 1 ) {
-						return new WP_Error( 'frontman_mcp_arguments', 'arguments must be an object with a positive integer id.', [ 'status' => 400 ] );
+						|| ! ( $tool->remote_validator )( $body->arguments ) ) {
+						return new WP_Error( 'frontman_mcp_arguments', 'Invalid tool arguments.', [ 'status' => 400 ] );
 					}
-					$tools = Frontman_Tools::instance();
-					return $tools->call( self::REMOTE_TOOL_NAME, $tools->sanitize_input( self::REMOTE_TOOL_NAME, (array) $body->arguments ) );
+					return $tools->call( $name, $tools->sanitize_input( $name, (array) $body->arguments ) );
 				},
 			] );
 		} );
