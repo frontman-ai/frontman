@@ -73,6 +73,7 @@ require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-seo.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-redirection.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-301-redirects.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-angie.php';
+require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-directorist.php';
 
 /**
  * Main plugin bootstrap.
@@ -99,6 +100,10 @@ function frontman_bootstrap(): void {
 
 	if ( Frontman_Tool_Angie::is_available() ) {
 		( new Frontman_Tool_Angie() )->register( $tools );
+	}
+
+	if ( Frontman_Tool_Directorist::is_available() ) {
+		( new Frontman_Tool_Directorist() )->register( $tools );
 	}
 
 	if ( Frontman_Tool_Redirection::is_available() ) {
