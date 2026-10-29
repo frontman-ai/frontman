@@ -16,8 +16,9 @@ function frontman_runtime_saved_id( string $message ): int {
 	return (int) $match[1];
 }
 
-function frontman_runtime_http( string $method, string $path, string $cookie = '', ?string $nonce = null, ?string $body = null, string $test = '' ): array {
+function frontman_runtime_http( string $method, string $path, string $cookie = '', ?string $nonce = null, ?string $body = null, string $test = '', string $authorization = '' ): array {
 	$headers = [ 'Host: frontman-runtime.example.test' ];
+	$headers[] = '' === $authorization ? '' : 'Authorization: Basic ' . base64_encode( $authorization );
 	$headers[] = '' === $test ? '' : 'X-Frontman-Seo-Test: ' . $test;
 	if ( '' !== $cookie ) {
 		$headers[] = 'Cookie: ' . LOGGED_IN_COOKIE . '=' . $cookie;

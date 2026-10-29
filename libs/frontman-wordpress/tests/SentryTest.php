@@ -51,10 +51,11 @@ if ( $site_first ) {
 
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-tools.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-sentry.php';
+require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-settings.php';
 
 Frontman_Sentry::capture( new RuntimeException( 'Not opted in' ), 'wp_test' );
 check( ! class_exists( 'FrontmanVendor\\Sentry\\ClientBuilder', false ), 'Disabled reporting must not load the SDK.' );
-Frontman_Sentry::register_setting();
+Frontman_Settings::register_setting();
 foreach ( [ 'frontman_php_diagnostics', 'frontman_auth_diagnostics' ] as $name ) {
         check( isset( $GLOBALS['settings'][ $name ] ), 'Both diagnostic options must be registered independently.' );
         check( false === $GLOBALS['settings'][ $name ][2]['default'], 'Diagnostics must default to off.' );
@@ -192,9 +193,9 @@ define( 'FRONTMAN_PLUGIN_URL', 'https://example.test/plugin/' );
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-ui.php';
 $ui = new Frontman_UI();
 $ui->register();
-Frontman_Sentry::register();
+Frontman_Settings::register();
 check( [ $ui, 'enqueue_admin_assets' ] === $GLOBALS['hooks']['admin_enqueue_scripts'][0][0], 'Named callbacks must retain their removable WordPress identity.' );
-check( [ Frontman_Sentry::class, 'register_setting' ] === $GLOBALS['hooks']['admin_init'][0][0], 'Settings callback identity must remain stable.' );
+check( [ Frontman_Settings::class, 'register_setting' ] === $GLOBALS['hooks']['admin_init'][0][0], 'Settings callback identity must remain stable.' );
 foreach ( $GLOBALS['hooks']['admin_menu'] as [ $callback ] ) { $callback(); }
 $callbacks = [
 	[ $GLOBALS['hooks']['admin_menu'][0][0], [] ],
