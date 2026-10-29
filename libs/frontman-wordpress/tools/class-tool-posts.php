@@ -99,7 +99,11 @@ class Frontman_Tool_Posts {
 				],
 				'required' => [ 'id' ],
 			],
-			[ $this, 'read_post' ]
+			[ $this, 'read_post' ],
+			null,
+			true,
+			false,
+			static fn( \stdClass $input ): bool => isset( $input->id ) && is_int( $input->id ) && $input->id > 0
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(

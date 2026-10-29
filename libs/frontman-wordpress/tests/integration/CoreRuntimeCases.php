@@ -55,17 +55,29 @@ try {
 	$mcp_denied( $mcp_request( $mcp_credentials ) );
 	$mcp_denied( $mcp_discover( $mcp_credentials ) );
 	update_option( 'frontman_mcp_enabled', true );
+	$read_definition = Frontman_Tools::instance()->get( 'wp_read_post' );
+	frontman_runtime_assert( is_callable( $read_definition->remote_validator ?? null ), 'Read definition owns remote validation' );
+	frontman_runtime_same( true, ( $read_definition->remote_validator )( (object) [ 'id' => $mcp_post ] ), 'Registered validator accepts the real post ID' );
+	foreach ( Frontman_Tools::instance()->all_definitions() as $definition ) {
+		$registered = Frontman_Tools::instance()->get( $definition['name'] );
+		frontman_runtime_same( 'wp_read_post' === $registered->name, null !== $registered->remote_validator, 'Only the registered read definition has a remote contract' );
+	}
 	$catalog = $mcp_discover( $mcp_credentials );
 	frontman_runtime_same( 200, $catalog['status'], 'Application Password discovery without cookies succeeds' );
 	$catalog = json_decode( $catalog['body'], true, 512, JSON_THROW_ON_ERROR );
 	$definitions = array_values( array_filter( Frontman_Tools::instance()->all_definitions(), static fn( $tool ) => 'wp_read_post' === $tool['name'] ) );
 	frontman_runtime_same( [ 'tools' => $definitions ], $catalog, 'Discovery preserves exactly the registered read definition and argument schema' );
+	frontman_runtime_same( Frontman_Tools::instance()->all_definitions( true ), $catalog['tools'], 'HTTP discovery matches definition-owned remote eligibility' );
 	$response = $mcp_request( $mcp_credentials, $catalog['tools'][0]['name'], $mcp_post );
 	frontman_runtime_same( 200, $response['status'], 'Application Password HTTP request without cookies succeeds' );
 	$result = json_decode( $response['body'], true, 512, JSON_THROW_ON_ERROR );
 	frontman_runtime_same( false, $result['isError'], 'MCP read succeeds' );
 	frontman_runtime_same( 'Private MCP bytes', json_decode( $result['content'][0]['text'], true )['content'], 'MCP preserves raw content' );
-	foreach ( [ '{"id":[999]}', '{"id":true}', '{"id":"1"}', '{"id":1.5}', '{"id":0}', '{"id":-1}', '{"id":9223372036854775808}', '{}', '[]', 'true', 'null' ] as $arguments ) {
+	foreach ( [ '{"id":[999]}', '{"id":{}}', '{"id":null}', '{"id":true}', '{"id":"1"}', '{"id":1.5}', '{"id":0}', '{"id":-1}', '{"id":9223372036854775808}', '{}', '[]', 'true', 'null' ] as $arguments ) {
+		$decoded = json_decode( $arguments );
+		if ( $decoded instanceof stdClass ) {
+			frontman_runtime_same( false, ( $read_definition->remote_validator )( $decoded ), 'Registered validator rejects native JSON: ' . $arguments );
+		}
 		$invalid = frontman_runtime_http( 'POST', '/?rest_route=/frontman/v1/tools/call', '', null, '{"name":"wp_read_post","arguments":' . $arguments . '}', '', $mcp_credentials );
 		frontman_runtime_same( 400, $invalid['status'], 'Malformed MCP arguments must not execute a read: ' . $arguments );
 		frontman_runtime_assert( false === strpos( $invalid['body'], 'Private MCP bytes' ), 'Malformed MCP request leaked content' );
