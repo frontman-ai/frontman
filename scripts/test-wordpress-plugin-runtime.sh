@@ -280,6 +280,24 @@ for ANGIE_VERSION in 1.1.0 1.1.16; do
   unzip -q "$BUILD_DIR/angie.zip" -d "$BUILD_DIR/angie-${ANGIE_VERSION}"
   "$RUNTIME" exec "$WORDPRESS" rm -rf /var/www/html/wp-content/plugins/angie
   "$RUNTIME" cp "$BUILD_DIR/angie-${ANGIE_VERSION}/angie" "$WORDPRESS:/var/www/html/wp-content/plugins/angie"
-  "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/AngieRuntimeTest.php --setup
-  "$RUNTIME" exec -e EXPECTED_ANGIE_VERSION="$ANGIE_VERSION" "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/AngieRuntimeTest.php
+  	"$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/AngieRuntimeTest.php --setup
+	"$RUNTIME" exec -e EXPECTED_ANGIE_VERSION="$ANGIE_VERSION" "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/AngieRuntimeTest.php
 done
+
+DIRECTORIST_VERSION=8.10.6
+DIRECTORIST_SHA256=d2615cb9e29b1003cffd7713b515bb4984b6ba25e32aef76a0e04fff7a2ce28a
+curl -fsSL "https://downloads.wordpress.org/plugin/directorist.${DIRECTORIST_VERSION}.zip" -o "$BUILD_DIR/directorist.zip"
+printf '%s  %s\n' "$DIRECTORIST_SHA256" "$BUILD_DIR/directorist.zip" | sha256sum --check --status
+unzip -q "$BUILD_DIR/directorist.zip" -d "$BUILD_DIR/directorist"
+"$RUNTIME" cp "$BUILD_DIR/directorist/directorist" "$WORDPRESS:/var/www/html/wp-content/plugins/directorist"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/DirectoristRuntimeTest.php" "$WORDPRESS:/tmp/DirectoristRuntimeTest.php"
+"$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/DirectoristRuntimeTest.php --setup
+if DIRECTORIST_OUTPUT="$("$RUNTIME" exec -e EXPECTED_DIRECTORIST_VERSION="$DIRECTORIST_VERSION" "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/DirectoristRuntimeTest.php)"; then
+  DIRECTORIST_STATUS=0
+else DIRECTORIST_STATUS=$?
+fi
+printf '%s\n' "$DIRECTORIST_OUTPUT"
+if [[ "$DIRECTORIST_STATUS" -ne 0 || "$DIRECTORIST_OUTPUT" != *"OK (Directorist ${DIRECTORIST_VERSION}, WordPress ${WORDPRESS_VERSION}, PHP "* ]]; then
+  printf 'Directorist runtime tests did not report successful completion.\n' >&2
+  exit 1
+fi

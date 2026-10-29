@@ -6,7 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Frontman_Tool_Directorist {
 	public static function is_available(): bool {
-		return Frontman_Plugin_Dependencies::is_available( 'directorist/directorist.php', 'Directorist\\Helper' )
+		return Frontman_Plugin_Dependencies::is_available( 'directorist/directorist-base.php', 'Directorist\\Helper' )
 			&& function_exists( 'directorist_get_listing_directory' ) && function_exists( 'directorist_submission_form_fields' )
 			&& function_exists( 'directorist_single_listings_contents' ) && defined( 'ATBDP_DIRECTORY_TYPE' );
 	}
@@ -40,23 +40,19 @@ class Frontman_Tool_Directorist {
 			if ( ! is_string( $key ) || 1 === preg_match( '/(?:^|_)(?:fm_)?(?:plan|claim|payment|order|expire|privacy|token|secret)(?:_|$)|view_count|pricing_plans/', $key . ' ' . $widget ) ) {
 				continue;
 			}
-			$field['field_key'] = $key;
-			$fields[] = [ 'key' => $key, 'label' => sanitize_text_field( (string) ( $field['label'] ?? $key ) ), 'widget' => sanitize_key( $widget ), 'value' => self::plain( \Directorist\Helper::get_widget_value( $id, $field ) ) ];
+			if ( ! isset( $field['field_key'] ) || ! is_string( $field['field_key'] ) || '' === $field['field_key'] ) {
+				$field['field_key'] = $key;
+			}
+			$fields[] = [ 'key' => $key, 'field_key' => $field['field_key'], 'label' => sanitize_text_field( (string) ( $field['label'] ?? $key ) ), 'widget' => sanitize_key( $widget ), 'value' => self::plain( \Directorist\Helper::get_widget_value( $id, $field ) ) ];
 		}
 		$header = function_exists( 'directorist_single_listing_header' ) ? directorist_single_listing_header( $directory_id ) : [];
-		$header = is_array( $header ) ? $header : [];
-		$content = (array) ( $header['options']['content_settings'] ?? [] );
-		$block = (array) ( $header['listings_header'] ?? [] );
-		$on = static function ( $value ): bool {
-			return in_array( $value, [ true, 1, '1', 'true', 'yes' ], true );
-		};
 		$result = [
 			'id' => $id,
 			'directory' => [ 'id' => $directory_id, 'name' => $term instanceof \WP_Term ? $term->name : '', 'slug' => $term instanceof \WP_Term ? $term->slug : '' ],
-			'single_page' => [ 'enabled' => $on( function_exists( 'get_directorist_type_option' ) ? get_directorist_type_option( $directory_id, 'enable_single_listing_page', false ) : false ), 'page_id' => (int) ( function_exists( 'get_directorist_type_option' ) ? get_directorist_type_option( $directory_id, 'single_listing_page', 0 ) : 0 ) ],
+			'single_page' => [ 'enabled' => self::on( function_exists( 'get_directorist_type_option' ) ? get_directorist_type_option( $directory_id, 'enable_single_listing_page', false ) : false ), 'page_id' => (int) ( function_exists( 'get_directorist_type_option' ) ? get_directorist_type_option( $directory_id, 'single_listing_page', 0 ) : 0 ) ],
 			'taxonomies' => self::terms( $id ),
 			'fields' => $fields,
-			'header' => [ 'title' => $on( $content['listing_title']['enable_title'] ?? false ), 'tagline' => $on( $content['listing_title']['enable_tagline'] ?? false ), 'description' => $on( $content['listing_description']['enable'] ?? false ), 'thumbnail' => self::widget_names( $block['thumbnail'] ?? [] ), 'quick_info' => self::widget_names( $block['quick_info'] ?? [] ), 'quick_actions' => self::widget_names( $block['quick_actions'] ?? [] ) ],
+			'header' => self::header( $header ),
 			'sections' => self::sections( directorist_single_listings_contents( $directory_id ) ),
 		];
 		if ( strlen( (string) wp_json_encode( $result ) ) > 131072 ) {
@@ -65,10 +61,93 @@ class Frontman_Tool_Directorist {
 		return $result;
 	}
 
+	private static function on( $value ): bool {
+		return in_array( $value, [ true, 1, '1', 'true', 'yes' ], true );
+	}
+
+	private static function header( $header ): array {
+		if ( ! is_array( $header ) || [] === $header ) {
+			return self::empty_header();
+		}
+		if ( isset( $header['listings_header'] ) || isset( $header['options'] ) ) {
+			$content = (array) ( $header['options']['content_settings'] ?? [] );
+			$block = (array) ( $header['listings_header'] ?? [] );
+			return [
+				'title' => self::on( $content['listing_title']['enable_title'] ?? false ),
+				'tagline' => self::on( $content['listing_title']['enable_tagline'] ?? false ),
+				'description' => self::on( $content['listing_description']['enable'] ?? false ),
+				'thumbnail' => self::widget_names( $block['thumbnail'] ?? [] ),
+				'quick_info' => self::widget_names( $block['quick_info'] ?? [] ),
+				'quick_actions' => self::widget_names( $block['quick_actions'] ?? [] ),
+				'actions' => [],
+			];
+		}
+		if ( ! self::is_placeholder_header( $header ) ) {
+			throw new Frontman_Tool_Error( 'This Directorist single-listing header layout is not supported.' );
+		}
+		$grouped = [];
+		foreach ( $header as $entry ) {
+			self::collect_placeholders( $entry, $grouped );
+		}
+		$title = $grouped['listing-title-placeholder'] ?? [];
+		$tagline = false;
+		foreach ( $title as $widget ) {
+			$flag = $widget['enable_tagline'] ?? ( $widget['options']['fields']['enable_tagline']['value'] ?? false );
+			if ( self::on( $flag ) ) {
+				$tagline = true;
+			}
+		}
+		return [
+			'title' => [] !== $title,
+			'tagline' => $tagline,
+			'description' => false,
+			'thumbnail' => self::widget_names( $grouped['slider-placeholder'] ?? [] ),
+			'quick_info' => self::widget_names( $grouped['more-widgets-placeholder'] ?? [] ),
+			'quick_actions' => self::widget_names( $grouped['quick-action-placeholder'] ?? [] ),
+			'actions' => self::widget_names( $grouped['action-placeholder'] ?? [] ),
+		];
+	}
+
+	private static function empty_header(): array {
+		return [ 'title' => false, 'tagline' => false, 'description' => false, 'thumbnail' => [], 'quick_info' => [], 'quick_actions' => [], 'actions' => [] ];
+	}
+
+	private static function is_placeholder_header( array $header ): bool {
+		if ( array_keys( $header ) !== range( 0, count( $header ) - 1 ) ) {
+			return false;
+		}
+		foreach ( $header as $entry ) {
+			if ( is_array( $entry ) && isset( $entry['placeholderKey'] ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static function collect_placeholders( $node, array &$grouped ): void {
+		if ( ! is_array( $node ) ) {
+			return;
+		}
+		$key = $node['placeholderKey'] ?? '';
+		if ( is_string( $key ) && '' !== $key && isset( $node['selectedWidgets'] ) && is_array( $node['selectedWidgets'] ) ) {
+			foreach ( $node['selectedWidgets'] as $widget ) {
+				if ( is_array( $widget ) ) {
+					$grouped[ $key ][] = $widget;
+				}
+			}
+		}
+		foreach ( (array) ( $node['placeholders'] ?? [] ) as $child ) {
+			self::collect_placeholders( $child, $grouped );
+		}
+	}
+
 	private static function widget_names( $items ): array {
 		$names = [];
 		foreach ( is_array( $items ) ? $items : [] as $item ) {
-			if ( is_array( $item ) && isset( $item['widget_name'] ) ) { $names[] = sanitize_key( (string) $item['widget_name'] ); }
+			if ( is_array( $item ) ) {
+				$name = $item['widget_key'] ?? ( $item['widget_name'] ?? '' );
+				if ( is_scalar( $name ) && '' !== (string) $name ) { $names[] = sanitize_key( (string) $name ); }
+			}
 		}
 		return $names;
 	}
