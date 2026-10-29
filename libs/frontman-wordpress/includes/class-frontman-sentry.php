@@ -73,6 +73,12 @@ class Frontman_Sentry {
 			<h1><?php esc_html_e( 'Frontman PHP Diagnostics', 'frontman-agentic-ai-editor' ); ?></h1>
 			<form action="options.php" method="post">
 				<?php settings_fields( 'frontman_diagnostics' ); ?>
+				<input type="hidden" name="frontman_mcp_enabled" value="0">
+				<label>
+					<input type="checkbox" name="frontman_mcp_enabled" value="1" <?php checked( self::sanitize_enabled( get_option( 'frontman_mcp_enabled', false ) ) ); ?>>
+					<?php esc_html_e( 'Allow MCP connections', 'frontman-agentic-ai-editor' ); ?>
+				</label>
+				<p><?php esc_html_e( 'Allows authenticated post reads only, not a full MCP transport. Requires HTTPS and a WordPress Application Password for an administrator.', 'frontman-agentic-ai-editor' ); ?></p>
 				<input type="hidden" name="frontman_php_diagnostics" value="0">
 				<label>
 					<input type="checkbox" name="frontman_php_diagnostics" value="1" <?php checked( self::sanitize_enabled( get_option( self::OPTION, false ) ) ); ?>>

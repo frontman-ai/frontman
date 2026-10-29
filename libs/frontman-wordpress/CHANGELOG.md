@@ -1,5 +1,9 @@
 # @frontman-ai/frontman-wordpress
 
+## Unreleased
+
+- Add default-off MCP post reads with native WordPress Application Password authentication and administrator permission checks.
+
 ## 5.5.0
 
 ### Minor Changes

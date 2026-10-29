@@ -56,6 +56,13 @@ require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-sentry.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-router.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-ui.php';
 
+add_action( 'admin_init', static function(): void {
+	register_setting( 'frontman_diagnostics', 'frontman_mcp_enabled', [
+		'type' => 'boolean', 'default' => false,
+		'sanitize_callback' => [ Frontman_Sentry::class, 'sanitize_enabled' ],
+	] );
+} );
+
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-posts.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-users.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-blocks.php';
