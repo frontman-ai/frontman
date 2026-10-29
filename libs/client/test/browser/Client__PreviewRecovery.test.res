@@ -100,16 +100,16 @@ testAsync(
     t->expect(cleared.contentWindow)->Expect.toEqual(None)
     Test.force(previousState)
     t->expect((await screenshot())->String.includes("not available"))->Expect.toBe(true)
-    let status = JSON.stringify(await Fixture.execute(~name="navigate_preview", "{}"))
+    let status = JSON.stringify(await Fixture.execute(~name="preview_status", "{}"))
     t->expect(status->String.includes(`"ready":false`))->Expect.toBe(true)
     let requested = JSON.stringify(await Fixture.execute(
       ~name="navigate_preview",
       `{"url":"${previewUrl}"}`,
     ))
     t->expect(requested->String.includes(`"accepted":true`))->Expect.toBe(true)
-    t->expect(requested->String.includes(`"ready":false`))->Expect.toBe(true)
+    t->expect(requested->String.includes(`"ready":false`))->Expect.toBe(false)
     await waitReady()
-    let ready = JSON.stringify(await Fixture.execute(~name="navigate_preview", "{}"))
+    let ready = JSON.stringify(await Fixture.execute(~name="preview_status", "{}"))
     t->expect(ready->String.includes(`"ready":true`))->Expect.toBe(true)
     t->expect(Frame.isCurrent(~doc, ~window))->Expect.toBe(false)
     t->expect((await executeJs())->String.includes("Supported preview"))->Expect.toBe(true)
@@ -137,6 +137,20 @@ testAsync("rejects unsupported WordPress and cross-origin destinations without r
     ]->Array.get(index)->Option.getOrThrow
     let result = JSON.stringify(await Fixture.execute(~name="navigate_preview", `{"url":"${url}"}`))
     t->expect(result->String.includes(`"accepted":false`))->Expect.toBe(true)
+    t->expect(renderedFrame() === frame)->Expect.toBe(true)
+  }
+  t->expect((await executeJs())->String.includes("Supported preview"))->Expect.toBe(true)
+})
+
+testAsync("rejects blank navigation URLs and points to preview_status without replacing the frame", async t => {
+  let frame = renderedFrame()
+  for index in 0 to 1 {
+    let url = ["", "   "]->Array.get(index)->Option.getOrThrow
+    let result = JSON.stringify(
+      await Fixture.execute(~name="navigate_preview", `{"url":"${url}"}`),
+    )
+    t->expect(result->String.includes(`"accepted":false`))->Expect.toBe(true)
+    t->expect(result->String.includes("preview_status"))->Expect.toBe(true)
     t->expect(renderedFrame() === frame)->Expect.toBe(true)
   }
   t->expect((await executeJs())->String.includes("Supported preview"))->Expect.toBe(true)

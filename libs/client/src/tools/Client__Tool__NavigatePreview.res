@@ -4,11 +4,10 @@ let name = "navigate_preview"
 let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.ReadWrite
 let visibleToAgent = true
 let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
-let description = `Navigate or recover the storefront preview without refreshing Frontman.
-Pass a same-origin storefront URL (for example /shop/) to replace the iframe, even when preview tools are unavailable.
-Omit url to check readiness after navigation. An accepted request is NOT destination readiness.
-WordPress admin, Customizer, and login pages are unsupported; use WordPress tools for configuration.
-If unavailable, retry status after loading or navigate to a known supported storefront URL.`
+let description = `Navigate the preview to a same-origin URL without refreshing Frontman.
+Pass a non-empty URL (for example /shop/) to replace the iframe, even when preview tools are unavailable.
+Use preview_status to check destination readiness after navigating. An accepted request is NOT destination readiness.
+WordPress admin, Customizer, and login pages are unsupported; use WordPress tools for configuration.`
 
 @schema
 type input = {url: option<string>}
@@ -16,7 +15,6 @@ type input = {url: option<string>}
 @schema
 type output = {
   @live accepted: bool,
-  @live ready: bool,
   @live url: string,
   @live message: string,
 }
@@ -44,7 +42,7 @@ let validateDestination = url => {
       ))
     switch unsupported {
     | true =>
-      Error("WordPress admin, Customizer, and login destinations are unsupported in the storefront preview. Use WordPress tools for configuration, or navigate_preview to a storefront URL such as /shop/.")
+      Error("WordPress admin, Customizer, and login destinations are unsupported in the preview. Use WordPress tools for configuration, or navigate_preview to a supported URL such as /shop/.")
     | false => Ok()
     }
   })
@@ -59,38 +57,38 @@ let execute = async (
 ): Tool.MCP.CallToolResult.t => {
   let state = StateStore.getState(Client__State__Store.store)
   let base = Client__State.Selectors.previewUrl(state)
-  let respond = (~accepted, ~ready=false, ~url=base, message) =>
-    Tool.structuredResult({accepted, ready, url, message}, outputSchema)
-  switch input.url {
-  | None =>
-    switch Client__Tool__PreviewContext.get() {
-    | Some({doc}) if validateDestination(doc.url) == Ok() &&
-        Client__BrowserUrl.isSameOriginWithBase(~baseUrl=base, ~targetUrl=doc.url) =>
-      respond(~accepted=false, ~ready=true, ~url=doc.url, "Preview document is available.")
-    | Some(_) | None =>
-      respond(
-        ~accepted=false,
-        "Preview is unavailable or unsupported. It may still be loading, blocked, or missing the frontend bridge. Use navigate_preview with a known same-origin storefront URL such as /shop/ to recover without refreshing Frontman.",
+  let respond = (~accepted, ~url=base, message) =>
+    Tool.structuredResult({accepted, url, message}, outputSchema)
+  let resolveNavigationUrl = url => {
+    let trimmed = url->String.trim
+    if String.length(trimmed) == 0 {
+      Error("Provide a non-empty URL to navigate, or call preview_status to check readiness.")
+    } else {
+      Client__BrowserUrl.resolveUrlWithBase(~url=trimmed, ~base)
+      ->Option.mapOr(
+        Error("Invalid preview URL."),
+        url =>
+          if Client__BrowserUrl.isSameOriginWithBase(~baseUrl=base, ~targetUrl=url) {
+            validateDestination(url)->Result.map(() => url)
+          } else {
+            Error("Preview navigation must stay on the same origin.")
+          },
       )
     }
+  }
+  switch input.url {
+  | None =>
+    respond(~accepted=false, "Provide a URL to navigate, or call preview_status to check readiness.")
   | Some(url) =>
-    switch Client__BrowserUrl.resolveUrlWithBase(~url, ~base) {
-    | None => respond(~accepted=false, "Invalid preview URL.")
-    | Some(url) =>
-      switch Client__BrowserUrl.isSameOriginWithBase(~baseUrl=base, ~targetUrl=url) {
-      | false => respond(~accepted=false, "Preview navigation must stay on the same origin.")
-      | true =>
-        switch validateDestination(url) {
-        | Error(message) => respond(~accepted=false, message)
-        | Ok() =>
-          Client__State.Actions.setCurrentPreviewUrl(~url)
-          respond(
-            ~accepted=true,
-            ~url,
-            "Navigation requested, not yet ready. Call navigate_preview without url to check destination readiness before using DOM tools.",
-          )
-        }
-      }
+    switch url->resolveNavigationUrl {
+    | Error(message) => respond(~accepted=false, message)
+    | Ok(url) =>
+      Client__State.Actions.setCurrentPreviewUrl(~url)
+      respond(
+        ~accepted=true,
+        ~url,
+        "Navigation requested. Call preview_status to check destination readiness.",
+      )
     }
   }
 }
