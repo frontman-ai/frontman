@@ -205,7 +205,7 @@ module Selectors = {
 
   let webPreviewIsSelecting = (task: Task.t): option<bool> => {
     switch task {
-    | Task.Unloaded({retained: None}) => None
+    | Task.Unloaded(_) => None
     | _ => Some(Task.getWebPreviewIsSelecting(task))
     }
   }
@@ -218,7 +218,7 @@ module Selectors = {
 
   let activePopupAnnotationId = (task: Task.t): option<option<string>> => {
     switch task {
-    | Task.Unloaded({retained: None}) => None
+    | Task.Unloaded(_) => None
     | _ => Some(Task.getActivePopupAnnotationId(task))
     }
   }
@@ -684,7 +684,37 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       (updated, effects)
     }
 
-  | (Task.Unloaded(_), AnnotationDetailsResolved(_)) => (task, [])
+  | (Task.Unloaded({retained: Some(view)} as data), AnnotationDetailsResolved({
+      id,
+      selector,
+      elementContext,
+      screenshot,
+      sourceLocation,
+      cssClasses,
+      nearbyText,
+      boundingBox,
+      elementorContext,
+      enrichmentStatus,
+    })) =>
+    let annotations = view.annotations->Array.map(a =>
+      a.id == id
+        ? {
+            ...a,
+            selector,
+            elementContext,
+            screenshot,
+            sourceLocation,
+            cssClasses,
+            nearbyText,
+            boundingBox,
+            elementorContext,
+            enrichmentStatus,
+          }
+        : a
+    )
+    (Task.Unloaded({...data, retained: Some({...view, annotations})}), [])
+
+  | (Task.Unloaded({retained: None}), AnnotationDetailsResolved(_)) => (task, [])
 
   | (
       Task.New(_) | Task.Loading(_) | Task.Loaded(_),

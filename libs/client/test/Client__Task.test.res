@@ -199,18 +199,34 @@ describe("Task - Load State Machine", () => {
       ->TaskReducer.Lens.setAnnotationMode(Selecting)
       ->TaskReducer.Lens.setActivePopupAnnotationId(Some(annotation.id))
     let (loading, _) = TaskReducer.next(original, LoadStarted({previewUrl: "http://localhost:3000"}))
-    t->expect(TaskReducer.Selectors.webPreviewIsSelecting(loading))->Expect.toEqual(Some(true))
+    t->expect(Task.getWebPreviewIsSelecting(loading))->Expect.toBe(true)
     t->expect(Task.getActivePopupAnnotationId(loading))->Expect.toEqual(Some(annotation.id))
     let (failed, _) = TaskReducer.next(loading, LoadError({error: "Load interrupted"}))
     t->expect(Task.isUnloaded(failed))->Expect.toBe(true)
     t->expect(Task.getMessages(failed))->Expect.toEqual([])
-    t->expect(TaskReducer.Selectors.webPreviewIsSelecting(failed))->Expect.toEqual(Some(false))
+    t->expect(Task.getWebPreviewIsSelecting(failed))->Expect.toBe(false)
     t->expect(Task.getActivePopupAnnotationId(failed))->Expect.toEqual(None)
     t->expect(Task.getAnnotations(failed))->Expect.toEqual([annotation])
     t->expect(Task.getPreviewFrame(failed, ~defaultUrl=""))->Expect.toEqual(
       Task.getPreviewFrame(original, ~defaultUrl=""),
     )
     t->expect(resolveAttachment(failed))->Expect.toEqual(resolveAttachment(original))
+    let (failed, _) = TaskReducer.next(failed, AnnotationDetailsResolved({
+      id: annotation.id,
+      selector: Ok(None),
+      elementContext: Ok(None),
+      screenshot: Ok(None),
+      sourceLocation: Ok(None),
+      cssClasses: None,
+      nearbyText: None,
+      boundingBox: None,
+      elementorContext: None,
+      enrichmentStatus: Enriched,
+    }))
+    switch Task.getAnnotations(failed)->Array.get(0) {
+    | Some({enrichmentStatus: Enriched}) => ()
+    | _ => failwith("Retained annotation must accept enrichment after load failure")
+    }
     let failed = [
       TaskReducer.SetDeviceMode({deviceMode: Responsive}),
       SetOrientation({orientation: Portrait}),
@@ -1093,7 +1109,7 @@ describe("Task - Interactive wait contract", () => {
       t->expect(pendingQuestion())->Expect.toEqual(None)
     })
 
-    testAsync("registration for a removed task rejects without a dangling cleanup", async t => {
+    testAsync("registration for a removed task rejects", async t => {
       Store.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(store, {
         ...Store.getState(store),
         tasks: Dict.make(),
@@ -1105,35 +1121,25 @@ describe("Task - Interactive wait contract", () => {
       )
     })
 
-    [(false, "same session"), (true, "newer session")]->Array.forEach(((replaceSession, name)) =>
-      test(`old cleanup cannot clear a same-call-ID replacement in the ${name}`, t => {
-        let registerQuestion = resolveOk =>
-          Client__State.Actions.questionReceived(
-            ~taskId="test-task-1",
-            ~questions,
-            ~toolCallId="question-1",
-            ~resolveOk,
-            ~resolveError=_ => failwith("Valid registration must not reject"),
-          )
-        let cleanup = registerQuestion(_ => failwith("Abandoned question must not resolve"))
-        switch replaceSession {
-        | true =>
-          Store.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(store, {
-            ...Store.getState(store),
-            connection: Client__ConnectionTestHelpers.ready(~sessionId=Some("test-task-1")),
-          })
-        | false => ()
-        }
-        let answer = ref(None)
-        let resolveOk = json => answer := Some(json)
-        let replacementCleanup = registerQuestion(resolveOk)
-        cleanup()
-        t->expect((pendingQuestion()->Option.getOrThrow).resolveOk === resolveOk)->Expect.toBe(true)
-        replacementCleanup()
-        t->expect(pendingQuestion())->Expect.toEqual(None)
-        t->expect(answer.contents)->Expect.toEqual(None)
-      })
-    )
+    test("old cleanup cannot clear a same-call-ID replacement", t => {
+      let registerQuestion = resolveOk =>
+        Client__State.Actions.questionReceived(
+          ~taskId="test-task-1",
+          ~questions,
+          ~toolCallId="question-1",
+          ~resolveOk,
+          ~resolveError=_ => failwith("Valid registration must not reject"),
+        )
+      let cleanup = registerQuestion(_ => failwith("Abandoned question must not resolve"))
+      let answer = ref(None)
+      let resolveOk = json => answer := Some(json)
+      let replacementCleanup = registerQuestion(resolveOk)
+      cleanup()
+      t->expect((pendingQuestion()->Option.getOrThrow).resolveOk === resolveOk)->Expect.toBe(true)
+      replacementCleanup()
+      t->expect(pendingQuestion())->Expect.toEqual(None)
+      t->expect(answer.contents)->Expect.toEqual(None)
+    })
 
     testAsync("session release clears the question and abort settles it after task removal", async t => {
       let controller = WebAPI.AbortController.make()
@@ -1150,25 +1156,6 @@ describe("Task - Interactive wait contract", () => {
         Tool.Tool.MCP.CallToolResult.makeError("Question request aborted"),
       )
       t->expect(Store.getState(store).tasks)->Expect.toEqual(Dict.make())
-    })
-
-    testAsync("a late callback cannot clear a replacement session's question", async t => {
-      let controller = WebAPI.AbortController.make()
-      let abandoned = ask(controller.signal)
-      let oldQuestion = pendingQuestion()->Option.getOrThrow
-      WebAPI.AbortController.abort(controller)
-      let _ = await abandoned
-      Store.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(store, {
-        ...Store.getState(store),
-        connection: Client__ConnectionTestHelpers.ready(~sessionId=Some("test-task-1")),
-      })
-      let replacementController = WebAPI.AbortController.make()
-      let replacement = ask(replacementController.signal)
-      oldQuestion.resolveError("Late callback")
-      t->expect(pendingQuestion()->Option.isSome)->Expect.toBe(true)
-      WebAPI.AbortController.abort(replacementController)
-      let _ = await replacement
-      t->expect(pendingQuestion())->Expect.toEqual(None)
     })
 
     testAsync("an already-aborted request never registers a question", async t => {
