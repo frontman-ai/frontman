@@ -189,7 +189,6 @@ class Frontman_Tool_Directorist {
 
 	private static function plain( $value ) {
 		if ( ! is_array( $value ) ) { return is_scalar( $value ) ? $value : null; }
-		$clean = array_filter( $value, 'is_scalar' );
-		return [] === $clean && [] !== $value ? null : $clean;
+		return array_map( [ self::class, 'plain' ], $value );
 	}
 }

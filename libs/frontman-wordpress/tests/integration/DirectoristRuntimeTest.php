@@ -15,6 +15,7 @@ update_term_meta( $directory_id, 'submission_form_fields', [ 'fields' => [
 	'video' => [ 'label' => 'Video', 'widget_name' => 'video', 'field_key' => 'videourl' ],
 	'fm_plan' => [ 'label' => 'Plan', 'widget_name' => 'pricing_plans', 'field_key' => 'fm_plan' ],
 	'tagline' => [ 'label' => 'Tagline', 'widget_name' => 'tagline' ],
+	'social_info' => [ 'label' => 'Social links', 'widget_name' => 'social_info' ],
 ] ] );
 update_term_meta( $directory_id, 'single_listing_header', [
 	[ 'placeholderKey' => 'listing-title-placeholder', 'selectedWidgets' => [ [ 'widget_key' => 'title', 'widget_name' => 'title', 'enable_tagline' => true ] ] ],
@@ -31,6 +32,7 @@ update_post_meta( $id, '_listing_img', [ 11, 12 ] );
 update_post_meta( $id, '_image_upload', 'wrong-key' );
 update_post_meta( $id, '_videourl', 'https://example.com/video' );
 update_post_meta( $id, '_tagline', 'Hello' );
+update_post_meta( $id, '_social_info', [ [ 'id' => 'github', 'url' => 'https://github.com/example' ] ] );
 update_post_meta( $id, '_fm_plan', 'hidden-plan' );
 update_post_meta( $id, '_unrelated_private_meta', 'must-not-leak' );
 $before = get_post_meta( $id );
@@ -45,6 +47,7 @@ frontman_runtime_same( 'listing_img', $by_key['image_upload']['field_key'], 'Pre
 frontman_runtime_same( [ 11, 12 ], array_values( $by_key['image_upload']['value'] ), 'Read gallery from the configured storage key.' );
 frontman_runtime_same( 'https://example.com/video', $by_key['video']['value'], 'Read video from videourl.' );
 frontman_runtime_same( 'Hello', $by_key['tagline']['value'], 'Read tagline metadata.' );
+frontman_runtime_same( [ [ 'id' => 'github', 'url' => 'https://github.com/example' ] ], $by_key['social_info']['value'], 'Preserve structured public social links.' );
 frontman_runtime_same( 'Reader listing', $by_key['title']['value'], 'Read the listing title from the post.' );
 frontman_runtime_same( 'Visible content', $by_key['description']['value'], 'Read the listing description from post content.' );
 $encoded = wp_json_encode( $out );

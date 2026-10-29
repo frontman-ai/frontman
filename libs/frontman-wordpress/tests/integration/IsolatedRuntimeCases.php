@@ -2,7 +2,7 @@
 
 frontman_runtime_process_case( 'installation-paths' );
 require_once ABSPATH . 'wp-admin/includes/plugin.php';
-if ( is_readable( WP_PLUGIN_DIR . '/directorist/directorist-base.php' ) ) {
+if ( version_compare( get_bloginfo( 'version' ), '6.1', '>=' ) && is_readable( WP_PLUGIN_DIR . '/directorist/directorist-base.php' ) ) {
 	frontman_runtime_same( '8.10.6', get_plugin_data( WP_PLUGIN_DIR . '/directorist/directorist-base.php', false, false )['Version'], 'Installed Directorist must match the verified package.' );
 	$had_directorist = is_plugin_active( 'directorist/directorist-base.php' );
 	frontman_runtime_assert( $had_directorist || null === Frontman_Tools::instance()->get( 'wp_read_directorist_listing' ), 'Inactive Directorist must not register the reader.' );
