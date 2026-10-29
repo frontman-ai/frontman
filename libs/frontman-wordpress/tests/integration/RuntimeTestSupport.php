@@ -73,6 +73,7 @@ function frontman_runtime_isolated_cases(): array {
 		'installation-paths' => [ 'file' => 'InstallationPathsRuntimeTest.php', 'root_alias' => true ],
 		'seo-coexistence' => [ 'file' => 'SeoCoexistenceRuntimeTest.php', 'root_alias' => false ],
 		'surerank' => [ 'file' => 'SureRankRuntimeTest.php', 'root_alias' => false ],
+		'directorist' => [ 'file' => 'DirectoristRuntimeTest.php', 'root_alias' => false ],
 	];
 }
 

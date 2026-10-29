@@ -43,7 +43,7 @@ class Frontman_Tool_Directorist {
 			if ( ! isset( $field['field_key'] ) || ! is_string( $field['field_key'] ) || '' === $field['field_key'] ) {
 				$field['field_key'] = $key;
 			}
-			$fields[] = [ 'key' => $key, 'field_key' => $field['field_key'], 'label' => sanitize_text_field( (string) ( $field['label'] ?? $key ) ), 'widget' => sanitize_key( $widget ), 'value' => self::plain( \Directorist\Helper::get_widget_value( $id, $field ) ) ];
+			$fields[] = [ 'key' => $key, 'field_key' => $field['field_key'], 'label' => sanitize_text_field( (string) ( $field['label'] ?? $key ) ), 'widget' => sanitize_key( $widget ), 'value' => self::field_value( $id, $key, $widget, $field ) ];
 		}
 		$header = function_exists( 'directorist_single_listing_header' ) ? directorist_single_listing_header( $directory_id ) : [];
 		$result = [
@@ -174,6 +174,17 @@ class Frontman_Tool_Directorist {
 			}
 		}
 		return $out;
+	}
+
+	private static function field_value( int $id, string $key, string $widget, array $field ) {
+		if ( in_array( $key, [ 'title', 'listing_title' ], true ) || in_array( $widget, [ 'title', 'listing_title' ], true ) ) {
+			return get_the_title( $id );
+		}
+		if ( in_array( $key, [ 'description', 'listing_content' ], true ) || in_array( $widget, [ 'description', 'listing_content' ], true ) ) {
+			$post = get_post( $id );
+			return $post ? $post->post_content : '';
+		}
+		return self::plain( \Directorist\Helper::get_widget_value( $id, $field ) );
 	}
 
 	private static function plain( $value ) {
