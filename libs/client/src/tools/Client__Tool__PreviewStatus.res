@@ -4,7 +4,7 @@ let name = Tool.ToolNames.previewStatus
 let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.ReadWrite
 let visibleToAgent = true
 let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
-let description = "Check whether the storefront preview is ready for DOM inspection. Returns ready:true when a valid, same-origin preview document is loaded."
+let description = "Check whether the preview is ready for DOM inspection. Returns ready:true when a valid, same-origin preview document is loaded."
 
 @schema
 type input = {}
@@ -37,7 +37,7 @@ let execute = async (
     respond(
       ~ready=false,
       ~url=base,
-      "Preview is unavailable or unsupported. It may still be loading, blocked, or missing the frontend bridge. Use navigate_preview with a known same-origin storefront URL such as /shop/ to recover without refreshing Frontman.",
+      "Preview is unavailable or unsupported. It may still be loading, blocked, or missing the frontend bridge. Use navigate_preview with a known same-origin URL such as /shop/ to recover without refreshing Frontman.",
     )
   }
 }
