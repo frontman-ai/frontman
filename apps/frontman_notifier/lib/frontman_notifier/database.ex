@@ -18,8 +18,16 @@ defmodule FrontmanNotifier.Database do
     end
   end
 
-  @spec query_maps!(pid(), String.t(), list()) :: list(map())
+  @doc "Reads result maps through a Postgrex connection or an Ecto SQL repository."
+  @spec query_maps!(pid() | module(), String.t(), list()) :: list(map())
   def query_maps!(conn, sql, params \\ [])
+
+  def query_maps!(repo, sql, params) when is_atom(repo) and is_binary(sql) and is_list(params) do
+    repo.query!(sql, params, timeout: @query_timeout_ms)
+    |> rows_to_maps()
+  end
+
+  def query_maps!(conn, sql, params)
       when is_pid(conn) and is_binary(sql) and is_list(params) do
     conn
     |> Postgrex.query!(sql, params, timeout: @query_timeout_ms)

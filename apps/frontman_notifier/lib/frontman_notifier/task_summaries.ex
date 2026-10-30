@@ -110,19 +110,32 @@ defmodule FrontmanNotifier.TaskSummaries do
     }
   end
 
+  @doc "Loads idle task summaries from the database without delivering notifications."
+  @spec load_summaries(pid() | module(), pos_integer()) :: [{String.t(), map()}]
+  def load_summaries(conn, limit) when is_integer(limit) and limit > 0 do
+    conn |> load_candidates(limit) |> summaries_with_details(conn)
+  end
+
   defp post_task_summaries(webhook_url) do
     task_limit = Config.task_max_per_run()
 
     Database.with_connection(fn conn ->
-      candidates = load_candidates(conn, task_limit * 5)
-
       tasks =
-        candidates
-        |> Enum.reject(&task_seen?/1)
+        conn
+        |> load_candidates(task_limit * 5)
+        |> Enum.reject(fn task -> State.seen?(@namespace, task["id"]) end)
         |> Enum.take(task_limit)
 
-      details = load_details(conn, Enum.map(tasks, & &1["id"]))
-      post_tasks(webhook_url, tasks, details)
+      summaries = summaries_with_details(tasks, conn)
+      post_tasks(webhook_url, summaries)
+    end)
+  end
+
+  defp summaries_with_details(tasks, conn) do
+    details = load_details(conn, Enum.map(tasks, & &1["id"]))
+
+    Enum.map(tasks, fn task ->
+      {task["id"], build_summary_embed(task, Map.get(details, task["id"], []))}
     end)
   end
 
@@ -142,23 +155,17 @@ defmodule FrontmanNotifier.TaskSummaries do
     |> Enum.group_by(& &1["task_id"])
   end
 
-  defp post_tasks(webhook_url, tasks, details) do
-    Enum.reduce_while(tasks, {:ok, 0}, fn task, {:ok, count} ->
-      interactions = Map.get(details, task["id"], [])
-
-      case Discord.post_embed(webhook_url, build_summary_embed(task, interactions)) do
+  defp post_tasks(webhook_url, summaries) do
+    Enum.reduce_while(summaries, {:ok, 0}, fn {task_id, embed}, {:ok, count} ->
+      case Discord.post_embed(webhook_url, embed) do
         :ok ->
-          State.mark_seen(@namespace, task["id"])
+          State.mark_seen(@namespace, task_id)
           {:cont, {:ok, count + 1}}
 
         {:error, reason} ->
           {:halt, {:error, reason}}
       end
     end)
-  end
-
-  defp task_seen?(task) do
-    State.seen?(@namespace, task["id"])
   end
 
   defp billing_summary(%{"subscription_status" => nil, "free_messages_used" => used}) do
