@@ -664,8 +664,8 @@ jobs:
         env:
           MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 4
         run: |
-          mix deps.unlock --check-unused
           mix deps.get
+          mix deps.unlock --check-unused
 
       - name: Clean stale test databases
         run: bash scripts/ci/postgres-test-db-cleanup.sh stale

@@ -114,8 +114,8 @@ lint:
 
 .PHONY: security
 security:
-	mix deps.unlock --check-unused
 	mix deps.get
+	mix deps.unlock --check-unused
 	mix hex.audit
 	mix sobelow --config --exit
 
