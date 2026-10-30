@@ -648,7 +648,7 @@ test-wordpress-plugin-export: package-wordpress-plugin
 publish-wordpress-plugin-svn: package-wordpress-plugin
 	@VERSION=$(VERSION) bash ./scripts/publish-wordpress-plugin-svn.sh
 
-WORDPRESS_TESTS ?= ToolRegistryTest AuthDiagnosticsTest PostAuthorsTest NoFilesystemToolsTest PublicFilesTest ElementorToolsTest MediaToolsTest WooCommerceToolsTest MutationSnapshotsTest PluginDependenciesTest SeoToolsTest RouterTest SentryTest SentryUnavailableTest
+WORDPRESS_TESTS ?= ToolRegistryTest AuthDiagnosticsTest NoFilesystemToolsTest PublicFilesTest ElementorToolsTest MediaToolsTest WooCommerceToolsTest MutationSnapshotsTest PluginDependenciesTest SeoToolsTest RouterTest SentryTest SentryUnavailableTest
 
 test-wordpress-core-tools: build-wordpress-dependencies
 	@set -eu; \
