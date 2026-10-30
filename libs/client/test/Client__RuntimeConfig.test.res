@@ -15,14 +15,17 @@ afterEach(() => {
   ->Option.forEach(WebAPI.Element.remove)
 })
 
-let setNativeLoginUrl = loginUrl => {
+let setNativeRuntimeAttribute = (~name, ~value) => {
   let element = WebAPI.DomGlobal.document->WebAPI.Document.createElement("div")
   element->WebAPI.Element.setAttribute(~qualifiedName="id", ~value="frontman-runtime-config")
-  element->WebAPI.Element.setAttribute(~qualifiedName="data-wordpress-login-url", ~value=loginUrl)
+  element->WebAPI.Element.setAttribute(~qualifiedName=name, ~value)
   WebAPI.DomGlobal.document.body
   ->WebAPI.HTMLElement.appendChild(element->WebAPI.Element.asNode)
   ->ignore
 }
+
+let setNativeLoginUrl = loginUrl =>
+  setNativeRuntimeAttribute(~name="data-wordpress-login-url", ~value=loginUrl)
 
 let setOldBootstrapRuntime = framework =>
   _setRuntime(
@@ -38,6 +41,44 @@ let setOldBootstrapRuntime = framework =>
   )
 
 describe("Client__RuntimeConfig", _t => {
+  test("reads the WordPress page-context-v1 capability without adding it to ACP metadata", t => {
+    setOldBootstrapRuntime("wordpress")
+    setNativeRuntimeAttribute(~name="data-preview-bridge", ~value="page-context-v1")
+    let config = Client__RuntimeConfig.read()
+    t->expect(config.previewBridge)->Expect.toEqual(Some(Client__RuntimeConfig.PageContextV1))
+    t
+    ->expect(Client__RuntimeConfig.toMeta(config))
+    ->Expect.toEqual(JSON.Encode.object(dict{"framework": JSON.Encode.string("wordpress")}))
+  })
+
+  test("WordPress integrations without a marker do not advertise bridge support", t => {
+    setOldBootstrapRuntime("wordpress")
+    t->expect(Client__RuntimeConfig.read().previewBridge)->Expect.toEqual(None)
+    setNativeLoginUrl("https://example.test/wp-login.php")
+    t->expect(Client__RuntimeConfig.read().previewBridge)->Expect.toEqual(None)
+  })
+
+  ["", "page-context-v2", "unknown"]->Array.forEach(marker =>
+    test(
+      `ignores unsupported preview bridge marker "${marker}"`,
+      t => {
+        setOldBootstrapRuntime("wordpress")
+        setNativeRuntimeAttribute(~name="data-preview-bridge", ~value=marker)
+        t->expect(Client__RuntimeConfig.read().previewBridge)->Expect.toEqual(None)
+      },
+    )
+  )
+
+  test("other frameworks ignore the WordPress preview bridge marker", t => {
+    setNativeRuntimeAttribute(~name="data-preview-bridge", ~value="page-context-v1")
+    ["nextjs", "vite", "astro"]->Array.forEach(
+      framework => {
+        setOldBootstrapRuntime(framework)
+        t->expect(Client__RuntimeConfig.read().previewBridge)->Expect.toEqual(None)
+      },
+    )
+  })
+
   test("old WordPress bootstrap obtains the native login URL without leaking metadata", t => {
     let loginUrl = "https://example.test/site/wp-login.php?redirect_to=https%3A%2F%2Fexample.test%2Fsite%2Findex.php%2Ffrontman&reauth=1"
     setOldBootstrapRuntime("wordpress")
@@ -215,6 +256,7 @@ describe("Client__RuntimeConfig", _t => {
   test("toMeta does not leak wpNonce into ACP metadata", t => {
     let meta = Client__RuntimeConfig.toMeta({
       framework: Client__RuntimeConfig.Wordpress,
+      previewBridge: None,
       basePath: "frontman",
       relayBaseUrl: Some("https://example.com/index.php"),
       wpNonce: Some("nonce-123"),

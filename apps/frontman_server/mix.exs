@@ -60,6 +60,7 @@ defmodule FrontmanServer.MixProject do
 
   defp deps do
     [
+      {:frontman_notifier, path: "../frontman_notifier", only: :test, runtime: false},
       {:swarm_ai, path: "../swarm_ai"},
       {:boundary, "~> 0.10", runtime: false},
       {:bcrypt_elixir, "~> 3.0"},
