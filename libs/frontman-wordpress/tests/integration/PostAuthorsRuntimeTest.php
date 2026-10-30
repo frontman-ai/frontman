@@ -21,6 +21,7 @@ $call = static function( string $name, array $input, bool $error = false ) use (
 	return $error ? $response['body'] : json_decode( $response['body']['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
 };
 $base = [ 'title' => 'Author original', 'content' => '<p>Original body</p>', 'post_type' => 'fm_author_item' ];
+frontman_runtime_assert( ! array_key_exists( 'author', Frontman_Tools::instance()->sanitize_input( 'wp_create_post', [ 'title' => 'T', 'content' => 'C' ] ) ), 'Omitted author injected by registry' );
 foreach ( [ [], [ 'author' => $actor_id ], [ 'author' => $target_id ] ] as $assignment ) {
 	$created = $call( 'wp_create_post', array_merge( $base, $assignment ) );
 	$id = $created['id']; $expected = $assignment['author'] ?? $actor_id;
@@ -131,7 +132,7 @@ $bounded = $call( 'wp_find_users', [ 'search' => 'Bounded Author', 'match_by' =>
 frontman_runtime_assert( 20 === count( $bounded['users'] ) && 21 === $bounded['total'] && 2 === $bounded['total_pages'], 'Lookup exceeded bound or lost count' );
 foreach ( [ [ 'search' => "\u{2003}*\u{2003}" ], [ 'page' => '1' ] ] as $bad ) { $call( 'wp_find_users', array_merge( $lookup, $bad ), true ); }
 $invalid_lookup = [ [], [ 'search' => '' ], [ 'search' => '  ' ], [ 'search' => str_repeat( 'é', 101 ) ], [ 'search' => "\xC3\x28" ], [ 'match_by' => 'email' ], [ 'unexpected' => 1 ], [ 'page' => PHP_INT_MAX ] ];
-foreach ( [ '*Same', 'Same*', '*', '**', ' *Same ', " Same*\t" ] as $search ) { $invalid_lookup[] = [ 'search' => $search ]; }
+foreach ( [ '*Same', 'Same*', '*', '**', ' *Same ', " Same*\t", "\u{2003}*\u{2003}" ] as $search ) { $invalid_lookup[] = [ 'search' => $search ]; }
 foreach ( [ null, true, [], 1, 1.0 ] as $bad ) { $invalid_lookup[] = [ 'search' => $bad ]; $invalid_lookup[] = [ 'match_by' => $bad ]; }
 foreach ( [ 'page', 'per_page' ] as $field ) {
 	foreach ( [ null, '1', 1.0, true, [], 0, -1 ] as $bad ) { $invalid_lookup[] = [ $field => $bad ]; }
