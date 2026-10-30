@@ -1,14 +1,18 @@
 defmodule FrontmanServer.TaskSummariesTest do
-  use FrontmanServer.DataCase, async: true
+  use FrontmanServer.DataCase, async: false
 
   import FrontmanServer.BillingFixtures
   import FrontmanServer.InteractionCase.Helpers
 
+  alias FrontmanNotifier.State
   alias FrontmanNotifier.TaskSummaries
   alias FrontmanServer.Test.Fixtures.Accounts
   alias FrontmanServer.Test.Fixtures.Tasks
 
-  setup do
+  @moduletag :tmp_dir
+
+  setup %{tmp_dir: tmp_dir} do
+    start_supervised!({State, state_dir: tmp_dir})
     scope = Accounts.user_scope_fixture()
     task = Tasks.task_fixture(scope)
     task = task |> Ecto.Changeset.change(short_desc: "Fix the hero button") |> Repo.update!()
@@ -23,7 +27,8 @@ defmodule FrontmanServer.TaskSummariesTest do
 
     persist(task, :user_message, user_msg("Make the hero button more prominent"))
     persist(task, :agent_error, agent_error("Could not apply patch", "failed", true, "tool_failure"))
-    persist(task, :tool_call, tool_call("call_1", "edit_file"))
+    call = %{tool_call("call_1", "edit_file") | execution_mode: :synchronous}
+    persist(task, :tool_call, call)
 
     result = %{
       "content" => [%{"type" => "text", "text" => "Patch failed"}],
@@ -106,6 +111,17 @@ defmodule FrontmanServer.TaskSummariesTest do
     refute Enum.any?(TaskSummaries.load_summaries(Repo, 100), fn {id, _embed} ->
              id == task.id
            end)
+  end
+
+  test "excludes notified tasks before applying the batch limit", %{scope: scope, task: seen} do
+    pending = Tasks.task_fixture(scope)
+    persist(seen, :agent_completed, agent_completed())
+    persist(pending, :agent_completed, agent_completed())
+    :ok = State.mark_seen(:task_summary, seen.id)
+
+    pending_id = pending.id
+    assert [{^pending_id, _embed}] = TaskSummaries.load_summaries(Repo, 1)
+    refute State.seen?(:task_summary, pending_id)
   end
 
   defp persist(task, type, data, inserted_at \\ DateTime.add(DateTime.utc_now(:second), -7_200)) do

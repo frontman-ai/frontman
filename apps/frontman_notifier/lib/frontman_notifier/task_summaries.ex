@@ -20,7 +20,6 @@ defmodule FrontmanNotifier.TaskSummaries do
     t.short_desc,
     t.framework,
     t.inserted_at,
-    t.updated_at,
     u.email,
     u.name AS user_name,
     s.status AS subscription_status,
@@ -47,7 +46,7 @@ defmodule FrontmanNotifier.TaskSummaries do
   LEFT JOIN billing_run_allowances a ON a.user_id = u.id
   JOIN interactions i ON i.task_id = t.id
   WHERE t.inserted_at >= timezone('UTC', now()) - ($2::int * interval '1 hour')
-  GROUP BY t.id, t.short_desc, t.framework, t.inserted_at, t.updated_at, u.email, u.name,
+  GROUP BY t.id, t.short_desc, t.framework, t.inserted_at, u.email, u.name,
     s.status, s.interval, a.used
   HAVING MAX(i.inserted_at) <= timezone('UTC', now()) - ($3::int * interval '1 minute')
   ORDER BY last_interaction_at DESC
@@ -58,13 +57,11 @@ defmodule FrontmanNotifier.TaskSummaries do
   SELECT
     task_id::text AS task_id,
     type,
-    data,
-    inserted_at,
-    sequence
+    data
   FROM interactions
   WHERE task_id::text = ANY($1::text[])
     AND (
-      type IN ('user_message', 'agent_error', 'agent_paused', 'agent_completed')
+      type IN ('user_message', 'agent_error', 'agent_paused')
       OR (
         type = 'tool_result'
         AND COALESCE((data->>'is_error')::boolean, false) = true
@@ -81,12 +78,30 @@ defmodule FrontmanNotifier.TaskSummaries do
         {:ok, 0}
 
       webhook_url ->
-        post_task_summaries(webhook_url)
+        Database.with_connection(fn conn ->
+          summaries = load_summaries(conn, Config.task_max_per_run())
+          post_tasks(webhook_url, summaries)
+        end)
     end
   end
 
-  @spec build_summary_embed(map(), list(map())) :: map()
-  def build_summary_embed(task, interactions) when is_map(task) and is_list(interactions) do
+  @doc "Loads unsent idle task summaries without delivering notifications."
+  @spec load_summaries(pid() | module(), pos_integer()) :: [{String.t(), map()}]
+  def load_summaries(conn, limit) when is_integer(limit) and limit > 0 do
+    tasks =
+      conn
+      |> load_candidates(limit * 5)
+      |> Enum.reject(fn task -> State.seen?(@namespace, task["id"]) end)
+      |> Enum.take(limit)
+
+    details = load_details(conn, Enum.map(tasks, & &1["id"]))
+
+    Enum.map(tasks, fn task ->
+      {task["id"], build_summary_embed(task, Map.get(details, task["id"], []))}
+    end)
+  end
+
+  defp build_summary_embed(task, interactions) do
     issue_count =
       int(task["agent_error_count"]) + int(task["tool_error_count"]) +
         int(task["agent_paused_count"])
@@ -108,35 +123,6 @@ defmodule FrontmanNotifier.TaskSummaries do
       ],
       footer: %{text: "Frontman production task notifier"}
     }
-  end
-
-  @doc "Loads idle task summaries from the database without delivering notifications."
-  @spec load_summaries(pid() | module(), pos_integer()) :: [{String.t(), map()}]
-  def load_summaries(conn, limit) when is_integer(limit) and limit > 0 do
-    conn |> load_candidates(limit) |> summaries_with_details(conn)
-  end
-
-  defp post_task_summaries(webhook_url) do
-    task_limit = Config.task_max_per_run()
-
-    Database.with_connection(fn conn ->
-      tasks =
-        conn
-        |> load_candidates(task_limit * 5)
-        |> Enum.reject(fn task -> State.seen?(@namespace, task["id"]) end)
-        |> Enum.take(task_limit)
-
-      summaries = summaries_with_details(tasks, conn)
-      post_tasks(webhook_url, summaries)
-    end)
-  end
-
-  defp summaries_with_details(tasks, conn) do
-    details = load_details(conn, Enum.map(tasks, & &1["id"]))
-
-    Enum.map(tasks, fn task ->
-      {task["id"], build_summary_embed(task, Map.get(details, task["id"], []))}
-    end)
   end
 
   defp load_candidates(conn, limit) do
