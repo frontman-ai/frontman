@@ -15,7 +15,7 @@ $nonce = Frontman_Auth::create_nonce();
 unset( $_COOKIE[ LOGGED_IN_COOKIE ] );
 $call = static function( string $name, array $input, bool $error = false, string $fixture = '' ) use ( $cookie, $nonce ) {
 	$response = frontman_runtime_tool( $cookie, $nonce, [ 'name' => $name, 'arguments' => $input ], null, $fixture );
-	frontman_runtime_same( 200, $response['status'], $name . ' HTTP status' );
+	frontman_runtime_same( 200, $response['status'], $name . ' HTTP status: ' . wp_json_encode( $response['body'] ) );
 	frontman_runtime_same( $error, $response['body']['isError'], $name . ': ' . wp_json_encode( $response['body'] ) );
 	$text = $response['body']['content'][0]['text'];
 	return $error ? $text : json_decode( $text, true, 512, JSON_THROW_ON_ERROR );
@@ -58,6 +58,7 @@ try {
 foreach ( [ 'PostContentRuntimeTest.php', 'TemplateCreationRuntimeTest.php', 'PageTemplateRuntimeTest.php' ] as $file ) {
 	( static function() use ( $file, $call, $reject, $actor, $cookie ): void { require '/tmp/' . $file; } )();
 }
+( static function() use ( $call, $actor, $cookie, $nonce ): void { require '/tmp/CustomizerRuntimeTest.php'; } )();
 
 $mcp_post = wp_insert_post( [ 'post_title' => 'MCP private fixture', 'post_content' => 'Private MCP bytes', 'post_status' => 'draft' ] );
 $mcp_password = WP_Application_Passwords::create_new_application_password( $actor_id, [ 'name' => 'Runtime MCP' ] );

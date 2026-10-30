@@ -214,7 +214,7 @@ class Frontman_Tool_Options {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_list_theme_mods',
-			'Lists active theme mods/customizer settings. Use this to inspect theme-rendered source state such as header images, page title options, and layout settings before choosing a mutation path.',
+			'Lists stored active theme mods, not every Customizer setting. For native Astra Header Builder or other registered settings missing here, use wp_list_customizer_settings. Inspect theme-rendered source state before choosing a mutation path.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -225,7 +225,7 @@ class Frontman_Tool_Options {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_get_theme_mod',
-			'Reads one active theme mod/customizer setting by name. Use this before changing theme-rendered elements.',
+			'Reads one active theme mod by name, not option-backed Customizer settings. A null value does not mean an option-backed setting is absent. Use wp_list_customizer_settings and wp_get_customizer_setting for native Astra Header Builder settings.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -255,6 +255,46 @@ class Frontman_Tool_Options {
 			null,
 			true,
 			true
+		) );
+
+		$tools->add( new Frontman_Tool_Definition(
+			'wp_list_customizer_settings',
+			'Discover registered, accessible active-theme Customizer settings before using CSS to override native theme layout. For Astra Header Builder, search for header-desktop-items or header-mobile-items. Supports top-level theme mods and indexed astra-settings options when Astra is the active parent theme, not arbitrary plugin options. Results are bounded and contain IDs, not values; use wp_get_customizer_setting before editing.',
+			[
+				'type' => 'object', 'additionalProperties' => false,
+				'properties' => [
+					'search' => [ 'type' => 'string', 'description' => 'Optional case-insensitive substring of the setting ID.' ],
+					'offset' => [ 'type' => 'integer', 'minimum' => 0 ],
+					'limit' => [ 'type' => 'integer', 'minimum' => 1, 'maximum' => 100 ],
+				],
+			],
+			[ $this, 'list_customizer_settings' ], null, true, true
+		) );
+		$tools->add( new Frontman_Tool_Definition(
+			'wp_get_customizer_setting',
+			'Read one supported registered Customizer setting, including its stored value or registered default, storage presence, and fingerprint. Preserve existing layout components, logo and menu assignments unless the user requests changes. Use the exact ID and fingerprint for wp_update_customizer_setting. Filters and Additional CSS may affect rendering; inspect them separately.',
+			[
+				'type' => 'object', 'additionalProperties' => false,
+				'properties' => [ 'id' => [ 'type' => 'string', 'description' => 'Exact ID from wp_list_customizer_settings.' ] ],
+				'required' => [ 'id' ],
+			],
+			[ $this, 'get_customizer_setting' ], null, true, true
+		) );
+		$tools->add( new Frontman_Tool_Definition(
+			'wp_update_customizer_setting',
+			'Save one confirmed supported registered Customizer setting using native validation, sanitization and save. Read it first and supply its fingerprint and active stylesheet. Conflict detection is best-effort, not atomic. Reread after any failure or lost response; never retry automatically. Verify the rendered site separately.',
+			[
+				'type' => 'object', 'additionalProperties' => false,
+				'properties' => [
+					'id' => [ 'type' => 'string' ],
+					'value' => [ 'type' => [ 'string', 'number', 'boolean', 'array', 'object' ] ],
+					'stylesheet' => [ 'type' => 'string', 'description' => 'Active stylesheet from the read.' ],
+					'expected_fingerprint' => [ 'type' => 'string', 'pattern' => '^[a-f0-9]{64}$' ],
+					'confirm' => [ 'type' => 'boolean', 'description' => 'Must be true after user approval.' ],
+				],
+				'required' => [ 'id', 'value', 'stylesheet', 'expected_fingerprint', 'confirm' ],
+			],
+			[ $this, 'update_customizer_setting' ], null, true, true
 		) );
 	}
 
@@ -619,62 +659,265 @@ class Frontman_Tool_Options {
 			throw new Frontman_Tool_Error( 'value is required and must be a JSON scalar, array or object decoded as an array.' );
 		}
 
-		global $wp_customize;
-		if ( ! ( $wp_customize instanceof \WP_Customize_Manager ) ) {
-			if ( ! class_exists( '\WP_Customize_Manager' ) ) {
-				require_once ABSPATH . WPINC . '/class-wp-customize-manager.php';
-			}
-			$wp_customize = new \WP_Customize_Manager( [ 'settings_previewed' => false ] );
-			remove_action( 'customize_register', [ $wp_customize, 'register_controls' ] );
-			$wp_customize->register_controls();
-			do_action( 'customize_register', $wp_customize );
-		}
+		$wp_customize = $this->customizer_manager();
 		$setting = $wp_customize->get_setting( $current['name'] );
 		if ( ! $setting || 'theme_mod' !== $setting->type || ! empty( $setting->id_data()['keys'] ) ) {
-			throw new Frontman_Tool_Error( 'Only registered top-level Customizer theme mods can be updated.' );
+			throw new Frontman_Tool_Error( 'Only registered top-level Customizer theme mods can be updated. For supported indexed Astra settings use wp_list_customizer_settings and wp_update_customizer_setting.' );
 		}
 		if ( ! $setting->check_capabilities() ) {
 			throw new Frontman_Tool_Error( 'You cannot edit this Customizer setting.' );
 		}
-		$valid = $setting->validate( $input['value'] );
-		if ( is_wp_error( $valid ) ) {
-			throw new Frontman_Tool_Error( $valid->get_error_message() );
-		}
-		$value = $setting->sanitize( $input['value'] );
-		if ( null === $value || is_wp_error( $value ) ) {
-			throw new Frontman_Tool_Error( 'Customizer setting rejected the value.' );
-		}
-		$mods   = get_theme_mods();
-		$before = $mods[ $current['name'] ] ?? null;
-		$wp_customize->set_post_value( $current['name'], $input['value'] );
-		$filter = 'pre_set_theme_mod_' . $current['name'];
-		$observe = static function( $filtered ) use ( &$value ) {
-			$value = $filtered;
-			return $filtered;
-		};
-		add_filter( $filter, $observe, PHP_INT_MAX );
-		try {
-			do_action( 'customize_save', $wp_customize );
-			if ( false === $setting->save() ) {
-				throw new Frontman_Tool_Error( 'Customizer setting could not be saved. Read current state before retrying.' );
-			}
-			do_action( 'customize_save_after', $wp_customize );
-		} finally {
-			remove_filter( $filter, $observe, PHP_INT_MAX );
-		}
-		$mods  = get_theme_mods();
-		$after = $mods[ $current['name'] ] ?? null;
-		if ( $after !== $value ) {
-			throw new Frontman_Tool_Error( 'Theme mod write could not be verified. Read current state before retrying.' );
-		}
+		$state = $this->customizer_state( $setting );
+		$result = $this->save_customizer_setting( $wp_customize, $setting, $input['value'], $current['stylesheet'], $state );
 
 		return [
 			'name'       => $current['name'],
 			'stylesheet' => $current['stylesheet'],
-			'updated'    => $before !== $after,
-			'before'     => $before,
-			'after'      => $after,
+			'updated'    => ( $state['present'] ? $result['before'] : null ) !== $result['after'],
+			'before'     => $state['present'] ? $result['before'] : null,
+			'after'      => $result['after'],
 		];
+	}
+
+	/**
+	 * Initialize the same registration hooks used by the Customizer.
+	 *
+	 * Astra skips two registration hooks on frontend requests. Its public
+	 * callbacks provide the configuration and register the actual settings.
+	 */
+	private function customizer_manager() {
+		if ( ! current_user_can( 'edit_theme_options' ) ) {
+			throw new Frontman_Tool_Error( 'You cannot edit theme options.' );
+		}
+		global $wp_customize;
+		if ( $wp_customize instanceof \WP_Customize_Manager ) {
+			if ( $wp_customize->settings_previewed() || $wp_customize->is_preview() ) {
+				throw new Frontman_Tool_Error( 'Customizer preview managers are not supported; use a non-preview request.' );
+			}
+			if ( $this->is_astra_theme() && ( ! class_exists( 'Astra_Customizer' ) || false === has_filter( 'customize_dynamic_setting_args', [ \Astra_Customizer::get_instance(), 'filter_dynamic_setting_args' ] ) ) ) {
+				throw new Frontman_Tool_Error( 'Astra Customizer was initialized without its native settings. Use a fresh request to discover settings.' );
+			}
+			$this->register_astra_dynamic_settings( $wp_customize );
+			return $wp_customize;
+		}
+		if ( ! class_exists( '\WP_Customize_Manager' ) ) {
+			require_once ABSPATH . WPINC . '/class-wp-customize-manager.php';
+		}
+		$wp_customize = new \WP_Customize_Manager( [ 'settings_previewed' => false ] );
+		if ( $this->is_astra_theme() && class_exists( 'Astra_Customizer' ) ) {
+			$astra = \Astra_Customizer::get_instance();
+			foreach ( [ 'include_configurations' => 1, 'prepare_customizer_javascript_configs' => 10, 'prepare_group_configs' => 9 ] as $method => $priority ) {
+				if ( is_callable( [ $astra, $method ] ) && false === has_action( 'customize_register', [ $astra, $method ] ) ) {
+					add_action( 'customize_register', [ $astra, $method ], $priority );
+				}
+			}
+			if ( is_callable( [ $astra, 'filter_dynamic_setting_args' ] ) && false === has_filter( 'customize_dynamic_setting_args', [ $astra, 'filter_dynamic_setting_args' ] ) ) {
+				add_filter( 'customize_dynamic_setting_args', [ $astra, 'filter_dynamic_setting_args' ], 10, 2 );
+			}
+		}
+		remove_action( 'customize_register', [ $wp_customize, 'register_controls' ] );
+		$wp_customize->register_controls();
+		do_action( 'customize_register', $wp_customize );
+		$this->register_astra_dynamic_settings( $wp_customize );
+		return $wp_customize;
+	}
+
+	private function register_astra_dynamic_settings( $manager ): void {
+		if ( ! $this->is_astra_theme() || ! class_exists( 'Astra_Customizer' ) ) {
+			return;
+		}
+		$cache = get_option( 'astra_partials_config_cache', [] );
+		$entries = is_array( $cache ) && isset( $cache['settings'] ) && is_array( $cache['settings'] ) ? $cache['settings'] : [];
+		$ids = [];
+		foreach ( array_keys( $entries ) as $id ) {
+			if ( is_string( $id ) && preg_match( '/\Aastra-settings\[[^\[\]\/\\\\\x00-\x1f]+\]\z/', $id ) ) {
+				$ids[] = $id;
+			}
+		}
+		if ( count( $ids ) > 2000 ) {
+			throw new Frontman_Tool_Error( 'Astra Customizer registration exceeds the supported discovery bound.' );
+		}
+		$manager->add_dynamic_settings( $ids );
+	}
+
+	private function is_astra_theme(): bool {
+		return function_exists( 'get_template' ) && 'astra' === get_template();
+	}
+
+	private function supported_customizer_setting( $setting ): bool {
+		if ( ! $setting || ! $setting->check_capabilities() ) {
+			return false;
+		}
+		$data = $setting->id_data();
+		if ( 'theme_mod' === $setting->type ) {
+			return empty( $data['keys'] );
+		}
+		return 'option' === $setting->type && $this->is_astra_theme()
+			&& 'astra-settings' === $data['base'] && 1 === count( $data['keys'] )
+			&& is_string( $data['keys'][0] ) && '' !== $data['keys'][0];
+	}
+
+	private function customizer_setting( $manager, $id ) {
+		if ( ! is_string( $id ) || '' === $id || strlen( $id ) > 256 || $this->has_control_or_path_separator( $id ) ) {
+			throw new Frontman_Tool_Error( 'id must be a valid registered Customizer setting ID.' );
+		}
+		$setting = $manager->get_setting( $id );
+		if ( ! $this->supported_customizer_setting( $setting ) ) {
+			throw new Frontman_Tool_Error( 'Setting is not registered, accessible, or supported. Use wp_list_customizer_settings to discover supported IDs.' );
+		}
+		return $setting;
+	}
+
+	private function customizer_state( $setting ): array {
+		global $wpdb;
+		$data = $setting->id_data();
+		$name = 'option' === $setting->type ? $data['base'] : 'theme_mods_' . $this->active_stylesheet();
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $name ) );
+		if ( '' !== $wpdb->last_error ) {
+			throw new Frontman_Tool_Error( 'Could not read persisted Customizer state. Do not retry a save automatically.' );
+		}
+		$root = $row ? maybe_unserialize( $row->option_value ) : null;
+		$key = 'option' === $setting->type ? $data['keys'][0] : $data['base'];
+		$present = is_array( $root ) && array_key_exists( $key, $root );
+		$stored = $present ? $root[ $key ] : null;
+		$value = $present ? $stored : $setting->default;
+		return [
+			'value' => $value,
+			'present' => $present,
+			'fingerprint' => hash( 'sha256', serialize( [ $this->active_stylesheet(), $setting->id, $present, $stored ] ) ),
+		];
+	}
+
+	private function assert_astra_aggregate_current( $setting ): void {
+		if ( 'option' !== $setting->type ) {
+			return;
+		}
+		global $wpdb;
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", 'astra-settings' ) );
+		if ( '' !== $wpdb->last_error ) {
+			throw new \RuntimeException( 'Could not read the Astra option root.' );
+		}
+		$root = $row ? maybe_unserialize( $row->option_value ) : [];
+		$property = new \ReflectionProperty( \WP_Customize_Setting::class, 'aggregated_multidimensionals' );
+		$property->setAccessible( true );
+		$aggregates = $property->getValue();
+		if ( ! isset( $aggregates['option']['astra-settings']['root_value'] ) || $root !== $aggregates['option']['astra-settings']['root_value'] ) {
+			throw new \RuntimeException( 'Astra option root changed since Customizer registration; use a fresh request and reread settings.' );
+		}
+	}
+
+	public function list_customizer_settings( array $input ): array {
+		$search = $input['search'] ?? '';
+		$offset = $input['offset'] ?? 0;
+		$limit = $input['limit'] ?? 50;
+		if ( ! is_string( $search ) || strlen( $search ) > 256 || ! is_int( $offset ) || $offset < 0 || ! is_int( $limit ) || $limit < 1 || $limit > 100 ) {
+			throw new Frontman_Tool_Error( 'Invalid search, offset, or limit (1–100).' );
+		}
+		$manager = $this->customizer_manager();
+		$settings = [];
+		foreach ( $manager->settings() as $setting ) {
+			if ( $this->supported_customizer_setting( $setting ) && ( '' === $search || false !== stripos( $setting->id, $search ) ) ) {
+				$settings[] = [ 'id' => $setting->id, 'type' => $setting->type ];
+			}
+		}
+		usort( $settings, static function( $a, $b ) { return strcmp( $a['id'], $b['id'] ); } );
+		return [
+			'stylesheet' => $this->active_stylesheet(),
+			'settings' => array_slice( $settings, $offset, $limit ),
+			'next_offset' => $offset + $limit < count( $settings ) ? $offset + $limit : null,
+		];
+	}
+
+	public function get_customizer_setting( array $input ): array {
+		$manager = $this->customizer_manager();
+		$setting = $this->customizer_setting( $manager, $input['id'] ?? null );
+		return array_merge(
+			[ 'stylesheet' => $this->active_stylesheet(), 'id' => $setting->id, 'type' => $setting->type ],
+			$this->customizer_state( $setting )
+		);
+	}
+
+	public function update_customizer_setting( array $input ): array {
+		if ( true !== ( $input['confirm'] ?? false ) ) {
+			throw new Frontman_Tool_Error( 'Customizer update requires confirm=true after user approval.' );
+		}
+		$manager = $this->customizer_manager();
+		$stylesheet = $this->active_stylesheet();
+		if ( '' === $stylesheet || ( $input['stylesheet'] ?? null ) !== $stylesheet ) {
+			throw new Frontman_Tool_Error( 'stylesheet must match the active theme. Read the setting again.' );
+		}
+		if ( ! array_key_exists( 'value', $input ) || null === $input['value'] || is_object( $input['value'] ) ) {
+			throw new Frontman_Tool_Error( 'value is required and must be a JSON scalar, array or object decoded as an array.' );
+		}
+		$setting = $this->customizer_setting( $manager, $input['id'] ?? null );
+		$before = $this->customizer_state( $setting );
+		$expected = $input['expected_fingerprint'] ?? null;
+		if ( ! is_string( $expected ) || ! preg_match( '/\A[a-f0-9]{64}\z/', $expected ) || ! hash_equals( $before['fingerprint'], $expected ) ) {
+			throw new Frontman_Tool_Error( "Setting {$setting->id} changed or has an invalid fingerprint. Read it again; no writes were attempted." );
+		}
+		return $this->save_customizer_setting( $manager, $setting, $input['value'], $stylesheet, $before );
+	}
+
+	private function save_customizer_setting( $manager, $setting, $value, string $stylesheet, array $before ): array {
+		$manager->set_post_value( $setting->id, $value );
+		try {
+			$valid = $setting->validate( $value );
+			if ( is_wp_error( $valid ) ) {
+				throw new Frontman_Tool_Error( $valid->get_error_message() );
+			}
+			$expected = $setting->sanitize( $value );
+			if ( null === $expected || is_wp_error( $expected ) ) {
+				throw new Frontman_Tool_Error( 'Customizer setting rejected the value; no writes were attempted.' );
+			}
+			if ( $stylesheet !== $this->active_stylesheet() || $before['fingerprint'] !== $this->customizer_state( $setting )['fingerprint'] ) {
+				throw new Frontman_Tool_Error( 'Theme or setting changed during validation; no writes were attempted.' );
+			}
+			try {
+				$this->assert_astra_aggregate_current( $setting );
+			} catch ( \RuntimeException $e ) {
+				throw new Frontman_Tool_Error( $e->getMessage() );
+			}
+
+			$data = $setting->id_data();
+			$filter = 'pre_set_theme_mod_' . $data['base'];
+			$observe = static function( $filtered ) use ( &$expected ) {
+				$expected = $filtered;
+				return $filtered;
+			};
+			if ( 'theme_mod' === $setting->type ) {
+				add_filter( $filter, $observe, PHP_INT_MAX );
+			}
+			try {
+				do_action( 'customize_save', $manager );
+				if ( $stylesheet !== $this->active_stylesheet() ) {
+					throw new \RuntimeException( 'Active stylesheet changed during save.' );
+				}
+				$this->assert_astra_aggregate_current( $setting );
+				if ( false === $setting->save() ) {
+					throw new \RuntimeException( 'Customizer setting save failed.' );
+				}
+				do_action( 'customize_save_after', $manager );
+				$after = $this->customizer_state( $setting );
+				if ( $stylesheet !== $this->active_stylesheet() || ! $after['present'] || $after['value'] !== $expected ) {
+					throw new \RuntimeException( 'Persisted Customizer value could not be verified.' );
+				}
+			} catch ( \Throwable $e ) {
+				throw new Frontman_Tool_Error( $e->getMessage() . ' The setting may have been saved. Reread current state; do not retry automatically.' );
+			} finally {
+				if ( 'theme_mod' === $setting->type ) {
+					remove_filter( $filter, $observe, PHP_INT_MAX );
+				}
+			}
+			return [
+				'id' => $setting->id,
+				'stylesheet' => $stylesheet,
+				'before' => $before['value'],
+				'after' => $after['value'],
+				'updated' => $before['value'] !== $after['value'],
+			];
+		} finally {
+			$manager->set_post_value( $setting->id, null );
+		}
 	}
 
 	private function stylesheet_from_input( array $input, bool $active_only, string $tool_name = 'wp_update_custom_css' ): string {
