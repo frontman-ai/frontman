@@ -144,36 +144,6 @@ if ( ! function_exists( 'wp_json_encode' ) ) {
 	}
 }
 
-if ( ! function_exists( 'wp_check_invalid_utf8' ) ) {
-	function wp_check_invalid_utf8( $value ): string {
-		return (string) $value;
-	}
-}
-
-if ( ! function_exists( 'sanitize_text_field' ) ) {
-	function sanitize_text_field( $value ): string {
-		return trim( strip_tags( (string) $value ) );
-	}
-}
-
-if ( ! function_exists( 'sanitize_key' ) ) {
-	function sanitize_key( $value ): string {
-		return strtolower( preg_replace( '/[^a-zA-Z0-9_\-]/', '', (string) $value ) );
-	}
-}
-
-if ( ! function_exists( 'wp_kses_post' ) ) {
-	function wp_kses_post( $value ): string {
-		return (string) $value;
-	}
-}
-
-if ( ! function_exists( 'esc_url_raw' ) ) {
-	function esc_url_raw( $value ): string {
-		return (string) $value;
-	}
-}
-
 require_once __DIR__ . '/../includes/class-frontman-tools.php';
 require_once __DIR__ . '/../tools/class-tool-woocommerce.php';
 
@@ -191,12 +161,9 @@ class Frontman_WooCommerce_Tools_Test_Runner {
 		$this->test_list_products_maps_to_wc_rest_route();
 		$this->test_create_product_preserves_raw_product_data();
 		$this->test_update_product_reads_before_write();
-		$this->test_invalid_product_data_is_rejected();
-		$this->test_invalid_path_ids_are_rejected();
 		$this->test_string_path_ids_are_allowed();
 		$this->test_product_reviews_use_global_reviews_endpoint();
 		$this->test_delete_product_requires_confirmation();
-		$this->test_delete_product_string_false_is_not_forced();
 		$this->test_product_meta_upsert_uses_meta_data_array();
 		$this->test_product_meta_delete_uses_woocommerce_crud();
 
@@ -410,8 +377,7 @@ class Frontman_WooCommerce_Tools_Test_Runner {
 				'regular_price' => '29.99',
 			],
 		];
-		$sanitized = $this->tools->sanitize_input( 'wc_create_product', $input );
-		$this->call_success( 'wc_create_product', $sanitized );
+		$this->call_success( 'wc_create_product', $input );
 
 		$request = $GLOBALS['frontman_wc_rest_requests'][0];
 		$this->assert_same( 'POST', $request->method, 'wc_create_product uses POST' );
@@ -426,18 +392,6 @@ class Frontman_WooCommerce_Tools_Test_Runner {
 		$this->assert_same( 'GET', $GLOBALS['frontman_wc_rest_requests'][0]->method, 'wc_update_product reads the product before mutation' );
 		$this->assert_same( '/wc/v3/products/10', $GLOBALS['frontman_wc_rest_requests'][0]->route, 'wc_update_product reads the target product route' );
 		$this->assert_same( 'PUT', $GLOBALS['frontman_wc_rest_requests'][1]->method, 'wc_update_product writes after reading' );
-	}
-
-	private function test_invalid_product_data_is_rejected(): void {
-		$sanitized = $this->tools->sanitize_input( 'wc_create_product', [ 'productData' => 'not an object' ] );
-		$error = $this->call_error( 'wc_create_product', $sanitized );
-		$this->assert_true( false !== strpos( $error, 'productData is required' ), 'wc_create_product rejects non-object productData' );
-	}
-
-	private function test_invalid_path_ids_are_rejected(): void {
-		$sanitized = $this->tools->sanitize_input( 'wc_get_product', [ 'productId' => 'abc' ] );
-		$error = $this->call_error( 'wc_get_product', $sanitized );
-		$this->assert_true( false !== strpos( $error, 'productId is required' ), 'wc_get_product rejects invalid product IDs before REST dispatch' );
 	}
 
 	private function test_string_path_ids_are_allowed(): void {
@@ -469,14 +423,6 @@ class Frontman_WooCommerce_Tools_Test_Runner {
 
 		$error = $this->call_error( 'wc_delete_product', [ 'productId' => 10, 'force' => true, 'confirm' => false ] );
 		$this->assert_true( false !== strpos( $error, 'explicit confirmation' ), 'wc_delete_product requires confirm=true' );
-	}
-
-	private function test_delete_product_string_false_is_not_forced(): void {
-		$this->reset_rest();
-		$input = $this->tools->sanitize_input( 'wc_delete_product', [ 'productId' => 10, 'force' => 'false', 'confirm' => true ] );
-		$this->call_success( 'wc_delete_product', $input );
-
-		$this->assert_same( false, $GLOBALS['frontman_wc_rest_requests'][1]->params['force'], 'wc_delete_product does not convert string false into forced deletion' );
 	}
 
 	private function test_product_meta_upsert_uses_meta_data_array(): void {

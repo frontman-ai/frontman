@@ -10,6 +10,14 @@ function frontman_runtime_same( $expected, $actual, string $message ): void {
 	frontman_runtime_assert( $expected === $actual, $message . "\nExpected: " . wp_json_encode( $expected ) . "\nActual: " . wp_json_encode( $actual ) );
 }
 
+function frontman_runtime_call( Frontman_Tools $tools, string $name, array $input ): array {
+	try {
+		return $tools->call( $name, $tools->sanitize_input( $name, $input ) );
+	} catch ( Frontman_Tool_Error $error ) {
+		return Frontman_Tools::error_result( $error->getMessage() );
+	}
+}
+
 function frontman_runtime_saved_id( string $message ): int {
 	frontman_runtime_assert( 1 === preg_match( '/[Pp]ost (\d+) was saved/', $message, $match ), 'Partial save must identify its post: ' . $message );
 	frontman_runtime_assert( false !== strpos( $message, 'wp_read_post' ), 'Partial save must explain raw recovery: ' . $message );
@@ -61,6 +69,9 @@ function frontman_runtime_http( string $method, string $path, string $cookie = '
 }
 
 function frontman_runtime_tool( string $cookie, ?string $nonce, array $request, ?string $raw = null, string $test = '' ): array {
+	if ( isset( $request['arguments'] ) && [] === $request['arguments'] ) {
+		$request['arguments'] = (object) [];
+	}
 	$response = frontman_runtime_http( 'POST', '/index.php/frontman/tools/call', $cookie, $nonce, $raw ?? wp_json_encode( $request ), $test );
 	if ( 200 !== $response['status'] ) {
 		return $response;

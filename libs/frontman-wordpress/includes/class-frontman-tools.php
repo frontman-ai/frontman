@@ -158,10 +158,20 @@ class Frontman_Tools {
 	/**
 	 * Sanitize tool input against the registered JSON schema before dispatch.
 	 */
-	public function sanitize_input( string $name, array $input ): array {
+	public function sanitize_input( string $name, $input, bool $json = false ): array {
 		$tool = $this->get( $name );
 		if ( ! $tool ) {
-			return $this->sanitize_untyped_array( $input, $name );
+			return $this->sanitize_untyped_array( (array) $input, $name );
+		}
+
+		$this->validate_types( $input, $tool->input_schema, 'arguments', $json );
+		$schema = json_decode( wp_json_encode( $tool->input_schema, JSON_PRESERVE_ZERO_FRACTION ), true );
+		$valid = rest_validate_value_from_schema( $input, $schema, 'arguments' );
+		if ( is_wp_error( $valid ) ) {
+			throw new Frontman_Tool_Error( $valid->get_error_message() );
+		}
+		if ( $input instanceof \stdClass ) {
+			$input = json_decode( wp_json_encode( $input, JSON_PRESERVE_ZERO_FRACTION ), true );
 		}
 
 		if ( class_exists( 'Frontman_Tool_Seo' ) && in_array( $name, [ 'wp_read_seo', 'wp_update_seo' ], true ) ) {
@@ -196,6 +206,36 @@ class Frontman_Tools {
 		$preserve_strings = $tool->preserve_input_strings || ( 'wp_update_custom_css' === $name && 'edit' === ( $input['mode'] ?? null ) );
 		$sanitized = $this->sanitize_value_for_schema( $input, $tool->input_schema, $name, '', $preserve_strings );
 		return is_array( $sanitized ) ? $sanitized : [];
+	}
+
+	/**
+	 * Reject coercions before WordPress schema validation. PHP callers use arrays
+	 * for objects; HTTP callers retain native JSON types until validation ends.
+	 */
+	private function validate_types( $value, array $schema, string $path, bool $json ): void {
+		$types = (array) ( $schema['type'] ?? [] );
+		$matches = [
+			'object' => $value instanceof \stdClass || ( ! $json && is_array( $value ) ),
+			'array' => is_array( $value ),
+			'string' => is_string( $value ),
+			'integer' => is_int( $value ),
+			'number' => is_int( $value ) || is_float( $value ),
+			'boolean' => is_bool( $value ),
+			'null' => null === $value,
+		];
+		if ( $types && ! array_filter( $types, static fn( $type ) => $matches[ $type ] ?? false ) ) {
+			throw new Frontman_Tool_Error( $path . ' must be of type ' . implode( ' or ', $types ) . '.' );
+		}
+		if ( $value instanceof \stdClass || is_array( $value ) ) {
+			foreach ( $value as $key => $item ) {
+				$child = ( $value instanceof \stdClass || ( ! $json && in_array( 'object', $types, true ) ) )
+					? ( (array) ( $schema['properties'] ?? [] ) )[ $key ] ?? []
+					: ( $schema['items'] ?? [] );
+				if ( is_array( $child ) && $child ) {
+					$this->validate_types( $item, $child, $path . '[' . $key . ']', $json );
+				}
+			}
+		}
 	}
 
 	/**

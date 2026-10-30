@@ -2,6 +2,7 @@
 
 define( 'WP_ADMIN', true );
 require '/var/www/html/wp-load.php';
+require_once __DIR__ . '/RuntimeTestSupport.php';
 require_once WP_PLUGIN_DIR . '/frontman-agentic-ai-editor/includes/class-frontman-elementor-data.php';
 require_once WP_PLUGIN_DIR . '/frontman-agentic-ai-editor/tools/class-tool-elementor.php';
 wp_set_current_user( get_user_by( 'login', 'admin' )->ID );
@@ -16,7 +17,7 @@ function discovery_call( Frontman_Tools $tools, string $name, array $input ): ar
 }
 function discovery_reject( Frontman_Tools $tools, array $input, string $message ): void {
 	$before = get_theme_mods();
-	$result = $tools->call( 'wp_update_theme_mod', $tools->sanitize_input( 'wp_update_theme_mod', $input ) );
+	$result = frontman_runtime_call( $tools, 'wp_update_theme_mod', $input );
 	discovery_assert( $result['isError'] && false !== strpos( $result['content'][0]['text'], $message ), 'Expected rejection: ' . $message );
 	discovery_assert( $before === get_theme_mods(), 'Rejected write changed persisted theme mods' );
 }
@@ -64,13 +65,13 @@ function test_customizer_registration_and_save( Frontman_Tools $tools ): void {
 	discovery_assert( ! discovery_call( $tools, 'wp_update_theme_mod', $input )['updated'], 'No-op write marked updated' );
 	foreach ( [
 		[ [ 'value' => 'invalid' ], 'Invalid button label' ],
-		[ [ 'value' => null ], 'value is required' ],
+		[ [ 'value' => null ], 'value' ],
 		[ [ 'name' => 'unregistered' ], 'registered top-level' ],
 		[ [ 'name' => 'frontman_option' ], 'registered top-level' ],
 		[ [ 'name' => 'frontman_indexed[label]' ], 'registered top-level' ],
 		[ [ 'name' => 'frontman_denied' ], 'cannot edit this' ],
 		[ [ 'stylesheet' => 'inactive' ], 'active theme' ],
-		[ [ 'confirm' => 'true' ], 'confirm=true' ],
+		[ [ 'confirm' => 'true' ], 'confirm' ],
 	] as [ $change, $message ] ) { discovery_reject( $tools, array_replace( $input, $change ), $message ); }
 	discovery_assert( false === discovery_call( $tools, 'wp_update_theme_mod', array_replace( $input, [ 'name' => 'frontman_boolean', 'value' => false ] ) )['after'], 'Boolean false rejected' );
 	$admin = get_current_user_id();

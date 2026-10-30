@@ -1,6 +1,7 @@
 <?php
 /** Read-only contract against official Angie packages, not mocked REST handlers. */
 require '/var/www/html/wp-load.php';
+require_once __DIR__ . '/RuntimeTestSupport.php';
 require_once ABSPATH . 'wp-admin/includes/plugin.php';
 require_once ABSPATH . 'wp-admin/includes/user.php';
 
@@ -25,7 +26,7 @@ angie_check( null === $tools->get( 'wp_update_angie_snippet' ), 'No Angie writer
 
 function angie_call( array $input, bool $error = false ): array {
 	global $tools;
-	$result = $tools->call( 'wp_read_angie_snippet', $tools->sanitize_input( 'wp_read_angie_snippet', $input ) );
+	$result = frontman_runtime_call( $tools, 'wp_read_angie_snippet', $input );
 	angie_check( $error === $result['isError'], $result['content'][0]['text'] );
 	return $error ? $result : json_decode( $result['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
 }

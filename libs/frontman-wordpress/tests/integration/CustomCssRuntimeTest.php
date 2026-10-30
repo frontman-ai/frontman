@@ -328,19 +328,23 @@ function frontman_test_custom_css_restore_tool(): void {
 
 	$registry = new Frontman_Tools();
 	$tool->register( $registry );
-	$string_confirmation = $registry->call(
-		'wp_restore_custom_css_revision',
-		$registry->sanitize_input( 'wp_restore_custom_css_revision', array_merge( $restore_input, [ 'confirm' => 'true' ] ) )
-	);
-	frontman_runtime_assert( true === $string_confirmation['isError'], 'String restore confirmation was accepted.' );
-	frontman_runtime_assert( false !== strpos( $string_confirmation['content'][0]['text'], 'confirm=true' ), 'String confirmation returned unexpected restore error.' );
+	foreach ( [
+		[ 'wp_list_custom_css_revisions', [ 'stylesheet' => $stylesheet, 'parent_post_id' => $post->ID, 'unexpected' => 'drop-me' ], 'unexpected' ],
+		[ 'wp_list_custom_css_revisions', [ 'stylesheet' => $stylesheet, 'parent_post_id' => $post->ID . 'junk' ], 'parent_post_id' ],
+		[ 'wp_get_custom_css_revision', [ 'stylesheet' => $stylesheet, 'parent_post_id' => $post->ID, 'revision_id' => $revision->ID . 'junk' ], 'revision_id' ],
+		[ 'wp_restore_custom_css_revision', array_merge( $restore_input, [ 'unexpected' => 'drop-me' ] ), 'unexpected' ],
+	] as [ $name, $invalid, $field ] ) {
+		frontman_custom_css_assert_tool_error( static function() use ( $registry, $name, $invalid ): void {
+			$registry->sanitize_input( $name, $invalid );
+		}, $field );
+	}
+	frontman_custom_css_assert_tool_error( static function() use ( $registry, $restore_input ): void {
+		$registry->sanitize_input( 'wp_restore_custom_css_revision', array_merge( $restore_input, [ 'confirm' => 'true' ] ) );
+	}, 'confirm' );
 	frontman_runtime_assert( $current_css === frontman_custom_css_persisted_post( $post->ID )->post_content, 'String confirmation changed current CSS.' );
-	$malformed_revision = $registry->call(
-		'wp_restore_custom_css_revision',
-		$registry->sanitize_input( 'wp_restore_custom_css_revision', array_merge( $restore_input, [ 'revision_id' => $revision->ID . 'junk' ] ) )
-	);
-	frontman_runtime_assert( true === $malformed_revision['isError'], 'Malformed restore revision ID was accepted.' );
-	frontman_runtime_assert( false !== strpos( $malformed_revision['content'][0]['text'], 'positive integer' ), 'Malformed revision ID returned unexpected restore error.' );
+	frontman_custom_css_assert_tool_error( static function() use ( $registry, $restore_input, $revision ): void {
+		$registry->sanitize_input( 'wp_restore_custom_css_revision', array_merge( $restore_input, [ 'revision_id' => $revision->ID . 'junk' ] ) );
+	}, 'revision_id' );
 	frontman_runtime_assert( $current_css === frontman_custom_css_persisted_post( $post->ID )->post_content, 'Malformed revision ID changed current CSS.' );
 
 	frontman_custom_css_assert_tool_error(
@@ -437,6 +441,21 @@ function frontman_test_custom_css_edit_tool(): void {
 	$render = static function( string $css ): string {
 		return $css . ' /* render-only */';
 	};
+	frontman_custom_css_assert_tool_error( static function() use ( $registry ): void {
+		$registry->sanitize_input( 'wp_update_custom_css', [ 'css' => [ '.bad { color: red; }' ], 'confirm' => true ] );
+	}, 'css' );
+	$replacement = '.selector::before { content: "{C:\\Tools}"; }';
+	$result = $registry->call( 'wp_update_custom_css', $registry->sanitize_input( 'wp_update_custom_css', [ 'css' => $replacement, 'confirm' => true ] ) );
+	$receipt = json_decode( $result['content'][0]['text'], true );
+	frontman_runtime_assert( false === $result['isError'] && $replacement === $receipt['after'] && $replacement === frontman_custom_css_persisted_post( $post->ID )->post_content, 'Replacement changed CSS bytes through native sanitization.' );
+	$result = $registry->call( 'wp_update_custom_css', $registry->sanitize_input( 'wp_update_custom_css', [ 'css' => 'bad', 'stylesheet' => 'inactive-theme', 'confirm' => true ] ) );
+	frontman_runtime_assert( true === $result['isError'] && false !== strpos( $result['content'][0]['text'], 'active stylesheet' ) && $replacement === frontman_custom_css_persisted_post( $post->ID )->post_content, 'Inactive replacement was accepted or changed CSS.' );
+	frontman_custom_css_update( $stylesheet, $original );
+	foreach ( [ null, [], 'invalid' ] as $source ) {
+		frontman_custom_css_assert_tool_error( static function() use ( $registry, $source ): void {
+			$registry->sanitize_input( 'wp_get_custom_css', [ 'source' => $source ] );
+		}, 'source' );
+	}
 	add_filter( 'wp_get_custom_css', $render );
 	frontman_runtime_assert( $original . ' /* render-only */' === $tool->get_custom_css( [] )['css'], 'Default read lost rendered CSS behavior.' );
 	$read = $tool->get_custom_css( [ 'source' => 'persisted' ] );
@@ -448,19 +467,38 @@ function frontman_test_custom_css_edit_tool(): void {
 		'oldText' => '.target::after { content: "\\31 $1 \\path"; }',
 		'newText' => ".target {\n  color: blue;\n}" . '\n.literal::after { content: "\\32 $$ \\new"; }',
 	];
-	foreach ( [
-		[ 'expected_current_sha256' => hash( 'sha256', 'stale' ) ],
-		[ 'parent_post_id' => $post->ID + 1 ],
-		[ 'parent_post_id' => $post->ID . 'junk' ],
-		[ 'stylesheet' => 'inactive-theme' ],
-		[ 'confirm' => 'true' ],
-		[ 'oldText' => '/* unchanged */' ],
-		[ 'oldText' => 'missing' ],
-		[ 'newText' => [] ],
-		[ 'replaceAll' => 'true' ],
-	] as $overrides ) {
-		$result = $registry->call( 'wp_update_custom_css', $registry->sanitize_input( 'wp_update_custom_css', array_merge( $input, $overrides ) ) );
-		frontman_runtime_assert( true === $result['isError'], 'Invalid edit was accepted: ' . json_encode( $overrides ) );
+	$invalid_edits = [
+		[ [ 'mode' => 'append' ], 'mode' ],
+		[ [ 'mode' => null ], 'mode' ],
+		[ [ 'mode' => 'replace' ], 'only allowed' ],
+		[ [ 'css' => '' ], 'not allowed' ],
+		[ [ 'oldText' => '' ], 'nonempty' ],
+		[ [ 'newText' => $input['oldText'] ], 'different' ],
+		[ [ 'oldText' => [] ], 'oldText' ],
+		[ [ 'newText' => 42 ], 'newText' ],
+		[ [ 'replaceAll' => null ], 'replaceAll' ],
+		[ [ 'confirm' => false ], 'confirm' ],
+		[ [ 'expected_current_sha256' => 'bad' ], 'expected_current_sha256' ],
+		[ [ 'expected_current_sha256' => hash( 'sha256', 'stale' ) ], 'changed' ],
+		[ [ 'parent_post_id' => $post->ID + 1 ], 'parent post' ],
+		[ [ 'parent_post_id' => $post->ID . 'junk' ], 'parent_post_id' ],
+		[ [ 'stylesheet' => 'inactive-theme' ], 'active stylesheet' ],
+		[ [ 'confirm' => 'true' ], 'confirm' ],
+		[ [ 'oldText' => '/* unchanged */' ], 'Multiple matches' ],
+		[ [ 'oldText' => 'missing' ], 'not found' ],
+		[ [ 'newText' => [] ], 'newText' ],
+		[ [ 'replaceAll' => 'true' ], 'replaceAll' ],
+	];
+	foreach ( [ 'oldText', 'newText', 'stylesheet', 'parent_post_id', 'expected_current_sha256', 'confirm' ] as $field ) {
+		$missing = $input;
+		unset( $missing[ $field ] );
+		$invalid_edits[] = [ $missing, $field, true ];
+	}
+	foreach ( $invalid_edits as $case ) {
+		[ $overrides, $reason ] = $case;
+		$arguments = ( $case[2] ?? false ) ? $overrides : array_merge( $input, $overrides );
+		$result = frontman_runtime_call( $registry, 'wp_update_custom_css', $arguments );
+		frontman_runtime_assert( true === $result['isError'] && false !== strpos( $result['content'][0]['text'], $reason ), 'Invalid edit was accepted or rejected for another reason: ' . json_encode( $arguments ) . ' ' . wp_json_encode( $result ) );
 		frontman_runtime_assert( $original === frontman_custom_css_persisted_post( $post->ID )->post_content, 'Rejected edit changed persisted CSS.' );
 	}
 	frontman_custom_css_update( $stylesheet, $original, 'preprocessor-source' );

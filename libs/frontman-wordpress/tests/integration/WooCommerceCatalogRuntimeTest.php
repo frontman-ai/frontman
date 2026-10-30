@@ -131,6 +131,44 @@ $product->set_regular_price( '12' );
 $product->set_category_ids( [ $category['term_id'] ] );
 $product->save();
 try {
+	$meta_input = [ 'productId' => $product->get_id(), 'metaKey' => '_frontman_runtime', 'metaValue' => 'value', 'confirm' => true ];
+	set_error_handler( static function( $severity, $message, $file, $line ) { throw new ErrorException( $message, 0, $severity, $file, $line ); } );
+	try {
+		foreach ( [ 'value', 2, 2.5, true, null, [ 'nested' => [ 'value' ] ], [ [ 'nested' => 'value' ] ] ] as $value ) {
+			catalog_assert( $value === $tools->sanitize_input( 'wc_update_product_meta', array_merge( $meta_input, [ 'metaValue' => $value ] ) )['metaValue'], 'Metadata value changed during validation' );
+		}
+	} finally {
+		restore_error_handler();
+	}
+	require_once '/tmp/RuntimeTestSupport.php';
+	$cookie = wp_generate_auth_cookie( $admin, time() + HOUR_IN_SECONDS, 'logged_in' );
+	$_COOKIE[ LOGGED_IN_COOKIE ] = $cookie;
+	$nonce = Frontman_Auth::create_nonce();
+	unset( $_COOKIE[ LOGGED_IN_COOKIE ] );
+	foreach ( [ 'value', 2, 2.5, true, null, (object) [ 'nested' => [ 'value' ] ], [ (object) [ 'nested' => 'value' ] ], 'value' ] as $value ) {
+		$response = frontman_runtime_tool( $cookie, $nonce, [ 'name' => 'wc_update_product_meta', 'arguments' => array_merge( $meta_input, [ 'metaValue' => $value ] ) ] );
+		catalog_assert( 200 === $response['status'] && false === $response['body']['isError'], 'HTTP metadata update failed: ' . wp_json_encode( $response ) );
+	}
+	clean_post_cache( $product->get_id() );
+	catalog_assert( 'value' === get_post_meta( $product->get_id(), '_frontman_runtime', true ), 'HTTP metadata update was not persisted' );
+	$raw = [ 'name' => 'Premium <strong>Shirt</strong>', 'description' => '<p>Path C:\\tmp\\shirt and regex /\\d+/</p>', 'regular_price' => '29.99' ];
+	$sanitized = $tools->sanitize_input( 'wc_create_product', [ 'productData' => $raw ] );
+	catalog_assert( $raw === $sanitized['productData'], 'Product data changed during shared sanitization' );
+	$before_count = $wpdb->get_var( "SELECT COUNT(*) FROM $wpdb->posts WHERE post_type = 'product'" );
+	$before = wc_get_product( $product->get_id() )->get_data();
+	foreach ( [
+		[ 'wc_create_product', [ 'productData' => 'not an object' ], 'arguments[productData] must be of type object' ],
+		[ 'wc_get_product', [ 'productId' => 'abc' ], 'arguments[productId] must be of type integer' ],
+		[ 'wc_delete_product', [ 'productId' => $product->get_id(), 'force' => 'false', 'confirm' => true ], 'arguments[force] must be of type boolean' ],
+	] as [ $tool, $input, $message ] ) {
+		try {
+			$tools->call( $tool, $tools->sanitize_input( $tool, $input ) );
+			throw new RuntimeException( 'Expected strict type rejection for ' . $tool );
+		} catch ( Frontman_Tool_Error $error ) {
+			catalog_assert( false !== strpos( $error->getMessage(), $message ), 'Unexpected validation error: ' . $error->getMessage() );
+		}
+		catalog_assert( $before == wc_get_product( $product->get_id() )->get_data() && $before_count === $wpdb->get_var( "SELECT COUNT(*) FROM $wpdb->posts WHERE post_type = 'product'" ), 'Rejected input mutated products' );
+	}
 	update_option( 'woocommerce_shop_page_id', $shop );
 	$GLOBALS['wp_query'] = new WP_Query( [ 'post_type' => 'product', 'post__in' => [ $product->get_id() ] ] );
 	catalog_assert( is_shop(), 'Real product archive query was not recognized as shop' );

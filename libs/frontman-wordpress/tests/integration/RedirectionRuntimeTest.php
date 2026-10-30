@@ -1,6 +1,7 @@
 <?php
 /** Integration contract against the official Redirection 5.10.0 package. */
 require '/var/www/html/wp-load.php';
+require_once __DIR__ . '/RuntimeTestSupport.php';
 require_once ABSPATH . 'wp-admin/includes/plugin.php';
 
 function redirection_check( bool $condition, string $message ): void {
@@ -43,7 +44,7 @@ set_error_handler( static function ( int $severity, string $message, string $fil
 
 function redirection_call( string $name, array $input, bool $expect_error = false ): array {
 	global $tools;
-	$result = $tools->call( $name, $tools->sanitize_input( $name, $input ) );
+	$result = frontman_runtime_call( $tools, $name, $input );
 	redirection_check( $result['isError'] === $expect_error, $name . ': ' . $result['content'][0]['text'] );
 	return $expect_error ? $result : json_decode( $result['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
 }

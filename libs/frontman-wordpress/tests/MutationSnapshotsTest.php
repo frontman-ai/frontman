@@ -835,14 +835,12 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 			$this->assert_same( 'string', $registry->get( $name )->input_schema['properties']['slug']['type'], "$name exposes a string slug" );
 			$this->assert_true( ! in_array( 'slug', $registry->get( $name )->input_schema['required'], true ), "$name keeps slug optional" );
 			$input = [ 'id' => 11, 'title' => 'Slug fixture', 'content' => 'Slug content', 'slug' => 'sample-%e6%97%a5-\\path' ];
-			$sanitized = $registry->sanitize_input( $name, $input );
-			$this->assert_same( $input['slug'], $sanitized['slug'], "$name preserves raw slug for core sanitization" );
-			$saved = $tool->$handler( $sanitized );
+			$saved = $tool->$handler( $input );
 			$this->assert_same( $input['slug'], $saved['after']['slug'], "$name passes post_name through the slashing boundary" );
 			$unchanged = $tool->update_post( [ 'id' => $saved['after']['id'], 'excerpt' => 'Metadata only' ] );
 			$this->assert_same( $input['slug'], $unchanged['after']['slug'], 'Omitted slug survives metadata-only edits' );
 			$input['slug'] = '';
-			$this->assert_same( '', $tool->$handler( $registry->sanitize_input( $name, $input ) )['after']['slug'], "$name passes explicit empty slug to core" );
+			$this->assert_same( '', $tool->$handler( $input )['after']['slug'], "$name passes explicit empty slug to core" );
 
 			foreach ( [ null, 123, 1.5, true, false, [], [ 'bad' ], (object) [ 'slug' => 'bad' ] ] as $invalid_slug ) {
 				$input['slug'] = $invalid_slug;
@@ -851,11 +849,6 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 					static function() use ( $tool, $handler, $input ) { $tool->$handler( $input ); },
 					'slug must be a string',
 					"$name rejects invalid slugs in direct calls"
-				);
-				$this->assert_tool_error_result_contains(
-					$registry->call( $name, $registry->sanitize_input( $name, $input ) ),
-					'slug must be a string',
-					"$name rejects invalid slugs through the registry"
 				);
 				$this->assert_same( $before, serialize( $GLOBALS['frontman_test_posts'] ), "$name rejects invalid slugs before writes" );
 			}
@@ -1113,8 +1106,6 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 
 	private function test_privacy_options_are_read_only(): void {
 		$tool = new Frontman_Tool_Options();
-		$tools = new Frontman_Tools();
-		$tool->register( $tools );
 		$original = $GLOBALS['frontman_test_options'];
 		$values = [ 'wp_page_for_privacy_policy' => 42, 'comment_registration' => '0', 'require_name_email' => '1' ];
 		foreach ( $values as $name => $value ) {
@@ -1128,8 +1119,8 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 			$this->assert_same( [ 'name' => $name, 'value' => $value ], $tool->get_option( [ 'name' => $name ] ), 'Privacy reads preserve the stored value and type: ' . $name );
 			$this->assert_same( $value, $listed[ $name ], 'Privacy options appear in bulk reads: ' . $name );
 			$this->assert_error_contains(
-				static function() use ( $tool, $tools, $name ) {
-					$tool->update_option( $tools->sanitize_input( 'wp_update_option', [ 'name' => $name, 'value' => '99' ] ) );
+				static function() use ( $tool, $name ) {
+					$tool->update_option( [ 'name' => $name, 'value' => '99' ] );
 				},
 				'Option not allowed',
 				'Privacy options remain non-writable: ' . $name
@@ -1139,11 +1130,11 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 
 		foreach ( [ 'wp_get_option' => 'get_option', 'wp_update_option' => 'update_option' ] as $name => $handler ) {
 			$this->assert_error_contains(
-				static function() use ( $tool, $tools, $name, $handler ) {
-					$tool->$handler( $tools->sanitize_input( $name, [ 'name' => 'frontman_test_secret', 'value' => 'changed' ] ) );
+				static function() use ( $tool, $handler ) {
+					$tool->$handler( [ 'name' => 'frontman_test_secret', 'value' => 'changed' ] );
 				},
 				'Option not allowed',
-				'Handlers reject unknown keys even after schema sanitization'
+				'Handlers reject unknown keys directly'
 			);
 		}
 		$this->assert_true( ! array_key_exists( 'frontman_test_secret', $listed ), 'Bulk reads exclude unlisted secrets' );
@@ -1273,17 +1264,6 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$this->assert_same( 'read', $revision_registry->get( 'wp_get_custom_css_revision' )->access, 'wp_get_custom_css_revision infers read access' );
 		$this->assert_same( [ 'stylesheet', 'parent_post_id' ], $revision_registry->get( 'wp_list_custom_css_revisions' )->input_schema['required'], 'wp_list_custom_css_revisions requires scope inputs' );
 		$this->assert_same( [ 'stylesheet', 'parent_post_id', 'revision_id' ], $revision_registry->get( 'wp_get_custom_css_revision' )->input_schema['required'], 'wp_get_custom_css_revision requires scope and revision inputs' );
-		$this->assert_same( [ 'stylesheet' => 'frontman-theme', 'parent_post_id' => 9001 ], $revision_registry->sanitize_input( 'wp_list_custom_css_revisions', [ 'stylesheet' => 'frontman-theme', 'parent_post_id' => 9001, 'unexpected' => 'drop-me' ] ), 'wp_list_custom_css_revisions rejects extra properties' );
-		$this->assert_tool_error_result_contains(
-			$revision_registry->call( 'wp_list_custom_css_revisions', $revision_registry->sanitize_input( 'wp_list_custom_css_revisions', [ 'stylesheet' => 'frontman-theme', 'parent_post_id' => '9001junk' ] ) ),
-			'positive integer',
-			'wp_list_custom_css_revisions rejects malformed parent IDs through registry sanitization'
-		);
-		$this->assert_tool_error_result_contains(
-			$revision_registry->call( 'wp_get_custom_css_revision', $revision_registry->sanitize_input( 'wp_get_custom_css_revision', [ 'stylesheet' => 'frontman-theme', 'parent_post_id' => 9001, 'revision_id' => '9101junk' ] ) ),
-			'positive integer',
-			'wp_get_custom_css_revision rejects malformed revision IDs through registry sanitization'
-		);
 
 		$restore_input = [
 			'stylesheet' => 'frontman-theme',
@@ -1340,12 +1320,6 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$GLOBALS['frontman_test_custom_css_posts']['frontman-theme'] = $valid_custom_css_post;
 
 		$GLOBALS['frontman_test_custom_css_posts']['frontman-theme']->post_content_filtered = '';
-		$string_confirmation = $revision_registry->call(
-			'wp_restore_custom_css_revision',
-			$revision_registry->sanitize_input( 'wp_restore_custom_css_revision', array_merge( $restore_input, [ 'confirm' => 'true' ] ) )
-		);
-		$this->assert_tool_error_result_contains( $string_confirmation, 'confirm=true', 'wp_restore_custom_css_revision rejects string confirmation through registry sanitization' );
-		$this->assert_same( 0, $GLOBALS['frontman_test_custom_css_restore_count'], 'String confirmation does not call WordPress restore API' );
 
 		$restored = $tool->restore_custom_css_revision( $restore_input );
 		$this->assert_same( [ 'selected_revision_id', 'before', 'after' ], array_keys( $restored ), 'wp_restore_custom_css_revision limits its receipt to observed metadata' );
@@ -1365,12 +1339,6 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 
 		$this->assert_same( 'read-write', $revision_registry->get( 'wp_restore_custom_css_revision' )->access, 'wp_restore_custom_css_revision infers mutation access' );
 		$this->assert_same( [ 'stylesheet', 'parent_post_id', 'revision_id', 'expected_current_sha256', 'confirm' ], $revision_registry->get( 'wp_restore_custom_css_revision' )->input_schema['required'], 'wp_restore_custom_css_revision requires every safety input' );
-		$this->assert_same( $restore_input, $revision_registry->sanitize_input( 'wp_restore_custom_css_revision', array_merge( $restore_input, [ 'unexpected' => 'drop-me' ] ) ), 'wp_restore_custom_css_revision rejects extra properties' );
-		$this->assert_tool_error_result_contains(
-			$revision_registry->call( 'wp_restore_custom_css_revision', $revision_registry->sanitize_input( 'wp_restore_custom_css_revision', array_merge( $restore_input, [ 'revision_id' => '9101junk' ] ) ) ),
-			'positive integer',
-			'wp_restore_custom_css_revision rejects malformed revision IDs through registry sanitization'
-		);
 
 		$this->assert_error_contains(
 			static function() use ( $tool ) {
@@ -1402,13 +1370,13 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 
 		$registry = new Frontman_Tools();
 		( new Frontman_Tool_Options() )->register( $registry );
-		$this->assert_tool_error_result_contains( $registry->call( 'wp_update_custom_css', $registry->sanitize_input( 'wp_update_custom_css', [ 'css' => '.inactive { color: red; }', 'stylesheet' => 'inactive-theme', 'confirm' => true ] ) ), 'active stylesheet', 'wp_update_custom_css registry path rejects non-active stylesheet writes' );
-		$this->assert_tool_error_result_contains( $registry->call( 'wp_update_custom_css', $registry->sanitize_input( 'wp_update_custom_css', [ 'css' => [ '.bad { color: red; }' ], 'confirm' => true ] ) ), 'css is required', 'wp_update_custom_css registry path rejects non-string CSS' );
+		$this->assert_tool_error_result_contains( $registry->call( 'wp_update_custom_css', [ 'css' => '.inactive { color: red; }', 'stylesheet' => 'inactive-theme', 'confirm' => true ] ), 'active stylesheet', 'wp_update_custom_css rejects non-active stylesheet writes' );
+		$this->assert_tool_error_result_contains( $registry->call( 'wp_update_custom_css', [ 'css' => [ '.bad { color: red; }' ], 'confirm' => true ] ), 'css is required', 'wp_update_custom_css rejects non-string CSS' );
 		$registry_css = '.selector::before { content: "{C:\\Tools}"; }';
-		$registry_input = $registry->sanitize_input( 'wp_update_custom_css', [ 'css' => $registry_css, 'confirm' => true ] );
+		$registry_input = [ 'css' => $registry_css, 'confirm' => true ];
 		$registry_result = $registry->call( 'wp_update_custom_css', $registry_input );
 		$registry_payload = json_decode( $registry_result['content'][0]['text'], true );
-		$this->assert_same( $registry_css, $registry_payload['after'], 'wp_update_custom_css preserves CSS through registry sanitization' );
+		$this->assert_same( $registry_css, $registry_payload['after'], 'wp_update_custom_css preserves CSS through dispatch' );
 
 		$original = str_repeat( "/* unchanged padding */\r\n", 900 ) . '.target { color: red; }' . "\n" . $registry_css;
 		wp_update_custom_css_post( $original );
@@ -1422,7 +1390,7 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 			'oldText' => '.target { color: red; }', 'newText' => ".target {\n  color: blue;\n}",
 		];
 		$call_edit = static function( array $input ) use ( $registry ): array {
-			return $registry->call( 'wp_update_custom_css', $registry->sanitize_input( 'wp_update_custom_css', $input ) );
+			return $registry->call( 'wp_update_custom_css', $input );
 		};
 		foreach ( [
 			[ [ 'mode' => 'append' ], 'mode must' ],
@@ -1480,7 +1448,7 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 			$this->assert_same( $expected, $tool->get_custom_css( [ 'source' => 'persisted' ] )['css'], 'Replacement strings stay literal through registry' );
 		}
 		foreach ( [ null, [], 'invalid' ] as $source ) {
-			$this->assert_tool_error_result_contains( $registry->call( 'wp_get_custom_css', $registry->sanitize_input( 'wp_get_custom_css', [ 'source' => $source ] ) ), 'source must', 'CSS read rejects invalid source' );
+			$this->assert_tool_error_result_contains( $registry->call( 'wp_get_custom_css', [ 'source' => $source ] ), 'source must', 'CSS read rejects invalid source' );
 		}
 
 		$mods = $tool->list_theme_mods( [] );

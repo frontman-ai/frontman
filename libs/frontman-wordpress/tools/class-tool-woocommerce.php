@@ -362,7 +362,7 @@ class Frontman_Tool_WooCommerce {
 				$tools,
 				$operation . '_' . $entity . '_meta',
 				$entity_label . ' metadata upsert. Creates the key when missing and updates the first matching key when present. Ask the user for confirmation before calling with confirm=true.',
-				$this->with_confirm( $this->object_schema( array_merge( $id_prop, [ 'metaKey' => $this->string_prop( 'The metadata key.' ), 'metaValue' => [ 'description' => 'The metadata value. Can be a scalar, object, array, or null.' ] ] ), [ $id_key, 'metaKey', 'metaValue' ] ) ),
+				$this->with_confirm( $this->object_schema( array_merge( $id_prop, [ 'metaKey' => $this->string_prop( 'The metadata key.' ), 'metaValue' => [ 'type' => [ 'string', 'number', 'boolean', 'object', 'array', 'null' ], 'properties' => (object) [], 'description' => 'The metadata value. Can be a scalar, object, array, or null.' ] ] ), [ $id_key, 'metaKey', 'metaValue' ] ) ),
 				function( array $input ) use ( $path_template ) { return $this->upsert_meta( $path_template, $input ); }
 			);
 		}

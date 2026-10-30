@@ -208,8 +208,12 @@ $adapter->delete_redirect( [ 'id' => (int) $external['after']['id'], 'expected_s
 redirects301_check( $legacy === $adapter->list_redirects( [] ), 'Legacy metadata changed.' );
 $adapter->delete_redirect( [ 'id' => $legacy_id, 'expected_source' => get_bloginfo( 'url' ) . $input['source'], 'confirm' => true ] );
 foreach ( [ 'confirm' => 'true', 'source' => "/bad\r\n" ] as $key => $value ) {
-	$bad = $tools->sanitize_input( 'wp_301_redirects_create', array_replace( $input, [ $key => $value ] ) );
-	redirects301_check( $tools->call( 'wp_301_redirects_create', $bad )['isError'], 'Dispatcher accepted unsafe input.' );
+	try {
+		$bad = $tools->sanitize_input( 'wp_301_redirects_create', array_replace( $input, [ $key => $value ] ) );
+		redirects301_check( $tools->call( 'wp_301_redirects_create', $bad )['isError'], 'Dispatcher accepted unsafe input.' );
+	} catch ( Frontman_Tool_Error $e ) {
+		redirects301_check( false !== strpos( $e->getMessage(), $key ), 'Validation must identify the field.' );
+	}
 }
 $plugin_file = WP_PLUGIN_DIR . '/301-redirects/301-redirects.php';
 $plugin_source = file_get_contents( $plugin_file );

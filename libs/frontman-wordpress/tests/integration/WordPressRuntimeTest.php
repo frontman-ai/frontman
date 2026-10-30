@@ -162,8 +162,17 @@ foreach ( [ [ '', null, 401 ], [ $subscriber_cookie, null, 403 ], [ $cookie, nul
 }
 foreach ( [ null, 0, 1, 'true', 'false', [], (object) [] ] as $invalid_path_opt_in ) {
 	$invalid_location = frontman_runtime_tool( $cookie, $slug_nonce, [ 'name' => 'wp_get_site_info', 'arguments' => [ 'include_installation_paths' => $invalid_path_opt_in ] ] );
-	frontman_runtime_assert( true === $invalid_location['body']['isError'] && 'include_installation_paths must be a boolean.' === $invalid_location['body']['content'][0]['text'], 'HTTP path opt-in must reject coerced booleans and identify the field.' );
+	frontman_runtime_assert( true === $invalid_location['body']['isError'] && false !== strpos( $invalid_location['body']['content'][0]['text'], 'include_installation_paths' ), 'HTTP path opt-in must reject coerced booleans and identify the field.' );
 }
+
+foreach ( [ 'wp_page_for_privacy_policy', 'comment_registration', 'require_name_email', 'frontman_test_secret' ] as $option_name ) {
+	$before = $wpdb->get_row( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $option_name ), ARRAY_A );
+	$invalid = frontman_runtime_tool( $cookie, $slug_nonce, [ 'name' => 'wp_update_option', 'arguments' => [ 'name' => $option_name, 'value' => '99' ] ] );
+	frontman_runtime_assert( true === $invalid['body']['isError'] && false !== strpos( $invalid['body']['content'][0]['text'], 'name' ), 'Read-only or unknown option passed registry validation.' );
+	frontman_runtime_assert( $before === $wpdb->get_row( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $option_name ), ARRAY_A ), 'Rejected option update changed storage.' );
+}
+$invalid = frontman_runtime_tool( $cookie, $slug_nonce, [ 'name' => 'wp_get_option', 'arguments' => [ 'name' => 'frontman_test_secret' ] ] );
+frontman_runtime_assert( true === $invalid['body']['isError'] && false !== strpos( $invalid['body']['content'][0]['text'], 'name' ), 'Unknown option passed read validation.' );
 
 $media_definition = Frontman_Tools::instance()->get( 'wp_upload_media' );
 frontman_runtime_assert( null !== $media_definition, 'wp_upload_media is registered.' );
@@ -362,8 +371,9 @@ foreach ( [ 'Café — 日本! / Delivery', '%e6%97%a5%e6%9c%ac-guide', 'Quote\'
 $posts_before_invalid_slugs = $wpdb->get_results( "SELECT * FROM {$wpdb->posts} ORDER BY ID", ARRAY_A );
 foreach ( [ 'wp_create_post', 'wp_update_post' ] as $slug_tool ) {
 	foreach ( [ null, 123, 1.5, true, false, [], [ 'bad' ], (object) [ 'slug' => 'bad' ] ] as $invalid_slug ) {
-		$invalid = frontman_runtime_tool( $cookie, $slug_nonce, [ 'name' => $slug_tool, 'arguments' => array_merge( $slug_fixture, [ 'id' => $slug_id, 'title' => 'Must not write', 'slug' => $invalid_slug ] ) ] );
-		frontman_runtime_assert( 200 === $invalid['status'] && true === $invalid['body']['isError'], 'Invalid slug type was accepted.' );
+		$input = array_merge( $slug_fixture, 'wp_update_post' === $slug_tool ? [ 'id' => $slug_id ] : [], [ 'title' => 'Must not write', 'slug' => $invalid_slug ] );
+		$invalid = frontman_runtime_tool( $cookie, $slug_nonce, [ 'name' => $slug_tool, 'arguments' => $input ] );
+		frontman_runtime_assert( 200 === $invalid['status'] && true === $invalid['body']['isError'] && false !== strpos( $invalid['body']['content'][0]['text'], 'slug' ), 'Invalid slug type was accepted or rejected for another reason.' );
 	}
 	$request = [ 'name' => $slug_tool, 'arguments' => array_merge( $slug_fixture, [ 'id' => $slug_id ] ) ];
 	frontman_runtime_assert( 401 === frontman_runtime_tool( '', null, $request )['status'], 'Slug mutation bypassed authentication.' );
@@ -411,7 +421,7 @@ update_option( 'sidebars_widgets', [ 'frontman-widgets' => [ 'custom_html-4', 'c
 update_option( 'widget_categories', [ 3 => [ 'title' => 'Categories' ] ] );
 $widget_call = static function ( string $name, array $input, bool $error = false ): array {
 	$tools = Frontman_Tools::instance();
-	$result = $tools->call( $name, $tools->sanitize_input( $name, $input ) );
+	$result = frontman_runtime_call( $tools, $name, $input );
 	frontman_runtime_assert( $error === $result['isError'], $name . ': ' . wp_json_encode( $result ) );
 	return $error ? [ 'error' => $result['content'][0]['text'] ] : json_decode( $result['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
 };

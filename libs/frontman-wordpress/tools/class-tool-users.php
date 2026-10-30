@@ -19,7 +19,7 @@ class Frontman_Tool_Users {
 				'additionalProperties' => false,
 				'properties' => [
 					'search' => [
-						'type' => 'string', 'minLength' => 1, 'maxLength' => 100,
+						'type' => 'string', 'minLength' => 1,
 						'description' => 'Trimmed nonempty literal substring, at most 100 Unicode characters. Must not start or end with * after whitespace trimming (including asterisk-only input). Interior *, %, _, and quotes are literal. Case sensitivity depends on database collation.',
 					],
 					'match_by' => [ 'type' => 'string', 'enum' => [ 'login', 'display_name' ], 'description' => 'Search only this column; never implicitly search email.' ],

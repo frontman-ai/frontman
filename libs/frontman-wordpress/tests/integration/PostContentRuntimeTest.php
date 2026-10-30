@@ -17,10 +17,10 @@ frontman_runtime_same( $content, $updated['after']['content'], 'Update preserves
 $renamed = $call( 'wp_update_post', [ 'id' => $id, 'title' => 'Renamed form' ] );
 frontman_runtime_same( $content, $renamed['after']['content'], 'Omitted content preserves the embed' );
 
-$reject( 'wp_create_post', [ 'title' => 'Missing content' ], 'content is required' );
+$reject( 'wp_create_post', [ 'title' => 'Missing content' ], 'content is a required property' );
 foreach ( [ null, false, 123, [] ] as $invalid ) {
-	$reject( 'wp_create_post', [ 'title' => 'Invalid content', 'content' => $invalid ], 'must be a string' );
-	$reject( 'wp_update_post', [ 'id' => $id, 'title' => 'Must not save', 'content' => $invalid ], 'content must be a string' );
+	$reject( 'wp_create_post', [ 'title' => 'Invalid content', 'content' => $invalid ], 'content' );
+	$reject( 'wp_update_post', [ 'id' => $id, 'title' => 'Must not save', 'content' => $invalid ], 'content' );
 }
 $actor->add_cap( 'unfiltered_html', false );
 try {
@@ -76,23 +76,23 @@ foreach ( [ $body, "<!-- wp:html -->\n" . $body . "<!-- /wp:html -->\n" ] as $or
 	$edit['title'] = 'Must not save';
 	$edit['status'] = 'publish';
 	$invalid_inputs = [
-		[ [ 'mode' => 'unknown' ], 'mode must' ],
-		[ [ 'mode' => null ], 'mode must' ],
-		[ [ 'mode' => ' edit ' ], 'mode must' ],
+		[ [ 'mode' => 'unknown' ], 'mode' ],
+		[ [ 'mode' => null ], 'mode' ],
+		[ [ 'mode' => ' edit ' ], 'mode' ],
 		[ [ 'mode' => 'replace' ], 'only allowed in edit mode' ],
-		[ [ 'content' => null ], 'content is not allowed' ],
+		[ [ 'content' => null ], 'content' ],
 		[ [ 'content' => $expected ], 'content is not allowed' ],
 		[ [ 'oldText' => '' ], 'nonempty' ],
 		[ [ 'newText' => $anchor ], 'different' ],
 		[ [ 'oldText' => 'absent anchor' ], 'exactly once' ],
 		[ [ 'oldText' => "\n" ], 'exactly once' ],
-		[ [ 'expected_current_sha256' => strtoupper( $current['content_sha256'] ) ], 'lowercase SHA256' ],
-		[ [ 'expected_current_sha256' => str_repeat( 'a', 63 ) ], 'lowercase SHA256' ],
-		[ [ 'expected_current_sha256' => str_repeat( 'g', 64 ) ], 'lowercase SHA256' ],
+		[ [ 'expected_current_sha256' => strtoupper( $current['content_sha256'] ) ], 'expected_current_sha256' ],
+		[ [ 'expected_current_sha256' => str_repeat( 'a', 63 ) ], 'expected_current_sha256' ],
+		[ [ 'expected_current_sha256' => str_repeat( 'g', 64 ) ], 'expected_current_sha256' ],
 	];
 	foreach ( [ 'mode', 'oldText', 'newText', 'expected_current_sha256' ] as $field ) {
 		foreach ( [ null, false, 123, [], (object) [ 'value' => 'invalid' ] ] as $invalid ) {
-			$invalid_inputs[] = [ [ $field => $invalid ], 'mode' === $field ? 'mode must' : 'must be a string' ];
+			$invalid_inputs[] = [ [ $field => $invalid ], $field ];
 		}
 	}
 	foreach ( $invalid_inputs as [ $overrides, $reason ] ) {
@@ -104,7 +104,7 @@ foreach ( [ $body, "<!-- wp:html -->\n" . $body . "<!-- /wp:html -->\n" ] as $or
 		$reject( 'wp_update_post', $missing, 'mode' === $field ? 'only allowed in edit mode' : 'is required' );
 	}
 	foreach ( [ 'oldText', 'newText', 'expected_current_sha256' ] as $field ) {
-		$reject( 'wp_update_post', [ 'id' => $id, $field => 'invalid' ], 'only allowed in edit mode' );
+		$reject( 'wp_update_post', [ 'id' => $id, $field => 'expected_current_sha256' === $field ? str_repeat( 'a', 64 ) : 'invalid' ], 'only allowed in edit mode' );
 	}
 	$actor->add_cap( 'unfiltered_html', false );
 	try {
@@ -154,12 +154,12 @@ $again = $call( 'wp_save_post_preview', [ 'id' => $id, 'content' => $proposed ] 
 frontman_runtime_same( $preview['autosave_id'], $again['autosave_id'], 'Identical autosave is reused' );
 $reject( 'wp_save_post_preview', [ 'id' => $id, 'content' => '<p>Other proposal</p>' ], 'differing editor autosave' );
 foreach ( [ null, false, 123, [] ] as $invalid ) {
-	$reject( 'wp_save_post_preview', [ 'id' => $id, 'content' => $invalid ], 'must be a string' );
+	$reject( 'wp_save_post_preview', [ 'id' => $id, 'content' => $invalid ], 'content' );
 }
 foreach ( [ null, false, 0, -1, '123', [] ] as $invalid ) {
-	$reject( 'wp_save_post_preview', [ 'id' => $invalid, 'content' => 'test' ], 'positive integer' );
+	$reject( 'wp_save_post_preview', [ 'id' => $invalid, 'content' => 'test' ], 'id' );
 }
-$reject( 'wp_save_post_preview', [ 'id' => $id ], 'content is required' );
+$reject( 'wp_save_post_preview', [ 'id' => $id ], 'content is a required property' );
 $preview_draft = $call( 'wp_create_post', [ 'title' => 'Preview draft', 'content' => 'draft' ] );
 $reject( 'wp_save_post_preview', [ 'id' => $preview_draft['id'], 'content' => 'test' ], 'published' );
 update_post_meta( $id, '_elementor_edit_mode', 'builder' );
