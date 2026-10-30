@@ -53,7 +53,6 @@ defmodule FrontmanServer.MixProject do
 
   defp deps do
     [
-      # Exercise notifier SQL against the server's sandbox and migrated schema.
       {:frontman_notifier, path: "../frontman_notifier", only: :test, runtime: false},
       {:swarm_ai, path: "../swarm_ai"},
       {:boundary, "~> 0.10", runtime: false},

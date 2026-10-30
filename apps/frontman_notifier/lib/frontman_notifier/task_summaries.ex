@@ -154,7 +154,6 @@ defmodule FrontmanNotifier.TaskSummaries do
   end
 
   defp billing_summary(%{"subscription_status" => nil, "free_messages_used" => used}) do
-    # Match FrontmanServer.Billing's lifetime pretrial run allowance.
     remaining = max(5 - int(used), 0)
     "Free · #{remaining} of 5 messages left"
   end

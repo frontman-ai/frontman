@@ -28,7 +28,13 @@ defmodule FrontmanServer.TaskSummariesTest do
     subscription_for_scope_fixture(scope, %{status: "active", interval: :monthly})
 
     persist(task, :user_message, user_msg("Make the hero button more prominent"))
-    persist(task, :agent_error, agent_error("Could not apply patch", "failed", true, "tool_failure"))
+
+    persist(
+      task,
+      :agent_error,
+      agent_error("Could not apply patch", "failed", true, "tool_failure")
+    )
+
     call = %{tool_call("call_1", "edit_file") | execution_mode: :synchronous}
     persist(task, :tool_call, call)
 
