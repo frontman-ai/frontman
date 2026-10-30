@@ -25,7 +25,7 @@ defmodule FrontmanServerWeb.McpConfig do
          {:ok,
           %URI{scheme: "https", host: host, port: port, userinfo: nil, query: nil, fragment: nil} =
             uri}
-         when is_binary(host) and byte_size(host) > 0 and port in 1..65535 <- URI.new(url),
+         when is_binary(host) and byte_size(host) > 0 and port in 1..65_535 <- URI.new(url),
          false <- String.ends_with?(URI.parse(url).authority, ":") do
       {:ok, uri}
     else
