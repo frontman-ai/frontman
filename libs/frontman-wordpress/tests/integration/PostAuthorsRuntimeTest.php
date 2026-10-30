@@ -21,6 +21,7 @@ $call = static function( string $name, array $input, bool $error = false ) use (
 	return $error ? $response['body'] : json_decode( $response['body']['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
 };
 $base = [ 'title' => 'Author original', 'content' => '<p>Original body</p>', 'post_type' => 'fm_author_item' ];
+frontman_runtime_assert( ! array_key_exists( 'author', Frontman_Tools::instance()->sanitize_input( 'wp_create_post', [ 'title' => 'T', 'content' => 'C' ] ) ), 'Omitted author injected by registry' );
 foreach ( [ [], [ 'author' => $actor_id ], [ 'author' => $target_id ] ] as $assignment ) {
 	$created = $call( 'wp_create_post', array_merge( $base, $assignment ) );
 	$id = $created['id']; $expected = $assignment['author'] ?? $actor_id;
@@ -48,6 +49,18 @@ $reject_both = static function( array $override ) use ( $call, $base, $combined,
 	frontman_runtime_assert( $before_count === $count() && $unchanged === $snapshot( $fixture ), 'Rejected combined request partially wrote a post' );
 };
 foreach ( [ (string) $target_id, 99999999 ] as $bad ) { $reject_both( [ 'author' => $bad ] ); }
+foreach ( [ true, false, null, 0, -1, [], (object) [] ] as $bad ) { $reject_both( [ 'author' => $bad ] ); }
+foreach ( [ (string) $target_id, 1.0, true, false, null, 0, -1, [], (object) [] ] as $bad ) {
+	foreach ( [ 'wp_create_post' => 'create_post', 'wp_update_post' => 'update_post' ] as $name => $method ) {
+		$input = array_merge( $combined, [ 'author' => $bad ] );
+		foreach ( [ static fn() => Frontman_Tools::instance()->sanitize_input( $name, $input ), static fn() => ( new Frontman_Tool_Posts() )->$method( $input ) ] as $attempt ) {
+			try { $attempt(); throw new RuntimeException( 'Invalid author accepted' ); }
+			catch ( Frontman_Tool_Error $error ) { frontman_runtime_assert( false !== strpos( $error->getMessage(), 'positive integer' ), 'Invalid author diagnostic differs' ); }
+		}
+		frontman_runtime_assert( Frontman_Tools::instance()->call( $name, $input )['isError'], 'Direct dispatch accepted invalid author' );
+	}
+}
+frontman_runtime_assert( $unchanged === $snapshot( $fixture ), 'Direct invalid author changed the post' );
 foreach ( [ 'wp_create_post' => array_merge( $base, [ 'status' => 'publish' ] ), 'wp_update_post' => $combined ] as $name => $input ) {
 	$input['author'] = 2.0;
 	$before_count = $count();
@@ -118,6 +131,25 @@ for ( $i = 0; $i < 21; $i++ ) { wp_insert_user( [ 'user_login' => 'bounded-autho
 $bounded = $call( 'wp_find_users', [ 'search' => 'Bounded Author', 'match_by' => 'display_name' ] );
 frontman_runtime_assert( 20 === count( $bounded['users'] ) && 21 === $bounded['total'] && 2 === $bounded['total_pages'], 'Lookup exceeded bound or lost count' );
 foreach ( [ [ 'search' => "\u{2003}*\u{2003}" ], [ 'page' => '1' ] ] as $bad ) { $call( 'wp_find_users', array_merge( $lookup, $bad ), true ); }
+$invalid_lookup = [ [], [ 'search' => '' ], [ 'search' => '  ' ], [ 'search' => str_repeat( 'é', 101 ) ], [ 'search' => "\xC3\x28" ], [ 'match_by' => 'email' ], [ 'unexpected' => 1 ], [ 'page' => PHP_INT_MAX ] ];
+foreach ( [ '*Same', 'Same*', '*', '**', ' *Same ', " Same*\t", "\u{2003}*\u{2003}" ] as $search ) { $invalid_lookup[] = [ 'search' => $search ]; }
+foreach ( [ null, true, [], 1, 1.0 ] as $bad ) { $invalid_lookup[] = [ 'search' => $bad ]; $invalid_lookup[] = [ 'match_by' => $bad ]; }
+foreach ( [ 'page', 'per_page' ] as $field ) {
+	foreach ( [ null, '1', 1.0, true, [], 0, -1 ] as $bad ) { $invalid_lookup[] = [ $field => $bad ]; }
+}
+$invalid_lookup[] = [ 'per_page' => 21 ];
+foreach ( $invalid_lookup as $index => $bad ) {
+	$input = 0 === $index ? [] : array_merge( [ 'search' => 'Same', 'match_by' => 'display_name' ], $bad );
+	foreach ( [ static fn() => Frontman_Tools::instance()->sanitize_input( 'wp_find_users', $input ), static fn() => ( new Frontman_Tool_Users() )->find_users( $input ) ] as $attempt ) {
+		try { $attempt(); throw new RuntimeException( 'Invalid lookup accepted' ); }
+		catch ( Frontman_Tool_Error $error ) { frontman_runtime_assert( '' !== $error->getMessage(), 'Invalid lookup lacked a diagnostic' ); }
+	}
+}
+foreach ( [ '%', '_', 'in*terior', "O'Neil", '"quoted"', str_repeat( 'é', 100 ), '0' ] as $search ) {
+	$input = Frontman_Tools::instance()->sanitize_input( 'wp_find_users', [ 'search' => ' ' . $search . ' ', 'match_by' => 'login' ] );
+	frontman_runtime_same( $search, $input['search'], 'Valid literal lookup changed' );
+}
+frontman_runtime_same( 'read', Frontman_Tools::instance()->get( 'wp_find_users' )->access, 'Lookup must remain read-only' );
 $actor->add_cap( 'list_users', false );
 $call( 'wp_find_users', $lookup, true );
 foreach ( [ $actor_id, $target_id ] as $denied_id ) {

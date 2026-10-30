@@ -1566,6 +1566,29 @@
       "properties": {
         "sessionUpdate": {
           "type": "string",
+          "const": "session_info_update"
+        },
+        "_meta": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": true
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "sessionUpdate"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "sessionUpdate": {
+          "type": "string",
           "const": "state_update"
         },
         "state": {

@@ -39,6 +39,8 @@ Do not start by editing theme files. Identify the active controller first.
 
 The header and footer do not have to share one controller. A classic theme can use the Customizer for its logo, **Appearance > Menus** for navigation, and widgets for footer columns.
 
+Using Avada? The [Avada customization guide](/blog/avada-theme-customization/#customize-headers-menus-and-forms-in-their-own-tools) separates header and layout changes from the main page content.
+
 Before changing anything, create a backup and use staging when possible. Header and footer changes can affect every page that uses the same template.
 
 ## Edit a Header or Footer in a Block Theme

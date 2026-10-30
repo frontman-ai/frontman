@@ -734,7 +734,10 @@ describe("Client State Reducer", () => {
 
     let (state, _) = Reducer.next(
       state,
-      TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}),
+      TaskAction({
+        target: ForTask(taskId),
+        action: ExecutionStateRunning([testUserMessageId->UserMessageId.toString]),
+      }),
     )
     let (state, _) = Reducer.next(
       state,
@@ -1222,7 +1225,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
 })
 
 describe("Client State Reducer - Task Management Actions", () => {
-  test("SwitchTask restores task messages", t => {
+  test("SwitchTask clears cached messages before replay", t => {
     let task1 = TestHelpers.makeLoadedTask(
       ~id="task-1",
       ~title="Task 1",
@@ -1261,7 +1264,8 @@ describe("Client State Reducer - Task Management Actions", () => {
 
     let (nextState, _) = Reducer.next(state, SwitchTask({taskId: "task-2"}))
 
-    let messages = Reducer.Selectors.messages(nextState)
+    t->expect(Reducer.Selectors.messages(nextState))->Expect.toEqual([])
+    let messages = Task.getMessages(nextState.tasks->Dict.get("task-1")->Option.getOrThrow)
     t->expect(messages->Array.length)->Expect.toBe(1)
 
     let message = messages->Array.get(0)->Option.getOrThrow
@@ -1270,7 +1274,7 @@ describe("Client State Reducer - Task Management Actions", () => {
     | User({content, _}) => {
         let contentPart = content->Array.get(0)->Option.getOrThrow
         switch contentPart {
-        | UserContentPart.Text({text}) => t->expect(text)->Expect.toBe("Hello from task 2")
+        | UserContentPart.Text({text}) => t->expect(text)->Expect.toBe("Hello from task 1")
         | _ => JsExn.throw("Expected Text content part")
         }
       }

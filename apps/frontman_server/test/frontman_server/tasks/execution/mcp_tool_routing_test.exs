@@ -14,8 +14,10 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
   alias FrontmanServer.Protocols.JsonRpc
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Execution.LLMProviderMock
   alias FrontmanServer.Tasks.Execution.ToolExecutor
   alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Test.Fixtures.ReqLLMResponses
   alias FrontmanServer.Tools.MCP
   alias FrontmanServerWeb.UserSocket
 
@@ -29,8 +31,6 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
         |> socket("user_id", %{scope: scope})
         |> subscribe_and_join("task:#{task_id}", %{})
 
-      assert_push("mcp:message", %{"method" => "server/discover"})
-
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
 
       {:ok, socket: socket, task_id: task_id, scope: scope}
@@ -40,6 +40,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
       task_id: task_id,
       scope: scope
     } do
+      assert_push("mcp:message", %{"method" => "server/discover"})
       {:ok, _message} = user_message_fixture(scope, task_id, user_content("test turn"))
       turn_number = latest_turn_number(task_id)
 
@@ -63,23 +64,35 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
       )
     end
 
-    test "full agent execution with MCP tool routing", %{
+    test "schema-validated structured-only output reaches the actual model request", %{
       socket: socket,
       task_id: task_id,
       scope: scope
     } do
       mcp_tool_call = swarm_tool_call("take_screenshot", ~s({"selector": "#content"}))
 
-      mcp_tool_def =
-        MCP.from_map(
-          mcp_tool("take_screenshot", %{
-            "_meta" => %{"ai.frontman/tool-metadata" => %{"executionMode" => "Interactive"}}
-          })
-        )
+      tool =
+        mcp_tool("take_screenshot", %{
+          "outputSchema" => %{
+            "type" => "object",
+            "properties" => %{"screenshot" => %{"type" => "string"}},
+            "required" => ["screenshot"]
+          },
+          "_meta" => %{"ai.frontman/tool-metadata" => %{"executionMode" => "Interactive"}}
+        })
 
-      mcp_tool_def = %{mcp_tool_def | timeout_ms: 60_000}
+      complete_mcp_handshake(socket, tools: [tool])
+      mcp_tool_def = %{MCP.from_map(tool) | timeout_ms: 60_000}
 
-      expect_llm_responses([{:tool_calls, [mcp_tool_call], ""}, "Component implemented!"])
+      expect_llm_responses([{:tool_calls, [mcp_tool_call], ""}])
+
+      Mox.expect(LLMProviderMock, :stream_text, fn
+        _model, messages, _opts ->
+          tool_message = Enum.find(messages, &(&1.role == :tool))
+          assert [%{type: :text, text: text}] = tool_message.content
+          assert Jason.decode!(text) == %{"screenshot" => "base64data"}
+          ReqLLMResponses.response("Component implemented!")
+      end)
 
       :ok = Providers.upsert_api_key(scope, "openrouter", "test-key")
 
@@ -110,9 +123,8 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
 
       mcp_response = %{
         "resultType" => "complete",
-        "content" => [
-          %{"type" => "text", "text" => ~s({"screenshot": "base64data"})}
-        ]
+        "content" => [],
+        "structuredContent" => %{"screenshot" => "base64data"}
       }
 
       push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, mcp_response))

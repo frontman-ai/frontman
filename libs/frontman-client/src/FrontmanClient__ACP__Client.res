@@ -154,6 +154,7 @@ let knownSessionUpdate = name =>
   | "plan"
   | "config_option_update"
   | "current_mode_update"
+  | "session_info_update"
   | "state_update"
   | "error" => true
   | _ => false

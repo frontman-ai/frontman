@@ -5,21 +5,18 @@ providers = [
    %{
      display_name: "OpenAI",
      models: [
-       {"GPT-6 Astra", "gpt-6-astra"},
        {"GPT-6.1 Sol", "gpt-6.1-sol"},
+       {"GPT-6 Astra", "gpt-6-astra"},
        {"GPT-6 Sol", "gpt-6-sol"},
-       {"GPT-6 Luna", "gpt-6-luna"},
-       {"GPT-5.6 Terra", "gpt-5.6-terra"},
-       {"GPT-5.6 Sol", "gpt-5.6-sol"},
-       {"GPT-5.6 Luna", "gpt-5.6-luna"}
+       {"GPT-6 Luna", "gpt-6-luna"}
      ]
    }},
   {:anthropic,
    %{
      display_name: "Anthropic (Claude Pro/Max)",
      models: [
-       {"Claude Opus 5.5", "claude-opus-5-5"},
        {"Claude Sonnet 5.5", "claude-sonnet-5-5"},
+       {"Claude Opus 5.5", "claude-opus-5-5"},
        {"Claude Fable 5.1", "claude-fable-5-1"},
        {"Claude Haiku 5.5", "claude-haiku-5-5"},
        {"Claude Opus 5", "claude-opus-5"},
@@ -37,9 +34,9 @@ providers = [
    %{
      display_name: "OpenRouter",
      models: [
+       {"GPT-6.1 Sol", "openai/gpt-6.1-sol"},
        {"GPT-6 Astra", "openai/gpt-6-astra"},
        {"GPT-6 Astra Pro", "openai/gpt-6-astra-pro"},
-       {"GPT-6.1 Sol", "openai/gpt-6.1-sol"},
        {"GPT-6.1 Sol Pro", "openai/gpt-6.1-sol-pro"},
        {"GPT-6 Sol", "openai/gpt-6-sol"},
        {"GPT-6 Sol Pro", "openai/gpt-6-sol-pro"},

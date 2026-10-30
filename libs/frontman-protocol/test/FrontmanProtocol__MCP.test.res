@@ -19,6 +19,42 @@ let typedRoundTrip = (schema, json) =>
   ->S.decodeOrThrow(~from=schema, ~to=S.json->S.noValidation(true))
 
 describe("MCP wire contracts", () => {
+  test("preserves all structured JSON values through opaque constructors and schemas", t => {
+    ["{}", "[1,null]", `"hello"`, "2.5", "false", "null"]->Array.forEach(serialized => {
+      let value = JSON.parseOrThrow(serialized)
+      let result = FrontmanProtocol__Tool.structuredResult(value, S.json)
+      let encoded = result->S.decodeOrThrow(
+        ~from=MCP.callToolResultSchema,
+        ~to=S.json->S.noValidation(true),
+      )
+      let expected = JSON.parseOrThrow(
+        `{"resultType":"complete","content":[{"type":"text","text":${JSON.stringify(JSON.Encode.string(serialized))}}],"structuredContent":${serialized}}`,
+      )
+      t->expect(encoded)->Expect.toEqual(expected)
+      t
+      ->expect(typedRoundTrip(MCP.CallToolResult.jsonSchema, JSON.stringify(encoded)))
+      ->Expect.toEqual(expected)
+      let structuredOnly = MCP.CallToolResult.make(~content=[], ~structuredContent=value)
+      t
+      ->expect(
+        structuredOnly->S.decodeOrThrow(
+          ~from=MCP.callToolResultSchema,
+          ~to=S.json->S.noValidation(true),
+        ),
+      )
+      ->Expect.toEqual(JSON.parseOrThrow(
+        `{"resultType":"complete","content":[],"structuredContent":${serialized}}`,
+      ))
+    })
+    let absent = `{"resultType":"complete","content":[]}`
+    let presentNull = `{"resultType":"complete","content":[],"structuredContent":null}`
+    ;[absent, presentNull]->Array.forEach(json =>
+      t->expect(typedRoundTrip(MCP.callToolResultSchema, json))->Expect.toEqual(
+        JSON.parseOrThrow(json),
+      )
+    )
+  })
+
   test("round-trips discovery implementation metadata", t => {
     let json = `{
       "resultType":"complete",

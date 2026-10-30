@@ -4,63 +4,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 	throw new RuntimeException( 'WordPress must be loaded before the runtime test.' );
 }
 
-function frontman_runtime_assert( bool $condition, string $message ): void {
-	if ( ! $condition ) {
-		throw new RuntimeException( $message );
-	}
-}
-
-function frontman_runtime_http( string $method, string $path, string $cookie = '', ?string $nonce = null, ?string $body = null, string $test = '' ): array {
-	$headers = [ 'Host: frontman-runtime.example.test' ];
-	$headers[] = '' === $test ? '' : 'X-Frontman-Seo-Test: ' . $test;
-	if ( '' !== $cookie ) {
-		$headers[] = 'Cookie: ' . LOGGED_IN_COOKIE . '=' . $cookie;
-	}
-	if ( null !== $nonce ) {
-		$headers[] = 'X-WP-Nonce: ' . $nonce;
-	}
-	$response = file_get_contents(
-		'http://127.0.0.1' . $path,
-		false,
-		stream_context_create( [ 'http' => [
-			'content' => $body ?? '',
-			'header' => implode( "\r\n", array_filter( $headers ) ) . "\r\nContent-Type: application/json\r\n",
-			'ignore_errors' => true, 'follow_location' => 0,
-			'method' => $method,
-		] ] )
-	);
-	preg_match_all( '/^HTTP\/\S+\s+(\d{3})/m', implode( "\n", $http_response_header ?? [] ), $status );
-	preg_match( '/<title[^>]*>(.*?)<\/title>/is', (string) $response, $title );
-	preg_match_all( "~<meta\\s+[^>]*(?:name|property)=[\"']([^\"']+)[\"'][^>]*content=([\"'])(.*?)\\2[^>]*>~is", (string) $response, $matches, PREG_SET_ORDER );
-	$meta = [];
-	foreach ( $matches as $match ) {
-		$meta[ $match[1] ] = html_entity_decode( $match[3], ENT_QUOTES | ENT_HTML5, 'UTF-8' );
-	}
-	$webpage = [];
-	if ( preg_match( '~<script[^>]*class=["\']yoast-schema-graph["\'][^>]*>(.*?)</script>~is', (string) $response, $schema ) ) {
-		foreach ( json_decode( $schema[1], true, 512, JSON_THROW_ON_ERROR )['@graph'] as $piece ) {
-			if ( in_array( 'WebPage', (array) $piece['@type'], true ) ) {
-				$webpage = $piece;
-			}
-		}
-	}
-	return [
-		'body' => (string) $response, 'status' => (int) ( end( $status[1] ) ?: 0 ),
-		'title' => isset( $title[1] ) ? html_entity_decode( trim( wp_strip_all_tags( $title[1] ) ), ENT_QUOTES | ENT_HTML5, 'UTF-8' ) : null,
-		'description' => $meta['description'] ?? null,
-		'og_title' => $meta['og:title'] ?? null, 'og_description' => $meta['og:description'] ?? null,
-		'schema_name' => $webpage['name'] ?? null, 'schema_description' => $webpage['description'] ?? null,
-	];
-}
-function frontman_runtime_tool( string $cookie, ?string $nonce, array $request, ?string $raw = null, string $test = '' ): array {
-	$response = frontman_runtime_http( 'POST', '/index.php/frontman/tools/call', $cookie, $nonce, $raw ?? wp_json_encode( $request ), $test );
-	if ( 200 !== $response['status'] ) {
-		return $response;
-	}
-	frontman_runtime_assert( 1 === preg_match( '/^data: (.+)$/m', $response['body'], $match ), 'Tool response contained no SSE data event.' );
-	return [ 'body' => json_decode( $match[1], true, 512, JSON_THROW_ON_ERROR ), 'status' => 200 ];
-}
-
 $expected_wordpress_version = getenv( 'EXPECTED_WORDPRESS_VERSION' );
 frontman_runtime_assert( false !== $expected_wordpress_version, 'Expected WordPress version was not provided.' );
 frontman_runtime_assert( $expected_wordpress_version === get_bloginfo( 'version' ), 'Runtime WordPress version does not match the requested version.' );
@@ -200,6 +143,8 @@ $runtime_call = static function ( string $name, array $arguments ) use ( $cookie
 	return $data;
 };
 $site_info = $runtime_call( 'wp_get_site_info', [] );
+$path_property = Frontman_Tools::instance()->get( 'wp_get_site_info' )->input_schema['properties']['include_installation_paths'];
+frontman_runtime_assert( 'boolean' === $path_property['type'] && false === $path_property['default'], 'Installation paths require a boolean opt-in.' );
 frontman_runtime_assert( ! array_key_exists( 'installation', $site_info ) && $site_info === $runtime_call( 'wp_get_site_info', [ 'include_installation_paths' => false ] ), 'Site info must omit paths unless requested.' );
 $installation_info = $runtime_call( 'wp_get_site_info', [ 'include_installation_paths' => true ] );
 frontman_runtime_assert( [
@@ -215,8 +160,10 @@ foreach ( [ [ '', null, 401 ], [ $subscriber_cookie, null, 403 ], [ $cookie, nul
 	$error_json = wp_json_encode( json_decode( $denied['body'], true, 512, JSON_THROW_ON_ERROR ), JSON_UNESCAPED_SLASHES );
 	frontman_runtime_assert( $expected_status === $denied['status'] && false === strpos( $error_json, ABSPATH ), 'Installation paths bypassed authentication, administrator access, or nonce validation.' );
 }
-$invalid_location = frontman_runtime_tool( $cookie, $slug_nonce, [ 'name' => 'wp_get_site_info', 'arguments' => [ 'include_installation_paths' => 'true' ] ] );
-frontman_runtime_assert( true === $invalid_location['body']['isError'], 'HTTP path opt-in must reject coerced booleans.' );
+foreach ( [ null, 0, 1, 'true', 'false', [], (object) [] ] as $invalid_path_opt_in ) {
+	$invalid_location = frontman_runtime_tool( $cookie, $slug_nonce, [ 'name' => 'wp_get_site_info', 'arguments' => [ 'include_installation_paths' => $invalid_path_opt_in ] ] );
+	frontman_runtime_assert( true === $invalid_location['body']['isError'] && 'include_installation_paths must be a boolean.' === $invalid_location['body']['content'][0]['text'], 'HTTP path opt-in must reject coerced booleans and identify the field.' );
+}
 
 $media_image = imagecreatetruecolor( 320, 240 );
 ob_start();
@@ -685,11 +632,28 @@ foreach ( [
 	$reason = Frontman_Tool_Seo::unavailable_reason();
 	frontman_runtime_assert( is_string( $reason ) && false !== strpos( $reason, $fragment ) && $reason === ( new Frontman_Tool_Templates() )->get_site_info( [] )['seo_unavailable_reason'], "Site info disagrees with the $blocker compatibility reason." );
 	foreach ( [ 'read_seo', 'update_seo' ] as $handler ) {
+		$handler_reason = 'read_seo' === $handler ? Frontman_Tool_Seo::read_unavailable_reason() : $reason;
+		if ( null === $handler_reason ) {
+			$read_only_tools = new Frontman_Tools();
+			( new Frontman_Tool_Seo() )->register( $read_only_tools );
+			frontman_runtime_assert( null !== $read_only_tools->get( 'wp_read_seo' ) && null === $read_only_tools->get( 'wp_update_seo' ), 'Yoast without write sanitizers must register only reads.' );
+			$read_only_info = ( new Frontman_Tool_Templates() )->get_site_info( [] );
+			frontman_runtime_assert( [
+				'provider' => 'yoast', 'read' => true, 'write' => false,
+				'supported_fields' => [ 'title', 'description', 'focus_keyphrase' ],
+				'read_unavailable_reason' => null, 'write_unavailable_reason' => $reason,
+			] === $read_only_info['seo_capabilities'] && $reason === $read_only_info['seo_unavailable_reason'], 'Yoast read-only capabilities disagree with registration.' );
+			wp_set_current_user( $admin->ID );
+			$readable = ( new Frontman_Tool_Seo() )->read_seo( [ 'id' => $post_id ] );
+			frontman_runtime_assert( 'yoast' === $readable['provider'], 'Missing write sanitizers must not block Yoast reads.' );
+			wp_set_current_user( 0 );
+			continue;
+		}
 		try {
 			( new Frontman_Tool_Seo() )->$handler( [ 'id' => 1 ] + ( 'update_seo' === $handler ? [ 'title' => 'Must not write' ] : [] ) );
 			throw new RuntimeException( 'Unavailable handler accessed post state.' );
 		} catch ( Frontman_Tool_Error $error ) {
-			frontman_runtime_assert( $reason === $error->getMessage(), "Handler disagrees with the $blocker compatibility reason." );
+			frontman_runtime_assert( $handler_reason === $error->getMessage(), "Handler disagrees with the $blocker compatibility reason." );
 		}
 	}
 	if ( 'sanitizer' === $blocker ) {
@@ -736,6 +700,10 @@ frontman_runtime_assert( [ 401, 403, 403, 403 ] === array_column( $invalid, 'sta
 foreach ( [ [ 'id' => (string) $target, 'title' => 'Bad type' ], [ 'id' => $target, 'title' => 'Bad key', 'meta_key' => '_private' ] ] as $arguments ) {
 	$result = frontman_runtime_tool( $cookie, $nonce, [ 'name' => 'wp_update_seo', 'arguments' => $arguments ] );
 	frontman_runtime_assert( true === $result['body']['isError'], 'Invalid SEO arguments were accepted.' );
+}
+foreach ( [ [ 'wp_read_seo', [ 'id' => (string) $target ] ], [ 'wp_read_seo', [ 'id' => 0 ] ], [ 'wp_update_seo', [ 'id' => $target ] ], [ 'wp_update_seo', [ 'id' => $target, 'title' => null ] ], [ 'wp_update_seo', [ 'id' => $target, 'focus_keyphrase' => 123 ] ] ] as [ $name, $arguments ] ) {
+	$result = frontman_runtime_tool( $cookie, $nonce, [ 'name' => $name, 'arguments' => $arguments ] );
+	frontman_runtime_assert( true === $result['body']['isError'], 'Invalid SEO input was accepted: ' . wp_json_encode( $arguments ) );
 }
 $malformed = frontman_runtime_tool( $cookie, $nonce, [], '{"name":"wp_update_seo","arguments":{"id":' . $target . ',"title":"bad' . "\xC3\x28" . '"}}' );
 frontman_runtime_assert( true === $malformed['body']['isError'], 'Malformed SEO JSON was accepted.' );

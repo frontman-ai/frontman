@@ -87,6 +87,10 @@ let replay = actions => {
       }
     | #Agent(id, value) =>
       buffer.add(~taskId="task-1", ~messageId=id, ~text=value, ~agentId="executor-id")
+    | #Turn(ids) => {
+        buffer.flush()
+        task := task.contents->apply(ExecutionStateRunning(ids))
+      }
     | #Tool(id) => {
         buffer.flush()
         task := task.contents->apply(tool(id))
@@ -98,7 +102,97 @@ let replay = actions => {
 }
 
 describe("ACP message identity", () => {
-  test("load results reject stale requests, flush history, and preserve cached tasks", t => {
+  test("wire replay restores queue, plan and exact claims after an early live claim", t => {
+    module App = Client__State__StateReducer
+    module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+    Buffer.reset()
+    let loading =
+      makeLoadingTask()
+      ->apply(LoadComplete)
+      ->apply(user(~id="stale-cache", ~text="Do not restore"))
+      ->apply(ExecutionStateRunning([]))
+      ->apply(LoadStarted({previewUrl: "http://localhost:3000"}))
+    switch loading {
+    | Task.Loading({isAgentRunning: false, queuedUserMessages: []}) => ()
+    | _ => failwith("Reload must clear server-owned execution and queue state")
+    }
+    let store = StateStore.make(
+      module(App),
+      {
+        ...App.defaultState,
+        tasks: Dict.fromArray([("task-1", loading)]),
+        currentTask: Task.Selected("task-1"),
+      },
+    )
+    let dispatch = action => store->StateStore.dispatch(action)
+    let receive = update => {
+      let notification =
+        JSON.parseOrThrow(
+          `{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"task-1","update":${update}}}`,
+        )->S.parseOrThrow(~to=ACP.sessionUpdateNotificationSchema)
+      dispatch(
+        AcpSessionUpdateReceived({
+          taskId: notification.params.sessionId,
+          update: notification.params.update,
+        }),
+      )
+    }
+    let userChunk = (id, text) =>
+      receive(
+        `{"sessionUpdate":"user_message_chunk","messageId":"${id}","content":{"type":"text","text":"${text}"},"_meta":{"frontman.dev/agentId":"executor-id","frontman.dev/timestamp":"2026-07-14T12:30:01Z"}}`,
+      )
+    receive(`{"sessionUpdate":"session_info_update","title":"Unrelated","_meta":{"other.vendor/trace":true}}`)
+    t
+    ->expect(
+      TaskReducer.Selectors.isAgentRunning(
+        (store->StateStore.getState).tasks->Dict.get("task-1")->Option.getOrThrow,
+      ),
+    )
+    ->Expect.toEqual(TaskReducer.Selectors.isAgentRunning(loading))
+    userChunk("loading-queued", "Claimed while loading")
+    receive(`{"sessionUpdate":"session_info_update","_meta":{"frontman.dev/turnMessageIds":["claimed","loading-queued","loading-queued"]}}`)
+    userChunk("claimed", "Current turn")
+    userChunk("queued", "Follow-up")
+    receive(`{"sessionUpdate":"session_info_update","_meta":{"frontman.dev/turnMessageIds":["claimed","loading-queued"]}}`)
+    receive(`{"sessionUpdate":"state_update","state":"running"}`)
+    receive(`{"sessionUpdate":"plan","entries":[{"content":"Server plan","priority":"high","status":"in_progress"}]}`)
+    dispatch(TaskAction({target: ForTask("task-1"), action: LoadComplete}))
+    let task = () => (store->StateStore.getState).tasks->Dict.get("task-1")->Option.getOrThrow
+    let claimed = [("loading-queued", "Claimed while loading"), ("claimed", "Current turn")]
+    t->expect(task()->summary)->Expect.toEqual(claimed)
+    t->expect(TaskReducer.Selectors.isAgentRunning(task()))->Expect.toEqual(Some(true))
+    t
+    ->expect(TaskReducer.Selectors.planEntries(task())->Option.getOrThrow->Array.length)
+    ->Expect.toBe(1)
+    t
+    ->expect(
+      TaskReducer.Selectors.queuedUserMessages(task())
+      ->Option.getOrThrow
+      ->Array.map(Message.getId),
+    )
+    ->Expect.toEqual(["queued"])
+    userChunk("later", "Keep queued")
+    receive(`{"sessionUpdate":"session_info_update","_meta":{"frontman.dev/turnMessageIds":["queued","queued"]}}`)
+    t
+    ->expect(task()->summary)
+    ->Expect.toEqual(Array.concat(claimed, [("queued", "Follow-up")]))
+    Expect.toThrow(
+      t->expect(
+        () =>
+          receive(`{"sessionUpdate":"session_info_update","_meta":{"frontman.dev/turnMessageIds":["unknown"]}}`),
+      ),
+    )
+    receive(`{"sessionUpdate":"message_unqueued","messageId":"later"}`)
+    t->expect(TaskReducer.Selectors.queuedUserMessages(task()))->Expect.toEqual(Some([]))
+    userChunk("removed-before-flush", "Remove immediately")
+    receive(`{"sessionUpdate":"message_unqueued","messageId":"removed-before-flush"}`)
+    t->expect(TaskReducer.Selectors.queuedUserMessages(task()))->Expect.toEqual(Some([]))
+    receive(`{"sessionUpdate":"state_update","state":"idle"}`)
+    t->expect(TaskReducer.Selectors.isAgentRunning(task()))->Expect.toEqual(Some(false))
+    Buffer.reset()
+  })
+
+  test("same-task loads coalesce, flush history, and preserve cached tasks", t => {
     module App = Client__State__StateReducer
     module Store = StateStore
     module Connection = Client__ConnectionReducer
@@ -118,7 +212,7 @@ describe("ACP message identity", () => {
         switch effect {
         | ConnectionEffect(ActivateSessionEffect({
             requestId,
-            operation: (#load(sessionId) | #join(sessionId)) as operation,
+            operation: #load(sessionId) as operation,
           })) =>
           operations->Array.push(operation)
           requests->Array.push(
@@ -137,8 +231,7 @@ describe("ACP message identity", () => {
     switchTask()
     switchTask()
     t->expect(store->Store.getState->getTask->Task.isLoading)->Expect.toBe(true)
-    finish(0)
-    t->expect(store->Store.getState->getTask->Task.isLoading)->Expect.toBe(true)
+    t->expect(requests->Array.length)->Expect.toBe(1)
     let dispatch = action => store->Store.dispatch(action)
     App.getSessionTextBuffer(dispatch).add(
       ~taskId="task-1",
@@ -146,7 +239,7 @@ describe("ACP message identity", () => {
       ~text="History",
       ~agentId="executor-id",
     )
-    finish(1)
+    finish(0)
     let loaded = store->Store.getState->getTask
     t->expect(Task.isLoaded(loaded))->Expect.toBe(true)
     t->expect(summary(loaded))->Expect.toEqual([("assistant-1", "History")])
@@ -155,30 +248,39 @@ describe("ACP message identity", () => {
     | _ => failwith("History must flush before LoadComplete")
     }
     switchTask()
-    t->expect(requests->Array.length)->Expect.toBe(2)
+    t->expect(requests->Array.length)->Expect.toBe(1)
     store->Store.dispatch(ClearCurrentTask)
     switchTask()
-    finish(2)
-    t->expect(operations)->Expect.toEqual([#load("task-1"), #load("task-1"), #join("task-1")])
-    t->expect(store->Store.getState->getTask)->Expect.toBe(loaded)
+    finish(1)
+    t->expect(operations)->Expect.toEqual([#load("task-1"), #load("task-1")])
+    t->expect(store->Store.getState->getTask->Task.isLoaded)->Expect.toBe(true)
+    t->expect(store->Store.getState->getTask->summary)->Expect.toEqual([])
     Buffer.reset()
   })
 
   test("replay execution state survives LoadComplete", t => {
-    let running = makeLoadingTask()->apply(ExecutionStateRunning)->apply(LoadComplete)
+    let running = makeLoadingTask()->apply(ExecutionStateRunning([]))->apply(LoadComplete)
     t->expect(TaskReducer.Selectors.isAgentRunning(running))->Expect.toEqual(Some(true))
 
     let paused = makeLoadingTask()->apply(ExecutionStateRequiresAction)->apply(LoadComplete)
     t->expect(TaskReducer.Selectors.isAgentRunning(paused))->Expect.toEqual(Some(false))
+    let idle = makeLoadingTask()->apply(ExecutionStateRunning([]))->apply(ExecutionStateIdle)->apply(LoadComplete)
+    t->expect(TaskReducer.Selectors.isAgentRunning(idle))->Expect.toEqual(Some(false))
+    let failed = makeLoadingTask()->apply(ExecutionStateRunning([]))->apply(AgentError({id: None, error: "Failed", category: #unknown}))
+    t->expect(TaskReducer.Selectors.isAgentRunning(failed->apply(LoadComplete)))->Expect.toEqual(Some(false))
+    let retry = failed->apply(ExecutionStateRunning([]))->apply(LoadComplete)
+    t->expect(TaskReducer.Selectors.isAgentRunning(retry))->Expect.toEqual(Some(true))
   })
 
   test("live and replay paths assemble identical message identities", t => {
     let actions = [
       #User("user-1", "Hello "),
       #User("user-1", "world"),
+      #User("user-2", "Next"),
+      #Turn(["user-1"]),
       #Agent("assistant-1", "First "),
       #Agent("assistant-1", "answer"),
-      #User("user-2", "Next"),
+      #Turn(["user-2"]),
       #Agent("assistant-2", "Second"),
       #Agent("assistant-3", "Third"),
     ]
@@ -187,9 +289,11 @@ describe("ACP message identity", () => {
       makeLoadingTask()
       ->apply(user(~id="user-1", ~text="Hello "))
       ->apply(user(~id="user-1", ~text="world"))
+      ->apply(ExecutionStateRunning(["user-1"]))
       ->apply(delta(~id="assistant-1", ~text="First "))
       ->apply(delta(~id="assistant-1", ~text="answer"))
       ->apply(user(~id="user-2", ~text="Next"))
+      ->apply(ExecutionStateRunning(["user-2"]))
       ->apply(delta(~id="assistant-2", ~text="Second"))
       ->apply(delta(~id="assistant-3", ~text="Third"))
       ->apply(LoadComplete)
@@ -209,6 +313,7 @@ describe("ACP message identity", () => {
   test("tool-separated assistant IDs remain distinct", t => {
     let task = replay([
       #User("user-1", "Run"),
+      #Turn(["user-1"]),
       #Agent("assistant-1", "Before"),
       #Tool("tool-1"),
       #Agent("assistant-2", "After"),
@@ -225,7 +330,7 @@ describe("ACP message identity", () => {
   })
 
   test("message role and agent are immutable", t => {
-    let userTask = makeLoadingTask()->apply(user(~id="message-1", ~text="Hello"))
+    let userTask = makeLoadingTask()->apply(user(~id="message-1", ~text="Hello"))->apply(ExecutionStateRunning(["message-1"]))
     let agentTask = makeLoadingTask()->apply(delta(~id="message-2", ~text="Hello"))
 
     Expect.toThrow(t->expect(() => userTask->apply(delta(~id="message-1", ~text="wrong role"))))

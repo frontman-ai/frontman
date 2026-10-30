@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+mix local.hex --if-missing --force
+mix local.rebar --if-missing --force
+
+cd apps/frontman_server
+mix deps.get --check-locked

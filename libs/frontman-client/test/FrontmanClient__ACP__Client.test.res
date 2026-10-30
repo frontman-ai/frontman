@@ -1,7 +1,6 @@
 open Vitest
 
-@module("vitest") @scope("vi") external unstubAllGlobals: unit => unit = "unstubAllGlobals"
-@module("vitest") @scope("vi") external stubGlobal: (string, 'a) => unit = "stubGlobal"
+open FrontmanBindings.Bindings__Test__Vitest
 
 afterEach(() => {
   unstubAllGlobals()
@@ -16,6 +15,8 @@ module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 module Channel = FrontmanClient__Phoenix__Channel
 module Socket = FrontmanClient__Phoenix__Socket
+
+module TestPhoenix = FrontmanBindings.Bindings__Test__Phoenix
 
 type wire = {requests: array<JSON.t>}
 @module("./acpReconnectTransport.mjs") external makeTransport: unit => wire = "makeTransport"
@@ -103,8 +104,10 @@ let loadConnectionWithTransport = (history, result, ~onConnectionLost=_ => ()): 
     clientCapabilities: {fs: None, terminal: None, elicitation: None, _meta: None},
   }
   let state = ref(initializedState)
+  let sessionCleanups = ref([])
   let dispose = () => {
     state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Disconnected))
+    sessionCleanups.contents->Array.forEach(cleanup => cleanup(false))
     ACP.cleanupChannel(transport.channel)
   }
   let connection: ACP.connection = {
@@ -112,6 +115,7 @@ let loadConnectionWithTransport = (history, result, ~onConnectionLost=_ => ()): 
     channel: transport.channel,
     clientConfig,
     state,
+    sessionCleanups,
     dispose,
     fail: error =>
       switch Client.isInitialized(state.contents) {
@@ -135,11 +139,11 @@ let attributionConfiguration = (~id="agent-1") =>
   )->S.parseOrThrow(~to=Types.agentAttributionConfigurationMetadataSchema)
 
 let negotiateV1 = (connection: ACP.connection, ~id="agent-1"): ACP.connection => {
-  ...connection,
-  state: ref({
-    ...initializedState,
-    agentAttributionConfiguration: Some(attributionConfiguration(~id)),
-  }),
+  connection.state := {
+      ...connection.state.contents,
+      agentAttributionConfiguration: Some(attributionConfiguration(~id)),
+    }
+  connection
 }
 
 let userUpdate = (
@@ -426,6 +430,26 @@ describe("ACP Client parseInitializeResult", _t => {
     ->Expect.toEqual(Some("agent-2"))
   })
 
+  test("negotiated connections share state with dispose and fail closures", t => {
+    let connection = loadConnection([], loadResult)
+    let negotiated = connection->negotiateV1
+    negotiated.dispose()
+    t->expect(ACP.isInitialized(negotiated))->Expect.toBe(false)
+    t->expect(negotiated.state)->Expect.toBe(connection.state)
+
+    let errors = ref([])
+    let (connection, _) = loadConnectionWithTransport(
+      [],
+      loadResult,
+      ~onConnectionLost=error => errors := errors.contents->Array.concat([error]),
+    )
+    let negotiated = connection->negotiateV1
+    negotiated.fail("connection lost")
+    negotiated.fail("duplicate failure")
+    t->expect(ACP.isInitialized(negotiated))->Expect.toBe(false)
+    t->expect(errors.contents)->Expect.toEqual(["connection lost"])
+  })
+
   test("does not mislabel unrelated initialize validation errors", t => {
     let json = JSON.parseOrThrow(`{
       "protocolVersion":1,
@@ -539,12 +563,13 @@ describe("ACP Client transport events", _t => {
   test("billing status event invokes callback", t => {
     let eventNames: ref<array<string>> = ref([])
     let callbacks: ref<array<JSON.t => unit>> = ref([])
-    let channel: FrontmanClient__Phoenix__Channel.t = %raw(`({
-      on: function(event, callback) {
-        eventNames.push(event);
-        callbacks.push(callback);
-      }
-    })`)
+    let channel = TestPhoenix.makeRecordingChannel(
+      ~on=(event, callback) => {
+        eventNames := eventNames.contents->Array.concat([event])
+        callbacks := callbacks.contents->Array.concat([callback])
+        callbacks.contents->Array.length
+      },
+    )
     let received: ref<option<JSON.t>> = ref(None)
 
     FrontmanClient__ACP.attachBillingStatusHandler(
@@ -717,8 +742,12 @@ describe("ACP session channel lifetime", () => {
 describe("ACP session/load ordering", () => {
   testAsync("validates replay with connection configuration before delivery", async t => {
     let events = ref([])
-    let connection =
-      loadConnection([userUpdate("user-1"), userUpdate("user-2")], loadResult)->negotiateV1
+    let membership = JSON.parseOrThrow(
+      `{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"task-1","update":{"sessionUpdate":"session_info_update","_meta":{"frontman.dev/turnMessageIds":["user-1","user-2"]}}}}`,
+    )
+    let (connection, transport) =
+      loadConnectionWithTransport([userUpdate("user-1"), userUpdate("user-2"), membership], loadResult)
+    let connection = connection->negotiateV1
 
     let result = await loadSession(
       connection,
@@ -727,12 +756,19 @@ describe("ACP session/load ordering", () => {
         switch update {
         | UserMessageChunk({messageId}) =>
           events := events.contents->Array.concat([`update:${messageId}`])
+        | SessionInfoUpdate({_meta}) =>
+          t
+          ->expect(_meta->Option.getOrThrow->Dict.get("frontman.dev/turnMessageIds"))
+          ->Expect.toEqual(Some(JSON.parseOrThrow(`["user-1","user-2"]`)))
+          events := events.contents->Array.concat(["turn"])
         | _ => ()
         },
     )
 
     t->expect(result->Result.isOk)->Expect.toBe(true)
-    t->expect(events.contents)->Expect.toEqual(["load", "update:user-1", "update:user-2"])
+    t->expect(events.contents)->Expect.toEqual(["load", "update:user-1", "update:user-2", "turn"])
+    transport.emit(membership)
+    t->expect(events.contents)->Expect.toEqual(["load", "update:user-1", "update:user-2", "turn", "turn"])
   })
 
   testAsync("generic load without extension metadata still releases replay", async t => {

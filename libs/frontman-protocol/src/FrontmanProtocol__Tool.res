@@ -4,7 +4,7 @@ let textResult = MCP.CallToolResult.makeText
 
 let structuredResult = (value: 'a, schema: S.t<'a>, ~isError=?): MCP.CallToolResult.t => {
   let json = value->S.decodeOrThrow(~from=schema, ~to=S.json->S.noValidation(true))
-  MCP.CallToolResult.makeStructured(json->JSON.Decode.object->Option.getOrThrow, ~isError?)
+  MCP.CallToolResult.makeStructuredJson(json, ~isError?)
 }
 
 let unstructuredResult = (value: 'a, schema: S.t<'a>): MCP.CallToolResult.t => {
@@ -54,6 +54,7 @@ module ToolNames = {
   let question = "question"
   let requestCustomerFeedback = "request_customer_feedback"
   let getAstroAudit = "get_astro_audit"
+  let previewStatus = "preview_status"
 }
 
 module type BrowserTool = {
@@ -63,7 +64,12 @@ module type BrowserTool = {
   type input
   let inputSchema: S.t<input>
   let outputJsonSchema: option<JSONSchema.t>
-  let execute: (input, ~taskId: string, ~toolCallId: string) => promise<MCP.CallToolResult.t>
+  let execute: (
+    input,
+    ~taskId: string,
+    ~toolCallId: string,
+    ~signal: WebAPI.EventTypes.abortSignal=?,
+  ) => promise<MCP.CallToolResult.t>
   let visibleToAgent: bool
   let executionMode: executionMode
 }

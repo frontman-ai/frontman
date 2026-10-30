@@ -140,13 +140,15 @@ let inspect = (input: input, {doc, win}: Tool.previewContext, ~additionalAttribu
   }
 }
 
+@live
 let execute = async (
   input: input,
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
+  ~signal as _=?,
 ): Tool.MCP.CallToolResult.t =>
   switch Client__Tool__PreviewContext.get() {
-  | None => Tool.MCP.CallToolResult.makeError("Preview frame not available")
+  | None => Tool.MCP.CallToolResult.makeError("Preview frame not available. Use navigate_preview with a known same-origin URL such as /shop/ to recover without refreshing Frontman.")
   | Some(preview) =>
     switch inspect(input, preview) {
     | Ok((output, _element)) => Tool.structuredResult(output, outputSchema)

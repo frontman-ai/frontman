@@ -9,7 +9,7 @@
 SHELL := /bin/bash
 OP_RUN := op run --env-file=envs/.dev.secrets.env --
 
-HELP_TARGETS := help install setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy test test-record test-coverage format lint dev dev-container build clean precommit credo check debug-task
+HELP_TARGETS := help install setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy test test-record test-coverage format lint security dev dev-container build clean precommit credo check debug-task
 HELP_help := Display this help message
 HELP_install := Install project dependencies
 HELP_setup := Complete project setup (deps, database, assets)
@@ -25,6 +25,7 @@ HELP_test-record := Record new LLM fixtures (makes real API calls)
 HELP_test-coverage := Run tests with coverage report
 HELP_format := Auto-format Elixir files
 HELP_lint := Run formatter and static analysis
+HELP_security := Check unused dependencies, Hex advisories, and Sobelow findings
 HELP_dev := Start development server (resolves 1Password secrets via op run)
 HELP_dev-container := Start dev server inside container (secrets via env vars)
 HELP_build := Build the project for production
@@ -82,6 +83,18 @@ test:
 	MIX_ENV=test mix ecto.migrate --quiet
 	mix test $(TEST_ARGS)
 
+.PHONY: test-application-restart
+test-application-restart:
+	@set -eu; \
+	export MIX_ENV=test MIX_TEST_PARTITION=""; \
+	MIX_TEST_DB_SUFFIX="_restart_$$(elixir -e 'IO.write(Base.encode16(:crypto.strong_rand_bytes(16), case: :lower))')"; \
+	export MIX_TEST_DB_SUFFIX; \
+	trap 'status=$$?; trap - EXIT; mix ecto.drop --quiet || { cleanup=$$?; [ "$$status" -ne 0 ] || status=$$cleanup; }; exit "$$status"' EXIT; \
+	echo "Owned test database: frontman_server_test$$MIX_TEST_DB_SUFFIX"; \
+	mix ecto.create --quiet; \
+	mix ecto.migrate --quiet; \
+	mix test --only application_restart --seed 0
+
 test-record:
 	MIX_ENV=test mix ecto.create --quiet
 	MIX_ENV=test mix ecto.migrate --quiet
@@ -98,6 +111,13 @@ format:
 lint:
 	mix format --check-formatted
 	mix credo --strict
+
+.PHONY: security
+security:
+	mix deps.get
+	mix deps.unlock --check-unused
+	mix hex.audit
+	mix sobelow --config --exit
 
 dev:
 	$(OP_RUN) mix phx.server

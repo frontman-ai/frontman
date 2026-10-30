@@ -49,18 +49,24 @@ mix deps.get
 
 echo "==> Setting up database..."
 echo "Waiting for Postgres..."
-while ! pg_isready -h localhost -U postgres 2>/dev/null; do sleep 2; done
+for attempt in $(seq 1 60); do
+  pg_isready -h localhost -U postgres 2>/dev/null && break
+  sleep 2
+done
+pg_isready -h localhost -U postgres
 echo "Postgres ready."
-mix ecto.create || true
+mix ecto.create
 mix ecto.migrate
 
 echo "==> Creating environment overrides..."
 cd "$WORKSPACE"
 
+if [ "${DELTA_STACK:-false}" != true ]; then
 cat > "$WORKSPACE/apps/frontman_server/envs/.dev.overrides.env" << EOF
 PHX_HOST=${HASH}.api.frontman.local
 PHX_URL_PORT=443
 EOF
+fi
 
 echo ""
 echo "=========================================="

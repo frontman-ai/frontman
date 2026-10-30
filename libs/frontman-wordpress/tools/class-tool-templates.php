@@ -224,6 +224,7 @@ class Frontman_Tool_Templates {
 				'stylesheet' => $theme->get_stylesheet(),
 			],
 			'seo_unavailable_reason' => Frontman_Tool_Seo::unavailable_reason(),
+			'seo_capabilities' => Frontman_Tool_Seo::capabilities(),
 			'plugins'      => $plugin_info,
 			'post_types'   => $pt_list,
 			'taxonomies'   => $tax_list,

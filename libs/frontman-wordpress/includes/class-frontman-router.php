@@ -44,6 +44,42 @@ class Frontman_Router {
 	 */
 	public function register(): void {
 		add_action( 'parse_request', [ $this, 'intercept' ], 1 );
+		add_action( 'rest_api_init', static function(): void {
+			$permission = static function() {
+				wp_get_current_user();
+				global $wp_rest_application_password_uuid;
+				if ( empty( $wp_rest_application_password_uuid ) || ! current_user_can( 'manage_options' )
+					|| ! Frontman_Sentry::sanitize_enabled( get_option( 'frontman_mcp_enabled', false ) ) ) {
+					return new WP_Error( 'frontman_mcp_forbidden', 'MCP access denied.', [ 'status' => 403 ] );
+				}
+				return true;
+			};
+			register_rest_route( 'frontman/v1', '/tools', [
+				'methods' => 'GET',
+				'permission_callback' => $permission,
+				'callback' => static function() {
+					return [ 'tools' => Frontman_Tools::instance()->all_definitions( true ) ];
+				},
+			] );
+			register_rest_route( 'frontman/v1', '/tools/call', [
+				'methods' => 'POST',
+				'permission_callback' => $permission,
+				'callback' => static function( WP_REST_Request $request ) {
+					$tools = Frontman_Tools::instance();
+					$name = $request->get_param( 'name' );
+					$tool = is_string( $name ) ? $tools->get( $name ) : null;
+					if ( ! $tool || null === $tool->remote_validator ) {
+						return new WP_Error( 'frontman_mcp_forbidden', 'MCP access denied.', [ 'status' => 403 ] );
+					}
+					$body = json_decode( $request->get_body() );
+					if ( ! is_object( $body ) || ! isset( $body->arguments ) || ! is_object( $body->arguments )
+						|| ! ( $tool->remote_validator )( $body->arguments ) ) {
+						return new WP_Error( 'frontman_mcp_arguments', 'Invalid tool arguments.', [ 'status' => 400 ] );
+					}
+					return $tools->call( $name, $tools->sanitize_input( $name, (array) $body->arguments ) );
+				},
+			] );
+		} );
 	}
 
 	/**

@@ -9,7 +9,7 @@ let description = `Execute a JavaScript expression or statement(s) inside the we
 Use this to:
 - Query DOM properties: \`document.querySelector('.header').getBoundingClientRect()\`
 - Measure layout: \`document.querySelectorAll('*').forEach(el => { ... })\`
-- Navigate: \`location.href = '/about'\` or \`history.back()\`
+- For navigation and recovery, prefer navigate_preview. JavaScript execution success does not establish destination readiness. WordPress admin/Customizer pages are unsupported.
 - Read computed styles: \`getComputedStyle(document.body).overflow\`
 
 Do not use this to implement visual/content changes by mutating DOM nodes, styles, classes, attributes, or storage. Those changes are temporary browser-session state and are not source-of-truth edits. Use source files or framework/WordPress mutation tools for actual changes; use this tool only to inspect, measure, navigate, or reload.
@@ -130,10 +130,12 @@ let executeInWindow: (
   }
 `)
 
+@live
 let execute = async (
   input: input,
   ~taskId as _: string,
   ~toolCallId as _: string,
+  ~signal as _=?,
 ): Tool.MCP.CallToolResult.t => {
   await Client__Tool__PreviewContext.withPreview(
     ~onUnavailable=async () =>
@@ -141,7 +143,7 @@ let execute = async (
         {
           success: false,
           result: None,
-          error: Some("Preview frame not available"),
+          error: Some("Preview frame not available. Use navigate_preview with a known same-origin URL such as /shop/ to recover without refreshing Frontman."),
           logs: [],
         },
         outputSchema,

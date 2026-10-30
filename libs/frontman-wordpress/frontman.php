@@ -53,6 +53,7 @@ Frontman_Auth::register();
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-plugin-dependencies.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-tools.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-sentry.php';
+require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-settings.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-router.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-ui.php';
 
@@ -64,12 +65,16 @@ require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-menus.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-options.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-templates.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-widgets.php';
+add_action( 'widgets_init', static function(): void {
+	add_filter( 'widget_display_callback', [ 'Frontman_Tool_Widgets', 'filter_visibility' ], 10, 3 );
+} );
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-cache.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-public-files.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-seo.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-redirection.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-301-redirects.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-angie.php';
+require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-directorist.php';
 
 /**
  * Main plugin bootstrap.
@@ -98,6 +103,10 @@ function frontman_bootstrap(): void {
 		( new Frontman_Tool_Angie() )->register( $tools );
 	}
 
+	if ( Frontman_Tool_Directorist::is_available() ) {
+		( new Frontman_Tool_Directorist() )->register( $tools );
+	}
+
 	if ( Frontman_Tool_Redirection::is_available() ) {
 		( new Frontman_Tool_Redirection() )->register( $tools );
 	}
@@ -106,9 +115,7 @@ function frontman_bootstrap(): void {
 		( new Frontman_Tool_301_Redirects() )->register( $tools );
 	}
 
-	if ( null === Frontman_Tool_Seo::unavailable_reason() ) {
-		( new Frontman_Tool_Seo() )->register( $tools );
-	}
+	( new Frontman_Tool_Seo() )->register( $tools );
 
 	if ( Frontman_Plugin_Dependencies::is_available( 'elementor/elementor.php', '\Elementor\Plugin' ) ) {
 		require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-elementor-data.php';
@@ -126,7 +133,7 @@ function frontman_bootstrap(): void {
 
 	$router->register();
 	$ui->register();
-	Frontman_Sentry::register();
+	Frontman_Settings::register();
 }
 add_action( 'init', 'frontman_init' );
 

@@ -95,7 +95,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
 
         assert %Interaction.AgentError{
                  kind: "failed",
-                 category: "unknown",
+                 category: "model_unavailable",
                  retryable: false,
                  error:
                    "This model is unavailable for your connection. Select another model and send a new message."

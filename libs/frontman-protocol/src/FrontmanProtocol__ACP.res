@@ -599,7 +599,13 @@ type sessionUpdate =
   | Plan({entries: array<planEntry>})
   | ConfigOptionUpdate({configOptions: array<sessionConfigOption>})
   | CurrentModeUpdate({currentModeId: sessionModeId})
-  | StateUpdate({state: sessionState, stopReason: option<stopReason>})
+  | SessionInfoUpdate({
+      _meta: option<Dict.t<JSON.t>>,
+    })
+  | StateUpdate({
+      state: sessionState,
+      stopReason: option<stopReason>,
+    })
   | Error({
       _meta: option<JSON.t>,
       message: string,
@@ -656,6 +662,12 @@ let commonSessionUpdateSchema = S.union([
     s.tag("sessionUpdate", "current_mode_update")
     CurrentModeUpdate({
       currentModeId: s.field("currentModeId", S.string),
+    })
+  }),
+  S.object(s => {
+    s.tag("sessionUpdate", "session_info_update")
+    SessionInfoUpdate({
+      _meta: s.field("_meta", S.nullableAsOption(S.dict(S.json))),
     })
   }),
   S.object(s => {

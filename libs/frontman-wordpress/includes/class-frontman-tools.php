@@ -34,6 +34,8 @@ class Frontman_Tool_Definition {
 	public bool   $preserve_input_strings;
 	/** @var callable(array): array */
 	public $handler;
+	/** @var null|callable(\stdClass): bool Remote opt-in; validate native JSON before sanitization. */
+	public $remote_validator;
 
 	/**
 	 * @param string   $name             Tool name (e.g. "wp_list_posts").
@@ -43,6 +45,7 @@ class Frontman_Tool_Definition {
 	 * @param string|null $access              Tool access level: read, write, or read-write. Inferred from name when omitted.
 	 * @param bool     $visible_to_agent       Whether the agent can see this tool.
 	 * @param bool     $preserve_input_strings Whether schema sanitization should preserve raw string values for downstream API validation.
+	 * @param callable|null $remote_validator Remote opt-in. Return true for valid decoded JSON arguments, false for HTTP 400.
 	 */
 	public function __construct(
 		string $name,
@@ -51,7 +54,8 @@ class Frontman_Tool_Definition {
 		callable $handler,
 		?string $access = null,
 		bool $visible_to_agent = true,
-		bool $preserve_input_strings = false
+		bool $preserve_input_strings = false,
+		?callable $remote_validator = null
 	) {
 		$this->name                   = $name;
 		$this->description            = $description;
@@ -60,6 +64,7 @@ class Frontman_Tool_Definition {
 		$this->handler                = $handler;
 		$this->visible_to_agent       = $visible_to_agent;
 		$this->preserve_input_strings = $preserve_input_strings;
+		$this->remote_validator       = $remote_validator;
 	}
 
 	/**
@@ -137,15 +142,15 @@ class Frontman_Tools {
 	}
 
 	/**
-	 * Return all tool definitions as serializable arrays.
+	 * Return serializable tool definitions, optionally limited to remote contracts.
 	 *
 	 * @return array[]
 	 */
-	public function all_definitions(): array {
+	public function all_definitions( bool $remote_only = false ): array {
 		return array_values(
 			array_map(
 				function( Frontman_Tool_Definition $t ) { return $t->to_array(); },
-				$this->tools
+				array_filter( $this->tools, static fn( Frontman_Tool_Definition $t ) => ! $remote_only || null !== $t->remote_validator )
 			)
 		);
 	}
@@ -161,6 +166,10 @@ class Frontman_Tools {
 
 		if ( class_exists( 'Frontman_Tool_Seo' ) && in_array( $name, [ 'wp_read_seo', 'wp_update_seo' ], true ) ) {
 			return Frontman_Tool_Seo::validate_input( $name, $input );
+		}
+		if ( class_exists( 'Frontman_Tool_WooCommerce' ) && in_array( $name, [ 'wc_get_catalog_display', 'wc_update_catalog_display' ], true ) ) {
+			Frontman_Tool_WooCommerce::validate_catalog_display_input( $input, 'wc_update_catalog_display' === $name );
+			return array_intersect_key( $input, array_flip( [ 'name', 'value', 'confirm' ] ) );
 		}
 
 		if ( class_exists( 'Frontman_Tool_Public_Files' ) && in_array( $name, [ 'wp_read_public_file', 'wp_write_public_file' ], true ) ) {
@@ -303,7 +312,7 @@ class Frontman_Tools {
 				if ( 'wp_update_post' === $tool_name && in_array( $field_name, [ 'mode', 'oldText', 'newText', 'expected_current_sha256' ], true ) ) {
 					return $value;
 				}
-				if ( in_array( $field_name, [ 'slug', 'content', 'template' ], true ) && in_array( $tool_name, [ 'wp_create_post', 'wp_update_post' ], true ) ) {
+				if ( in_array( $field_name, [ 'slug', 'content', 'template' ], true ) && in_array( $tool_name, [ 'wp_create_post', 'wp_update_post', 'wp_save_post_preview' ], true ) ) {
 					return $value;
 				}
 

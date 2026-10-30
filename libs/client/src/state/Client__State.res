@@ -202,13 +202,12 @@ module Actions = {
   let acknowledgeCustomProviderMutation = () =>
     Client__State__Store.dispatch(AcknowledgeCustomProviderMutation)
 
-  let questionReceived = (~taskId, ~questions, ~toolCallId, ~resolveOk, ~resolveError) =>
-    Client__State__Store.dispatch(
-      TaskAction({
-        target: ForTask(taskId),
-        action: QuestionReceived({questions, toolCallId, resolveOk, resolveError}),
-      }),
-    )
+  let questionReceived = (~taskId, ~questions, ~toolCallId, ~resolveOk, ~resolveError) => {
+    let dispatch = action =>
+      Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action}))
+    dispatch(QuestionReceived({questions, toolCallId, resolveOk, resolveError}))
+    () => dispatch(QuestionDetached({resolveOk: resolveOk}))
+  }
 
   let questionStepChanged = (~taskId, ~step) =>
     Client__State__Store.dispatch(

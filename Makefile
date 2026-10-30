@@ -5,6 +5,39 @@
 
 .DEFAULT_GOAL := help
 
+HELP_delta-preflight := Check local checkout stack prerequisites without creating resources
+HELP_delta-prepare := Install/build/migrate this checkout in an isolated local pod
+HELP_delta-up := Start this checkout's full local dev stack in the background
+HELP_delta-dev := Own the stack in the foreground; stop it when the terminal ends
+HELP_delta-stop := Stop this checkout's stack and preserve all state
+HELP_delta-status := Show this checkout's containers
+HELP_delta-urls := Print this checkout's service URLs
+HELP_delta-logs := Follow container logs (SERVICE=dev,wordpress,proxy,db,pg)
+HELP_delta-preview := Rebuild the WordPress preview bridge after source changes
+HELP_delta-check := Check all live endpoints and rendered WordPress local configuration
+HELP_delta-tls := Configure this checkout's proxy with the existing host mkcert CA
+HELP_delta-remove := Destroy this checkout's stack (requires exact CONFIRM identity)
+
+.PHONY: delta-dev delta-preflight delta-prepare delta-up delta-start delta-stop delta-status delta-urls delta-logs delta-check delta-remove delta-identity delta-preview delta-syntax delta-tls
+delta-dev delta-preflight delta-prepare delta-up delta-start delta-stop delta-status delta-urls delta-logs delta-check delta-remove delta-identity delta-preview delta-tls:
+	@DEV_IMAGE="$(DEV_IMAGE)" SERVICE="$(SERVICE)" CONFIRM="$(CONFIRM)" bash bin/delta-stack $(@:delta-%=%)
+
+delta-syntax:
+	@for script in bin/delta-stack bin/prepare-server-deps infra/local/delta-dev.sh infra/local/delta-processes.sh infra/local/delta-processes.test.sh infra/local/worktree-setup.sh .agents/prepare; do bash -n "$$script" || exit; done
+	@python3 -c 'import ast, pathlib; [ast.parse(pathlib.Path(p).read_text()) for p in ("infra/local/delta-lifecycle.py", "infra/local/delta-lifecycle.test.py", "infra/local/delta-cleanup.test.py")]'
+
+.PHONY: delta-test-processes
+delta-test-processes:
+	bash infra/local/delta-processes.test.sh
+
+.PHONY: delta-test-lifecycle
+delta-test-lifecycle:
+	python3 infra/local/delta-lifecycle.test.py
+
+.PHONY: delta-test-cleanup
+delta-test-cleanup:
+	python3 infra/local/delta-cleanup.test.py
+
 
 CYAN := \033[36m
 GREEN := \033[32m
@@ -63,7 +96,7 @@ endef
 HELP_SECTIONS := DEVELOPMENT BUILD SSL WT INFRA REL E2E UTIL
 
 HELP_DEVELOPMENT_TITLE := Development
-HELP_DEVELOPMENT_TARGETS := dev dev-client dev-server dev-nextjs dev-nextjs-prebuilt dev-marketing
+HELP_DEVELOPMENT_TARGETS := dev dev-client dev-server dev-nextjs dev-nextjs-prebuilt dev-marketing delta-preflight delta-prepare delta-dev delta-up delta-stop delta-status delta-urls delta-logs delta-preview delta-check delta-tls delta-remove
 HELP_dev := Start all core services (client + server + nextjs)
 HELP_dev-client := Start development server for client app
 HELP_dev-server := Start development server for server app
@@ -72,8 +105,9 @@ HELP_dev-nextjs-prebuilt := Start Next.js test site with prebuilt integration
 HELP_dev-marketing := Start development server for marketing site
 
 HELP_BUILD_TITLE := Build & Quality
-HELP_BUILD_TARGETS := install hooks-install setup-elixir-tools verify-toolchain-pins build rescript-watch rescript-build rescript-format reanalyze check-source-comments clean
+HELP_BUILD_TARGETS := install prepare-deps hooks-install setup-elixir-tools verify-toolchain-pins build rescript-watch rescript-build rescript-format reanalyze check-source-comments clean
 HELP_install := Install dependencies
+HELP_prepare-deps := Fetch locked JS and server dependencies without compiling applications
 HELP_hooks-install := Install git pre-commit hooks via Lefthook
 HELP_setup-elixir-tools := Install Hex/Rebar for the active mise Elixir
 HELP_verify-toolchain-pins := Verify Docker Elixir image matches mise.toml
@@ -207,6 +241,16 @@ install:
 	yarn install
 	@$(MAKE) hooks-install
 
+.PHONY: prepare-deps prepare-server-deps
+prepare-deps: prepare-server-deps
+	YARN_ENABLE_GLOBAL_CACHE=true yarn install --immutable
+
+prepare-server-deps:
+	@command -v mise >/dev/null || { printf 'Install mise and the tools pinned in mise.toml first.\n' >&2; exit 1; }
+	@MISE_YES=false MISE_AUTO_INSTALL=false mise exec elixir erlang -- bash bin/prepare-server-deps </dev/null || { \
+		printf 'Server dependency preparation failed. For toolchain errors, run mise trust and mise install elixir erlang explicitly, then retry make prepare-deps.\n' >&2; exit 1; \
+	}
+
 hooks-install:
 	@printf "$(YELLOW)Installing git hooks...$(RESET)\n"
 	@if command -v lefthook &> /dev/null; then \
@@ -218,9 +262,7 @@ hooks-install:
 
 setup-elixir-tools:
 	@printf "$(YELLOW)Installing Hex/Rebar for mise Elixir...$(RESET)\n"
-	@if ! mise exec -- mix hex.info >/dev/null 2>&1; then \
-		mise exec -- mix archive.install github hexpm/hex branch latest --force; \
-	fi
+	mise exec -- mix local.hex --force
 	@tmp=$$(mktemp -t rebar3.XXXXXX); \
 	curl -fsSL "https://s3.amazonaws.com/rebar3/rebar3" -o "$$tmp"; \
 	chmod +x "$$tmp"; \
@@ -606,7 +648,7 @@ test-wordpress-plugin-export: package-wordpress-plugin
 publish-wordpress-plugin-svn: package-wordpress-plugin
 	@VERSION=$(VERSION) bash ./scripts/publish-wordpress-plugin-svn.sh
 
-WORDPRESS_TESTS ?= ToolRegistryTest AuthDiagnosticsTest PostAuthorsTest NoFilesystemToolsTest PublicFilesTest ElementorToolsTest MediaToolsTest WooCommerceToolsTest MutationSnapshotsTest PluginDependenciesTest SeoToolsTest RouterTest SentryTest SentryUnavailableTest
+WORDPRESS_TESTS ?= ToolRegistryTest AuthDiagnosticsTest NoFilesystemToolsTest PublicFilesTest ElementorToolsTest MediaToolsTest WooCommerceToolsTest MutationSnapshotsTest PluginDependenciesTest SeoToolsTest RouterTest SentryTest SentryUnavailableTest
 
 test-wordpress-core-tools: build-wordpress-dependencies
 	@set -eu; \

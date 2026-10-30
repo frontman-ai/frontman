@@ -39,7 +39,7 @@ let make = (
       type input = GetDom.input
       let inputSchema = GetDom.inputSchema
       let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
-      let execute = async (input, ~taskId as _, ~toolCallId as _) =>
+      let execute = async (input, ~taskId as _, ~toolCallId as _, ~signal as _=?) =>
         switch getPreviewDoc() {
         | None => Tool.MCP.CallToolResult.makeError("Preview frame not available")
         | Some(preview) =>

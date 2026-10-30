@@ -49,22 +49,57 @@ let execute = async (
   input: input,
   ~taskId: string,
   ~toolCallId: string,
+  ~signal=?,
 ): Tool.MCP.CallToolResult.t => {
   let result = await Promise.make((resolve, _reject) => {
+    let settled = ref(false)
+    let cleanup = ref(() => ())
+    let detach = ref(() => ())
+    let settle = result =>
+      switch settled.contents {
+      | true => ()
+      | false =>
+        settled := true
+        cleanup.contents()
+        resolve(result)
+      }
     let resolveOk = (json: JSON.t) => {
-      resolve(Ok(json))
+      settle(Ok(json))
     }
     let resolveError = (msg: string) => {
-      resolve(Error(msg))
+      settle(Error(msg))
     }
 
-    Client__State.Actions.questionReceived(
-      ~taskId,
-      ~questions=input.questions,
-      ~toolCallId,
-      ~resolveOk,
-      ~resolveError,
-    )
+    let onAbort = () => {
+      detach.contents()
+      resolveError("Question request aborted")
+    }
+    switch signal {
+    | Some(signal) =>
+      FrontmanAiFrontmanClient.FrontmanClient__ACP.onAbort(signal, onAbort)
+      cleanup := (() => FrontmanAiFrontmanClient.FrontmanClient__ACP.offAbort(signal, onAbort))
+      switch signal.aborted {
+      | true => onAbort()
+      | false => ()
+      }
+    | None => ()
+    }
+    switch settled.contents {
+    | true => ()
+    | false =>
+      detach :=
+        Client__State.Actions.questionReceived(
+          ~taskId,
+          ~questions=input.questions,
+          ~toolCallId,
+          ~resolveOk,
+          ~resolveError,
+        )
+      switch settled.contents {
+      | true => detach.contents()
+      | false => ()
+      }
+    }
   })
 
   switch result {

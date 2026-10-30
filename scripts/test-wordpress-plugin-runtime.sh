@@ -7,6 +7,22 @@ RUNTIME="${CONTAINER_RUNTIME:-docker}"
 WORDPRESS_VERSION="${WORDPRESS_VERSION:-7.0.2}"
 PHP_VERSION="${PHP_VERSION:-8.4}"
 YOAST_VERSION="${YOAST_VERSION:-}"
+FIXTURE="${WORDPRESS_FIXTURE:-}"
+FIXTURE_PORT="${WORDPRESS_FIXTURE_PORT:-8887}"
+case "$FIXTURE" in
+  ""|astra) ;;
+  *) printf 'Unknown WORDPRESS_FIXTURE: %s\n' "$FIXTURE" >&2; exit 1 ;;
+esac
+if [[ "$FIXTURE" == astra && "$WORDPRESS_VERSION" != 7.0.2 ]]; then
+  printf 'The Astra fixture requires WordPress 7.0.2.\n' >&2; exit 1
+fi
+PUBLISH=()
+DB_PASSWORD=wordpress
+if [[ "$FIXTURE" == astra ]]; then
+  [[ "$FIXTURE_PORT" =~ ^[0-9]+$ ]] && (( FIXTURE_PORT > 1024 && FIXTURE_PORT < 65536 ))
+  PUBLISH=(-p "127.0.0.1:${FIXTURE_PORT}:80")
+  DB_PASSWORD="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
+fi
 MEGAMENU_VERSION="3.10.7"
 MEGAMENU_SHA256="6cfe5fc2484bccbcc6782364b38e16fde55a496bfaf86d123d1d46b0684c5e7e"
 case "$WORDPRESS_VERSION" in
@@ -29,10 +45,12 @@ DATABASE="${RUN_ID}-database"
 WORDPRESS="${RUN_ID}-wordpress"
 IMAGE="${RUN_ID}-image"
 BUILD_DIR="$(mktemp -d)"
+NETWORK_CREATED=false
 
 cleanup() {
-  "$RUNTIME" rm -f "$WORDPRESS" "$DATABASE" >/dev/null 2>&1 || true
-  "$RUNTIME" network rm "$NETWORK" >/dev/null 2>&1 || true
+  "$RUNTIME" rm -f "$WORDPRESS" >/dev/null 2>&1 || true
+  "$RUNTIME" rm -f "$DATABASE" >/dev/null 2>&1 || true
+  if "$NETWORK_CREATED"; then "$RUNTIME" network rm "$NETWORK" >/dev/null 2>&1 || true; fi
   "$RUNTIME" image rm "$IMAGE" >/dev/null 2>&1 || true
   rm -rf "$BUILD_DIR"
 }
@@ -55,18 +73,34 @@ fi
   -t "$IMAGE" \
   "$BUILD_DIR" >/dev/null
 
-"$RUNTIME" network create "$NETWORK" >/dev/null
-"$RUNTIME" run -d --name "$DATABASE" --network "$NETWORK" \
+if "$RUNTIME" --version | grep -qi podman; then
+  DB_NETWORK=pasta
+  WP_NETWORK="container:$DATABASE"
+  DB_HOST=127.0.0.1
+  DB_PUBLISH=("${PUBLISH[@]}")
+  WP_PUBLISH=()
+else
+  "$RUNTIME" network create "$NETWORK" >/dev/null
+  NETWORK_CREATED=true
+  DB_NETWORK="$NETWORK"
+  WP_NETWORK="$NETWORK"
+  DB_HOST="$DATABASE"
+  DB_PUBLISH=()
+  WP_PUBLISH=("${PUBLISH[@]}")
+fi
+"$RUNTIME" run -d --name "$DATABASE" --network "$DB_NETWORK" \
+  "${DB_PUBLISH[@]}" \
   -e MARIADB_DATABASE=wordpress \
   -e MARIADB_USER=wordpress \
-  -e MARIADB_PASSWORD=wordpress \
-  -e MARIADB_ROOT_PASSWORD=wordpress \
+  -e MARIADB_PASSWORD="$DB_PASSWORD" \
+  -e MARIADB_ROOT_PASSWORD="$DB_PASSWORD" \
   docker.io/library/mariadb:11 >/dev/null
 
-"$RUNTIME" run -d --name "$WORDPRESS" --network "$NETWORK" \
-  -e WORDPRESS_DB_HOST="$DATABASE" \
+"$RUNTIME" run -d --name "$WORDPRESS" --network "$WP_NETWORK" \
+  "${WP_PUBLISH[@]}" \
+  -e WORDPRESS_DB_HOST="$DB_HOST" \
   -e WORDPRESS_DB_USER=wordpress \
-  -e WORDPRESS_DB_PASSWORD=wordpress \
+  -e WORDPRESS_DB_PASSWORD="$DB_PASSWORD" \
   -e WORDPRESS_DB_NAME=wordpress \
   "$IMAGE" >/dev/null
 
@@ -78,8 +112,12 @@ for _ in $(seq 1 60); do
 done
 
 "$RUNTIME" exec "$WORDPRESS" php -r '$db = @new mysqli(getenv("WORDPRESS_DB_HOST"), getenv("WORDPRESS_DB_USER"), getenv("WORDPRESS_DB_PASSWORD"), getenv("WORDPRESS_DB_NAME")); if ($db->connect_errno) { throw new RuntimeException("Database did not become ready."); }'
-"$RUNTIME" exec "$WORDPRESS" php -r '$config = file_get_contents("/var/www/html/wp-config-sample.php"); $config = str_replace(["database_name_here", "username_here", "password_here", "localhost"], [getenv("WORDPRESS_DB_NAME"), getenv("WORDPRESS_DB_USER"), getenv("WORDPRESS_DB_PASSWORD"), getenv("WORDPRESS_DB_HOST")], $config); file_put_contents("/var/www/html/wp-config.php", $config);'
+"$RUNTIME" exec "$WORDPRESS" php -r '$config = file_get_contents("/var/www/html/wp-config-sample.php"); $config = str_replace(["<?php", "database_name_here", "username_here", "password_here", "localhost"], ["<?php\ndefine(\"WP_ENVIRONMENT_TYPE\", \"local\");", getenv("WORDPRESS_DB_NAME"), getenv("WORDPRESS_DB_USER"), getenv("WORDPRESS_DB_PASSWORD"), getenv("WORDPRESS_DB_HOST")], $config); file_put_contents("/var/www/html/wp-config.php", $config);'
 "$RUNTIME" cp "$BUILD_DIR/megamenu/megamenu" "$WORDPRESS:/var/www/html/wp-content/plugins/megamenu"
+curl -fsSL 'https://downloads.wordpress.org/theme/astra.4.7.1.zip' -o "$BUILD_DIR/astra-runtime.zip"
+printf '%s  %s\n' '55f2d01b78c3b9ac83417145308b11c254d7fd43b9b414ea95f9eea3fcd5bfff' "$BUILD_DIR/astra-runtime.zip" | sha256sum --check --status
+unzip -q "$BUILD_DIR/astra-runtime.zip" -d "$BUILD_DIR/astra-runtime"
+"$RUNTIME" cp "$BUILD_DIR/astra-runtime/astra" "$WORDPRESS:/var/www/html/wp-content/themes/astra"
 "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/plugins/frontman-agentic-ai-editor
 "$RUNTIME" cp "$ROOT_DIR/dist/frontman-wordpress-package/github/frontman-agentic-ai-editor/." "$WORDPRESS:/var/www/html/wp-content/plugins/frontman-agentic-ai-editor/"
 "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/mu-plugins
@@ -91,10 +129,15 @@ done
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ElementorSnapshotRuntimeTest.php" "$WORDPRESS:/tmp/ElementorSnapshotRuntimeTest.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ActivateWordPressPlugin.php" "$WORDPRESS:/tmp/ActivateWordPressPlugin.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/RunWordPressRuntimeTest.php" "$WORDPRESS:/tmp/RunWordPressRuntimeTest.php"
+for file in RuntimeTestSupport CoreRuntimeCases IsolatedRuntimeCases InstallationPathsRuntimeTest SeoCoexistenceRuntimeTest SureRankRuntimeTest DirectoristRuntimeTest; do
+  "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/$file.php" "$WORDPRESS:/tmp/$file.php"
+done
 "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/mu-plugins
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PostAuthorsRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-authors-runtime.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PostAuthorsRuntimeTest.php" "$WORDPRESS:/tmp/PostAuthorsRuntimeTest.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/LandingPageRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-landing-page-runtime.php"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/CustomizerRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-customizer-runtime.php"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/CustomizerRuntimeTest.php" "$WORDPRESS:/tmp/CustomizerRuntimeTest.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PostContentRuntimeTest.php" "$WORDPRESS:/tmp/PostContentRuntimeTest.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/TemplateCreationRuntimeTest.php" "$WORDPRESS:/tmp/TemplateCreationRuntimeTest.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PageTemplateRuntimeTest.php" "$WORDPRESS:/tmp/PageTemplateRuntimeTest.php"
@@ -104,7 +147,22 @@ if [[ -n "$YOAST_VERSION" ]]; then
   "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/SeoRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-seo-runtime.php"
 fi
 
-"$RUNTIME" exec "$WORDPRESS" php -r 'define("WP_INSTALLING", true); define("WP_SITEURL", "http://frontman-runtime.example.test"); require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/upgrade.php"; if (!is_blog_installed()) { wp_install("Frontman Runtime", "admin", "admin@example.test", true, "", "frontman-runtime-password"); }'
+curl -fsSL 'https://downloads.wordpress.org/plugin/directorist.8.10.6.zip' -o "$BUILD_DIR/directorist.zip"
+printf '%s  %s\n' 'd2615cb9e29b1003cffd7713b515bb4984b6ba25e32aef76a0e04fff7a2ce28a' "$BUILD_DIR/directorist.zip" | sha256sum --check --status
+unzip -q "$BUILD_DIR/directorist.zip" -d "$BUILD_DIR/directorist"
+"$RUNTIME" cp "$BUILD_DIR/directorist/directorist" "$WORDPRESS:/var/www/html/wp-content/plugins/directorist"
+
+case "$WORDPRESS_VERSION" in
+6.[0-8].*) ;;
+*)
+  curl -fsSL 'https://downloads.wordpress.org/plugin/surerank.1.10.2.zip' -o "$BUILD_DIR/surerank.zip"
+  printf '%s  %s\n' '2ed0ada73535e8c22498e4354b13ca5aa15e45e06fe2bc4e0f78afea0b840287' "$BUILD_DIR/surerank.zip" | sha256sum --check --status
+  unzip -q "$BUILD_DIR/surerank.zip" -d "$BUILD_DIR/surerank"
+  "$RUNTIME" cp "$BUILD_DIR/surerank/surerank" "$WORDPRESS:/var/www/html/wp-content/plugins/surerank"
+  ;;
+esac
+
+"$RUNTIME" exec "$WORDPRESS" php -r 'define("WP_INSTALLING", true); define("WP_SITEURL", "http://frontman-runtime.example.test"); require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/upgrade.php"; if (!is_blog_installed()) { wp_install("Frontman Runtime", "admin", "admin@example.test", true, "", bin2hex(random_bytes(32))); }'
 "$RUNTIME" exec "$WORDPRESS" php -r '$db = new mysqli(getenv("WORDPRESS_DB_HOST"), getenv("WORDPRESS_DB_USER"), getenv("WORDPRESS_DB_PASSWORD"), getenv("WORDPRESS_DB_NAME")); $result = $db->query("SELECT option_value FROM wp_options WHERE option_name = '\''siteurl'\''"); $row = $result ? $result->fetch_row() : false; if (!$row || !$row[0]) { throw new RuntimeException("WordPress installation did not persist a site URL."); }'
 "$RUNTIME" exec -e EXPECTED_YOAST_VERSION="$YOAST_VERSION" "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/ActivateWordPressPlugin.php
 if TEST_OUTPUT="$("$RUNTIME" exec \
@@ -118,11 +176,66 @@ fi
 printf '%s\n' "$TEST_OUTPUT"
 if [[ "$TEST_STATUS" -ne 0 || "$TEST_OUTPUT" != *"OK (WordPress ${WORDPRESS_VERSION}, PHP "* ]]; then
   printf 'WordPress runtime tests did not report successful completion.\n' >&2
+  "$RUNTIME" logs "$WORDPRESS" >&2 || true
   exit 1
 fi
 
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ThemeModsAndSearchRuntimeTest.php" "$WORDPRESS:/tmp/ThemeModsAndSearchRuntimeTest.php"
 "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/ThemeModsAndSearchRuntimeTest.php
+
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/WidgetWithoutWooRuntimeTest.php" "$WORDPRESS:/tmp/WidgetWithoutWooRuntimeTest.php"
+"$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/WidgetWithoutWooRuntimeTest.php
+WOOCOMMERCE_VERSION=""
+case "$WORDPRESS_VERSION" in
+6.[0-6].*) printf 'Skipping WooCommerce: requires WordPress 6.7+.\n' ;;
+6.7.*)
+  WOOCOMMERCE_VERSION="9.9.5"
+  WOOCOMMERCE_SHA256="9afd8ef47ce5286412053083cd74c3d5abf0388e8e4a723902162259977241c2"
+  ;;
+*)
+  WOOCOMMERCE_VERSION="10.4.3"
+  WOOCOMMERCE_SHA256="3b1bbe109a0ab653863a6c8b4ccbdf75c519fd5ebf51151c54b8ca37b325f242"
+  ;;
+esac
+if [[ -n "${WOOCOMMERCE_VERSION:-}" ]]; then
+curl -fsSL "https://downloads.wordpress.org/plugin/woocommerce.${WOOCOMMERCE_VERSION}.zip" -o "$BUILD_DIR/woocommerce.zip"
+printf '%s  %s\n' "$WOOCOMMERCE_SHA256" "$BUILD_DIR/woocommerce.zip" | sha256sum --check --status
+unzip -q "$BUILD_DIR/woocommerce.zip" -d "$BUILD_DIR/woocommerce"
+"$RUNTIME" cp "$BUILD_DIR/woocommerce/woocommerce" "$WORDPRESS:/var/www/html/wp-content/plugins/woocommerce"
+"$RUNTIME" exec "$WORDPRESS" php -r 'require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/plugin.php"; $result = activate_plugin("woocommerce/woocommerce.php"); if (is_wp_error($result)) { throw new RuntimeException($result->get_error_message()); }'
+printf 'Testing WooCommerce %s on WordPress %s\n' "$WOOCOMMERCE_VERSION" "$WORDPRESS_VERSION"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/WidgetVisibilityRuntimeTest.php" "$WORDPRESS:/tmp/WidgetVisibilityRuntimeTest.php"
+"$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/WidgetVisibilityRuntimeTest.php
+if [[ "$WOOCOMMERCE_VERSION" == "10.4.3" ]]; then
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/WooCommerceCatalogRuntimeTest.php" "$WORDPRESS:/tmp/WooCommerceCatalogRuntimeTest.php"
+"$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/WooCommerceCatalogRuntimeTest.php
+else
+printf 'Skipping catalog runtime tests: WooCommerce 10.4.3 requires WordPress 6.8+.\n'
+fi
+if [[ "$FIXTURE" == astra ]]; then
+  curl -fsSL 'https://downloads.wordpress.org/theme/astra.4.12.3.zip' -o "$BUILD_DIR/astra.zip"
+  printf '%s  %s\n' '18b0b13f23b7ea793235b3ef8e9c62a032cff81646fca562aed2db2a83945a12' "$BUILD_DIR/astra.zip" | sha256sum --check --status
+  unzip -q "$BUILD_DIR/astra.zip" -d "$BUILD_DIR/astra"
+  "$RUNTIME" exec "$WORDPRESS" rm -rf /var/www/html/wp-content/themes/astra
+  "$RUNTIME" cp "$BUILD_DIR/astra/astra" "$WORDPRESS:/var/www/html/wp-content/themes/astra"
+  "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/AstraFixture.php" "$WORDPRESS:/tmp/AstraFixture.php"
+  "$RUNTIME" exec -e FIXTURE_URL="http://127.0.0.1:$FIXTURE_PORT" "$WORDPRESS" php /tmp/AstraFixture.php setup
+  "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/AstraRouting.htaccess" "$WORDPRESS:/var/www/html/.htaccess"
+  "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/AstraSafety.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/astra-safety.php"
+  FRONTMAN_ASTRA_URL="http://127.0.0.1:$FIXTURE_PORT" FRONTMAN_ASTRA_CONTAINER="$WORDPRESS" CONTAINER_RUNTIME="$RUNTIME" \
+    FRONTMAN_ASTRA_EVIDENCE_DIR="$ROOT_DIR/dist/astra-fixture" \
+    make -C "$ROOT_DIR/libs/client" test TEST_FILTER=test/Client__Astra.test.res.mjs
+  printf 'Synthetic Astra fixture verified: http://127.0.0.1:%s (no customer configuration tested).\n' "$FIXTURE_PORT"
+  printf 'Fixture container: %s; browser evidence: dist/astra-fixture/\n' "$WORDPRESS"
+  if [[ "${WORDPRESS_FIXTURE_KEEP_ALIVE:-0}" == 1 ]]; then
+    printf 'Fixture is disposable. Stop with Ctrl+C; only this run’s containers/image/temp directory are removed.\n'
+    trap 'exit 0' INT TERM
+    while :; do sleep 1; done
+  fi
+  exit 0
+fi
+"$RUNTIME" exec "$WORDPRESS" php -r 'require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/plugin.php"; deactivate_plugins("woocommerce/woocommerce.php");'
+fi
 
 "$RUNTIME" exec "$WORDPRESS" cp -a /var/www/html /tmp/frontman-multisite
 "$RUNTIME" exec "$WORDPRESS" php -r '$path = "/tmp/frontman-multisite/wp-config.php"; $config = file_get_contents($path); $config = str_replace("\x27wp_\x27", "\x27fm_multi_\x27", $config); file_put_contents($path, $config);'
@@ -180,6 +293,6 @@ for ANGIE_VERSION in 1.1.0 1.1.16; do
   unzip -q "$BUILD_DIR/angie.zip" -d "$BUILD_DIR/angie-${ANGIE_VERSION}"
   "$RUNTIME" exec "$WORDPRESS" rm -rf /var/www/html/wp-content/plugins/angie
   "$RUNTIME" cp "$BUILD_DIR/angie-${ANGIE_VERSION}/angie" "$WORDPRESS:/var/www/html/wp-content/plugins/angie"
-  "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/AngieRuntimeTest.php --setup
-  "$RUNTIME" exec -e EXPECTED_ANGIE_VERSION="$ANGIE_VERSION" "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/AngieRuntimeTest.php
+  	"$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/AngieRuntimeTest.php --setup
+	"$RUNTIME" exec -e EXPECTED_ANGIE_VERSION="$ANGIE_VERSION" "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/AngieRuntimeTest.php
 done

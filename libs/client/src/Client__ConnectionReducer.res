@@ -94,7 +94,7 @@ type action =
     })
   | CreateSession({sessionId: string, onComplete: result<string, string> => unit})
   | SessionCommand(ACP.sessionCommand)
-  | LoadTask({taskId: string, needsHistory: bool})
+  | LoadTask({taskId: string})
   | DeleteSession({taskId: string})
   | ClearSession
 
@@ -110,7 +110,7 @@ type effect =
       requestId: sessionRequestId,
       connection: ACP.connection,
       mcpServer: MCPServer.t,
-      operation: [#create(string) | #load(string) | #join(string)],
+      operation: [#create(string) | #load(string)],
     })
   | SessionCommandEffect({session: ACP.session, command: ACP.sessionCommand})
   | FetchSessionsEffect({connection: ACP.connection, signal: WebAPI.EventTypes.abortSignal})
@@ -132,6 +132,15 @@ type effect =
 let initialState = (config: config): state => {config, connection: Ok(None)}
 
 module Selectors = {
+  let sessionRequestId = (state: state): option<sessionRequestId> =>
+    switch state.connection {
+    | Ok(Some({
+        phase: Ready({session: SessionCreating({requestId}) | SessionActive({requestId})}),
+      })) =>
+      Some(requestId)
+    | Ok(_) | Error(_) => None
+    }
+
   let getRelay = (state: state): option<Relay.connected> =>
     switch state.connection {
     | Ok(Some({phase: Ready({relay})})) => Some(relay)
@@ -236,7 +245,7 @@ let startSession = (
   ~onComplete=None,
 ) => {
   let sessionId = switch operation {
-  | #create(id) | #load(id) | #join(id) => Some(id)
+  | #create(id) | #load(id) => Some(id)
   }
   let requestId = ref()
   (
@@ -438,6 +447,10 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
   | (_, SessionCommand(_)) => (state, [LogError("Cannot send session command: no active session")])
 
   | (
+      Ok(Some({phase: Ready({session: SessionCreating({sessionId: Some(sessionId)})})})),
+      LoadTask(request),
+    ) if sessionId == request.taskId => (state, [])
+  | (
       Ok(Some({phase: Ready({session: SessionActive({session: {sessionId}})} as ready)})),
       LoadTask(request),
     ) if sessionId == request.taskId => (
@@ -445,11 +458,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       [SessionCompletionEffect({sessionId, ready, result: Ok(None), onComplete: None})],
     )
   | (Ok(Some({phase: Ready(ready)} as runtime)), LoadTask(request)) =>
-    let operation = switch request.needsHistory {
-    | true => #load(request.taskId)
-    | false => #join(request.taskId)
-    }
-    startSession(state, runtime, ready, ~operation)
+    startSession(state, runtime, ready, ~operation=#load(request.taskId))
   | (_, LoadTask({taskId})) => (
       state,
       [TaskLoadFailed({taskId, error: "Cannot load task: not connected"})],

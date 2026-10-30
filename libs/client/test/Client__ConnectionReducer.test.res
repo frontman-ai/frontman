@@ -22,7 +22,7 @@ let effectKinds = effects =>
     | Reducer.CleanupConnectionEffect(_) => #cleanupConnection
     | Reducer.LogoutEffect(_) => #logout
     | Reducer.ActivateSessionEffect({operation: #create(_)}) => #createSession
-    | Reducer.ActivateSessionEffect({operation: #load(_) | #join(_)}) => #loadTask
+    | Reducer.ActivateSessionEffect({operation: #load(_)}) => #loadTask
     | Reducer.SessionCommandEffect(_) => #sessionCommand
     | Reducer.FetchSessionsEffect(_) => #fetchSessions
     | Reducer.DeleteSessionEffect(_) => #deleteSession
@@ -112,7 +112,7 @@ let complete = (state, result) =>
       result,
     }),
   )
-let loadTask = taskId => Reducer.LoadTask({taskId, needsHistory: true})
+let loadTask = taskId => Reducer.LoadTask({taskId: taskId})
 
 describe("Connection Reducer", () => {
   describe("login URL", () => {
@@ -410,6 +410,42 @@ describe("Connection Reducer", () => {
   })
 
   describe("Session Creation", () => {
+    test("same-task loads retain pending activation and allow retry after failure", t => {
+      let action = loadTask("sess-1")
+      let (pending, effects) = Reducer.reduce(withSession(NoSession), action)
+      t->expect(effectKinds(effects))->Expect.toEqual([#loadTask])
+      let (unchanged, duplicateEffects) = Reducer.reduce(pending, action)
+      t->expect(unchanged)->Expect.toBe(pending)
+      t->expect(duplicateEffects)->Expect.toEqual([])
+      let (failed, _) = completeSession(
+        unchanged,
+        Error(Reducer.ACP.requestErrorFromMessage("task_already_joined")),
+      )
+      t
+      ->expect(Reducer.Selectors.getSessionError(failed))
+      ->Expect.toEqual(Some("task_already_joined"))
+      let (retry, retryEffects) = Reducer.reduce(failed, action)
+      t->expect(effectKinds(retryEffects))->Expect.toEqual([#loadTask])
+      t->expect(requestId(retry) === requestId(pending))->Expect.toBe(false)
+    })
+
+    test("same-task load preserves pending creation completion", t => {
+      let completed = ref(None)
+      let (pending, _) = Reducer.reduce(
+        withSession(NoSession),
+        CreateSession({sessionId: "sess-1", onComplete: result => completed := Some(result)}),
+      )
+      let (unchanged, effects) = Reducer.reduce(pending, loadTask("sess-1"))
+      t->expect(unchanged)->Expect.toBe(pending)
+      t->expect(effects)->Expect.toEqual([])
+      let (active, completionEffects) = completeSession(
+        unchanged,
+        Ok((Client__ConnectionTestHelpers.session("sess-1"), None)),
+      )
+      completionEffects->Array.forEach(effect => handleEffect(effect, active, _ => ()))
+      t->expect(completed.contents)->Expect.toEqual(Some(Ok("sess-1")))
+    })
+
     test(
       "accepted session result transitions to SessionActive",
       t => {
@@ -488,7 +524,11 @@ describe("Connection Reducer", () => {
         ["sess-1", "sess-2"]->Array.forEach(
           nextId => {
             let (loadingFirst, _) = Reducer.reduce(withSession(NoSession), loadTask("sess-1"))
-            let (loadingSecond, _) = Reducer.reduce(loadingFirst, loadTask(nextId))
+            let next = switch nextId == "sess-1" {
+            | true => Reducer.reduce(loadingFirst, ClearSession)->Pair.first
+            | false => loadingFirst
+            }
+            let (loadingSecond, _) = Reducer.reduce(next, loadTask(nextId))
             let staleSession = mock({"sessionId": "sess-1", "channel": null})
             let (afterStaleSuccess, effects) = Reducer.reduce(
               loadingSecond,

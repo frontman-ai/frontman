@@ -14,10 +14,12 @@ defmodule FrontmanServer.Protocols.AcpUpstreamComplianceTest do
       response(4, ACP.build_session_load_result([])),
       ACP.build_user_message_chunk_notification(
         "session-1",
-        "user-1",
-        %{"type" => "text", "text" => "Hello"},
-        "executor-id",
-        @timestamp
+        %{
+          id: "user-1",
+          content: %{"type" => "text", "text" => "Hello"},
+          agent_id: "executor-id",
+          timestamp: @timestamp
+        }
       ),
       ACP.build_agent_message_chunk_notification(
         "session-1",

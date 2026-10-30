@@ -1142,6 +1142,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   end
 
   describe "interactive waits and serial recovery" do
+    @tag :application_restart
     @tag billing: :pretrial
     test "application shutdown preserves approval and resumes the fifth turn with no allowance left",
          context do
@@ -1152,16 +1153,16 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       task_id = task_with_pubsub_fixture(scope, framework: "wordpress").id
 
       on_exit(fn ->
-        {:ok, _} = Application.ensure_all_started(:frontman_server)
+        try do
+          {:ok, _} = Application.ensure_all_started(:frontman_server)
 
-        Sandbox.unboxed_run(Repo, fn ->
-          all_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
-          |> Enum.each(&Repo.delete!/1)
-
-          Repo.delete!(Scope.user(scope))
-        end)
-
-        Sandbox.mode(Repo, :manual)
+          Sandbox.unboxed_run(Repo, fn ->
+            FrontmanServer.RestartResources.delete_jobs(scope, task_id)
+            Repo.delete!(Scope.user(scope))
+          end)
+        after
+          Sandbox.mode(Repo, :manual)
+        end
       end)
 
       approval = tool_call("approval", %{}, id: "approval_serial")
