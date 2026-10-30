@@ -23,6 +23,9 @@ defmodule FrontmanNotifier.TaskSummaries do
     t.updated_at,
     u.email,
     u.name AS user_name,
+    s.status AS subscription_status,
+    s.interval AS subscription_interval,
+    a.used AS free_messages_used,
     MAX(i.inserted_at) AS last_interaction_at,
     COUNT(i.id)::int AS interaction_count,
     (COUNT(*) FILTER (WHERE i.type = 'user_message'))::int AS user_message_count,
@@ -39,9 +42,13 @@ defmodule FrontmanNotifier.TaskSummaries do
     ARRAY_REMOVE(ARRAY_AGG(DISTINCT i.data->>'tool_name'), NULL) AS tools_used
   FROM tasks t
   JOIN users u ON u.id = t.user_id
+  LEFT JOIN billing_customers c ON c.user_id = u.id
+  LEFT JOIN billing_subscriptions s ON s.billing_customer_id = c.id
+  LEFT JOIN billing_run_allowances a ON a.user_id = u.id
   JOIN interactions i ON i.task_id = t.id
   WHERE t.inserted_at >= timezone('UTC', now()) - ($2::int * interval '1 hour')
-  GROUP BY t.id, t.short_desc, t.framework, t.inserted_at, t.updated_at, u.email, u.name
+  GROUP BY t.id, t.short_desc, t.framework, t.inserted_at, t.updated_at, u.email, u.name,
+    s.status, s.interval, a.used
   HAVING MAX(i.inserted_at) <= timezone('UTC', now()) - ($3::int * interval '1 minute')
   ORDER BY last_interaction_at DESC
   LIMIT $1
@@ -90,6 +97,7 @@ defmodule FrontmanNotifier.TaskSummaries do
       description: truncate(user_attempt(task, interactions), 1_500),
       fields: [
         field("User", user_summary(task), true),
+        field("Billing", billing_summary(task), true),
         field("Framework", task["framework"] || "unknown", true),
         field("Task ID", "`#{task["id"]}`", false),
         field("Stats", stats_summary(task), false),
@@ -152,6 +160,18 @@ defmodule FrontmanNotifier.TaskSummaries do
   defp task_seen?(task) do
     State.seen?(@namespace, task["id"])
   end
+
+  defp billing_summary(%{"subscription_status" => nil, "free_messages_used" => used}) do
+    # Match FrontmanServer.Billing's lifetime pretrial run allowance.
+    remaining = max(5 - int(used), 0)
+    "Free · #{remaining} of 5 messages left"
+  end
+
+  defp billing_summary(%{"subscription_status" => status, "subscription_interval" => interval})
+       when is_binary(interval),
+       do: "#{status} · #{interval}"
+
+  defp billing_summary(%{"subscription_status" => status}), do: status
 
   defp user_summary(task) do
     case task["user_name"] do

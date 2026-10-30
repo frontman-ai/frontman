@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## [Unreleased]
+
+### Added
+
+- Include the user's stored subscription status and billing interval in Discord task summaries. Show the remaining lifetime allowance of five free messages for users without a subscription.
+
 ## [5.5.0] - 2026-10-26
 
 
