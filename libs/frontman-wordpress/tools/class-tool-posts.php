@@ -319,7 +319,6 @@ class Frontman_Tool_Posts {
 		if ( ! $autosave ) {
 			$data = get_post( $post->ID, ARRAY_A );
 			$data['post_content'] = $input['content'];
-			// Unlike wp_create_post_autosave(), this only inserts; it never overwrites an editor's autosave.
 			$id = _wp_put_post_revision( $data, true );
 			if ( is_wp_error( $id ) || ! $id ) {
 				throw new Frontman_Tool_Error( is_wp_error( $id ) ? $id->get_error_message() : 'Could not save the autosave.' );
@@ -329,7 +328,6 @@ class Frontman_Tool_Posts {
 				throw new Frontman_Tool_Error( "Autosave {$id} was saved, but readback differs. It was not rolled back; inspect it in WordPress." );
 			}
 		}
-		// Core's preview reads the latest autosave across authors, which may have changed since the first scan.
 		$autosaves = get_posts( [
 			'post_type' => 'revision', 'post_status' => 'inherit', 'post_parent' => $post->ID,
 			'name' => $post->ID . '-autosave-v1', 'posts_per_page' => -1,
