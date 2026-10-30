@@ -61,6 +61,9 @@ curl -fsSL "https://wordpress.org/wordpress-${WORDPRESS_VERSION}.tar.gz" -o "$BU
 curl -fsSL "https://downloads.wordpress.org/plugin/megamenu.${MEGAMENU_VERSION}.zip" -o "$BUILD_DIR/megamenu.zip"
 printf '%s  %s\n' "$MEGAMENU_SHA256" "$BUILD_DIR/megamenu.zip" | sha256sum --check --status
 unzip -q "$BUILD_DIR/megamenu.zip" -d "$BUILD_DIR/megamenu"
+curl -fsSL 'https://downloads.wordpress.org/plugin/elementor.3.18.3.zip' -o "$BUILD_DIR/elementor.zip"
+printf '%s  %s\n' '3db1ec40c89c042083f58153bad711b567fae2871f1870180f0914fe3703b834' "$BUILD_DIR/elementor.zip" | sha256sum --check --status
+unzip -q "$BUILD_DIR/elementor.zip" -d "$BUILD_DIR/elementor"
 if [[ -n "$YOAST_VERSION" ]]; then
   curl -fsSL "https://downloads.wordpress.org/plugin/wordpress-seo.${YOAST_VERSION}.zip" -o "$BUILD_DIR/wordpress-seo.zip"
   printf '%s  %s\n' "$YOAST_SHA256" "$BUILD_DIR/wordpress-seo.zip" | sha256sum --check --status
@@ -114,6 +117,7 @@ done
 "$RUNTIME" exec "$WORDPRESS" php -r '$db = @new mysqli(getenv("WORDPRESS_DB_HOST"), getenv("WORDPRESS_DB_USER"), getenv("WORDPRESS_DB_PASSWORD"), getenv("WORDPRESS_DB_NAME")); if ($db->connect_errno) { throw new RuntimeException("Database did not become ready."); }'
 "$RUNTIME" exec "$WORDPRESS" php -r '$config = file_get_contents("/var/www/html/wp-config-sample.php"); $config = str_replace(["<?php", "database_name_here", "username_here", "password_here", "localhost"], ["<?php\ndefine(\"WP_ENVIRONMENT_TYPE\", \"local\");", getenv("WORDPRESS_DB_NAME"), getenv("WORDPRESS_DB_USER"), getenv("WORDPRESS_DB_PASSWORD"), getenv("WORDPRESS_DB_HOST")], $config); file_put_contents("/var/www/html/wp-config.php", $config);'
 "$RUNTIME" cp "$BUILD_DIR/megamenu/megamenu" "$WORDPRESS:/var/www/html/wp-content/plugins/megamenu"
+"$RUNTIME" cp "$BUILD_DIR/elementor/elementor" "$WORDPRESS:/var/www/html/wp-content/plugins/elementor"
 curl -fsSL 'https://downloads.wordpress.org/theme/astra.4.7.1.zip' -o "$BUILD_DIR/astra-runtime.zip"
 printf '%s  %s\n' '55f2d01b78c3b9ac83417145308b11c254d7fd43b9b414ea95f9eea3fcd5bfff' "$BUILD_DIR/astra-runtime.zip" | sha256sum --check --status
 unzip -q "$BUILD_DIR/astra-runtime.zip" -d "$BUILD_DIR/astra-runtime"
@@ -165,6 +169,7 @@ esac
 "$RUNTIME" exec "$WORDPRESS" php -r 'define("WP_INSTALLING", true); define("WP_SITEURL", "http://frontman-runtime.example.test"); require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/upgrade.php"; if (!is_blog_installed()) { wp_install("Frontman Runtime", "admin", "admin@example.test", true, "", bin2hex(random_bytes(32))); }'
 "$RUNTIME" exec "$WORDPRESS" php -r '$db = new mysqli(getenv("WORDPRESS_DB_HOST"), getenv("WORDPRESS_DB_USER"), getenv("WORDPRESS_DB_PASSWORD"), getenv("WORDPRESS_DB_NAME")); $result = $db->query("SELECT option_value FROM wp_options WHERE option_name = '\''siteurl'\''"); $row = $result ? $result->fetch_row() : false; if (!$row || !$row[0]) { throw new RuntimeException("WordPress installation did not persist a site URL."); }'
 "$RUNTIME" exec -e EXPECTED_YOAST_VERSION="$YOAST_VERSION" "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/ActivateWordPressPlugin.php
+"$RUNTIME" exec "$WORDPRESS" php -r 'require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/plugin.php"; $result = activate_plugin("elementor/elementor.php"); if (is_wp_error($result)) { throw new RuntimeException($result->get_error_message()); }'
 if TEST_OUTPUT="$("$RUNTIME" exec \
   -e EXPECTED_WORDPRESS_VERSION="$WORDPRESS_VERSION" \
   -e EXPECTED_YOAST_VERSION="$YOAST_VERSION" \

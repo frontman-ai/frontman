@@ -27,6 +27,35 @@ $reject = static function( string $name, array $input, string $reason, string $f
 	$after = $wpdb->get_results( "SELECT * FROM {$wpdb->posts} ORDER BY ID", ARRAY_A );
 	frontman_runtime_assert( $before === $after, $name . ' rejection must not write posts or revisions' );
 };
+$elementor_post = wp_insert_post( [ 'post_type' => 'page', 'post_title' => 'Elementor wire fixture', 'post_status' => 'draft' ], true );
+frontman_runtime_assert( ! is_wp_error( $elementor_post ), 'Could not create Elementor wire fixture.' );
+try {
+	$generate = static function( array $input ) use ( $cookie, $nonce ) {
+		$response = frontman_runtime_tool( $cookie, $nonce, [ 'name' => 'wp_elementor_generate_element', 'arguments' => $input ] );
+		frontman_runtime_same( 200, $response['status'], 'Elementor generation HTTP status' );
+		frontman_runtime_same( false, $response['body']['isError'], 'Elementor generation succeeds: ' . wp_json_encode( $response['body'] ) );
+		return json_decode( $response['body']['content'][0]['text'], false, 512, JSON_THROW_ON_ERROR );
+	};
+	$spacer = $generate( [ 'type' => 'widget', 'widget_type' => 'spacer' ] );
+	frontman_runtime_assert( $spacer->settings instanceof stdClass && [] === (array) $spacer->settings, 'Empty settings must be a JSON object.' );
+	$added = $call( 'wp_elementor_add_element', [ 'post_id' => $elementor_post, 'element' => $spacer ] );
+	frontman_runtime_assert( $added['success'], 'Generated spacer must be addable.' );
+	$companion = $generate( [ 'type' => 'widget', 'widget_type' => 'spacer' ] );
+	$wrapped = $call( 'wp_elementor_wrap_element', [ 'post_id' => $elementor_post, 'element_id' => $added['element_id'], 'element_after' => $companion ] );
+	frontman_runtime_assert( $wrapped['success'], 'Generated spacer must be usable as a wrap companion.' );
+	wp_cache_delete( $elementor_post, 'post_meta' );
+	$tree = Frontman_Elementor_Data::get_page_data( $elementor_post );
+	frontman_runtime_same( [ $added['element_id'], $wrapped['added_element_id'] ], array_column( $tree[0]['elements'], 'id' ), 'Added and companion spacers persist in order.' );
+	$row = $generate( [ 'type' => 'row', 'children' => [ [ 'elType' => 'container', 'settings' => (object) [], 'elements' => [ [ 'elType' => 'widget', 'widgetType' => 'spacer', 'settings' => (object) [], 'elements' => [] ] ] ] ] ] );
+	frontman_runtime_assert( $row->elements[0]->settings instanceof stdClass && $row->elements[0]->elements[0]->settings instanceof stdClass, 'Empty descendant settings must be JSON objects.' );
+	frontman_runtime_assert( $call( 'wp_elementor_add_element', [ 'post_id' => $elementor_post, 'element' => $row ] )['success'], 'Generated nested subtree must be addable.' );
+	$heading = $generate( [ 'type' => 'heading', 'title' => 'Keep settings' ] );
+	frontman_runtime_same( 'Keep settings', $heading->settings->title, 'Nonempty settings must be preserved.' );
+	$with_list = $generate( [ 'type' => 'widget', 'widget_type' => 'spacer', 'settings' => [ 'items' => [] ] ] );
+	frontman_runtime_same( [], $with_list->settings->items, 'List-valued settings must remain arrays.' );
+} finally {
+	wp_delete_post( $elementor_post, true );
+}
 foreach ( [ 'PostContentRuntimeTest.php', 'TemplateCreationRuntimeTest.php', 'PageTemplateRuntimeTest.php' ] as $file ) {
 	( static function() use ( $file, $call, $reject, $actor, $cookie ): void { require '/tmp/' . $file; } )();
 }
@@ -74,6 +103,63 @@ try {
 	$result = json_decode( $response['body'], true, 512, JSON_THROW_ON_ERROR );
 	frontman_runtime_same( false, $result['isError'], 'MCP read succeeds' );
 	frontman_runtime_same( 'Private MCP bytes', json_decode( $result['content'][0]['text'], true )['content'], 'MCP preserves raw content' );
+	$elementor = new Frontman_Tools(); ( new Frontman_Tool_Elementor() )->register( $elementor );
+	$button = [ 'elType' => 'widget', 'widgetType' => 'button', 'settings' => [], 'elements' => [] ];
+	$button_without_elements = [ 'elType' => 'widget', 'widgetType' => 'button', 'settings' => [] ];
+	$nested = [ 'elType' => 'container', 'elements' => [ [ 'elType' => 'container', 'elements' => [ $button ] ] ] ];
+	$mixed = $nested;
+	$mixed['id'] = '0';
+	$mixed['elements'][0]['elements'][0]['id'] = ' supplied ';
+	$companion = [ 'elType' => 'container', 'elements' => [ [ 'elType' => 'widget', 'widgetType' => 'button', 'settings' => [ 'text' => 'New' ] ] ] ];
+	$valid = [
+		[ 'wp_elementor_list_pages', [ 'post_type' => 'context_test', 'text_search' => 'Book Demo', 'include_context' => true ] ],
+		[ 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $nested ] ],
+		[ 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $mixed ] ],
+		[ 'wp_elementor_generate_element', [ 'type' => 'row', 'children' => [ $button ] ] ],
+		[ 'wp_elementor_duplicate_element', [ 'post_id' => 47, 'element_id' => 'row', 'settings' => [ 'link' => [ 'url' => '/new' ] ] ] ],
+		[ 'wp_elementor_generate_element', [ 'type' => 'row', 'settings' => [], 'children' => [ $button ] ] ],
+		[ 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $button ] ],
+		[ 'wp_elementor_wrap_element', [ 'post_id' => 47, 'element_id' => 'root4700', 'settings' => [], 'element_after' => $button ] ],
+		[ 'wp_elementor_generate_element', [ 'type' => 'row', 'settings' => [], 'children' => [ $button_without_elements ] ] ],
+		[ 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $button_without_elements ] ],
+		[ 'wp_elementor_wrap_element', [ 'post_id' => 47, 'element_id' => 'root4700', 'settings' => [], 'element_after' => $button_without_elements ] ],
+	];
+	foreach ( [ 'a', 'b', 'c', 'row' ] as $anchor ) {
+		$valid[] = [ 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => [ 'elType' => 'container', 'elements' => [ [ 'elType' => 'widget', 'widgetType' => 'button', 'settings' => [ 'text' => 'Original', 'link' => [ 'url' => '/old', 'external' => true ] ], 'elements' => [] ] ] ], 'after_element_id' => $anchor ] ];
+	}
+	foreach ( [ 'target', 'row', 'leaf' ] as $id ) {
+		$wrap = [ 'post_id' => 47, 'element_id' => $id, 'settings' => [ 'flex_direction_mobile' => 'column', 'flex_wrap' => 'nowrap' ] ];
+		$valid[] = [ 'wp_elementor_wrap_element', $wrap ];
+		$valid[] = [ 'wp_elementor_wrap_element', $wrap + [ 'element_after' => $companion ] ];
+	}
+	foreach ( $valid as [ $name, $input ] ) {
+		frontman_runtime_same( $input, $elementor->sanitize_input( $name, $input ), $name . ' preserves valid inputs' );
+	}
+	$invalid_root = array_replace( $button, [ 'settings' => [ 'bad' ] ] );
+	$invalid_descendant = [ 'elType' => 'container', 'settings' => [], 'elements' => [ $invalid_root ] ];
+	$invalid = [
+		[ 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => [ 'elType' => 'container', 'elements' => false ] ] ],
+		[ 'wp_elementor_generate_element', [ 'type' => 'row', 'children' => false ] ],
+		[ 'wp_elementor_generate_element', [ 'type' => 'row', 'children' => [ [ 'elType' => 'container', 'elements' => null ] ] ] ],
+		[ 'wp_elementor_generate_element', [ 'type' => 'row', 'settings' => [ 'bad' ] ] ],
+	];
+	foreach ( [ $invalid_root, $invalid_descendant ] as $element ) {
+		$invalid[] = [ 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $element ] ];
+		$invalid[] = [ 'wp_elementor_generate_element', [ 'type' => 'row', 'children' => [ $element ] ] ];
+		$invalid[] = [ 'wp_elementor_wrap_element', [ 'post_id' => 47, 'element_id' => 'root4700', 'element_after' => $element ] ];
+	}
+	foreach ( [ [ 'settings' => null ], [ 'settings' => 'bad' ], [ 'settings' => [ 1 ] ], [ 'element_after' => false ], [ 'element_after' => [ 'elType' => 'container', 'elements' => [ false ] ] ] ] as $input ) {
+		$invalid[] = [ 'wp_elementor_wrap_element', $input + [ 'post_id' => 47, 'element_id' => 'target' ] ];
+	}
+	foreach ( $invalid as [ $name, $input ] ) {
+		$rejected = false;
+		try {
+			$elementor->sanitize_input( $name, $input );
+		} catch ( Frontman_Tool_Error $error ) {
+			$rejected = true;
+		}
+		frontman_runtime_assert( $rejected, $name . ' rejects malformed input: ' . wp_json_encode( $input ) );
+	}
 	foreach ( [ '{"id":[999]}', '{"id":{}}', '{"id":null}', '{"id":true}', '{"id":"1"}', '{"id":1.5}', '{"id":0}', '{"id":-1}', '{"id":9223372036854775808}', '{}', '[]', 'true', 'null' ] as $arguments ) {
 		$decoded = json_decode( $arguments );
 		if ( $decoded instanceof stdClass ) {

@@ -889,7 +889,17 @@ class Frontman_Tool_Elementor {
 		self::validate_creation_input( 'wp_elementor_generate_element', $input );
 		$element = Frontman_Elementor_Data::generate_element( $input );
 		unset( $element['id'] );
-		return $this->prepare_new_subtree( $element );
+		$element = $this->prepare_new_subtree( $element );
+		$wire_element = static function ( array $node ) use ( &$wire_element ): array {
+			if ( isset( $node['settings'] ) && [] === $node['settings'] ) {
+				$node['settings'] = (object) [];
+			}
+			foreach ( $node['elements'] ?? [] as $index => $child ) {
+				$node['elements'][ $index ] = $wire_element( $child );
+			}
+			return $node;
+		};
+		return $wire_element( $element );
 	}
 
 	private static function validate_settings_object( $settings, string $path ): void {

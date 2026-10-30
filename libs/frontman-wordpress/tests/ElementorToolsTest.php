@@ -1135,7 +1135,6 @@ class Frontman_Elementor_Tools_Test_Runner {
 		$listing = [ 'post_type' => 'context_test' ];
 		$this->assert_same( $this->call_success( 'wp_elementor_list_pages', $listing ), $this->call_success( 'wp_elementor_list_pages', $listing + [ 'include_context' => false ] ), 'False preserves ordinary listing' );
 		$enabled = $input + [ 'include_context' => true ];
-		$this->assert_same( $enabled, $this->tools->sanitize_input( 'wp_elementor_list_pages', $enabled ), 'Schema preserves search context inputs' );
 		$page = $this->call_success( 'wp_elementor_list_pages', $enabled )['pages'][0];
 		$this->assert_same( $old['pages'][0]['matches'], $page['matches'], 'Matches remain complete and unchanged' );
 		$this->assert_same( 3, count( $page['element_contexts'] ), 'Multiple settings yield one context' );
@@ -1181,7 +1180,7 @@ class Frontman_Elementor_Tools_Test_Runner {
 			}
 		};
 		try {
-			$input = $this->tools->sanitize_input( 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $nested ] );
+			$input = [ 'post_id' => 47, 'element' => $nested ];
 			$added = $this->call_success( 'wp_elementor_add_element', $input );
 			$this->assert_same( 1, $writes, 'Nested insertion saves the page once' );
 			$data = Frontman_Elementor_Data::get_page_data( 47 );
@@ -1201,7 +1200,7 @@ class Frontman_Elementor_Tools_Test_Runner {
 			$mixed = $nested;
 			$mixed['id'] = '0';
 			$mixed['elements'][0]['elements'][0]['id'] = ' supplied ';
-			$added = $this->call_success( 'wp_elementor_add_element', $this->tools->sanitize_input( 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $mixed ] ) );
+			$added = $this->call_success( 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $mixed ] );
 			$this->assert_same( '0', $added['element_id'], 'Zero ID remains in response' );
 			$stored = Frontman_Elementor_Data::get_element( Frontman_Elementor_Data::get_page_data( 47 ), '0' );
 			$this->assert_same( ' supplied ', $stored['elements'][0]['elements'][0]['id'], 'Supplied ID remains exact' );
@@ -1235,13 +1234,6 @@ class Frontman_Elementor_Tools_Test_Runner {
 				$meta = $GLOBALS['frontman_test_meta'][47];
 				$count = $writes;
 				$this->call_error( $name, $input + [ 'post_id' => 47 ] );
-				$rejected = false;
-				try {
-					$this->tools->sanitize_input( $name, $input );
-				} catch ( Frontman_Tool_Error $error ) {
-					$rejected = true;
-				}
-				$this->assert_true( $rejected, 'Production sanitizer rejects malformed creation shapes' );
 				$this->assert_same( $count, $writes, 'Malformed creation causes no page writes' );
 				$this->assert_same( $meta, $GLOBALS['frontman_test_meta'][47], 'Malformed creation leaves snapshots unchanged' );
 			}
@@ -1256,7 +1248,7 @@ class Frontman_Elementor_Tools_Test_Runner {
 				$GLOBALS['frontman_test_reject_rollback_write'] = false;
 			}
 			$this->assert_same( $count, $writes, 'Snapshot failure prevents insertion page write' );
-			$row = $this->call_success( 'wp_elementor_generate_element', $this->tools->sanitize_input( 'wp_elementor_generate_element', [ 'type' => 'row', 'children' => [ $button ] ] ) );
+			$row = $this->call_success( 'wp_elementor_generate_element', [ 'type' => 'row', 'children' => [ $button ] ] );
 			$this->assert_true( '' !== $row['elements'][0]['id'], 'Generator prepares ID-less children' );
 			$this->call_success( 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $row ] );
 		} finally {
@@ -1307,19 +1299,11 @@ class Frontman_Elementor_Tools_Test_Runner {
 				$error = $this->call_error( $name, $input );
 				$this->assert_true( false !== strpos( $error, 'settings must be an object' ), 'Direct creation rejects list-valued settings' );
 				$this->assert_same( $before, $GLOBALS['frontman_test_meta'][47], 'Direct rejection preserves page and snapshots' );
-				$rejected = false;
-				try {
-					$this->tools->sanitize_input( $name, $input );
-				} catch ( Frontman_Tool_Error $error ) {
-					$rejected = true;
-				}
-				$this->assert_true( $rejected, 'Raw guard rejects list-valued settings before sanitization' );
-				$this->assert_same( $before, $GLOBALS['frontman_test_meta'][47], 'Raw rejection preserves page and snapshots' );
 				$this->assert_same( [], $events, 'Malformed settings cause no page or snapshot writes' );
 			}
-			$generated = $this->call_success( 'wp_elementor_generate_element', $this->tools->sanitize_input( 'wp_elementor_generate_element', [ 'type' => 'row', 'settings' => [], 'children' => [ $button ] ] ) );
+			$generated = $this->call_success( 'wp_elementor_generate_element', [ 'type' => 'row', 'settings' => [], 'children' => [ $button ] ] );
 			$this->assert_same( [], $generated['elements'][0]['settings'], 'Empty decoded settings objects remain valid in descendants' );
-			$added = $this->call_success( 'wp_elementor_add_element', $this->tools->sanitize_input( 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $button ] ) );
+			$added = $this->call_success( 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $button ] );
 			$this->assert_same( [], Frontman_Elementor_Data::get_element( Frontman_Elementor_Data::get_page_data( 47 ), $added['element_id'] )['settings'], 'Empty decoded settings objects remain valid for add' );
 		} finally {
 			$GLOBALS['frontman_test_meta'][47] = $before;
