@@ -22,6 +22,10 @@ if ( '' !== $runtime_alias ) {
 }
 try {
 	require '/var/www/html/wp-load.php';
+	$schema = [ 'type' => 'array', 'items' => [ 'type' => 'integer' ], 'minItems' => 1 ];
+	frontman_runtime_same( true, rest_validate_value_from_schema( [ 1 ], $schema, 'items' ), 'WordPress schema must accept a valid value.' );
+	$invalid = rest_validate_value_from_schema( [], $schema, 'items' );
+	frontman_runtime_assert( is_wp_error( $invalid ) && 'rest_too_few_items' === $invalid->get_error_code(), 'WordPress schema must reject too few items.' );
 	if ( '' === $runtime_case ) {
 		require __DIR__ . '/CoreRuntimeCases.php';
 		require __DIR__ . '/IsolatedRuntimeCases.php';
