@@ -1,6 +1,8 @@
 defmodule FrontmanServerWeb.McpServerControllerTest do
   use FrontmanServerWeb.ConnCase
 
+  alias FrontmanServerWeb.MCP.Server
+
   @resource "https://resource.example/mcp"
   @issuer "https://issuer.example/tenant"
   @metadata "/.well-known/oauth-protected-resource/mcp"
@@ -76,6 +78,15 @@ defmodule FrontmanServerWeb.McpServerControllerTest do
     assert root.body == alias_response.body
     assert root.body["resource"] == @resource
     assert root.body["authorization_servers"] == [@issuer]
+  end
+
+  test "SDK server information uses the Mix project identity" do
+    project = Mix.Project.config()
+
+    assert Server.server_info() == %{
+             "name" => Atom.to_string(project[:app]),
+             "version" => project[:version]
+           }
   end
 
   test "origin and duplicate authorization checks precede query and body parsing" do
@@ -194,6 +205,41 @@ defmodule FrontmanServerWeb.McpServerControllerTest do
       assert_receive {^event, context}
       refute inspect(context) =~ "secret"
     end
+  end
+
+  test "an unexpected MCP boundary error reaches Sentry without request secrets" do
+    Sentry.Test.setup_sentry(dedup_events: false)
+    Sentry.Context.clear_all()
+    Application.put_env(:frontman_server, :mcp_server, :invalid)
+    handler = {__MODULE__, make_ref()}
+    owner = self()
+
+    :ok =
+      :telemetry.attach(
+        handler,
+        [:phoenix, :endpoint, :start],
+        fn _, _, %{conn: conn}, _ ->
+          if conn.request_path == "/mcp" and conn.query_string == "private-marker=query",
+            do: Sentry.Test.allow_sentry_reports(owner, self())
+        end,
+        nil
+      )
+
+    on_exit(fn -> :telemetry.detach(handler) end)
+
+    response =
+      wire(
+        :post,
+        "/mcp?private-marker=query",
+        [{"authorization", "Bearer private-marker"}, {"origin", "https://resource.example"}],
+        "private-marker"
+      )
+
+    assert response.status == 500
+    [event] = Sentry.Test.pop_sentry_reports()
+    assert event.request.method == "POST"
+    assert is_binary(event.request.env["REQUEST_ID"])
+    refute inspect(event) =~ "private-marker"
   end
 
   defp wire(method, path, headers, body) do
