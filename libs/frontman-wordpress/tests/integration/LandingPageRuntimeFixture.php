@@ -10,6 +10,30 @@ switch ( $_SERVER['HTTP_X_FRONTMAN_SEO_TEST'] ?? '' ) {
 			return $data;
 		} );
 		break;
+	case 'preview-race-selection':
+		add_action( 'pre_get_posts', static function( WP_Query $query ): void {
+			static $inserted = false;
+			$id = (int) $query->get( 'post_parent' );
+			if ( ! $inserted && $id && 'revision' === $query->get( 'post_type' ) && 1 === $query->get( 'posts_per_page' ) ) {
+				$inserted = true;
+				$data = get_post( $id, ARRAY_A );
+				$data['post_content'] = 'Concurrent editor content';
+				_wp_put_post_revision( $data, true );
+			}
+		} );
+		break;
+	case 'preview-race-insert':
+		add_filter( 'wp_insert_post_data', static function( array $data ): array {
+			static $inserted = false;
+			if ( ! $inserted && 'revision' === $data['post_type'] && $data['post_parent'] ) {
+				$inserted = true;
+				$editor = get_post( $data['post_parent'], ARRAY_A );
+				$editor['post_content'] = 'Concurrent editor content';
+				_wp_put_post_revision( $editor, true );
+			}
+			return $data;
+		} );
+		break;
 	case 'reject-template-metadata':
 		add_filter( 'update_post_metadata', static function( $check, $id, $key ) {
 			return '_wp_page_template' === $key ? false : $check;
