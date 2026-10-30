@@ -1,6 +1,6 @@
 <?php
 
-require __DIR__ . '/NativeWordPress.php';
+define( 'ABSPATH', __DIR__ );
 require_once __DIR__ . '/../includes/class-frontman-tools.php';
 require_once __DIR__ . '/../tools/class-tool-posts.php';
 require_once __DIR__ . '/../tools/class-tool-users.php';
@@ -19,6 +19,8 @@ function sanitize_key( $v ) { return $v; }
 function sanitize_text_field( $v ) { return $v; }
 function wp_check_invalid_utf8( $v ) { return $v; }
 function wp_kses_post( $v ) { return $v; }
+function absint( $v ) { return abs( (int) $v ); }
+function wp_json_encode( $v ) { return json_encode( $v ); }
 function current_user_can( $cap, ...$args ) { throw new RuntimeException( 'Invalid input reached permission checks' ); }
 function get_post_type_object( $type ) { throw new RuntimeException( 'Invalid author reached post-type lookup' ); }
 class WP_Post extends stdClass {}

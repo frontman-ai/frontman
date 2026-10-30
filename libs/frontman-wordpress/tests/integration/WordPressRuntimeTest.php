@@ -701,6 +701,10 @@ foreach ( [ [ 'id' => (string) $target, 'title' => 'Bad type' ], [ 'id' => $targ
 	$result = frontman_runtime_tool( $cookie, $nonce, [ 'name' => 'wp_update_seo', 'arguments' => $arguments ] );
 	frontman_runtime_assert( true === $result['body']['isError'], 'Invalid SEO arguments were accepted.' );
 }
+foreach ( [ [ 'wp_read_seo', [ 'id' => (string) $target ] ], [ 'wp_read_seo', [ 'id' => 0 ] ], [ 'wp_update_seo', [ 'id' => $target ] ], [ 'wp_update_seo', [ 'id' => $target, 'title' => null ] ], [ 'wp_update_seo', [ 'id' => $target, 'focus_keyphrase' => 123 ] ] ] as [ $name, $arguments ] ) {
+	$result = frontman_runtime_tool( $cookie, $nonce, [ 'name' => $name, 'arguments' => $arguments ] );
+	frontman_runtime_assert( true === $result['body']['isError'], 'Invalid SEO input was accepted: ' . wp_json_encode( $arguments ) );
+}
 $malformed = frontman_runtime_tool( $cookie, $nonce, [], '{"name":"wp_update_seo","arguments":{"id":' . $target . ',"title":"bad' . "\xC3\x28" . '"}}' );
 frontman_runtime_assert( true === $malformed['body']['isError'], 'Malformed SEO JSON was accepted.' );
 frontman_runtime_assert( $unchanged === $snapshot( $target ), 'Rejected requests changed SQL state.' );

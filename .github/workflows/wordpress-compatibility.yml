@@ -8,7 +8,6 @@ on:
       - "libs/frontman-astro-browser/**"
       - "libs/frontman-wordpress/**"
       - "scripts/build-wordpress-dependencies.sh"
-      - "scripts/test-wordpress-isolated.sh"
       - "scripts/wordpress-*.php"
       - "scripts/test-wordpress-plugin-runtime.sh"
       - "scripts/test-wordpress-301-runtime.sh"
@@ -28,7 +27,6 @@ on:
       - "libs/frontman-astro-browser/**"
       - "libs/frontman-wordpress/**"
       - "scripts/build-wordpress-dependencies.sh"
-      - "scripts/test-wordpress-isolated.sh"
       - "scripts/wordpress-*.php"
       - "scripts/test-wordpress-plugin-runtime.sh"
       - "scripts/test-wordpress-301-runtime.sh"
@@ -95,15 +93,9 @@ jobs:
         run: make test-wordpress-301-runtime
 
       - name: Run isolated PHP tests
-        env:
-          WORDPRESS_VERSION: ${{ matrix.wordpress }}
         run: |
-          bash scripts/test-wordpress-isolated.sh sh -ec '
-            docker run --rm \
-              -v "$PWD:/workspace:ro" \
-              -v "$FRONTMAN_WORDPRESS_SOURCE:/wordpress:ro" \
-              -e FRONTMAN_WORDPRESS_SOURCE=/wordpress \
-              -w /workspace \
-              "php:${{ matrix.php }}-cli" \
-              sh -ec '"'"'for test in libs/frontman-wordpress/tests/*Test.php; do php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php "$test"; done; php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/SentryTest.php --site-first'"'"'
-          '
+          docker run --rm \
+            -v "$PWD:/workspace:ro" \
+            -w /workspace \
+            "php:${{ matrix.php }}-cli" \
+            sh -ec 'for test in libs/frontman-wordpress/tests/*Test.php; do php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php "$test"; done; php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/SentryTest.php --site-first'
