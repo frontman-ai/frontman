@@ -114,8 +114,6 @@ done
 "$RUNTIME" exec "$WORDPRESS" php -r '$db = @new mysqli(getenv("WORDPRESS_DB_HOST"), getenv("WORDPRESS_DB_USER"), getenv("WORDPRESS_DB_PASSWORD"), getenv("WORDPRESS_DB_NAME")); if ($db->connect_errno) { throw new RuntimeException("Database did not become ready."); }'
 "$RUNTIME" exec "$WORDPRESS" php -r '$config = file_get_contents("/var/www/html/wp-config-sample.php"); $config = str_replace(["<?php", "database_name_here", "username_here", "password_here", "localhost"], ["<?php\ndefine(\"WP_ENVIRONMENT_TYPE\", \"local\");", getenv("WORDPRESS_DB_NAME"), getenv("WORDPRESS_DB_USER"), getenv("WORDPRESS_DB_PASSWORD"), getenv("WORDPRESS_DB_HOST")], $config); file_put_contents("/var/www/html/wp-config.php", $config);'
 "$RUNTIME" cp "$BUILD_DIR/megamenu/megamenu" "$WORDPRESS:/var/www/html/wp-content/plugins/megamenu"
-# Exercise the incident's Astra release in the normal runtime suite, not only
-# the optional browser fixture (which uses a newer release).
 curl -fsSL 'https://downloads.wordpress.org/theme/astra.4.7.1.zip' -o "$BUILD_DIR/astra-runtime.zip"
 printf '%s  %s\n' '55f2d01b78c3b9ac83417145308b11c254d7fd43b9b414ea95f9eea3fcd5bfff' "$BUILD_DIR/astra-runtime.zip" | sha256sum --check --status
 unzip -q "$BUILD_DIR/astra-runtime.zip" -d "$BUILD_DIR/astra-runtime"

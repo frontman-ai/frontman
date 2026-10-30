@@ -1,7 +1,5 @@
 <?php
 
-// Simulate a front-end integration which initialized a manager before the
-// Frontman router handles the request, without Astra's admin-only bootstrap.
 add_action( 'wp_loaded', static function(): void {
 	$mode = $_SERVER['HTTP_X_FRONTMAN_SEO_TEST'] ?? '';
 	if ( 'customizer-own-manager' === $mode ) {
@@ -25,7 +23,6 @@ add_action( 'wp_loaded', static function(): void {
 	}
 } );
 
-// Register real Customizer settings on each HTTP request while this case runs.
 add_action( 'customize_register', static function( $manager ): void {
 	if ( ! get_option( 'frontman_customizer_runtime_fixture' ) ) {
 		return;

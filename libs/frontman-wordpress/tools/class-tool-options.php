@@ -726,7 +726,6 @@ class Frontman_Tool_Options {
 		if ( ! $this->is_astra_theme() || ! class_exists( 'Astra_Customizer' ) ) {
 			return;
 		}
-		// Astra generates this cache during its native registration callback.
 		$cache = get_option( 'astra_partials_config_cache', [] );
 		$entries = is_array( $cache ) && isset( $cache['settings'] ) && is_array( $cache['settings'] ) ? $cache['settings'] : [];
 		$ids = [];
@@ -773,7 +772,6 @@ class Frontman_Tool_Options {
 		global $wpdb;
 		$data = $setting->id_data();
 		$name = 'option' === $setting->type ? $data['base'] : 'theme_mods_' . $this->active_stylesheet();
-		// Bypass option/preview filters and the Customizer's cached aggregate.
 		$row = $wpdb->get_row( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $name ) );
 		if ( '' !== $wpdb->last_error ) {
 			throw new Frontman_Tool_Error( 'Could not read persisted Customizer state. Do not retry a save automatically.' );
@@ -861,8 +859,6 @@ class Frontman_Tool_Options {
 	}
 
 	private function save_customizer_setting( $manager, $setting, $value, string $stylesheet, array $before ): array {
-		// A null post value is treated as absent by the Customizer. Clear the
-		// proposed value even when validation or saving fails.
 		$manager->set_post_value( $setting->id, $value );
 		try {
 			$valid = $setting->validate( $value );
@@ -888,8 +884,6 @@ class Frontman_Tool_Options {
 				$expected = $filtered;
 				return $filtered;
 			};
-			// Preserve native theme-mod normalization, but never treat an option
-			// storage filter suppressing a write as a successful requested change.
 			if ( 'theme_mod' === $setting->type ) {
 				add_filter( $filter, $observe, PHP_INT_MAX );
 			}

@@ -1,6 +1,5 @@
 <?php
 
-// Each tool call uses a fresh HTTP request, matching the agent's runtime.
 $previous_theme = get_stylesheet();
 $original_options = get_option( 'astra-settings', false );
 $original_mods = get_option( 'theme_mods_astra', false );
@@ -27,7 +26,6 @@ try {
 	$preview_error = $call( 'wp_get_customizer_setting', [ 'id' => $id ], true, 'customizer-preview' );
 	frontman_runtime_assert( false !== stripos( $preview_error, 'preview' ), 'Preview managers are explicitly rejected' );
 
-	// Desktop and mobile are independent writes, not a transaction.
 	foreach ( [ $id, 'astra-settings[header-mobile-items]' ] as $layout_id ) {
 		$read = $call( 'wp_get_customizer_setting', [ 'id' => $layout_id ] );
 		frontman_runtime_assert( is_array( $read['value'] ) && isset( $read['value']['primary'] ), 'Native Astra defaults expose builder rows' );
