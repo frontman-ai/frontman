@@ -19,7 +19,6 @@ defmodule FrontmanNotifier.Database do
   end
 
   @doc "Reads result maps through a Postgrex connection or an Ecto SQL repository."
-  @spec query_maps!(pid() | module(), String.t(), list()) :: list(map())
   def query_maps!(conn, sql, params \\ [])
 
   def query_maps!(repo, sql, params) when is_atom(repo) and is_binary(sql) and is_list(params) do

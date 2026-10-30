@@ -86,12 +86,11 @@ defmodule FrontmanNotifier.TaskSummaries do
   end
 
   @doc "Loads unsent idle task summaries without delivering notifications."
-  @spec load_summaries(pid() | module(), pos_integer()) :: [{String.t(), map()}]
-  def load_summaries(conn, limit) when is_integer(limit) and limit > 0 do
+  def load_summaries(conn, limit, state \\ State) when is_integer(limit) and limit > 0 do
     tasks =
       conn
       |> load_candidates(limit * 5)
-      |> Enum.reject(fn task -> State.seen?(@namespace, task["id"]) end)
+      |> Enum.reject(fn task -> State.seen?(@namespace, task["id"], state) end)
       |> Enum.take(limit)
 
     details = load_details(conn, Enum.map(tasks, & &1["id"]))

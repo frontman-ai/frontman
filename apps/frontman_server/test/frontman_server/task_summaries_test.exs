@@ -1,5 +1,5 @@
 defmodule FrontmanServer.TaskSummariesTest do
-  use FrontmanServer.DataCase, async: false
+  use FrontmanServer.DataCase, async: true
 
   import FrontmanServer.BillingFixtures
   import FrontmanServer.InteractionCase.Helpers
@@ -12,16 +12,18 @@ defmodule FrontmanServer.TaskSummariesTest do
   @moduletag :tmp_dir
 
   setup %{tmp_dir: tmp_dir} do
-    start_supervised!({State, state_dir: tmp_dir})
+    state = String.to_atom("task_summary_#{System.unique_integer([:positive])}")
+    start_supervised!({State, name: state, table: state, state_dir: tmp_dir})
     scope = Accounts.user_scope_fixture()
     task = Tasks.task_fixture(scope)
     task = task |> Ecto.Changeset.change(short_desc: "Fix the hero button") |> Repo.update!()
-    %{scope: scope, task: task}
+    %{scope: scope, task: task, state: state}
   end
 
   test "loads subscribed users with accurate stats, intent, tools, and issue details", %{
     scope: scope,
-    task: task
+    task: task,
+    state: state
   } do
     subscription_for_scope_fixture(scope, %{status: "active", interval: :monthly})
 
@@ -41,7 +43,7 @@ defmodule FrontmanServer.TaskSummariesTest do
       tool_result("call_1", "edit_file", result, is_error: true)
     )
 
-    embed = summary(task)
+    embed = summary(task, state)
 
     assert embed.title == "Task summary: Fix the hero button"
     assert embed.description =~ "Make the hero button more prominent"
@@ -56,9 +58,12 @@ defmodule FrontmanServer.TaskSummariesTest do
     assert field_value(embed, "Tools") == "edit_file"
   end
 
-  test "keeps users without billing records and reports five free messages", %{task: task} do
+  test "keeps users without billing records and reports five free messages", %{
+    task: task,
+    state: state
+  } do
     persist(task, :agent_completed, agent_completed())
-    embed = summary(task)
+    embed = summary(task, state)
 
     assert field_value(embed, "Billing") == "Free · 5 of 5 messages left"
     assert field_value(embed, "Stats") =~ "1 interactions"
@@ -67,28 +72,29 @@ defmodule FrontmanServer.TaskSummariesTest do
 
   test "keeps billing customers without subscriptions or allowance records", %{
     scope: scope,
-    task: task
+    task: task,
+    state: state
   } do
     customer_for_scope_fixture(scope)
     persist(task, :agent_completed, agent_completed())
 
-    assert field_value(summary(task), "Billing") == "Free · 5 of 5 messages left"
+    assert field_value(summary(task, state), "Billing") == "Free · 5 of 5 messages left"
   end
 
-  test "loads partial and exhausted lifetime allowances without subscriptions" do
+  test "loads partial and exhausted lifetime allowances without subscriptions", %{state: state} do
     for {used, remaining} <- [{2, 3}, {5, 0}] do
       scope = Accounts.user_scope_fixture()
       task = Tasks.task_fixture(scope)
       run_allowance_fixture(scope, used)
       persist(task, :agent_completed, agent_completed())
 
-      embed = summary(task)
+      embed = summary(task, state)
       assert field_value(embed, "Billing") == "Free · #{remaining} of 5 messages left"
       assert field_value(embed, "Stats") =~ "1 interactions"
     end
   end
 
-  test "preserves stored subscription statuses and optional intervals" do
+  test "preserves stored subscription statuses and optional intervals", %{state: state} do
     for {status, interval, expected} <- [
           {"trialing", :yearly, "trialing · yearly"},
           {"past_due", :yearly, "past_due · yearly"},
@@ -101,27 +107,31 @@ defmodule FrontmanServer.TaskSummariesTest do
       subscription_for_scope_fixture(scope, %{status: status, interval: interval})
       persist(task, :agent_completed, agent_completed())
 
-      assert field_value(summary(task), "Billing") == expected
+      assert field_value(summary(task, state), "Billing") == expected
     end
   end
 
-  test "excludes tasks with recent interactions", %{task: task} do
+  test "excludes tasks with recent interactions", %{task: task, state: state} do
     persist(task, :agent_completed, agent_completed(), DateTime.utc_now(:second))
 
-    refute Enum.any?(TaskSummaries.load_summaries(Repo, 100), fn {id, _embed} ->
+    refute Enum.any?(TaskSummaries.load_summaries(Repo, 100, state), fn {id, _embed} ->
              id == task.id
            end)
   end
 
-  test "excludes notified tasks before applying the batch limit", %{scope: scope, task: seen} do
+  test "excludes notified tasks before applying the batch limit", %{
+    scope: scope,
+    task: seen,
+    state: state
+  } do
     pending = Tasks.task_fixture(scope)
     persist(seen, :agent_completed, agent_completed())
     persist(pending, :agent_completed, agent_completed())
-    :ok = State.mark_seen(:task_summary, seen.id)
+    :ok = State.mark_seen(:task_summary, seen.id, state)
 
     pending_id = pending.id
-    assert [{^pending_id, _embed}] = TaskSummaries.load_summaries(Repo, 1)
-    refute State.seen?(:task_summary, pending_id)
+    assert [{^pending_id, _embed}] = TaskSummaries.load_summaries(Repo, 1, state)
+    refute State.seen?(:task_summary, pending_id, state)
   end
 
   defp persist(task, type, data, inserted_at \\ DateTime.add(DateTime.utc_now(:second), -7_200)) do
@@ -135,8 +145,8 @@ defmodule FrontmanServer.TaskSummariesTest do
     |> Repo.insert!()
   end
 
-  defp summary(task) do
-    summaries = TaskSummaries.load_summaries(Repo, 100)
+  defp summary(task, state) do
+    summaries = TaskSummaries.load_summaries(Repo, 100, state)
     task_id = task.id
     assert [{^task_id, embed}] = Enum.filter(summaries, fn {id, _embed} -> id == task_id end)
     embed
