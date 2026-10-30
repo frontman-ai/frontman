@@ -4,15 +4,17 @@
 # Licensed under the AGPL-3.0 — see LICENSE for details.
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule FrontmanServerWeb.McpController do
+defmodule FrontmanServerWeb.McpServerController do
   use FrontmanServerWeb, :controller
 
   def metadata(conn, _params) do
-    case FrontmanServerWeb.McpConfig.fetch() do
-      {:ok, resource, issuer} ->
+    config = Application.fetch_env!(:frontman_server, :mcp_server)
+
+    case {config[:resource], config[:issuer]} do
+      {resource, issuer} when is_binary(resource) and is_binary(issuer) ->
         json(conn, %{resource: resource, authorization_servers: [issuer]})
 
-      {:error, :invalid_configuration} ->
+      _ ->
         send_resp(conn, 503, "")
     end
   end

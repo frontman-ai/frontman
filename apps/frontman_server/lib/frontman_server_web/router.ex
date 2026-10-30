@@ -31,7 +31,7 @@ defmodule FrontmanServerWeb.Router do
   end
 
   scope "/", FrontmanServerWeb do
-    get("/.well-known/oauth-protected-resource/mcp", McpController, :metadata)
+    get("/.well-known/oauth-protected-resource/mcp", McpServerController, :metadata)
   end
 
   scope "/", FrontmanServerWeb do

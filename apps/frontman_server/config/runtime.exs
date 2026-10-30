@@ -51,7 +51,7 @@ if config_env() in [:dev, :prod] do
     client_id: env!("WORKOS_CLIENT_ID", :string!)
 end
 
-config :frontman_server, :mcp_discovery,
+config :frontman_server, :mcp_server,
   resource: env!("MCP_RESOURCE", :string?, nil),
   issuer: env!("MCP_AUTHORIZATION_SERVER_ISSUER", :string?, nil)
 
