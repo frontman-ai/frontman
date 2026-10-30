@@ -9,7 +9,6 @@ function did_action( string $hook ): int { return 1; }
 function sanitize_meta() { throw new RuntimeException( 'Unavailable handler reached metadata.' ); }
 $wp_version = '7.0.2';
 $seo   = new Frontman_Tool_Seo();
-$tools = new Frontman_Tools();
 foreach ( [ [], [ 'wordpress-seo/wp-seo.php' ], [ 'wordpress-seo/wp-seo.php' ] ] as $case => $active_plugins ) {
 	$expected = 'absent or not loaded';
 	if ( 2 === $case ) {
@@ -58,42 +57,4 @@ function has_filter( string $hook, $callback ) { return 10; }
 if ( null !== Frontman_Tool_Seo::unavailable_reason() ) {
 	throw new RuntimeException( 'A valid runtime was rejected for Yoast ' . WPSEO_VERSION );
 }
-$seo->register( $tools );
-if ( 1 !== $tools->get( 'wp_read_seo' )->input_schema['properties']['id']['minimum']
-	|| [ 'id' ] !== $tools->get( 'wp_update_seo' )->input_schema['required']
-	|| false === strpos( $tools->get( 'wp_update_seo' )->description, 'Provide at least one of title, description, or focus_keyphrase.' ) ) {
-	throw new RuntimeException( 'SEO schemas do not match runtime requirements.' );
-}
-$valid = [ 'id' => 7, 'title' => "  Café %%title%% \\ \"quoted\"  ", 'description' => '' ];
-if ( $valid !== $tools->sanitize_input( 'wp_update_seo', $valid ) ) {
-	throw new RuntimeException( 'Valid raw SEO input changed before the handler.' );
-}
-$focus = [ 'id' => 7, 'focus_keyphrase' => "  Café \\ \"quoted\"  " ];
-if ( $focus !== $tools->sanitize_input( 'wp_update_seo', $focus ) ) {
-	throw new RuntimeException( 'Valid raw focus input changed before the handler.' );
-}
-
-$invalid = [
-	[ 'wp_read_seo', [ 'id' => '7' ] ],
-	[ 'wp_read_seo', [ 'id' => 0 ] ],
-	[ 'wp_update_seo', [ 'id' => 7 ] ],
-	[ 'wp_update_seo', [ 'id' => 7, 'title' => null ] ],
-	[ 'wp_update_seo', [ 'id' => 7, 'focus_keyphrase' => 123 ] ],
-	[ 'wp_update_seo', [ 'id' => 7, 'focus_keyphrase' => "bad\xC3\x28" ] ],
-	[ 'wp_update_seo', [ 'id' => 7, 'title' => "bad\xC3\x28" ] ],
-	[ 'wp_update_seo', [ 'id' => 7, 'title' => 'safe', 'meta_key' => '_danger' ] ],
-];
-foreach ( $invalid as [ $name, $input ] ) {
-	try {
-		$tools->sanitize_input( $name, $input );
-		throw new RuntimeException( 'Invalid raw SEO input was accepted.' );
-	} catch ( Frontman_Tool_Error $error ) {
-		continue;
-	}
-}
-try {
-	$seo->read_seo( [ 'id' => '7' ] );
-	throw new RuntimeException( 'Direct SEO input was coerced.' );
-} catch ( Frontman_Tool_Error $error ) {
-	fwrite( STDOUT, "OK (SEO raw validation, schemas and compatibility guards)\n" );
-}
+fwrite( STDOUT, "OK (SEO compatibility guards)\n" );

@@ -165,6 +165,20 @@ foreach ( [ null, 0, 1, 'true', 'false', [], (object) [] ] as $invalid_path_opt_
 	frontman_runtime_assert( true === $invalid_location['body']['isError'] && 'include_installation_paths must be a boolean.' === $invalid_location['body']['content'][0]['text'], 'HTTP path opt-in must reject coerced booleans and identify the field.' );
 }
 
+$media_definition = Frontman_Tools::instance()->get( 'wp_upload_media' );
+frontman_runtime_assert( null !== $media_definition, 'wp_upload_media is registered.' );
+frontman_runtime_assert( isset( $media_definition->input_schema['properties']['image_ref'] ), 'wp_upload_media schema exposes image_ref.' );
+frontman_runtime_assert( isset( $media_definition->input_schema['properties']['content'] ), 'wp_upload_media schema accepts resolved content.' );
+$media_input = [
+	'image_ref' => 'attachment://att_abc/caf%C3%A9.png',
+	'content' => 'abc<raw>base64',
+	'filename' => 'raw.png',
+	'mime_type' => 'image/png',
+];
+$media_sanitized = Frontman_Tools::instance()->sanitize_input( 'wp_upload_media', $media_input );
+frontman_runtime_same( $media_input['image_ref'], $media_sanitized['image_ref'], 'Media sanitizer preserves image_ref URI bytes.' );
+frontman_runtime_same( $media_input['content'], $media_sanitized['content'], 'Media sanitizer preserves raw content bytes.' );
+
 $media_image = imagecreatetruecolor( 320, 240 );
 ob_start();
 imagepng( $media_image );
@@ -224,6 +238,29 @@ try {
 		unlink( $media_mu );
 	}
 }
+
+$public_registry = Frontman_Tools::instance();
+$public_valid = [ 'name' => 'llms.txt', 'content' => "  # Café\r\n[Docs](https://example.test/?a=1&b=2)\t \\ \"quoted\"\r\n", 'expected_revision' => str_repeat( 'a', 64 ), 'confirm' => true ];
+frontman_runtime_assert( $public_valid === $public_registry->sanitize_input( 'wp_write_public_file', $public_valid ), 'Raw public-file bytes changed in registry.' );
+$reject_public_input = static function ( string $tool, array $input ) use ( $public_registry ): void {
+	try {
+		$public_registry->sanitize_input( $tool, $input );
+	} catch ( Frontman_Tool_Error $error ) {
+		return;
+	}
+	throw new RuntimeException( 'Invalid public-file input reached the handler: ' . $tool );
+};
+foreach ( [ 'name' => [ '../robots.txt', '/llms.txt', 'LLMS.txt', 'https://public.example.test/llms.txt', null, 7 ], 'content' => [ null, false, [], "bad\xC3\x28", "bad\0", "bad\x01", str_repeat( 'x', 131073 ) ], 'confirm' => [ false, 'true', 1 ], 'expected_revision' => [ null, 7, '', str_repeat( 'A', 64 ) ] ] as $key => $values ) {
+	foreach ( $values as $value ) {
+		$reject_public_input( 'wp_write_public_file', array_merge( $public_valid, [ $key => $value ] ) );
+		if ( 'name' === $key ) { $reject_public_input( 'wp_read_public_file', [ 'name' => $value ] ); }
+	}
+	$missing = $public_valid;
+	unset( $missing[ $key ] );
+	$reject_public_input( 'wp_write_public_file', $missing );
+}
+$reject_public_input( 'wp_write_public_file', $public_valid + [ 'root' => '/tmp' ] );
+$reject_public_input( 'wp_read_public_file', [ 'name' => 'llms.txt', 'extra' => true ] );
 
 $public_mu = WPMU_PLUGIN_DIR . '/frontman-public-runtime.php';
 frontman_runtime_assert( ! file_exists( $public_mu ), 'Public runtime seam already exists.' );
@@ -665,6 +702,39 @@ $wp_version = $original_version;
 $wp_actions['wpseo_loaded'] = $loaded;
 $wp_meta_keys = $registered;
 frontman_runtime_assert( null === ( new Frontman_Tool_Templates() )->get_site_info( [] )['seo_unavailable_reason'], 'Supported runtime was diagnosed as unavailable.' );
+$seo_tools = new Frontman_Tools();
+$seo_handler = new Frontman_Tool_Seo();
+$seo_handler->register( $seo_tools );
+frontman_runtime_assert( 1 === $seo_tools->get( 'wp_read_seo' )->input_schema['properties']['id']['minimum']
+	&& [ 'id' ] === $seo_tools->get( 'wp_update_seo' )->input_schema['required']
+	&& false !== strpos( $seo_tools->get( 'wp_update_seo' )->description, 'Provide at least one of title, description, or focus_keyphrase.' ), 'SEO schemas do not match runtime requirements.' );
+foreach ( [
+	[ 'id' => 7, 'title' => "  Café %%title%% \\ \"quoted\"  ", 'description' => '' ],
+	[ 'id' => 7, 'focus_keyphrase' => "  Café \\ \"quoted\"  " ],
+] as $raw_seo ) {
+	frontman_runtime_assert( $raw_seo === $seo_tools->sanitize_input( 'wp_update_seo', $raw_seo ), 'Registry changed raw SEO input bytes.' );
+}
+foreach ( [
+	[ 'wp_read_seo', [ 'id' => '7' ] ],
+	[ 'wp_read_seo', [ 'id' => 0 ] ],
+	[ 'wp_update_seo', [ 'id' => 7 ] ],
+	[ 'wp_update_seo', [ 'id' => 7, 'title' => null ] ],
+	[ 'wp_update_seo', [ 'id' => 7, 'focus_keyphrase' => 123 ] ],
+	[ 'wp_update_seo', [ 'id' => 7, 'focus_keyphrase' => "bad\xC3\x28" ] ],
+	[ 'wp_update_seo', [ 'id' => 7, 'title' => "bad\xC3\x28" ] ],
+	[ 'wp_update_seo', [ 'id' => 7, 'title' => 'safe', 'meta_key' => '_danger' ] ],
+] as [ $name, $input ] ) {
+	try {
+		$seo_tools->sanitize_input( $name, $input );
+		throw new RuntimeException( 'Invalid raw SEO input was accepted: ' . $name );
+	} catch ( Frontman_Tool_Error $error ) {}
+}
+try {
+	$seo_handler->read_seo( [ 'id' => '7' ] );
+	throw new RuntimeException( 'Direct SEO input was coerced.' );
+} catch ( Frontman_Tool_Error $error ) {
+	frontman_runtime_assert( 'id must be a positive integer.' === $error->getMessage(), 'Direct SEO input reached a later guard.' );
+}
 $runtime_permalink = get_option( 'permalink_structure' );
 $wp_rewrite->set_permalink_structure( '' );
 $nonce = $slug_nonce;

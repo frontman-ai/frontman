@@ -81,10 +81,8 @@ $tools = new Frontman_Tools();
 $assert = static function ( bool $condition, string $message ): void {
 	if ( ! $condition ) { throw new RuntimeException( $message ); }
 };
-$call = static function ( string $name, array $input, bool $error = false, bool $invalid = false ) use ( $tools, $assert ): array {
+$call = static function ( string $name, array $input, bool $error = false ) use ( $tools, $assert ): array {
 	try {
-		$input = $tools->sanitize_input( $name, $input );
-		$assert( ! $invalid, 'Invalid raw input reached the handler.' );
 		$result = $tools->call( $name, $input );
 	} catch ( Frontman_Tool_Error $failure ) {
 		$assert( $error, $failure->getMessage() );
@@ -110,18 +108,6 @@ try {
 		$assert( 0644 === ( fileperms( ABSPATH . $name ) & 0777 ) && ! $read( $name )['previous']['exists'], 'New-file mode or absent backup incorrect.' );
 		unlink( ABSPATH . $name );
 	}
-	$assert( $valid === $tools->sanitize_input( 'wp_write_public_file', $valid ), 'Raw bytes changed in registry.' );
-	foreach ( [ 'name' => [ '../robots.txt', '/llms.txt', 'LLMS.txt', 'https://public.example.test/llms.txt', null, 7 ], 'content' => [ null, false, [], "bad\xC3\x28", "bad\0", "bad\x01", str_repeat( 'x', 131073 ) ], 'confirm' => [ false, 'true', 1 ], 'expected_revision' => [ null, 7, '', str_repeat( 'A', 64 ) ] ] as $key => $values ) {
-		foreach ( $values as $value ) {
-			$call( 'wp_write_public_file', array_merge( $valid, [ $key => $value ] ), true, true );
-			if ( 'name' === $key ) { $call( 'wp_read_public_file', [ 'name' => $value ], true, true ); }
-		}
-		$missing = $valid;
-		unset( $missing[ $key ] );
-		$call( 'wp_write_public_file', $missing, true, true );
-	}
-	$call( 'wp_write_public_file', $valid + [ 'root' => '/tmp' ], true, true );
-	$call( 'wp_read_public_file', [ 'name' => 'llms.txt', 'extra' => true ], true, true );
 	$absent = $read();
 	file_put_contents( ABSPATH . 'llms.txt', '' );
 	$empty = $read();
