@@ -664,7 +664,7 @@ jobs:
         env:
           MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 4
         run: |
-          mix deps.clean --unlock --unused
+          mix deps.unlock --check-unused
           mix deps.get
 
       - name: Clean stale test databases
@@ -753,11 +753,8 @@ jobs:
           key: ${{ runner.os }}-build-dev-v2-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/mix.lock', 'apps/swarm_ai/lib/**') }}
           restore-keys: ${{ runner.os }}-build-dev-v2-
 
-      - name: Install dependencies
-        working-directory: apps/frontman_server
-        run: |
-          mix deps.clean --unlock --unused
-          mix deps.get
+      - name: Check dependencies and security
+        run: make -C apps/frontman_server security
 
       - name: Compile dev with warnings as errors
         working-directory: apps/frontman_server
