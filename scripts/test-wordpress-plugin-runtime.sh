@@ -118,6 +118,10 @@ done
 "$RUNTIME" exec "$WORDPRESS" php -r '$config = file_get_contents("/var/www/html/wp-config-sample.php"); $config = str_replace(["<?php", "database_name_here", "username_here", "password_here", "localhost"], ["<?php\ndefine(\"WP_ENVIRONMENT_TYPE\", \"local\");", getenv("WORDPRESS_DB_NAME"), getenv("WORDPRESS_DB_USER"), getenv("WORDPRESS_DB_PASSWORD"), getenv("WORDPRESS_DB_HOST")], $config); file_put_contents("/var/www/html/wp-config.php", $config);'
 "$RUNTIME" cp "$BUILD_DIR/megamenu/megamenu" "$WORDPRESS:/var/www/html/wp-content/plugins/megamenu"
 "$RUNTIME" cp "$BUILD_DIR/elementor/elementor" "$WORDPRESS:/var/www/html/wp-content/plugins/elementor"
+curl -fsSL 'https://downloads.wordpress.org/theme/astra.4.7.1.zip' -o "$BUILD_DIR/astra-runtime.zip"
+printf '%s  %s\n' '55f2d01b78c3b9ac83417145308b11c254d7fd43b9b414ea95f9eea3fcd5bfff' "$BUILD_DIR/astra-runtime.zip" | sha256sum --check --status
+unzip -q "$BUILD_DIR/astra-runtime.zip" -d "$BUILD_DIR/astra-runtime"
+"$RUNTIME" cp "$BUILD_DIR/astra-runtime/astra" "$WORDPRESS:/var/www/html/wp-content/themes/astra"
 "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/plugins/frontman-agentic-ai-editor
 "$RUNTIME" cp "$ROOT_DIR/dist/frontman-wordpress-package/github/frontman-agentic-ai-editor/." "$WORDPRESS:/var/www/html/wp-content/plugins/frontman-agentic-ai-editor/"
 "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/mu-plugins
@@ -136,6 +140,8 @@ done
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PostAuthorsRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-authors-runtime.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PostAuthorsRuntimeTest.php" "$WORDPRESS:/tmp/PostAuthorsRuntimeTest.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/LandingPageRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-landing-page-runtime.php"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/CustomizerRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-customizer-runtime.php"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/CustomizerRuntimeTest.php" "$WORDPRESS:/tmp/CustomizerRuntimeTest.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PostContentRuntimeTest.php" "$WORDPRESS:/tmp/PostContentRuntimeTest.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/TemplateCreationRuntimeTest.php" "$WORDPRESS:/tmp/TemplateCreationRuntimeTest.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PageTemplateRuntimeTest.php" "$WORDPRESS:/tmp/PageTemplateRuntimeTest.php"
@@ -175,6 +181,7 @@ fi
 printf '%s\n' "$TEST_OUTPUT"
 if [[ "$TEST_STATUS" -ne 0 || "$TEST_OUTPUT" != *"OK (WordPress ${WORDPRESS_VERSION}, PHP "* ]]; then
   printf 'WordPress runtime tests did not report successful completion.\n' >&2
+  "$RUNTIME" logs "$WORDPRESS" >&2 || true
   exit 1
 fi
 
@@ -214,6 +221,7 @@ if [[ "$FIXTURE" == astra ]]; then
   curl -fsSL 'https://downloads.wordpress.org/theme/astra.4.12.3.zip' -o "$BUILD_DIR/astra.zip"
   printf '%s  %s\n' '18b0b13f23b7ea793235b3ef8e9c62a032cff81646fca562aed2db2a83945a12' "$BUILD_DIR/astra.zip" | sha256sum --check --status
   unzip -q "$BUILD_DIR/astra.zip" -d "$BUILD_DIR/astra"
+  "$RUNTIME" exec "$WORDPRESS" rm -rf /var/www/html/wp-content/themes/astra
   "$RUNTIME" cp "$BUILD_DIR/astra/astra" "$WORDPRESS:/var/www/html/wp-content/themes/astra"
   "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/AstraFixture.php" "$WORDPRESS:/tmp/AstraFixture.php"
   "$RUNTIME" exec -e FIXTURE_URL="http://127.0.0.1:$FIXTURE_PORT" "$WORDPRESS" php /tmp/AstraFixture.php setup
