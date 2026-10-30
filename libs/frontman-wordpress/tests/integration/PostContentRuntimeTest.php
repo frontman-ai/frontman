@@ -132,4 +132,64 @@ $reject( 'wp_update_post', $edit, 'exactly once' );
 $edit['oldText'] = 'aaa';
 $deleted = $call( 'wp_update_post', $edit );
 frontman_runtime_same( '', $deleted['after']['content'], 'Empty newText deletes the unique fragment' );
+
+$published = $call( 'wp_create_post', [ 'title' => 'Preview page', 'content' => '<p>Public original</p>', 'post_type' => 'page', 'status' => 'publish' ] );
+$id = $published['id'];
+$proposed = '<!-- wp:html --><p>Private proposed 日本語 \\path</p>' . $script . '<!-- /wp:html -->';
+$definition = Frontman_Tools::instance()->get( 'wp_save_post_preview' );
+frontman_runtime_same( 'read-write', $definition->access, 'Preview requires write access' );
+$preview = $call( 'wp_save_post_preview', [ 'id' => $id, 'content' => $proposed ] );
+frontman_runtime_same( $id, $preview['parent_id'], 'Preview identifies original page' );
+frontman_runtime_same( $proposed, get_post( $preview['autosave_id'] )->post_content, 'Autosave retains proposed bytes' );
+frontman_runtime_same( '<p>Public original</p>', $call( 'wp_read_post', [ 'id' => $id ] )['content'], 'Published parent remains unchanged' );
+$path = wp_make_link_relative( $preview['preview_url'] );
+$authenticated = frontman_runtime_http( 'GET', $path, $cookie );
+frontman_runtime_same( 200, $authenticated['status'], 'Authenticated preview renders' );
+frontman_runtime_assert( false !== strpos( $authenticated['body'], 'Private proposed' ), 'Authenticated preview contains proposed content' );
+$anonymous = frontman_runtime_http( 'GET', $path );
+frontman_runtime_assert( false === strpos( $anonymous['body'], 'Private proposed' ), 'Anonymous preview does not expose proposed content' );
+$public = frontman_runtime_http( 'GET', wp_make_link_relative( $published['permalink'] ) );
+frontman_runtime_assert( false !== strpos( $public['body'], 'Public original' ) && false === strpos( $public['body'], 'Private proposed' ), 'Public page remains unchanged' );
+$again = $call( 'wp_save_post_preview', [ 'id' => $id, 'content' => $proposed ] );
+frontman_runtime_same( $preview['autosave_id'], $again['autosave_id'], 'Identical autosave is reused' );
+$reject( 'wp_save_post_preview', [ 'id' => $id, 'content' => '<p>Other proposal</p>' ], 'differing editor autosave' );
+foreach ( [ null, false, 123, [] ] as $invalid ) {
+	$reject( 'wp_save_post_preview', [ 'id' => $id, 'content' => $invalid ], 'must be a string' );
+}
+foreach ( [ null, false, 0, -1, '123', [] ] as $invalid ) {
+	$reject( 'wp_save_post_preview', [ 'id' => $invalid, 'content' => 'test' ], 'positive integer' );
+}
+$reject( 'wp_save_post_preview', [ 'id' => $id ], 'content is required' );
+$preview_draft = $call( 'wp_create_post', [ 'title' => 'Preview draft', 'content' => 'draft' ] );
+$reject( 'wp_save_post_preview', [ 'id' => $preview_draft['id'], 'content' => 'test' ], 'published' );
+update_post_meta( $id, '_elementor_edit_mode', 'builder' );
+$reject( 'wp_save_post_preview', [ 'id' => $id, 'content' => $proposed ], 'Builder-managed', 'elementor-content-guard' );
+delete_post_meta( $id, '_elementor_edit_mode' );
+$actor->add_cap( 'unfiltered_html', false );
+try {
+	$reject( 'wp_save_post_preview', [ 'id' => $id, 'content' => $proposed ], 'unfiltered_html' );
+} finally {
+	$actor->remove_cap( 'unfiltered_html' );
+}
+$actor->add_cap( 'edit_published_pages', false );
+try {
+	$reject( 'wp_save_post_preview', [ 'id' => $id, 'content' => $proposed ], 'permission' );
+} finally {
+	$actor->remove_cap( 'edit_published_pages' );
+}
+foreach ( [ 'preview-race-selection', 'preview-race-insert' ] as $fixture ) {
+	$race = $call( 'wp_create_post', [ 'title' => 'Preview race ' . $fixture, 'content' => 'Original', 'status' => 'publish' ] );
+	$message = $call( 'wp_save_post_preview', [ 'id' => $race['id'], 'content' => 'Proposed' ], true, $fixture );
+	frontman_runtime_assert( false !== strpos( $message, 'differing editor autosave' ), 'Concurrent autosave causes a conflict: ' . $message );
+	$revisions = get_posts( [
+		'post_type' => 'revision', 'post_status' => 'inherit', 'post_parent' => $race['id'],
+		'name' => $race['id'] . '-autosave-v1', 'posts_per_page' => -1,
+	] );
+	$contents = array_column( $revisions, 'post_content' );
+	frontman_runtime_assert( in_array( 'Concurrent editor content', $contents, true ), 'Concurrent editor autosave is preserved: ' . $fixture );
+	if ( 'preview-race-insert' === $fixture ) {
+		frontman_runtime_assert( in_array( 'Proposed', $contents, true ), 'Concurrent insert is reported without rollback' );
+	}
+	frontman_runtime_same( 'Original', get_post( $race['id'] )->post_content, 'Race does not change published parent' );
+}
 echo "OK (embed persistence, exact-fragment editing, permissions and partial saves)\n";

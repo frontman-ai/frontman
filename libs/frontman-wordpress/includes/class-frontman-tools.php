@@ -312,7 +312,7 @@ class Frontman_Tools {
 				if ( 'wp_update_post' === $tool_name && in_array( $field_name, [ 'mode', 'oldText', 'newText', 'expected_current_sha256' ], true ) ) {
 					return $value;
 				}
-				if ( in_array( $field_name, [ 'slug', 'content', 'template' ], true ) && in_array( $tool_name, [ 'wp_create_post', 'wp_update_post' ], true ) ) {
+				if ( in_array( $field_name, [ 'slug', 'content', 'template' ], true ) && in_array( $tool_name, [ 'wp_create_post', 'wp_update_post', 'wp_save_post_preview' ], true ) ) {
 					return $value;
 				}
 

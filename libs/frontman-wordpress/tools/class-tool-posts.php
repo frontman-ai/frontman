@@ -237,6 +237,24 @@ class Frontman_Tool_Posts {
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
+			'wp_save_post_preview',
+			'Saves proposed content as a native autosave for a published post or page without changing the published content. Open the returned preview_url while signed in as the same user. Existing differing autosaves are preserved and cause an error. After approval use wp_update_post to publish; preview URLs are temporary.',
+			[
+				'type' => 'object',
+				'additionalProperties' => false,
+				'properties' => [
+					'id' => [ 'type' => 'integer', 'minimum' => 1, 'description' => 'Published post or page ID.' ],
+					'content' => [ 'type' => 'string', 'description' => 'Complete proposed HTML or block markup.' ],
+				],
+				'required' => [ 'id', 'content' ],
+			],
+			[ $this, 'save_post_preview' ],
+			'read-write',
+			true,
+			true
+		) );
+
+		$tools->add( new Frontman_Tool_Definition(
 			'wp_delete_post',
 			'Deletes a post or page. Ask the user for confirmation first and only call this tool with confirm=true after they approve. By default moves to trash; set force=true to permanently delete.',
 			[
@@ -261,6 +279,78 @@ class Frontman_Tool_Posts {
 			],
 			[ $this, 'delete_post' ]
 		) );
+	}
+
+	/** Save only a revision: core's preview handler reads the latest autosave across authors. */
+	public function save_post_preview( array $input ): array {
+		if ( ! isset( $input['id'] ) || ! is_int( $input['id'] ) || $input['id'] <= 0 ) {
+			throw new Frontman_Tool_Error( 'id must be a positive integer.' );
+		}
+		if ( ! array_key_exists( 'content', $input ) ) {
+			throw new Frontman_Tool_Error( 'content is required and must be a string.' );
+		}
+		$post = get_post( $input['id'] );
+		if ( ! $post ) {
+			throw new Frontman_Tool_Error( 'Post not found.' );
+		}
+		$this->check_write_permissions( [], $post->post_type, $post );
+		$type = get_post_type_object( $post->post_type );
+		if ( 'publish' !== $post->post_status || ! $type || ! is_post_type_viewable( $type ) || ! post_type_supports( $post->post_type, 'revisions' ) ) {
+			throw new Frontman_Tool_Error( 'Preview requires a published, publicly viewable post type with revision support.' );
+		}
+		$this->check_content( $input );
+		if ( ( class_exists( 'Frontman_Elementor_Data' ) && Frontman_Elementor_Data::post_uses_elementor( $post->ID ) )
+			|| get_post_meta( $post->ID, '_et_pb_use_builder', true ) === 'on'
+			|| get_post_meta( $post->ID, '_fl_builder_enabled', true )
+			|| get_post_meta( $post->ID, '_bricks_page_content_2', true ) ) {
+			throw new Frontman_Tool_Error( 'Builder-managed content cannot be previewed with this tool.' );
+		}
+
+		$autosaves = get_posts( [
+			'post_type' => 'revision', 'post_status' => 'inherit', 'post_parent' => $post->ID,
+			'name' => $post->ID . '-autosave-v1', 'posts_per_page' => -1,
+		] );
+		foreach ( $autosaves as $autosave ) {
+			if ( $autosave->post_content !== $input['content'] || $autosave->post_title !== $post->post_title || $autosave->post_excerpt !== $post->post_excerpt ) {
+				throw new Frontman_Tool_Error( 'A differing editor autosave exists. It was preserved; resolve it in WordPress before previewing.' );
+			}
+		}
+		$autosave = wp_get_post_autosave( $post->ID );
+		if ( ! $autosave ) {
+			$data = get_post( $post->ID, ARRAY_A );
+			$data['post_content'] = $input['content'];
+			$id = _wp_put_post_revision( $data, true );
+			if ( is_wp_error( $id ) || ! $id ) {
+				throw new Frontman_Tool_Error( is_wp_error( $id ) ? $id->get_error_message() : 'Could not save the autosave.' );
+			}
+			$autosave = get_post( $id );
+			if ( ! $autosave || $autosave->post_content !== $input['content'] || $autosave->post_title !== $post->post_title || $autosave->post_excerpt !== $post->post_excerpt ) {
+				throw new Frontman_Tool_Error( "Autosave {$id} was saved, but readback differs. It was not rolled back; inspect it in WordPress." );
+			}
+		}
+		$autosaves = get_posts( [
+			'post_type' => 'revision', 'post_status' => 'inherit', 'post_parent' => $post->ID,
+			'name' => $post->ID . '-autosave-v1', 'posts_per_page' => -1,
+		] );
+		$selected = wp_get_post_autosave( $post->ID );
+		if ( ! $selected ) {
+			throw new Frontman_Tool_Error( 'The preview autosave is no longer available; inspect autosaves in WordPress.' );
+		}
+		$autosaves[] = $selected;
+		foreach ( $autosaves as $candidate ) {
+			if ( $candidate->post_content !== $input['content'] || $candidate->post_title !== $post->post_title || $candidate->post_excerpt !== $post->post_excerpt ) {
+				throw new Frontman_Tool_Error( 'A differing editor autosave exists. It was preserved; a new autosave may also have been created. Resolve autosaves in WordPress before previewing.' );
+			}
+		}
+		$autosave = $selected;
+		return [
+			'parent_id' => $post->ID,
+			'autosave_id' => $autosave->ID,
+			'preview_url' => get_preview_post_link( $post, [
+				'preview_id' => $post->ID,
+				'preview_nonce' => wp_create_nonce( 'post_preview_' . $post->ID ),
+			] ),
+		];
 	}
 
 	/**
