@@ -27,6 +27,34 @@ $reject = static function( string $name, array $input, string $reason, string $f
 	$after = $wpdb->get_results( "SELECT * FROM {$wpdb->posts} ORDER BY ID", ARRAY_A );
 	frontman_runtime_assert( $before === $after, $name . ' rejection must not write posts or revisions' );
 };
+$elementor_post = wp_insert_post( [ 'post_type' => 'page', 'post_title' => 'Elementor wire fixture', 'post_status' => 'draft' ], true );
+frontman_runtime_assert( ! is_wp_error( $elementor_post ), 'Could not create Elementor wire fixture.' );
+try {
+	$generate = static function( array $input ) use ( $cookie, $nonce ) {
+		$response = frontman_runtime_tool( $cookie, $nonce, [ 'name' => 'wp_elementor_generate_element', 'arguments' => $input ] );
+		frontman_runtime_same( 200, $response['status'], 'Elementor generation HTTP status' );
+		frontman_runtime_same( false, $response['body']['isError'], 'Elementor generation succeeds: ' . wp_json_encode( $response['body'] ) );
+		return json_decode( $response['body']['content'][0]['text'], false, 512, JSON_THROW_ON_ERROR );
+	};
+	$spacer = $generate( [ 'type' => 'widget', 'widget_type' => 'spacer' ] );
+	frontman_runtime_assert( $spacer->settings instanceof stdClass && [] === (array) $spacer->settings, 'Empty settings must be a JSON object.' );
+	$added = $call( 'wp_elementor_add_element', [ 'post_id' => $elementor_post, 'element' => $spacer ] );
+	frontman_runtime_assert( $added['success'], 'Generated spacer must be addable.' );
+	$companion = $generate( [ 'type' => 'widget', 'widget_type' => 'spacer' ] );
+	$wrapped = $call( 'wp_elementor_wrap_element', [ 'post_id' => $elementor_post, 'element_id' => $added['element_id'], 'element_after' => $companion ] );
+	frontman_runtime_assert( $wrapped['success'], 'Generated spacer must be usable as a wrap companion.' );
+	$tree = Frontman_Elementor_Data::get_page_data( $elementor_post );
+	frontman_runtime_same( [ $added['element_id'], $wrapped['added_element_id'] ], array_column( $tree[0]['elements'], 'id' ), 'Added and companion spacers persist in order.' );
+	$row = $generate( [ 'type' => 'row', 'children' => [ [ 'elType' => 'container', 'settings' => (object) [], 'elements' => [ [ 'elType' => 'widget', 'widgetType' => 'spacer', 'settings' => (object) [], 'elements' => [] ] ] ] ] ] );
+	frontman_runtime_assert( $row->elements[0]->settings instanceof stdClass && $row->elements[0]->elements[0]->settings instanceof stdClass, 'Empty descendant settings must be JSON objects.' );
+	frontman_runtime_assert( $call( 'wp_elementor_add_element', [ 'post_id' => $elementor_post, 'element' => $row ] )['success'], 'Generated nested subtree must be addable.' );
+	$heading = $generate( [ 'type' => 'heading', 'title' => 'Keep settings' ] );
+	frontman_runtime_same( 'Keep settings', $heading->settings->title, 'Nonempty settings must be preserved.' );
+	$with_list = $generate( [ 'type' => 'widget', 'widget_type' => 'spacer', 'settings' => [ 'items' => [] ] ] );
+	frontman_runtime_same( [], $with_list->settings->items, 'List-valued settings must remain arrays.' );
+} finally {
+	wp_delete_post( $elementor_post, true );
+}
 foreach ( [ 'PostContentRuntimeTest.php', 'TemplateCreationRuntimeTest.php', 'PageTemplateRuntimeTest.php' ] as $file ) {
 	( static function() use ( $file, $call, $reject, $actor, $cookie ): void { require '/tmp/' . $file; } )();
 }
