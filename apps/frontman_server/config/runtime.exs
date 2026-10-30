@@ -51,9 +51,11 @@ if config_env() in [:dev, :prod] do
     client_id: env!("WORKOS_CLIENT_ID", :string!)
 end
 
-config :frontman_server, :mcp_server,
-  resource: env!("MCP_RESOURCE", :string?, nil),
-  issuer: env!("MCP_AUTHORIZATION_SERVER_ISSUER", :string?, nil)
+if config_env() != :test do
+  config :frontman_server, :mcp_server,
+    resource: env!("MCP_RESOURCE", :string?, nil),
+    issuer: env!("MCP_AUTHORIZATION_SERVER_ISSUER", :string?, nil)
+end
 
 if config_env() not in [:test, :e2e] do
   config :frontman_server, :stripe,

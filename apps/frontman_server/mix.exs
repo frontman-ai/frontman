@@ -64,6 +64,7 @@ defmodule FrontmanServer.MixProject do
       {:swarm_ai, path: "../swarm_ai"},
       {:boundary, "~> 0.10", runtime: false},
       {:bcrypt_elixir, "~> 3.0"},
+      {:anubis_mcp, "== 2.2.0"},
       {:cloak_ecto, "~> 1.3"},
       {:phoenix, "~> 1.8.1"},
       {:phoenix_ecto, "~> 4.5"},

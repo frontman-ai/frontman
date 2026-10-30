@@ -28,7 +28,7 @@ defmodule FrontmanServerWeb do
       FrontmanServer,
       FrontmanServer.Protocols.{ACP, JsonRpc, MCP}
     ],
-    exports: [Endpoint, Telemetry]
+    exports: [Endpoint, Telemetry, MCP]
 
   def static_paths do
     base = ~w(assets fonts images favicon.ico robots.txt)

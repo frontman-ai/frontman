@@ -16,6 +16,10 @@ config :frontman_server, FrontmanServerWeb.Endpoint,
   secret_key_base: "G/GaF+myr6UzSNKYFjTUkCovxv4WghMsXaq4S3O275rp8dLDSEvwkXAn5kbkvUJn",
   server: true
 
+config :frontman_server, :mcp_server,
+  resource: "https://resource.example/mcp",
+  issuer: "https://issuer.example/tenant"
+
 config :frontman_server, FrontmanServer.Mailer,
   adapter: Swoosh.Adapters.Test,
   api_key: "re_test_key"
