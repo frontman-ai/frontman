@@ -653,7 +653,7 @@ publish-wordpress-plugin-svn: package-wordpress-plugin
 WORDPRESS_TESTS ?= ToolRegistryTest AuthDiagnosticsTest PostAuthorsTest NoFilesystemToolsTest PublicFilesTest ElementorToolsTest MediaToolsTest WooCommerceToolsTest MutationSnapshotsTest PluginDependenciesTest SeoToolsTest RouterTest SentryTest SentryUnavailableTest
 
 test-wordpress-core-tools: build-wordpress-dependencies
-	@set -eu; \
+	@bash scripts/test-wordpress-isolated.sh sh -ec '\
 	set -- $(WORDPRESS_TESTS); \
 	if [ "$$#" -eq 0 ]; then echo "WORDPRESS_TESTS must select at least one test." >&2; exit 1; fi; \
 	for test in "$$@"; do \
@@ -661,7 +661,7 @@ test-wordpress-core-tools: build-wordpress-dependencies
 	done; \
 	for test in "$$@"; do \
 		php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php "libs/frontman-wordpress/tests/$$test.php"; \
-	done
+	done'
 
 test-wordpress-runtime:
 	@bash scripts/test-wordpress-plugin-runtime.sh

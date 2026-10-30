@@ -1,16 +1,20 @@
 <?php
-define( 'ABSPATH', sys_get_temp_dir() . '/frontman-seo-tools/' );
-function __( string $message, string $domain = '' ): string { return $message; }
+require __DIR__ . '/NativeWordPress.php';
 require_once __DIR__ . '/../includes/class-frontman-tools.php';
 require_once __DIR__ . '/../tools/class-tool-seo.php';
 require_once __DIR__ . '/../includes/class-frontman-plugin-dependencies.php';
-function get_option( string $key, $default = false ) { return $GLOBALS['active_plugins'] ?? []; }
-function did_action( string $hook ): int { return 1; }
+$validation = rest_validate_value_from_schema( [], [ 'type' => 'array', 'minItems' => 1 ], 'items' );
+if ( ! is_wp_error( $validation ) || 'rest_too_few_items' !== $validation->get_error_code() ) {
+	throw new RuntimeException( 'Native schema validation did not reject too few items.' );
+}
+wp_cache_set( '1:notoptions', [ 'active_sitewide_plugins' => true ], 'site-options' );
+do_action( 'wpseo_loaded' );
 function sanitize_meta() { throw new RuntimeException( 'Unavailable handler reached metadata.' ); }
 $wp_version = '7.0.2';
 $seo   = new Frontman_Tool_Seo();
 $tools = new Frontman_Tools();
 foreach ( [ [], [ 'wordpress-seo/wp-seo.php' ], [ 'wordpress-seo/wp-seo.php' ] ] as $case => $active_plugins ) {
+	wp_cache_set( 'alloptions', [ 'active_plugins' => $active_plugins ], 'options' );
 	$expected = 'absent or not loaded';
 	if ( 2 === $case ) {
 		define( 'WPSEO_VERSION', $argv[1] ?? '28.6' );
@@ -54,7 +58,9 @@ function get_registered_meta_keys( string $type ): array {
 		'_yoast_wpseo_focuskw' => [ 'sanitize_callback' => [ 'WPSEO_Meta', 'sanitize_post_meta' ] ],
 	];
 }
-function has_filter( string $hook, $callback ) { return 10; }
+foreach ( [ 'title', 'metadesc', 'focuskw' ] as $key ) {
+	add_filter( 'sanitize_post_meta__yoast_wpseo_' . $key, [ 'WPSEO_Meta', 'sanitize_post_meta' ] );
+}
 if ( null !== Frontman_Tool_Seo::unavailable_reason() ) {
 	throw new RuntimeException( 'A valid runtime was rejected for Yoast ' . WPSEO_VERSION );
 }
