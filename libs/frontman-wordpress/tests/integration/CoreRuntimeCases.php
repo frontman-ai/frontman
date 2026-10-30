@@ -43,6 +43,7 @@ try {
 	$companion = $generate( [ 'type' => 'widget', 'widget_type' => 'spacer' ] );
 	$wrapped = $call( 'wp_elementor_wrap_element', [ 'post_id' => $elementor_post, 'element_id' => $added['element_id'], 'element_after' => $companion ] );
 	frontman_runtime_assert( $wrapped['success'], 'Generated spacer must be usable as a wrap companion.' );
+	wp_cache_delete( $elementor_post, 'post_meta' );
 	$tree = Frontman_Elementor_Data::get_page_data( $elementor_post );
 	frontman_runtime_same( [ $added['element_id'], $wrapped['added_element_id'] ], array_column( $tree[0]['elements'], 'id' ), 'Added and companion spacers persist in order.' );
 	$row = $generate( [ 'type' => 'row', 'children' => [ [ 'elType' => 'container', 'settings' => (object) [], 'elements' => [ [ 'elType' => 'widget', 'widgetType' => 'spacer', 'settings' => (object) [], 'elements' => [] ] ] ] ] ] );
