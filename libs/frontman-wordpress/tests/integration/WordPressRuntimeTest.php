@@ -165,6 +165,15 @@ foreach ( [ null, 0, 1, 'true', 'false', [], (object) [] ] as $invalid_path_opt_
 	frontman_runtime_assert( true === $invalid_location['body']['isError'] && false !== strpos( $invalid_location['body']['content'][0]['text'], 'include_installation_paths' ), 'HTTP path opt-in must reject coerced booleans and identify the field.' );
 }
 
+foreach ( [ 'wp_page_for_privacy_policy', 'comment_registration', 'require_name_email', 'frontman_test_secret' ] as $option_name ) {
+	$before = $wpdb->get_row( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $option_name ), ARRAY_A );
+	$invalid = frontman_runtime_tool( $cookie, $slug_nonce, [ 'name' => 'wp_update_option', 'arguments' => [ 'name' => $option_name, 'value' => '99' ] ] );
+	frontman_runtime_assert( true === $invalid['body']['isError'] && false !== strpos( $invalid['body']['content'][0]['text'], 'name' ), 'Read-only or unknown option passed registry validation.' );
+	frontman_runtime_assert( $before === $wpdb->get_row( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $option_name ), ARRAY_A ), 'Rejected option update changed storage.' );
+}
+$invalid = frontman_runtime_tool( $cookie, $slug_nonce, [ 'name' => 'wp_get_option', 'arguments' => [ 'name' => 'frontman_test_secret' ] ] );
+frontman_runtime_assert( true === $invalid['body']['isError'] && false !== strpos( $invalid['body']['content'][0]['text'], 'name' ), 'Unknown option passed read validation.' );
+
 $media_definition = Frontman_Tools::instance()->get( 'wp_upload_media' );
 frontman_runtime_assert( null !== $media_definition, 'wp_upload_media is registered.' );
 frontman_runtime_assert( isset( $media_definition->input_schema['properties']['image_ref'] ), 'wp_upload_media schema exposes image_ref.' );
@@ -238,6 +247,29 @@ try {
 		unlink( $media_mu );
 	}
 }
+
+$public_registry = Frontman_Tools::instance();
+$public_valid = [ 'name' => 'llms.txt', 'content' => "  # Café\r\n[Docs](https://example.test/?a=1&b=2)\t \\ \"quoted\"\r\n", 'expected_revision' => str_repeat( 'a', 64 ), 'confirm' => true ];
+frontman_runtime_assert( $public_valid === $public_registry->sanitize_input( 'wp_write_public_file', $public_valid ), 'Raw public-file bytes changed in registry.' );
+$reject_public_input = static function ( string $tool, array $input ) use ( $public_registry ): void {
+	try {
+		$public_registry->sanitize_input( $tool, $input );
+	} catch ( Frontman_Tool_Error $error ) {
+		return;
+	}
+	throw new RuntimeException( 'Invalid public-file input reached the handler: ' . $tool );
+};
+foreach ( [ 'name' => [ '../robots.txt', '/llms.txt', 'LLMS.txt', 'https://public.example.test/llms.txt', null, 7 ], 'content' => [ null, false, [], "bad\xC3\x28", "bad\0", "bad\x01", str_repeat( 'x', 131073 ) ], 'confirm' => [ false, 'true', 1 ], 'expected_revision' => [ null, 7, '', str_repeat( 'A', 64 ) ] ] as $key => $values ) {
+	foreach ( $values as $value ) {
+		$reject_public_input( 'wp_write_public_file', array_merge( $public_valid, [ $key => $value ] ) );
+		if ( 'name' === $key ) { $reject_public_input( 'wp_read_public_file', [ 'name' => $value ] ); }
+	}
+	$missing = $public_valid;
+	unset( $missing[ $key ] );
+	$reject_public_input( 'wp_write_public_file', $missing );
+}
+$reject_public_input( 'wp_write_public_file', $public_valid + [ 'root' => '/tmp' ] );
+$reject_public_input( 'wp_read_public_file', [ 'name' => 'llms.txt', 'extra' => true ] );
 
 $public_mu = WPMU_PLUGIN_DIR . '/frontman-public-runtime.php';
 frontman_runtime_assert( ! file_exists( $public_mu ), 'Public runtime seam already exists.' );
@@ -339,8 +371,9 @@ foreach ( [ 'Café — 日本! / Delivery', '%e6%97%a5%e6%9c%ac-guide', 'Quote\'
 $posts_before_invalid_slugs = $wpdb->get_results( "SELECT * FROM {$wpdb->posts} ORDER BY ID", ARRAY_A );
 foreach ( [ 'wp_create_post', 'wp_update_post' ] as $slug_tool ) {
 	foreach ( [ null, 123, 1.5, true, false, [], [ 'bad' ], (object) [ 'slug' => 'bad' ] ] as $invalid_slug ) {
-		$invalid = frontman_runtime_tool( $cookie, $slug_nonce, [ 'name' => $slug_tool, 'arguments' => array_merge( $slug_fixture, [ 'id' => $slug_id, 'title' => 'Must not write', 'slug' => $invalid_slug ] ) ] );
-		frontman_runtime_assert( 200 === $invalid['status'] && true === $invalid['body']['isError'], 'Invalid slug type was accepted.' );
+		$input = array_merge( $slug_fixture, 'wp_update_post' === $slug_tool ? [ 'id' => $slug_id ] : [], [ 'title' => 'Must not write', 'slug' => $invalid_slug ] );
+		$invalid = frontman_runtime_tool( $cookie, $slug_nonce, [ 'name' => $slug_tool, 'arguments' => $input ] );
+		frontman_runtime_assert( 200 === $invalid['status'] && true === $invalid['body']['isError'] && false !== strpos( $invalid['body']['content'][0]['text'], 'slug' ), 'Invalid slug type was accepted or rejected for another reason.' );
 	}
 	$request = [ 'name' => $slug_tool, 'arguments' => array_merge( $slug_fixture, [ 'id' => $slug_id ] ) ];
 	frontman_runtime_assert( 401 === frontman_runtime_tool( '', null, $request )['status'], 'Slug mutation bypassed authentication.' );
@@ -388,11 +421,7 @@ update_option( 'sidebars_widgets', [ 'frontman-widgets' => [ 'custom_html-4', 'c
 update_option( 'widget_categories', [ 3 => [ 'title' => 'Categories' ] ] );
 $widget_call = static function ( string $name, array $input, bool $error = false ): array {
 	$tools = Frontman_Tools::instance();
-	try {
-		$result = $tools->call( $name, $tools->sanitize_input( $name, $input ) );
-	} catch ( Frontman_Tool_Error $e ) {
-		$result = Frontman_Tools::error_result( $e->getMessage() );
-	}
+	$result = frontman_runtime_call( $tools, $name, $input );
 	frontman_runtime_assert( $error === $result['isError'], $name . ': ' . wp_json_encode( $result ) );
 	return $error ? [ 'error' => $result['content'][0]['text'] ] : json_decode( $result['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
 };

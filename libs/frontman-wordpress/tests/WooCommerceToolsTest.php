@@ -144,36 +144,6 @@ if ( ! function_exists( 'wp_json_encode' ) ) {
 	}
 }
 
-if ( ! function_exists( 'wp_check_invalid_utf8' ) ) {
-	function wp_check_invalid_utf8( $value ): string {
-		return (string) $value;
-	}
-}
-
-if ( ! function_exists( 'sanitize_text_field' ) ) {
-	function sanitize_text_field( $value ): string {
-		return trim( strip_tags( (string) $value ) );
-	}
-}
-
-if ( ! function_exists( 'sanitize_key' ) ) {
-	function sanitize_key( $value ): string {
-		return strtolower( preg_replace( '/[^a-zA-Z0-9_\-]/', '', (string) $value ) );
-	}
-}
-
-if ( ! function_exists( 'wp_kses_post' ) ) {
-	function wp_kses_post( $value ): string {
-		return (string) $value;
-	}
-}
-
-if ( ! function_exists( 'esc_url_raw' ) ) {
-	function esc_url_raw( $value ): string {
-		return (string) $value;
-	}
-}
-
 require_once __DIR__ . '/../includes/class-frontman-tools.php';
 require_once __DIR__ . '/../tools/class-tool-woocommerce.php';
 

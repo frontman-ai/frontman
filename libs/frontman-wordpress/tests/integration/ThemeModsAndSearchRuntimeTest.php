@@ -2,6 +2,7 @@
 
 define( 'WP_ADMIN', true );
 require '/var/www/html/wp-load.php';
+require_once __DIR__ . '/RuntimeTestSupport.php';
 require_once WP_PLUGIN_DIR . '/frontman-agentic-ai-editor/includes/class-frontman-elementor-data.php';
 require_once WP_PLUGIN_DIR . '/frontman-agentic-ai-editor/tools/class-tool-elementor.php';
 wp_set_current_user( get_user_by( 'login', 'admin' )->ID );
@@ -16,11 +17,7 @@ function discovery_call( Frontman_Tools $tools, string $name, array $input ): ar
 }
 function discovery_reject( Frontman_Tools $tools, array $input, string $message ): void {
 	$before = get_theme_mods();
-	try {
-		$result = $tools->call( 'wp_update_theme_mod', $tools->sanitize_input( 'wp_update_theme_mod', $input ) );
-	} catch ( Frontman_Tool_Error $e ) {
-		$result = Frontman_Tools::error_result( $e->getMessage() );
-	}
+	$result = frontman_runtime_call( $tools, 'wp_update_theme_mod', $input );
 	discovery_assert( $result['isError'] && false !== strpos( $result['content'][0]['text'], $message ), 'Expected rejection: ' . $message );
 	discovery_assert( $before === get_theme_mods(), 'Rejected write changed persisted theme mods' );
 }

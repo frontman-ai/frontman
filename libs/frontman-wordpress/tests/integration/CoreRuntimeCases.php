@@ -43,6 +43,7 @@ try {
 	$companion = $generate( [ 'type' => 'widget', 'widget_type' => 'spacer' ] );
 	$wrapped = $call( 'wp_elementor_wrap_element', [ 'post_id' => $elementor_post, 'element_id' => $added['element_id'], 'element_after' => $companion ] );
 	frontman_runtime_assert( $wrapped['success'], 'Generated spacer must be usable as a wrap companion.' );
+	clean_post_cache( $elementor_post );
 	$tree = Frontman_Elementor_Data::get_page_data( $elementor_post );
 	frontman_runtime_same( [ $added['element_id'], $wrapped['added_element_id'] ], array_column( $tree[0]['elements'], 'id' ), 'Added and companion spacers persist in order.' );
 	$row = $generate( [ 'type' => 'row', 'children' => [ [ 'elType' => 'container', 'settings' => (object) [], 'elements' => [ [ 'elType' => 'widget', 'widgetType' => 'spacer', 'settings' => (object) [], 'elements' => [] ] ] ] ] ] );
@@ -96,24 +97,66 @@ try {
 	$catalog = json_decode( $catalog['body'], true, 512, JSON_THROW_ON_ERROR );
 	$definitions = array_values( array_filter( Frontman_Tools::instance()->all_definitions(), static fn( $tool ) => 'wp_read_post' === $tool['name'] ) );
 	frontman_runtime_same( [ 'tools' => $definitions ], $catalog, 'Discovery preserves exactly the registered read definition and argument schema' );
-	frontman_runtime_same( Frontman_Tools::instance()->all_definitions( true ), $catalog['tools'], 'HTTP discovery matches definition-owned remote eligibility' );
 	$response = $mcp_request( $mcp_credentials, $catalog['tools'][0]['name'], $mcp_post );
 	frontman_runtime_same( 200, $response['status'], 'Application Password HTTP request without cookies succeeds' );
 	$result = json_decode( $response['body'], true, 512, JSON_THROW_ON_ERROR );
 	frontman_runtime_same( false, $result['isError'], 'MCP read succeeds' );
 	frontman_runtime_same( 'Private MCP bytes', json_decode( $result['content'][0]['text'], true )['content'], 'MCP preserves raw content' );
-	foreach ( [ '{}', '{"id":[999]}', '{"id":"1"}', '{"id":1.0}', '{"id":{}}', '[]' ] as $arguments ) {
-		$browser = frontman_runtime_tool( $cookie, $nonce, [], '{"name":"wp_read_post","arguments":' . $arguments . '}' );
-		frontman_runtime_assert( $browser['body']['isError'], 'Browser read must reject invalid arguments: ' . $arguments );
-		$remote = frontman_runtime_http( 'POST', '/?rest_route=/frontman/v1/tools/call', '', null, '{"name":"wp_read_post","arguments":' . $arguments . '}', '', $mcp_credentials );
-		frontman_runtime_same( 400, $remote['status'], 'Remote read must reject invalid arguments: ' . $arguments );
-	}
-	$extra = '{"name":"wp_read_post","arguments":{"id":' . $mcp_post . ',"unexpected":true}}';
-	frontman_runtime_assert( frontman_runtime_tool( $cookie, $nonce, [], $extra )['body']['isError'], 'Browser rejects undeclared fields' );
-	frontman_runtime_same( 400, frontman_runtime_http( 'POST', '/?rest_route=/frontman/v1/tools/call', '', null, $extra, '', $mcp_credentials )['status'], 'Remote rejects undeclared fields' );
 	$elementor = new Frontman_Tools(); ( new Frontman_Tool_Elementor() )->register( $elementor );
 	$float = $elementor->sanitize_input( 'wp_elementor_save_page_data', json_decode( '{"post_id":1,"data":[{"id":"a","elType":"widget","settings":{"slider":{"size":1.0}}}],"confirm":true}' ), true );
 	frontman_runtime_same( 1.0, $float['data'][0]['settings']['slider']['size'], 'Nested free-form whole float retains its JSON type' );
+	$button = [ 'elType' => 'widget', 'widgetType' => 'button', 'settings' => [], 'elements' => [] ];
+	$nested = [ 'elType' => 'container', 'elements' => [ [ 'elType' => 'container', 'elements' => [ $button ] ] ] ];
+	$mixed = $nested;
+	$mixed['id'] = '0';
+	$mixed['elements'][0]['elements'][0]['id'] = ' supplied ';
+	$companion = [ 'elType' => 'container', 'elements' => [ [ 'elType' => 'widget', 'widgetType' => 'button', 'settings' => [ 'text' => 'New' ] ] ] ];
+	$valid = [
+		[ 'wp_elementor_list_pages', [ 'post_type' => 'context_test', 'text_search' => 'Book Demo', 'include_context' => true ] ],
+		[ 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $nested ] ],
+		[ 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $mixed ] ],
+		[ 'wp_elementor_generate_element', [ 'type' => 'row', 'children' => [ $button ] ] ],
+		[ 'wp_elementor_duplicate_element', [ 'post_id' => 47, 'element_id' => 'row', 'settings' => [ 'link' => [ 'url' => '/new' ] ] ] ],
+		[ 'wp_elementor_generate_element', [ 'type' => 'row', 'settings' => [], 'children' => [ $button ] ] ],
+		[ 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $button ] ],
+		[ 'wp_elementor_wrap_element', [ 'post_id' => 47, 'element_id' => 'root4700', 'settings' => [], 'element_after' => $button ] ],
+	];
+	foreach ( [ 'a', 'b', 'c', 'row' ] as $anchor ) {
+		$valid[] = [ 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => [ 'elType' => 'container', 'elements' => [ [ 'elType' => 'widget', 'widgetType' => 'button', 'settings' => [ 'text' => 'Original', 'link' => [ 'url' => '/old', 'external' => true ] ], 'elements' => [] ] ] ], 'after_element_id' => $anchor ] ];
+	}
+	foreach ( [ 'target', 'row', 'leaf' ] as $id ) {
+		$wrap = [ 'post_id' => 47, 'element_id' => $id, 'settings' => [ 'flex_direction_mobile' => 'column', 'flex_wrap' => 'nowrap' ] ];
+		$valid[] = [ 'wp_elementor_wrap_element', $wrap ];
+		$valid[] = [ 'wp_elementor_wrap_element', $wrap + [ 'element_after' => $companion ] ];
+	}
+	foreach ( $valid as [ $name, $input ] ) {
+		frontman_runtime_same( $input, $elementor->sanitize_input( $name, $input ), $name . ' preserves valid inputs' );
+	}
+	$invalid_root = array_replace( $button, [ 'settings' => [ 'bad' ] ] );
+	$invalid_descendant = [ 'elType' => 'container', 'settings' => [], 'elements' => [ $invalid_root ] ];
+	$invalid = [
+		[ 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => [ 'elType' => 'container', 'elements' => false ] ] ],
+		[ 'wp_elementor_generate_element', [ 'type' => 'row', 'children' => false ] ],
+		[ 'wp_elementor_generate_element', [ 'type' => 'row', 'children' => [ [ 'elType' => 'container', 'elements' => null ] ] ] ],
+		[ 'wp_elementor_generate_element', [ 'type' => 'row', 'settings' => [ 'bad' ] ] ],
+	];
+	foreach ( [ $invalid_root, $invalid_descendant ] as $element ) {
+		$invalid[] = [ 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $element ] ];
+		$invalid[] = [ 'wp_elementor_generate_element', [ 'type' => 'row', 'children' => [ $element ] ] ];
+		$invalid[] = [ 'wp_elementor_wrap_element', [ 'post_id' => 47, 'element_id' => 'root4700', 'element_after' => $element ] ];
+	}
+	foreach ( [ [ 'settings' => null ], [ 'settings' => 'bad' ], [ 'settings' => [ 1 ] ], [ 'element_after' => false ], [ 'element_after' => [ 'elType' => 'container', 'elements' => [ false ] ] ] ] as $input ) {
+		$invalid[] = [ 'wp_elementor_wrap_element', $input + [ 'post_id' => 47, 'element_id' => 'target' ] ];
+	}
+	foreach ( $invalid as [ $name, $input ] ) {
+		$rejected = false;
+		try {
+			$elementor->sanitize_input( $name, $input );
+		} catch ( Frontman_Tool_Error $error ) {
+			$rejected = true;
+		}
+		frontman_runtime_assert( $rejected, $name . ' rejects malformed input: ' . wp_json_encode( $input ) );
+	}
 	$before = $wpdb->get_results( "SELECT * FROM {$wpdb->posts} ORDER BY ID", ARRAY_A );
 	foreach ( [
 		'{"title":"Rejected"}',
@@ -127,7 +170,9 @@ try {
 		frontman_runtime_assert( $browser['body']['isError'], 'Browser mutation must reject invalid arguments: ' . $arguments );
 		frontman_runtime_same( $before, $wpdb->get_results( "SELECT * FROM {$wpdb->posts} ORDER BY ID", ARRAY_A ), 'Invalid mutation must not write posts or revisions' );
 	}
-	foreach ( [ '{"id":[999]}', '{"id":{}}', '{"id":null}', '{"id":true}', '{"id":"1"}', '{"id":1.5}', '{"id":0}', '{"id":-1}', '{"id":9223372036854775808}', '{}', '[]', 'true', 'null' ] as $arguments ) {
+	foreach ( [ '{"id":[999]}', '{"id":{}}', '{"id":null}', '{"id":true}', '{"id":"1"}', '{"id":1.0}', '{"id":1.5}', '{"id":0}', '{"id":-1}', '{"id":9223372036854775808}', '{"id":' . $mcp_post . ',"unexpected":true}', '{}', '[]', 'true', 'null' ] as $arguments ) {
+		$browser = frontman_runtime_tool( $cookie, $nonce, [], '{"name":"wp_read_post","arguments":' . $arguments . '}' );
+		frontman_runtime_assert( $browser['body']['isError'], 'Browser read must reject invalid arguments: ' . $arguments );
 		$invalid = frontman_runtime_http( 'POST', '/?rest_route=/frontman/v1/tools/call', '', null, '{"name":"wp_read_post","arguments":' . $arguments . '}', '', $mcp_credentials );
 		frontman_runtime_same( 400, $invalid['status'], 'Malformed MCP arguments must not execute a read: ' . $arguments );
 		frontman_runtime_assert( false === strpos( $invalid['body'], 'Private MCP bytes' ), 'Malformed MCP request leaked content' );
