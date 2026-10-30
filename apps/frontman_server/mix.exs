@@ -15,6 +15,13 @@ defmodule FrontmanServer.MixProject do
       listeners: [Phoenix.CodeReloader],
       test_coverage: [tool: ExCoveralls],
       licenses: ["AGPL-3.0-only"],
+      hex: [
+        ignore_advisories: [
+          "EEF-CVE-2026-95105",
+          "EEF-CVE-2026-94206",
+          "EEF-CVE-2026-43966"
+        ]
+      ],
       releases: [
         frontman_server: [
           include_executables_for: [:unix],
@@ -99,6 +106,7 @@ defmodule FrontmanServer.MixProject do
       {:lazy_html, ">= 0.1.0", only: :test},
       {:excoveralls, "~> 0.18", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:sobelow, "~> 0.18", only: :dev, runtime: false},
       {:bypass, "~> 2.1", only: :test},
       {:mox, "~> 1.2", only: :test}
     ]

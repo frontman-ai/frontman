@@ -9,7 +9,7 @@
 SHELL := /bin/bash
 OP_RUN := op run --env-file=envs/.dev.secrets.env --
 
-HELP_TARGETS := help install setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy test test-record test-coverage format lint dev dev-container build clean precommit credo check debug-task
+HELP_TARGETS := help install setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy test test-record test-coverage format lint security dev dev-container build clean precommit credo check debug-task
 HELP_help := Display this help message
 HELP_install := Install project dependencies
 HELP_setup := Complete project setup (deps, database, assets)
@@ -25,6 +25,7 @@ HELP_test-record := Record new LLM fixtures (makes real API calls)
 HELP_test-coverage := Run tests with coverage report
 HELP_format := Auto-format Elixir files
 HELP_lint := Run formatter and static analysis
+HELP_security := Check unused dependencies, Hex advisories, and Sobelow findings
 HELP_dev := Start development server (resolves 1Password secrets via op run)
 HELP_dev-container := Start dev server inside container (secrets via env vars)
 HELP_build := Build the project for production
@@ -110,6 +111,13 @@ format:
 lint:
 	mix format --check-formatted
 	mix credo --strict
+
+.PHONY: security
+security:
+	mix deps.get
+	mix deps.unlock --check-unused
+	mix hex.audit
+	mix sobelow --config --exit
 
 dev:
 	$(OP_RUN) mix phx.server

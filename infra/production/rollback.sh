@@ -53,6 +53,7 @@ switch_caddy() {
 
   cat > "${caddy_tmp}" <<EOF
 ${DOMAIN} {
+    header Strict-Transport-Security "max-age=31536000"
     reverse_proxy localhost:${port}
 }
 EOF

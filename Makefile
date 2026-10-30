@@ -262,9 +262,7 @@ hooks-install:
 
 setup-elixir-tools:
 	@printf "$(YELLOW)Installing Hex/Rebar for mise Elixir...$(RESET)\n"
-	@if ! mise exec -- mix hex.info >/dev/null 2>&1; then \
-		mise exec -- mix archive.install github hexpm/hex branch latest --force; \
-	fi
+	mise exec -- mix local.hex --force
 	@tmp=$$(mktemp -t rebar3.XXXXXX); \
 	curl -fsSL "https://s3.amazonaws.com/rebar3/rebar3" -o "$$tmp"; \
 	chmod +x "$$tmp"; \

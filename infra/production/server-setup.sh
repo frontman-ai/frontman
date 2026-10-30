@@ -152,6 +152,7 @@ apt-get install -y caddy
 
 cat > /etc/caddy/Caddyfile <<CADDYFILE
 ${DOMAIN} {
+    header Strict-Transport-Security "max-age=31536000"
     reverse_proxy localhost:4000
 }
 CADDYFILE
