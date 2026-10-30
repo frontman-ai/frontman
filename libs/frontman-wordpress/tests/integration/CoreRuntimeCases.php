@@ -43,7 +43,7 @@ try {
 	$companion = $generate( [ 'type' => 'widget', 'widget_type' => 'spacer' ] );
 	$wrapped = $call( 'wp_elementor_wrap_element', [ 'post_id' => $elementor_post, 'element_id' => $added['element_id'], 'element_after' => $companion ] );
 	frontman_runtime_assert( $wrapped['success'], 'Generated spacer must be usable as a wrap companion.' );
-	clean_post_cache( $elementor_post );
+	wp_cache_delete( $elementor_post, 'post_meta' );
 	$tree = Frontman_Elementor_Data::get_page_data( $elementor_post );
 	frontman_runtime_same( [ $added['element_id'], $wrapped['added_element_id'] ], array_column( $tree[0]['elements'], 'id' ), 'Added and companion spacers persist in order.' );
 	$row = $generate( [ 'type' => 'row', 'children' => [ [ 'elType' => 'container', 'settings' => (object) [], 'elements' => [ [ 'elType' => 'widget', 'widgetType' => 'spacer', 'settings' => (object) [], 'elements' => [] ] ] ] ] ] );
@@ -106,6 +106,7 @@ try {
 	$float = $elementor->sanitize_input( 'wp_elementor_save_page_data', json_decode( '{"post_id":1,"data":[{"id":"a","elType":"widget","settings":{"slider":{"size":1.0}}}],"confirm":true}' ), true );
 	frontman_runtime_same( 1.0, $float['data'][0]['settings']['slider']['size'], 'Nested free-form whole float retains its JSON type' );
 	$button = [ 'elType' => 'widget', 'widgetType' => 'button', 'settings' => [], 'elements' => [] ];
+	$button_without_elements = [ 'elType' => 'widget', 'widgetType' => 'button', 'settings' => [] ];
 	$nested = [ 'elType' => 'container', 'elements' => [ [ 'elType' => 'container', 'elements' => [ $button ] ] ] ];
 	$mixed = $nested;
 	$mixed['id'] = '0';
@@ -120,6 +121,9 @@ try {
 		[ 'wp_elementor_generate_element', [ 'type' => 'row', 'settings' => [], 'children' => [ $button ] ] ],
 		[ 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $button ] ],
 		[ 'wp_elementor_wrap_element', [ 'post_id' => 47, 'element_id' => 'root4700', 'settings' => [], 'element_after' => $button ] ],
+		[ 'wp_elementor_generate_element', [ 'type' => 'row', 'settings' => [], 'children' => [ $button_without_elements ] ] ],
+		[ 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => $button_without_elements ] ],
+		[ 'wp_elementor_wrap_element', [ 'post_id' => 47, 'element_id' => 'root4700', 'settings' => [], 'element_after' => $button_without_elements ] ],
 	];
 	foreach ( [ 'a', 'b', 'c', 'row' ] as $anchor ) {
 		$valid[] = [ 'wp_elementor_add_element', [ 'post_id' => 47, 'element' => [ 'elType' => 'container', 'elements' => [ [ 'elType' => 'widget', 'widgetType' => 'button', 'settings' => [ 'text' => 'Original', 'link' => [ 'url' => '/old', 'external' => true ] ], 'elements' => [] ] ] ], 'after_element_id' => $anchor ] ];
