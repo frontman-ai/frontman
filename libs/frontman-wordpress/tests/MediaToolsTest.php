@@ -204,8 +204,6 @@ class Frontman_Media_Tools_Test_Runner {
 		$this->test_upload_rejects_missing_resolved_content();
 		$this->test_upload_rejects_uploaded_filetype_mismatch();
 		$this->test_upload_cleans_up_after_metadata_failure();
-		$this->test_tool_schema_exposes_image_ref();
-		$this->test_sanitizer_preserves_upload_content();
 
 		fwrite( STDOUT, "OK ({$this->assertions} assertions)\n" );
 	}
@@ -294,26 +292,6 @@ class Frontman_Media_Tools_Test_Runner {
 		$this->assert_same( [], $GLOBALS['frontman_test_attachments'], 'Metadata failure deletes the attachment' );
 		$this->assert_same( [ ABSPATH . 'uploads/failed.png' ], $GLOBALS['frontman_test_deleted_files'], 'Metadata failure deletes the uploaded file' );
 		$this->assert_same( [], $GLOBALS['frontman_test_attachment_meta'], 'Metadata failure leaves no attachment alt text' );
-	}
-
-	private function test_tool_schema_exposes_image_ref(): void {
-		$definition = $this->tools->get( 'wp_upload_media' );
-		$this->assert_true( null !== $definition, 'wp_upload_media is registered' );
-		$this->assert_true( isset( $definition->input_schema['properties']['image_ref'] ), 'wp_upload_media schema exposes image_ref' );
-		$this->assert_true( isset( $definition->input_schema['properties']['content'] ), 'wp_upload_media schema accepts resolved content' );
-	}
-
-	private function test_sanitizer_preserves_upload_content(): void {
-		$input = [
-			'image_ref' => 'attachment://att_abc/caf%C3%A9.png',
-			'content'   => 'abc<raw>base64',
-			'filename'  => 'raw.png',
-			'mime_type' => 'image/png',
-		];
-
-		$sanitized = $this->tools->sanitize_input( 'wp_upload_media', $input );
-		$this->assert_same( 'attachment://att_abc/caf%C3%A9.png', $sanitized['image_ref'], 'wp_upload_media sanitizer preserves image_ref URI bytes' );
-		$this->assert_same( 'abc<raw>base64', $sanitized['content'], 'wp_upload_media sanitizer preserves raw base64 content' );
 	}
 
 	private function reset_upload_state(): void {

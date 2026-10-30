@@ -67,5 +67,9 @@ frontman_runtime_same( [ 'listing_slider' ], $legacy['header']['thumbnail'], 'Le
 update_term_meta( $directory_id, 'single_listing_header', [ 'unrecognized' => true ] );
 $rejected = $tools->call( 'wp_read_directorist_listing', $tools->sanitize_input( 'wp_read_directorist_listing', [ 'id' => $id ] ) );
 frontman_runtime_assert( true === $rejected['isError'], 'Unrecognized headers must be rejected.' );
-$missing = $tools->call( 'wp_read_directorist_listing', $tools->sanitize_input( 'wp_read_directorist_listing', [ 'id' => 0 ] ) );
-frontman_runtime_assert( true === $missing['isError'], 'Missing listings must be rejected.' );
+try {
+	$tools->sanitize_input( 'wp_read_directorist_listing', [ 'id' => 0 ] );
+	throw new RuntimeException( 'Missing listings must be rejected.' );
+} catch ( Frontman_Tool_Error $e ) {
+	frontman_runtime_assert( false !== strpos( $e->getMessage(), 'id' ), 'Invalid ID must identify the field.' );
+}

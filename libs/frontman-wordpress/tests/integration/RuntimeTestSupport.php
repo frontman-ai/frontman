@@ -61,6 +61,9 @@ function frontman_runtime_http( string $method, string $path, string $cookie = '
 }
 
 function frontman_runtime_tool( string $cookie, ?string $nonce, array $request, ?string $raw = null, string $test = '' ): array {
+	if ( isset( $request['arguments'] ) && [] === $request['arguments'] ) {
+		$request['arguments'] = (object) [];
+	}
 	$response = frontman_runtime_http( 'POST', '/index.php/frontman/tools/call', $cookie, $nonce, $raw ?? wp_json_encode( $request ), $test );
 	if ( 200 !== $response['status'] ) {
 		return $response;

@@ -94,6 +94,7 @@ class Frontman_Tool_Posts {
 				'properties'           => [
 					'id' => [
 						'type'        => 'integer',
+						'minimum'     => 1,
 						'description' => 'The post ID to read.',
 					],
 				],
@@ -103,7 +104,7 @@ class Frontman_Tool_Posts {
 			null,
 			true,
 			false,
-			static fn( \stdClass $input ): bool => isset( $input->id ) && is_int( $input->id ) && $input->id > 0
+			static fn( \stdClass $input ): bool => true
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(

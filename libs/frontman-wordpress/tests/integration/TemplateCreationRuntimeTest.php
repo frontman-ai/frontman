@@ -32,9 +32,9 @@ $reject( 'wp_update_template', [ 'slug' => 'missing-layout', 'content' => '' ], 
 foreach ( [
 	[ [ 'slug' => 'Not Canonical' ], 'canonical WordPress slug' ],
 	[ [ 'title' => '<b>Layout</b>' ], 'plain text' ],
-	[ [ 'content' => null ], 'content is required' ],
+	[ [ 'content' => null ], 'content' ],
 	[ [ 'area' => 'header' ], 'only supported for parts' ],
-	[ [ 'type' => 'wp_template_part', 'area' => 'unknown' ], 'registered template-part area' ],
+	[ [ 'type' => 'wp_template_part', 'area' => 'unknown' ], 'area' ],
 ] as [ $invalid, $reason ] ) {
 	$reject( 'wp_create_template', array_replace( $input, $invalid ), $reason );
 }

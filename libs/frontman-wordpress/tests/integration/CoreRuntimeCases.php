@@ -39,7 +39,7 @@ $mcp_discover = static function( string $credentials, string $browser_cookie = '
 	return frontman_runtime_http( 'GET', '/?rest_route=/frontman/v1/tools', $browser_cookie, $browser_nonce, null, '', $credentials );
 };
 $mcp_request = static function( string $credentials, string $name = 'wp_read_post', ?int $id = null, string $browser_cookie = '', ?string $browser_nonce = null ) use ( $mcp_post ): array {
-	return frontman_runtime_http( 'POST', '/?rest_route=/frontman/v1/tools/call', $browser_cookie, $browser_nonce, wp_json_encode( [ 'name' => $name, 'arguments' => [ 'id' => $id ?? $mcp_post, 'content' => 'Unauthorized mutation' ] ] ), '', $credentials );
+	return frontman_runtime_http( 'POST', '/?rest_route=/frontman/v1/tools/call', $browser_cookie, $browser_nonce, wp_json_encode( [ 'name' => $name, 'arguments' => [ 'id' => $id ?? $mcp_post ] ] ), '', $credentials );
 };
 $mcp_denied = static function( array $response ): void {
 	frontman_runtime_assert( in_array( $response['status'], [ 401, 403 ], true ), 'MCP request must be denied' );
@@ -73,11 +73,32 @@ try {
 	$result = json_decode( $response['body'], true, 512, JSON_THROW_ON_ERROR );
 	frontman_runtime_same( false, $result['isError'], 'MCP read succeeds' );
 	frontman_runtime_same( 'Private MCP bytes', json_decode( $result['content'][0]['text'], true )['content'], 'MCP preserves raw content' );
+	foreach ( [ '{}', '{"id":[999]}', '{"id":"1"}', '{"id":1.0}', '{"id":{}}', '[]' ] as $arguments ) {
+		$browser = frontman_runtime_tool( $cookie, $nonce, [], '{"name":"wp_read_post","arguments":' . $arguments . '}' );
+		frontman_runtime_assert( $browser['body']['isError'], 'Browser read must reject invalid arguments: ' . $arguments );
+		$remote = frontman_runtime_http( 'POST', '/?rest_route=/frontman/v1/tools/call', '', null, '{"name":"wp_read_post","arguments":' . $arguments . '}', '', $mcp_credentials );
+		frontman_runtime_same( 400, $remote['status'], 'Remote read must reject invalid arguments: ' . $arguments );
+	}
+	$extra = '{"name":"wp_read_post","arguments":{"id":' . $mcp_post . ',"unexpected":true}}';
+	frontman_runtime_assert( frontman_runtime_tool( $cookie, $nonce, [], $extra )['body']['isError'], 'Browser rejects undeclared fields' );
+	frontman_runtime_same( 400, frontman_runtime_http( 'POST', '/?rest_route=/frontman/v1/tools/call', '', null, $extra, '', $mcp_credentials )['status'], 'Remote rejects undeclared fields' );
+	$elementor = new Frontman_Tools(); ( new Frontman_Tool_Elementor() )->register( $elementor );
+	$float = $elementor->sanitize_input( 'wp_elementor_save_page_data', json_decode( '{"post_id":1,"data":[{"id":"a","elType":"widget","settings":{"slider":{"size":1.0}}}],"confirm":true}' ), true );
+	frontman_runtime_same( 1.0, $float['data'][0]['settings']['slider']['size'], 'Nested free-form whole float retains its JSON type' );
+	$before = $wpdb->get_results( "SELECT * FROM {$wpdb->posts} ORDER BY ID", ARRAY_A );
+	foreach ( [
+		'{"title":"Rejected"}',
+		'{"id":[' . $mcp_post . '],"title":"Rejected"}',
+		'{"id":"' . $mcp_post . '","title":"Rejected"}',
+		'{"id":' . $mcp_post . ',"title":"Rejected","tags":["1"]}',
+		'{"id":' . $mcp_post . ',"title":"Rejected","tags":{}}',
+	] as $index => $arguments ) {
+		$name = 0 === $index ? 'wp_create_post' : 'wp_update_post';
+		$browser = frontman_runtime_tool( $cookie, $nonce, [], '{"name":"' . $name . '","arguments":' . $arguments . '}' );
+		frontman_runtime_assert( $browser['body']['isError'], 'Browser mutation must reject invalid arguments: ' . $arguments );
+		frontman_runtime_same( $before, $wpdb->get_results( "SELECT * FROM {$wpdb->posts} ORDER BY ID", ARRAY_A ), 'Invalid mutation must not write posts or revisions' );
+	}
 	foreach ( [ '{"id":[999]}', '{"id":{}}', '{"id":null}', '{"id":true}', '{"id":"1"}', '{"id":1.5}', '{"id":0}', '{"id":-1}', '{"id":9223372036854775808}', '{}', '[]', 'true', 'null' ] as $arguments ) {
-		$decoded = json_decode( $arguments );
-		if ( $decoded instanceof stdClass ) {
-			frontman_runtime_same( false, ( $read_definition->remote_validator )( $decoded ), 'Registered validator rejects native JSON: ' . $arguments );
-		}
 		$invalid = frontman_runtime_http( 'POST', '/?rest_route=/frontman/v1/tools/call', '', null, '{"name":"wp_read_post","arguments":' . $arguments . '}', '', $mcp_credentials );
 		frontman_runtime_same( 400, $invalid['status'], 'Malformed MCP arguments must not execute a read: ' . $arguments );
 		frontman_runtime_assert( false === strpos( $invalid['body'], 'Private MCP bytes' ), 'Malformed MCP request leaked content' );

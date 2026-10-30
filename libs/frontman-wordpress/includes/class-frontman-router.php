@@ -76,7 +76,11 @@ class Frontman_Router {
 						|| ! ( $tool->remote_validator )( $body->arguments ) ) {
 						return new WP_Error( 'frontman_mcp_arguments', 'Invalid tool arguments.', [ 'status' => 400 ] );
 					}
-					return $tools->call( $name, $tools->sanitize_input( $name, (array) $body->arguments ) );
+					try {
+						return $tools->call( $name, $tools->sanitize_input( $name, $body->arguments, true ) );
+					} catch ( Frontman_Tool_Error $e ) {
+						return new WP_Error( 'frontman_mcp_arguments', $e->getMessage(), [ 'status' => 400 ] );
+					}
 				},
 			] );
 		} );
@@ -314,15 +318,11 @@ class Frontman_Router {
 				return [];
 			}
 		}
-		if ( is_array( $data ) && in_array( sanitize_key( $data['name'] ?? '' ), [ 'wp_create_post', 'wp_update_post' ], true ) ) {
+		if ( is_array( $data ) ) {
 			$typed = json_decode( $raw );
 			foreach ( [ 'arguments', 'input' ] as $key ) {
-				if ( isset( $typed->$key ) && is_object( $typed->$key ) && isset( $data[ $key ] ) && is_array( $data[ $key ] ) ) {
-					foreach ( [ 'categories', 'tags' ] as $field ) {
-						if ( property_exists( $typed->$key, $field ) ) {
-							$data[ $key ][ $field ] = $typed->$key->$field;
-						}
-					}
+				if ( $typed instanceof \stdClass && property_exists( $typed, $key ) ) {
+					$data[ $key ] = $typed->$key;
 				}
 			}
 		}
@@ -337,11 +337,11 @@ class Frontman_Router {
 			'name' => sanitize_key( $data['name'] ?? '' ),
 		];
 
-		if ( isset( $data['arguments'] ) && is_array( $data['arguments'] ) ) {
+		if ( array_key_exists( 'arguments', $data ) ) {
 			$body['arguments'] = $data['arguments'];
 		}
 
-		if ( isset( $data['input'] ) && is_array( $data['input'] ) ) {
+		if ( array_key_exists( 'input', $data ) ) {
 			$body['input'] = $data['input'];
 		}
 
@@ -395,7 +395,7 @@ class Frontman_Router {
 	 */
 	private function handle_tool_call( array $body ): void {
 		$name      = sanitize_key( $body['name'] ?? '' );
-		$raw_input = $body['arguments'] ?? $body['input'] ?? [];
+		$raw_input = array_key_exists( 'arguments', $body ) ? $body['arguments'] : ( array_key_exists( 'input', $body ) ? $body['input'] : (object) [] );
 
 		if ( empty( $name ) ) {
 			$this->send_sse_tool_result( Frontman_Tools::error_result( 'Missing tool name' ) );
@@ -404,7 +404,7 @@ class Frontman_Router {
 
 		if ( $this->tools->is_wp_tool( $name ) ) {
 			try {
-				$input  = is_array( $raw_input ) ? $this->tools->sanitize_input( $name, $raw_input ) : [];
+				$input  = $this->tools->sanitize_input( $name, $raw_input, true );
 				$result = $this->tools->call( $name, $input );
 				$this->send_sse_tool_result( $result );
 			} catch ( \Throwable $e ) {

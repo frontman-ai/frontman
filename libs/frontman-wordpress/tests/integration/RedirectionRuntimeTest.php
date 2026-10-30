@@ -43,7 +43,11 @@ set_error_handler( static function ( int $severity, string $message, string $fil
 
 function redirection_call( string $name, array $input, bool $expect_error = false ): array {
 	global $tools;
-	$result = $tools->call( $name, $tools->sanitize_input( $name, $input ) );
+	try {
+		$result = $tools->call( $name, $tools->sanitize_input( $name, $input ) );
+	} catch ( Frontman_Tool_Error $e ) {
+		$result = Frontman_Tools::error_result( $e->getMessage() );
+	}
 	redirection_check( $result['isError'] === $expect_error, $name . ': ' . $result['content'][0]['text'] );
 	return $expect_error ? $result : json_decode( $result['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
 }

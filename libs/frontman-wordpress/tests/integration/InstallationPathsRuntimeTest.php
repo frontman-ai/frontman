@@ -10,7 +10,13 @@ $call = static function ( array $input ) use ( $tools ): array {
 };
 $default = $call( [] );
 frontman_runtime_assert( ! array_key_exists( 'installation', $default ) && $default === $call( [ 'include_installation_paths' => false ] ), 'Default and explicit false must omit paths.' );
-$info = $call( [ 'include_installation_paths' => true, 'path' => '/must-not-be-used' ] );
+try {
+	$call( [ 'include_installation_paths' => true, 'path' => '/must-not-be-used' ] );
+	throw new RuntimeException( 'Unexpected path argument was accepted.' );
+} catch ( Frontman_Tool_Error $e ) {
+	frontman_runtime_assert( false !== strpos( $e->getMessage(), 'path' ), 'Path rejection did not identify the field.' );
+}
+$info = $call( [ 'include_installation_paths' => true ] );
 frontman_runtime_same( [
 	'abspath' => ABSPATH,
 	'resolved_abspath' => realpath( '/var/www/html' ) . '/',

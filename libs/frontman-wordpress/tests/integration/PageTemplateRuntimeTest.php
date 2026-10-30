@@ -28,7 +28,7 @@ foreach ( [
 $plain = $call( 'wp_create_post', $page );
 frontman_runtime_same( 'default', $plain['after']['template'], 'Omitted creation template uses the default' );
 
-foreach ( [ [ null, 'must be a string' ], [ 'missing-layout', 'not available' ], [ $part, 'not available' ] ] as [ $invalid, $reason ] ) {
+foreach ( [ [ null, 'template' ], [ 'missing-layout', 'not available' ], [ $part, 'not available' ] ] as [ $invalid, $reason ] ) {
 	$reject( 'wp_create_post', $page + [ 'template' => $invalid ], $reason );
 	$reject( 'wp_update_post', [ 'id' => $id, 'title' => 'Must not save', 'template' => $invalid ], $reason );
 }

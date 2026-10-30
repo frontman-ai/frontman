@@ -328,19 +328,13 @@ function frontman_test_custom_css_restore_tool(): void {
 
 	$registry = new Frontman_Tools();
 	$tool->register( $registry );
-	$string_confirmation = $registry->call(
-		'wp_restore_custom_css_revision',
-		$registry->sanitize_input( 'wp_restore_custom_css_revision', array_merge( $restore_input, [ 'confirm' => 'true' ] ) )
-	);
-	frontman_runtime_assert( true === $string_confirmation['isError'], 'String restore confirmation was accepted.' );
-	frontman_runtime_assert( false !== strpos( $string_confirmation['content'][0]['text'], 'confirm=true' ), 'String confirmation returned unexpected restore error.' );
+	frontman_custom_css_assert_tool_error( static function() use ( $registry, $restore_input ): void {
+		$registry->sanitize_input( 'wp_restore_custom_css_revision', array_merge( $restore_input, [ 'confirm' => 'true' ] ) );
+	}, 'confirm' );
 	frontman_runtime_assert( $current_css === frontman_custom_css_persisted_post( $post->ID )->post_content, 'String confirmation changed current CSS.' );
-	$malformed_revision = $registry->call(
-		'wp_restore_custom_css_revision',
-		$registry->sanitize_input( 'wp_restore_custom_css_revision', array_merge( $restore_input, [ 'revision_id' => $revision->ID . 'junk' ] ) )
-	);
-	frontman_runtime_assert( true === $malformed_revision['isError'], 'Malformed restore revision ID was accepted.' );
-	frontman_runtime_assert( false !== strpos( $malformed_revision['content'][0]['text'], 'positive integer' ), 'Malformed revision ID returned unexpected restore error.' );
+	frontman_custom_css_assert_tool_error( static function() use ( $registry, $restore_input, $revision ): void {
+		$registry->sanitize_input( 'wp_restore_custom_css_revision', array_merge( $restore_input, [ 'revision_id' => $revision->ID . 'junk' ] ) );
+	}, 'revision_id' );
 	frontman_runtime_assert( $current_css === frontman_custom_css_persisted_post( $post->ID )->post_content, 'Malformed revision ID changed current CSS.' );
 
 	frontman_custom_css_assert_tool_error(
@@ -459,7 +453,11 @@ function frontman_test_custom_css_edit_tool(): void {
 		[ 'newText' => [] ],
 		[ 'replaceAll' => 'true' ],
 	] as $overrides ) {
-		$result = $registry->call( 'wp_update_custom_css', $registry->sanitize_input( 'wp_update_custom_css', array_merge( $input, $overrides ) ) );
+		try {
+			$result = $registry->call( 'wp_update_custom_css', $registry->sanitize_input( 'wp_update_custom_css', array_merge( $input, $overrides ) ) );
+		} catch ( Frontman_Tool_Error $e ) {
+			$result = Frontman_Tools::error_result( $e->getMessage() );
+		}
 		frontman_runtime_assert( true === $result['isError'], 'Invalid edit was accepted: ' . json_encode( $overrides ) );
 		frontman_runtime_assert( $original === frontman_custom_css_persisted_post( $post->ID )->post_content, 'Rejected edit changed persisted CSS.' );
 	}

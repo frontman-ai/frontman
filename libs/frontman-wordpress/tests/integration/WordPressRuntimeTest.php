@@ -162,8 +162,22 @@ foreach ( [ [ '', null, 401 ], [ $subscriber_cookie, null, 403 ], [ $cookie, nul
 }
 foreach ( [ null, 0, 1, 'true', 'false', [], (object) [] ] as $invalid_path_opt_in ) {
 	$invalid_location = frontman_runtime_tool( $cookie, $slug_nonce, [ 'name' => 'wp_get_site_info', 'arguments' => [ 'include_installation_paths' => $invalid_path_opt_in ] ] );
-	frontman_runtime_assert( true === $invalid_location['body']['isError'] && 'include_installation_paths must be a boolean.' === $invalid_location['body']['content'][0]['text'], 'HTTP path opt-in must reject coerced booleans and identify the field.' );
+	frontman_runtime_assert( true === $invalid_location['body']['isError'] && false !== strpos( $invalid_location['body']['content'][0]['text'], 'include_installation_paths' ), 'HTTP path opt-in must reject coerced booleans and identify the field.' );
 }
+
+$media_definition = Frontman_Tools::instance()->get( 'wp_upload_media' );
+frontman_runtime_assert( null !== $media_definition, 'wp_upload_media is registered.' );
+frontman_runtime_assert( isset( $media_definition->input_schema['properties']['image_ref'] ), 'wp_upload_media schema exposes image_ref.' );
+frontman_runtime_assert( isset( $media_definition->input_schema['properties']['content'] ), 'wp_upload_media schema accepts resolved content.' );
+$media_input = [
+	'image_ref' => 'attachment://att_abc/caf%C3%A9.png',
+	'content' => 'abc<raw>base64',
+	'filename' => 'raw.png',
+	'mime_type' => 'image/png',
+];
+$media_sanitized = Frontman_Tools::instance()->sanitize_input( 'wp_upload_media', $media_input );
+frontman_runtime_same( $media_input['image_ref'], $media_sanitized['image_ref'], 'Media sanitizer preserves image_ref URI bytes.' );
+frontman_runtime_same( $media_input['content'], $media_sanitized['content'], 'Media sanitizer preserves raw content bytes.' );
 
 $media_image = imagecreatetruecolor( 320, 240 );
 ob_start();
@@ -374,7 +388,11 @@ update_option( 'sidebars_widgets', [ 'frontman-widgets' => [ 'custom_html-4', 'c
 update_option( 'widget_categories', [ 3 => [ 'title' => 'Categories' ] ] );
 $widget_call = static function ( string $name, array $input, bool $error = false ): array {
 	$tools = Frontman_Tools::instance();
-	$result = $tools->call( $name, $tools->sanitize_input( $name, $input ) );
+	try {
+		$result = $tools->call( $name, $tools->sanitize_input( $name, $input ) );
+	} catch ( Frontman_Tool_Error $e ) {
+		$result = Frontman_Tools::error_result( $e->getMessage() );
+	}
 	frontman_runtime_assert( $error === $result['isError'], $name . ': ' . wp_json_encode( $result ) );
 	return $error ? [ 'error' => $result['content'][0]['text'] ] : json_decode( $result['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
 };
@@ -665,6 +683,39 @@ $wp_version = $original_version;
 $wp_actions['wpseo_loaded'] = $loaded;
 $wp_meta_keys = $registered;
 frontman_runtime_assert( null === ( new Frontman_Tool_Templates() )->get_site_info( [] )['seo_unavailable_reason'], 'Supported runtime was diagnosed as unavailable.' );
+$seo_tools = new Frontman_Tools();
+$seo_handler = new Frontman_Tool_Seo();
+$seo_handler->register( $seo_tools );
+frontman_runtime_assert( 1 === $seo_tools->get( 'wp_read_seo' )->input_schema['properties']['id']['minimum']
+	&& [ 'id' ] === $seo_tools->get( 'wp_update_seo' )->input_schema['required']
+	&& false !== strpos( $seo_tools->get( 'wp_update_seo' )->description, 'Provide at least one of title, description, or focus_keyphrase.' ), 'SEO schemas do not match runtime requirements.' );
+foreach ( [
+	[ 'id' => 7, 'title' => "  Café %%title%% \\ \"quoted\"  ", 'description' => '' ],
+	[ 'id' => 7, 'focus_keyphrase' => "  Café \\ \"quoted\"  " ],
+] as $raw_seo ) {
+	frontman_runtime_assert( $raw_seo === $seo_tools->sanitize_input( 'wp_update_seo', $raw_seo ), 'Registry changed raw SEO input bytes.' );
+}
+foreach ( [
+	[ 'wp_read_seo', [ 'id' => '7' ] ],
+	[ 'wp_read_seo', [ 'id' => 0 ] ],
+	[ 'wp_update_seo', [ 'id' => 7 ] ],
+	[ 'wp_update_seo', [ 'id' => 7, 'title' => null ] ],
+	[ 'wp_update_seo', [ 'id' => 7, 'focus_keyphrase' => 123 ] ],
+	[ 'wp_update_seo', [ 'id' => 7, 'focus_keyphrase' => "bad\xC3\x28" ] ],
+	[ 'wp_update_seo', [ 'id' => 7, 'title' => "bad\xC3\x28" ] ],
+	[ 'wp_update_seo', [ 'id' => 7, 'title' => 'safe', 'meta_key' => '_danger' ] ],
+] as [ $name, $input ] ) {
+	try {
+		$seo_tools->sanitize_input( $name, $input );
+		throw new RuntimeException( 'Invalid raw SEO input was accepted: ' . $name );
+	} catch ( Frontman_Tool_Error $error ) {}
+}
+try {
+	$seo_handler->read_seo( [ 'id' => '7' ] );
+	throw new RuntimeException( 'Direct SEO input was coerced.' );
+} catch ( Frontman_Tool_Error $error ) {
+	frontman_runtime_assert( 'id must be a positive integer.' === $error->getMessage(), 'Direct SEO input reached a later guard.' );
+}
 $runtime_permalink = get_option( 'permalink_structure' );
 $wp_rewrite->set_permalink_structure( '' );
 $nonce = $slug_nonce;

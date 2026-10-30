@@ -53,9 +53,10 @@ foreach ( [ true, false, null, 0, -1, [], (object) [] ] as $bad ) { $reject_both
 foreach ( [ (string) $target_id, 1.0, true, false, null, 0, -1, [], (object) [] ] as $bad ) {
 	foreach ( [ 'wp_create_post' => 'create_post', 'wp_update_post' => 'update_post' ] as $name => $method ) {
 		$input = array_merge( $combined, [ 'author' => $bad ] );
+		if ( 'wp_create_post' === $name ) { unset( $input['id'] ); }
 		foreach ( [ static fn() => Frontman_Tools::instance()->sanitize_input( $name, $input ), static fn() => ( new Frontman_Tool_Posts() )->$method( $input ) ] as $attempt ) {
 			try { $attempt(); throw new RuntimeException( 'Invalid author accepted' ); }
-			catch ( Frontman_Tool_Error $error ) { frontman_runtime_assert( false !== strpos( $error->getMessage(), 'positive integer' ), 'Invalid author diagnostic differs' ); }
+			catch ( Frontman_Tool_Error $error ) { frontman_runtime_assert( false !== strpos( $error->getMessage(), 'author' ), 'Invalid author diagnostic differs' ); }
 		}
 		frontman_runtime_assert( Frontman_Tools::instance()->call( $name, $input )['isError'], 'Direct dispatch accepted invalid author' );
 	}
