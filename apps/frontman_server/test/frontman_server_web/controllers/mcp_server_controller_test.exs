@@ -10,7 +10,7 @@ defmodule FrontmanServerWeb.McpServerControllerTest do
   setup do
     previous = Application.fetch_env!(:frontman_server, :mcp_server)
     on_exit(fn -> Application.put_env(:frontman_server, :mcp_server, previous) end)
-    Application.put_env(:frontman_server, :mcp_server, resource: @resource, issuer: @issuer)
+    Application.put_env(:frontman_server, :mcp_server, issuer: @issuer)
     :ok
   end
 
@@ -29,8 +29,8 @@ defmodule FrontmanServerWeb.McpServerControllerTest do
            }
   end
 
-  test "metadata is unavailable when either server identifier is missing", %{conn: conn} do
-    for config <- [[], [resource: @resource], [issuer: @issuer]] do
+  test "metadata is unavailable when issuer configuration is missing or changed", %{conn: conn} do
+    for config <- [[], [issuer: nil], [issuer: "https://other.example"]] do
       Application.put_env(:frontman_server, :mcp_server, config)
       assert conn |> get(@metadata) |> response(503)
     end
@@ -148,9 +148,9 @@ defmodule FrontmanServerWeb.McpServerControllerTest do
   test "configuration changes cannot expose an unconfigured server" do
     for config <- [
           [],
-          [resource: @resource],
-          [issuer: @issuer],
-          [resource: @resource, issuer: "http://bad"]
+          [issuer: nil],
+          [issuer: "http://bad"],
+          [issuer: "https://other.example"]
         ] do
       Application.put_env(:frontman_server, :mcp_server, config)
       assert wire(:post, "/mcp", [], "{}").status == 503
@@ -160,10 +160,7 @@ defmodule FrontmanServerWeb.McpServerControllerTest do
   end
 
   test "malformed issuer cannot start a metadata-publishing SDK server" do
-    Application.put_env(:frontman_server, :mcp_server,
-      resource: @resource,
-      issuer: "https://%FF.example"
-    )
+    Application.put_env(:frontman_server, :mcp_server, issuer: "https://%FF.example")
 
     assert_raise MatchError, fn ->
       FrontmanServerWeb.MCP.child_specs()
@@ -181,7 +178,7 @@ defmodule FrontmanServerWeb.McpServerControllerTest do
           "https://%zz.example",
           "https://%3A%3A1"
         ] do
-      Application.put_env(:frontman_server, :mcp_server, resource: @resource, issuer: issuer)
+      Application.put_env(:frontman_server, :mcp_server, issuer: issuer)
 
       assert_raise MatchError, fn ->
         FrontmanServerWeb.MCP.child_specs()
@@ -189,18 +186,53 @@ defmodule FrontmanServerWeb.McpServerControllerTest do
     end
   end
 
-  test "noncanonical resource URLs cannot start the MCP server" do
-    Application.put_env(:frontman_server, :mcp_server,
-      resource: "https://resource.example:443/mcp",
-      issuer: @issuer
-    )
+  test "noncanonical or missing configured public host cannot start the MCP server" do
+    previous = Application.fetch_env!(:frontman_server, FrontmanServerWeb.Endpoint)
+    on_exit(fn -> Application.put_env(:frontman_server, FrontmanServerWeb.Endpoint, previous) end)
 
-    assert_raise MatchError, fn -> FrontmanServerWeb.MCP.child_specs() end
-    assert wire(:post, "/mcp", [], "{}").status == 503
+    for host <- ["RESOURCE.example", nil] do
+      Application.put_env(
+        :frontman_server,
+        FrontmanServerWeb.Endpoint,
+        Keyword.put(previous, :url, host: host, port: 443, scheme: "https")
+      )
+
+      assert_raise MatchError, fn -> FrontmanServerWeb.MCP.child_specs() end
+      assert wire(:post, "/mcp", [], "{}").status == 503
+    end
   end
 
-  test "startup rejects absent and partial MCP configuration" do
-    for config <- [[], [resource: nil, issuer: nil], [resource: @resource], [issuer: @issuer]] do
+  test "Phoenix public URL string ports produce canonical MCP resources" do
+    previous = Application.fetch_env!(:frontman_server, FrontmanServerWeb.Endpoint)
+    on_exit(fn -> Application.put_env(:frontman_server, FrontmanServerWeb.Endpoint, previous) end)
+
+    for {port, expected} <- [
+          {"443", @resource},
+          {"444", "https://resource.example:444/mcp"}
+        ] do
+      Application.put_env(
+        :frontman_server,
+        FrontmanServerWeb.Endpoint,
+        Keyword.put(previous, :url, host: "resource.example", port: port, scheme: "https")
+      )
+
+      [{Server, options}] = FrontmanServerWeb.MCP.child_specs()
+      assert options[:authorization][:resource] == expected
+    end
+
+    Application.put_env(
+      :frontman_server,
+      FrontmanServerWeb.Endpoint,
+      Keyword.put(previous, :url, host: "resource.example", port: "444oops", scheme: "https")
+    )
+
+    assert_raise ArgumentError, ~r/invalid Endpoint public URL port/, fn ->
+      FrontmanServerWeb.MCP.child_specs()
+    end
+  end
+
+  test "startup rejects absent or invalid issuer configuration" do
+    for config <- [[], [issuer: nil], [issuer: "http://bad"]] do
       Application.put_env(:frontman_server, :mcp_server, config)
 
       assert_raise MatchError, fn ->

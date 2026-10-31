@@ -4,6 +4,7 @@ defmodule FrontmanServerWeb.MCP.ApplicationRestartTest do
   @tag :application_restart
   test "invalid configuration stops startup and canonical IPv6 restart serves the SDK" do
     previous = Application.fetch_env!(:frontman_server, :mcp_server)
+    previous_endpoint = Application.fetch_env!(:frontman_server, FrontmanServerWeb.Endpoint)
     Process.flag(:trap_exit, true)
 
     on_exit(fn ->
@@ -13,22 +14,38 @@ defmodule FrontmanServerWeb.MCP.ApplicationRestartTest do
       end
 
       Application.put_env(:frontman_server, :mcp_server, previous)
+      Application.put_env(:frontman_server, FrontmanServerWeb.Endpoint, previous_endpoint)
       {:ok, _} = Application.ensure_all_started(:frontman_server)
     end)
 
     assert :ok = Application.stop(:frontman_server)
-    Application.put_env(:frontman_server, :mcp_server, resource: nil, issuer: nil)
+    Application.put_env(:frontman_server, :mcp_server, issuer: nil)
 
     assert {:error, {:frontman_server, _reason}} =
              Application.ensure_all_started(:frontman_server)
 
     refute Process.whereis(Anubis.Server.Registry.supervisor_name(FrontmanServerWeb.MCP.Server))
 
-    Application.put_env(:frontman_server, :mcp_server,
-      resource: "https://[::1]/mcp",
-      issuer: previous[:issuer]
+    Application.put_env(:frontman_server, :mcp_server, previous)
+
+    Application.put_env(
+      :frontman_server,
+      FrontmanServerWeb.Endpoint,
+      Keyword.put(previous_endpoint, :url, host: nil, port: 443, scheme: "https")
     )
 
+    assert {:error, {:frontman_server, _reason}} =
+             Application.ensure_all_started(:frontman_server)
+
+    refute Process.whereis(Anubis.Server.Registry.supervisor_name(FrontmanServerWeb.MCP.Server))
+
+    Application.put_env(
+      :frontman_server,
+      FrontmanServerWeb.Endpoint,
+      Keyword.put(previous_endpoint, :url, host: "::1", port: 443, scheme: "https")
+    )
+
+    Application.put_env(:frontman_server, :mcp_server, issuer: previous[:issuer])
     assert {:ok, _} = Application.ensure_all_started(:frontman_server)
     {:ok, {_ip, port}} = FrontmanServerWeb.Endpoint.server_info(:http)
 

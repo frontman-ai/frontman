@@ -24,9 +24,22 @@ defmodule FrontmanServerWeb.MCP do
   defp config do
     config = Application.fetch_env!(:frontman_server, :mcp_server)
 
-    with {:ok, origin} <- Origin.resource(config[:resource]),
+    url =
+      Application.fetch_env!(:frontman_server, FrontmanServerWeb.Endpoint) |> Keyword.fetch!(:url)
+
+    true = url[:path] in [nil, "/"]
+
+    resource =
+      URI.to_string(%URI{
+        scheme: Keyword.fetch!(url, :scheme),
+        host: Keyword.fetch!(url, :host),
+        port: public_port(Keyword.fetch!(url, :port)),
+        path: "/mcp"
+      })
+
+    with {:ok, origin} <- Origin.resource(resource),
          :ok <- Origin.issuer(config[:issuer]) do
-      {:ok, config[:resource], config[:issuer], origin}
+      {:ok, resource, config[:issuer], origin}
     end
   end
 
@@ -77,6 +90,17 @@ defmodule FrontmanServerWeb.MCP do
       reject(conn, 503)
     end
   end
+
+  defp public_port(port) when is_integer(port), do: port
+
+  defp public_port(port) when is_binary(port) do
+    case Integer.parse(port) do
+      {parsed, ""} -> parsed
+      _ -> raise ArgumentError, "invalid Endpoint public URL port"
+    end
+  end
+
+  defp public_port(_port), do: raise(ArgumentError, "invalid Endpoint public URL port")
 
   defp reject(conn, status), do: conn |> send_resp(status, "") |> halt()
 end
