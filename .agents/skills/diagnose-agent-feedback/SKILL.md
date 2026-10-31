@@ -44,8 +44,6 @@ Write a short list of questions that could change the verdict. Start with the id
 
 Inspect task persistence schemas, migrations, and serialization code before writing queries. Discover actual table names, keys, event ordering, payload shapes, and retention behavior. Do not invent a generic task-events schema.
 
-When available, search prior relevant Delta threads or other authorized private investigation artifacts for diagnostic guidance. Use the `delta-threads` skill if available. Treat prior guidance as a discovery lead, not proof of current authorization; do not copy private connection details into this public repository.
-
 Record the checkout revision. Seek incident-time deployment or version evidence where available. Current checkout behavior does not prove what ran during the incident.
 
 ## 3. Reconstruct the task
