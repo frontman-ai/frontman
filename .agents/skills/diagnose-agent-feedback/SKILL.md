@@ -44,21 +44,23 @@ Write a short list of questions that could change the verdict. Start with the id
 
 Inspect task persistence schemas, migrations, and serialization code before writing queries. Discover actual table names, keys, event ordering, payload shapes, and retention behavior. Do not invent a generic task-events schema.
 
+When available, search prior relevant Delta threads or other authorized private investigation artifacts for diagnostic guidance. Use the `delta-threads` skill if available. Treat prior guidance as a discovery lead, not proof of current authorization; do not copy private connection details into this public repository.
+
 Record the checkout revision. Seek incident-time deployment or version evidence where available. Current checkout behavior does not prove what ran during the incident.
 
 ## 3. Reconstruct the task
 
 Use the production access contract to retrieve the minimum necessary evidence:
 
-1. Confirm task identity and relevant metadata.
+1. Confirm task identity and relevant metadata before selecting payloads.
 2. Find the incident time from persisted events, not the Discord delivery timestamp.
-3. Read the relevant sequence of user requests, agent actions, tool calls, tool results, retries, and final response.
+3. Plan a task-specific timeline and read only the relevant fields of user requests, agent actions, tool calls, tool results, retries, and final response.
 4. Determine which capabilities, instructions, and permissions were actually available to the agent.
 5. Identify errors, recovery opportunities, and what the user ultimately received.
 
 Build a timeline with UTC timestamps and stable record identifiers. Use deterministic ordering, including a tie-breaker when timestamps match.
 
-Do not assume advertised capabilities or all tool calls were persisted. Distinguish an absent event from an event known not to have happened. If history is truncated or unavailable, state that.
+Do not assume advertised capabilities or all tool calls were persisted. Tool results may be persisted without corresponding calls; do not discard them or invent a call. Distinguish an absent event from an event known not to have happened. If history is truncated or unavailable, state that.
 
 ## 4. Test explanations
 
@@ -76,7 +78,7 @@ For each material claim, record supporting evidence, contradicting evidence, and
 
 Test evidence against the leading explanation. Do not merely collect examples that support it. Explanations can coexist: agent misuse may expose a misleading tool schema or poor recovery guidance.
 
-For feature requests, verify the underlying user need separately from the agent's suggested implementation. Check whether an existing capability or reasonable workflow already solves it.
+For feature requests, verify the underlying user goal separately from the agent's suggested implementation. Check whether an existing capability or reasonable workflow already solves it. A missing future capability is a product gap, not an incident failure, unless it was necessary for the actual goal or supported behavior was expected to provide it.
 
 Trace the actual code path, tool schema, error handling, and relevant tests. Cite exact code locations. Where useful, run a local reproduction or focused test, following project instructions. State the interpreter, command, revision, and result. A test of current code is not a reproduction of an unknown incident version.
 
@@ -118,7 +120,7 @@ Recommend the smallest justified change, or explain why no change is needed. Ide
 
 ### Limitations
 
-Name unavailable records, unknown incident versions, access failures, checks not run, and remaining assumptions. If production access was blocked, label this a partial analysis; do not imply production evidence was examined.
+Name unavailable records, unknown incident versions, access failures, checks not run, and remaining assumptions. Do not declare the analysis partial merely because connection details were not immediately visible: follow the access decision tree first. If production access remains blocked, label the analysis partial, identify the specific blocker and its effect on the verdict, and do not imply production evidence was examined.
 
 ### Evidence ledger
 
