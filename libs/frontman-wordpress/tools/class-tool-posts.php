@@ -48,6 +48,10 @@ class Frontman_Tool_Posts {
 						'description' => 'Post type slug. Use "page" for pages, or any registered CPT slug.',
 						'default'     => 'post',
 					],
+					'lang' => [
+						'type' => 'string',
+						'description' => 'Optional Polylang language slug to filter posts. Requires active Polylang and a configured language.',
+					],
 					'status'    => [
 						'type'        => 'string',
 						'description' => 'Filter by post status.',
@@ -367,6 +371,15 @@ class Frontman_Tool_Posts {
 			'order'          => strtoupper( sanitize_key( $input['order'] ?? 'DESC' ) ),
 		];
 
+		if ( array_key_exists( 'lang', $input ) ) {
+			if ( ! function_exists( 'pll_languages_list' ) || ! in_array( $input['lang'], pll_languages_list( [ 'hide_empty' => false, 'fields' => 'slug' ] ), true ) ) {
+				throw new Frontman_Tool_Error( 'lang must be a configured Polylang language slug; Polylang must be active.' );
+			}
+			if ( ! function_exists( 'pll_is_translated_post_type' ) || ! pll_is_translated_post_type( $args['post_type'] ) ) {
+				throw new Frontman_Tool_Error( 'Polylang does not manage the requested post type; language filtering is unavailable.' );
+			}
+			$args['lang'] = $input['lang'];
+		}
 		if ( ! empty( $input['search'] ) ) {
 			$args['s'] = sanitize_text_field( $input['search'] );
 		}
@@ -384,6 +397,7 @@ class Frontman_Tool_Posts {
 				'date'     => $post->post_date,
 				'modified' => $post->post_modified,
 				'excerpt'  => wp_trim_words( $post->post_content, 30 ),
+				'lang'     => function_exists( 'pll_get_post_language' ) ? ( pll_get_post_language( $post->ID, 'slug' ) ?: null ) : null,
 			];
 		}
 

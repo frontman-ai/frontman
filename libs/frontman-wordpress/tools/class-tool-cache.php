@@ -120,7 +120,7 @@ class Frontman_Tool_Cache {
 					break;
 				case 'wp-super-cache':
 					if ( function_exists( 'wp_cache_clear_cache' ) ) {
-						wp_cache_clear_cache( '', true );
+						wp_cache_clear_cache( is_multisite() ? get_current_blog_id() : 0 );
 						$cleared[] = $plugin['slug'];
 					}
 					break;
