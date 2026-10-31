@@ -20,6 +20,9 @@ if ( '' !== $runtime_alias ) {
 	frontman_runtime_assert( is_link( $runtime_alias ) && realpath( $runtime_alias ) === realpath( '/var/www/html' ), 'Runtime root alias must point to WordPress.' );
 	define( 'ABSPATH', $runtime_alias . '/' );
 }
+if ( in_array( $runtime_case, [ 'polylang-setup', 'polylang-cleanup', 'polylang-cleanup-verify' ], true ) ) {
+	define( 'PLL_ADMIN', true );
+}
 try {
 	require '/var/www/html/wp-load.php';
 	$schema = [ 'type' => 'array', 'items' => [ 'type' => 'integer' ], 'minItems' => 1 ];
