@@ -113,6 +113,28 @@ defmodule FrontmanServerWeb.McpServerControllerTest do
     end
   end
 
+  test "raw invalid UTF-8 Origin is rejected before malformed query and body" do
+    {:ok, {_ip, port}} = FrontmanServerWeb.Endpoint.server_info(:http)
+    {:ok, socket} = :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, active: false], 5_000)
+
+    try do
+      :ok =
+        :gen_tcp.send(socket, [
+          "POST /mcp?x=%FF HTTP/1.1\r\n",
+          "host: 127.0.0.1\r\n",
+          "origin: https://resource.example",
+          <<255>>,
+          "\r\ncontent-type: application/json\r\ncontent-length: 1\r\nconnection: close\r\n\r\n{"
+        ])
+
+      assert {:ok, response} = :gen_tcp.recv(socket, 0, 5_000)
+      assert response =~ ~r/\AHTTP\/1\.1 403\b/
+      assert response =~ ~r/\r\nx-request-id: [^\r\n]+\r\n/i
+    after
+      :gen_tcp.close(socket)
+    end
+  end
+
   test "configuration changes cannot expose an unconfigured server" do
     for config <- [
           [],
