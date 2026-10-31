@@ -115,7 +115,14 @@ defmodule FrontmanServerWeb.McpServerControllerTest do
 
   test "raw invalid UTF-8 Origin is rejected before malformed query and body" do
     {:ok, {_ip, port}} = FrontmanServerWeb.Endpoint.server_info(:http)
-    {:ok, socket} = :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, active: false], 5_000)
+
+    {:ok, socket} =
+      :gen_tcp.connect(
+        {127, 0, 0, 1},
+        port,
+        [:binary, active: false, packet: :http_bin, packet_size: 8_192],
+        5_000
+      )
 
     try do
       :ok =
@@ -127,9 +134,12 @@ defmodule FrontmanServerWeb.McpServerControllerTest do
           "\r\ncontent-type: application/json\r\ncontent-length: 1\r\nconnection: close\r\n\r\n{"
         ])
 
-      assert {:ok, response} = :gen_tcp.recv(socket, 0, 5_000)
-      assert response =~ ~r/\AHTTP\/1\.1 403\b/
-      assert response =~ ~r/\r\nx-request-id: [^\r\n]+\r\n/i
+      deadline = System.monotonic_time(:millisecond) + 5_000
+      assert {:ok, {:http_response, {1, 1}, 403, _reason}} = :gen_tcp.recv(socket, 0, 5_000)
+
+      assert Enum.any?(read_http_headers(socket, deadline, 32), fn {name, value} ->
+               name == "x-request-id" and value != ""
+             end)
     after
       :gen_tcp.close(socket)
     end
@@ -275,5 +285,31 @@ defmodule FrontmanServerWeb.McpServerControllerTest do
       retry: false,
       receive_timeout: 5_000
     )
+  end
+
+  defp read_http_headers(socket, deadline, remaining),
+    do: read_http_headers(socket, deadline, remaining, [])
+
+  defp read_http_headers(_socket, _deadline, 0, _headers), do: flunk("too many HTTP headers")
+
+  defp read_http_headers(socket, deadline, remaining, headers) do
+    timeout = deadline - System.monotonic_time(:millisecond)
+    assert timeout > 0
+
+    case :gen_tcp.recv(socket, 0, timeout) do
+      {:ok, :http_eoh} ->
+        headers
+
+      {:ok, {:http_header, _index, name, _reserved, value}} ->
+        read_http_headers(
+          socket,
+          deadline,
+          remaining - 1,
+          [{String.downcase(to_string(name)), to_string(value)} | headers]
+        )
+
+      {:error, reason} ->
+        flunk("failed to read HTTP headers: #{inspect(reason)}")
+    end
   end
 end
