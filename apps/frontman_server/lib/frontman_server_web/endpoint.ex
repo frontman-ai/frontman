@@ -56,13 +56,14 @@ defmodule FrontmanServerWeb.Endpoint do
     plug(Phoenix.Ecto.CheckRepoStatus, otp_app: :frontman_server)
   end
 
+  plug(Plug.RequestId)
+  plug(Plug.Telemetry, event_prefix: [:phoenix, :endpoint])
+  plug(:mcp_boundary)
+
   plug(Phoenix.LiveDashboard.RequestLogger,
     param_key: "request_logger",
     cookie_key: "request_logger"
   )
-
-  plug(Plug.RequestId)
-  plug(Plug.Telemetry, event_prefix: [:phoenix, :endpoint])
 
   plug(FrontmanServerWeb.Plugs.CORS, path_prefix: "/api")
   plug(FrontmanServerWeb.Plugs.SupportQuestionBody)
@@ -83,4 +84,21 @@ defmodule FrontmanServerWeb.Endpoint do
   )
 
   plug(FrontmanServerWeb.Router)
+
+  defp mcp_boundary(%{path_info: [segment | _]} = conn, _opts) do
+    case URI.decode(segment) do
+      "mcp" ->
+        Sentry.Context.set_request_context(%{
+          method: conn.method,
+          env: %{"REQUEST_ID" => List.first(Plug.Conn.get_resp_header(conn, "x-request-id"))}
+        })
+
+        conn |> FrontmanServerWeb.MCP.call() |> Plug.Conn.halt()
+
+      _ ->
+        conn
+    end
+  end
+
+  defp mcp_boundary(conn, _opts), do: conn
 end

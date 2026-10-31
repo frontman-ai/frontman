@@ -12,9 +12,12 @@ config :frontman_server, FrontmanServer.Repo,
   pool_size: System.schedulers_online() * 2
 
 config :frontman_server, FrontmanServerWeb.Endpoint,
+  url: [host: "resource.example", port: 443, scheme: "https"],
   http: [ip: {127, 0, 0, 1}, port: 0],
   secret_key_base: "G/GaF+myr6UzSNKYFjTUkCovxv4WghMsXaq4S3O275rp8dLDSEvwkXAn5kbkvUJn",
   server: true
+
+config :frontman_server, :mcp_server, issuer: "https://issuer.example/tenant"
 
 config :frontman_server, FrontmanServer.Mailer,
   adapter: Swoosh.Adapters.Test,

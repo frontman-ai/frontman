@@ -44,17 +44,18 @@ defmodule FrontmanServer.Application do
       }
     })
 
-    children = [
-      FrontmanServerWeb.Telemetry,
-      FrontmanServer.Repo,
-      FrontmanServer.Vault,
-      {DNSCluster, query: Application.get_env(:frontman_server, :dns_cluster_query) || :ignore},
-      {Phoenix.PubSub, name: FrontmanServer.PubSub},
-      {Registry, keys: :unique, name: FrontmanServer.ProcessRegistry},
-      {SwarmAi, name: FrontmanServer.AgentRuntime},
-      {Oban, Application.fetch_env!(:frontman_server, Oban)},
-      FrontmanServerWeb.Endpoint
-    ]
+    children =
+      [
+        FrontmanServerWeb.Telemetry,
+        FrontmanServer.Repo,
+        FrontmanServer.Vault,
+        {DNSCluster, query: Application.get_env(:frontman_server, :dns_cluster_query) || :ignore},
+        {Phoenix.PubSub, name: FrontmanServer.PubSub},
+        {Registry, keys: :unique, name: FrontmanServer.ProcessRegistry},
+        {SwarmAi, name: FrontmanServer.AgentRuntime},
+        {Oban, Application.fetch_env!(:frontman_server, Oban)},
+        FrontmanServerWeb.Endpoint
+      ] ++ FrontmanServerWeb.MCP.child_specs()
 
     opts = [strategy: :one_for_one, name: FrontmanServer.Supervisor]
     Supervisor.start_link(children, opts)
