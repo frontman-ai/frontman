@@ -69,6 +69,7 @@ add_action( 'widgets_init', static function(): void {
 	add_filter( 'widget_display_callback', [ 'Frontman_Tool_Widgets', 'filter_visibility' ], 10, 3 );
 } );
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-cache.php';
+require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-polylang.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-public-files.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-seo.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-redirection.php';
@@ -97,6 +98,7 @@ function frontman_bootstrap(): void {
 	( new Frontman_Tool_Templates() )->register( $tools );
 	( new Frontman_Tool_Widgets() )->register( $tools );
 	( new Frontman_Tool_Cache() )->register( $tools );
+	( new Frontman_Tool_Polylang() )->register( $tools );
 	( new Frontman_Tool_Public_Files() )->register( $tools );
 
 	if ( Frontman_Tool_Angie::is_available() ) {

@@ -64,6 +64,19 @@ unzip -q "$BUILD_DIR/megamenu.zip" -d "$BUILD_DIR/megamenu"
 curl -fsSL 'https://downloads.wordpress.org/plugin/elementor.3.18.3.zip' -o "$BUILD_DIR/elementor.zip"
 printf '%s  %s\n' '3db1ec40c89c042083f58153bad711b567fae2871f1870180f0914fe3703b834' "$BUILD_DIR/elementor.zip" | sha256sum --check --status
 unzip -q "$BUILD_DIR/elementor.zip" -d "$BUILD_DIR/elementor"
+curl -fsSL 'https://downloads.wordpress.org/plugin/wp-super-cache.3.0.3.zip' -o "$BUILD_DIR/wp-super-cache.zip"
+printf '%s  %s\n' '5d1a171541cfc864b1b8b3ed43294e866b809aedb99bb4b34465137ecdcef151' "$BUILD_DIR/wp-super-cache.zip" | sha256sum --check --status
+unzip -q "$BUILD_DIR/wp-super-cache.zip" -d "$BUILD_DIR/wp-super-cache"
+POLYLANG_VERSION=""
+case "$WORDPRESS_VERSION" in
+  6.[0-4].*) printf 'Skipping Polylang: version 3.8.3 requires WordPress 6.5+.\n' ;;
+  *)
+    POLYLANG_VERSION="3.8.3"
+    curl -fsSL "https://downloads.wordpress.org/plugin/polylang.${POLYLANG_VERSION}.zip" -o "$BUILD_DIR/polylang.zip"
+    printf '%s  %s\n' '625b59c071d7962d49ef2fba2c14a55d1c22f659c1d57b7d226b41cee8582b2f' "$BUILD_DIR/polylang.zip" | sha256sum --check --status
+    unzip -q "$BUILD_DIR/polylang.zip" -d "$BUILD_DIR/polylang"
+    ;;
+esac
 if [[ -n "$YOAST_VERSION" ]]; then
   curl -fsSL "https://downloads.wordpress.org/plugin/wordpress-seo.${YOAST_VERSION}.zip" -o "$BUILD_DIR/wordpress-seo.zip"
   printf '%s  %s\n' "$YOAST_SHA256" "$BUILD_DIR/wordpress-seo.zip" | sha256sum --check --status
@@ -118,6 +131,10 @@ done
 "$RUNTIME" exec "$WORDPRESS" php -r '$config = file_get_contents("/var/www/html/wp-config-sample.php"); $config = str_replace(["<?php", "database_name_here", "username_here", "password_here", "localhost"], ["<?php\ndefine(\"WP_ENVIRONMENT_TYPE\", \"local\");", getenv("WORDPRESS_DB_NAME"), getenv("WORDPRESS_DB_USER"), getenv("WORDPRESS_DB_PASSWORD"), getenv("WORDPRESS_DB_HOST")], $config); file_put_contents("/var/www/html/wp-config.php", $config);'
 "$RUNTIME" cp "$BUILD_DIR/megamenu/megamenu" "$WORDPRESS:/var/www/html/wp-content/plugins/megamenu"
 "$RUNTIME" cp "$BUILD_DIR/elementor/elementor" "$WORDPRESS:/var/www/html/wp-content/plugins/elementor"
+"$RUNTIME" cp "$BUILD_DIR/wp-super-cache/wp-super-cache" "$WORDPRESS:/var/www/html/wp-content/plugins/wp-super-cache"
+if [[ -n "$POLYLANG_VERSION" ]]; then
+  "$RUNTIME" cp "$BUILD_DIR/polylang/polylang" "$WORDPRESS:/var/www/html/wp-content/plugins/polylang"
+fi
 curl -fsSL 'https://downloads.wordpress.org/theme/astra.4.7.1.zip' -o "$BUILD_DIR/astra-runtime.zip"
 printf '%s  %s\n' '55f2d01b78c3b9ac83417145308b11c254d7fd43b9b414ea95f9eea3fcd5bfff' "$BUILD_DIR/astra-runtime.zip" | sha256sum --check --status
 unzip -q "$BUILD_DIR/astra-runtime.zip" -d "$BUILD_DIR/astra-runtime"
@@ -136,6 +153,11 @@ unzip -q "$BUILD_DIR/astra-runtime.zip" -d "$BUILD_DIR/astra-runtime"
 for file in RuntimeTestSupport CoreRuntimeCases IsolatedRuntimeCases InstallationPathsRuntimeTest SeoCoexistenceRuntimeTest SureRankRuntimeTest DirectoristRuntimeTest; do
   "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/$file.php" "$WORDPRESS:/tmp/$file.php"
 done
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/SuperCacheRuntimeTest.php" "$WORDPRESS:/tmp/SuperCacheRuntimeTest.php"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PolylangRuntimeTest.php" "$WORDPRESS:/tmp/PolylangRuntimeTest.php"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PolylangSetupRuntimeTest.php" "$WORDPRESS:/tmp/PolylangSetupRuntimeTest.php"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PolylangCleanupRuntimeTest.php" "$WORDPRESS:/tmp/PolylangCleanupRuntimeTest.php"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PolylangCleanupVerifyRuntimeTest.php" "$WORDPRESS:/tmp/PolylangCleanupVerifyRuntimeTest.php"
 "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/mu-plugins
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PostAuthorsRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-authors-runtime.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PostAuthorsRuntimeTest.php" "$WORDPRESS:/tmp/PostAuthorsRuntimeTest.php"
