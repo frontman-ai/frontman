@@ -4,7 +4,7 @@ Config.CSWH: Cross-Site Websocket Hijacking,lib/frontman_server_web/endpoint.ex:
 Config.CSWH: Cross-Site Websocket Hijacking,lib/frontman_server_web/endpoint.ex:53,FFA875
 Config.HSTS: HSTS Not Enabled,config/e2e.exs:0,433B723
 Config.HTTPS: HTTPS Not Enabled,config/prod.exs:0,2B5C077
-Config.Secrets: Hardcoded Secret,config/e2e.exs:6,61FC1BF
-Config.Secrets: Hardcoded Secret,config/e2e.exs:26,2454A5A
-Config.Secrets: Hardcoded Secret,config/e2e.exs:37,20EA87B
-Config.Secrets: Hardcoded Secret,config/e2e.exs:38,E4A32E
+Config.Secrets: Hardcoded Secret,config/e2e.exs:8,3F94262
+Config.Secrets: Hardcoded Secret,config/e2e.exs:28,1362E1A
+Config.Secrets: Hardcoded Secret,config/e2e.exs:39,1704567
+Config.Secrets: Hardcoded Secret,config/e2e.exs:40,3FBC255
