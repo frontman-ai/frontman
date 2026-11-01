@@ -8,14 +8,6 @@ defmodule FrontmanServerWeb.McpServerController do
   use FrontmanServerWeb, :controller
 
   def metadata(conn, _params) do
-    config = Application.fetch_env!(:frontman_server, :mcp_server)
-
-    case {config[:resource], config[:issuer]} do
-      {resource, issuer} when is_binary(resource) and is_binary(issuer) ->
-        json(conn, %{resource: resource, authorization_servers: [issuer]})
-
-      _ ->
-        send_resp(conn, 503, "")
-    end
+    FrontmanServerWeb.MCP.metadata(conn, [])
   end
 end

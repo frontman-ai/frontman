@@ -51,10 +51,6 @@ if config_env() in [:dev, :prod] do
     client_id: env!("WORKOS_CLIENT_ID", :string!)
 end
 
-config :frontman_server, :mcp_server,
-  resource: env!("MCP_RESOURCE", :string?, nil),
-  issuer: env!("MCP_AUTHORIZATION_SERVER_ISSUER", :string?, nil)
-
 if config_env() not in [:test, :e2e] do
   config :frontman_server, :stripe,
     secret_key: env!("STRIPE_SECRET_KEY", :string!),
@@ -126,7 +122,7 @@ if config_env() == :prod do
 
   secret_key_base = env!("SECRET_KEY_BASE", :string!)
 
-  host = env!("PHX_HOST", :string, "example.com")
+  host = env!("PHX_HOST", :string!)
   port = env!("PORT", :integer, 4000)
 
   http_shutdown_timeout_ms = env!("HTTP_SHUTDOWN_TIMEOUT_MS", :integer, 30_000)

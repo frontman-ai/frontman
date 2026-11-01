@@ -1,5 +1,7 @@
 import Config
 
+config :frontman_server, :mcp_server, issuer: "https://scintillating-entry-74.authkit.app"
+
 config :frontman_server, FrontmanServerWeb.Endpoint,
   cache_static_manifest: "priv/static/cache_manifest.json"
 

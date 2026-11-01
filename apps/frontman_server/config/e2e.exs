@@ -1,5 +1,7 @@
 import Config
 
+config :frontman_server, :mcp_server, issuer: "https://opportune-lyric-43-staging.authkit.app"
+
 config :frontman_server, env: :e2e
 
 config :frontman_server, FrontmanServer.Repo,
