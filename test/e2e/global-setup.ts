@@ -89,6 +89,13 @@ async function waitForServer(
 export async function setup() {
   console.log("[e2e] Global setup starting…");
 
+  for (const name of ["WORKOS_API_KEY", "WORKOS_CLIENT_ID"]) {
+    const value = process.env[name]?.trim();
+    if (!value || value.startsWith("op://")) {
+      throw new Error(`[e2e] ${name} must be supplied as a resolved WorkOS development credential`);
+    }
+  }
+
   console.log("  [e2e] Creating and migrating e2e database…");
   execSync("mix ecto.create --quiet", { cwd: SERVER_DIR, env: E2E_ENV, stdio: "pipe" });
   execSync("mix ecto.migrate --quiet", { cwd: SERVER_DIR, env: E2E_ENV, stdio: "pipe" });

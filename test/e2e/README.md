@@ -40,6 +40,26 @@ Copy `test/e2e/.env.example` to `test/e2e/.env` and populate:
 - `E2E_OPENAI_REFRESH_TOKEN`
 - `E2E_OPENAI_ACCOUNT_ID`
 
+The suite also requires the development WorkOS API key and client ID as resolved
+`WORKOS_API_KEY` and `WORKOS_CLIENT_ID` process environment variables. The
+server's `apps/frontman_server/envs/.dev.secrets.env` contains 1Password
+references for these values. For example, after signing in to 1Password:
+
+```bash
+op run --env-file=apps/frontman_server/envs/.dev.secrets.env -- make e2e
+```
+
+The WorkOS process values take precedence over `test/e2e/.env`. Do not use
+production credentials. CI uses the repository Actions secret
+`E2E_WORKOS_API_KEY` and variable `E2E_WORKOS_CLIENT_ID` for the E2E step.
+Fork pull requests without access to the secret fail rather than skip this test.
+Only run credential-bearing workflows on trusted code.
+
+The WorkOS MCP test uses synthetic users in the development environment. A full
+run retains two public clients and three provider users. It also changes the email
+of one synthetic provider user. The test removes its local users. It does not log
+provider identifiers, delete provider accounts, or modify provider configuration.
+
 Local run:
 
 ```bash

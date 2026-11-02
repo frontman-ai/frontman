@@ -42,10 +42,6 @@ config :frontman_server, :stripe,
   yearly_price_id: "price_e2e_yearly",
   trial_days: 7
 
-config :workos, WorkOS.Client,
-  api_key: "sk_test_workos_e2e",
-  client_id: "client_test_workos_e2e"
-
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id, :task_id, :pid, :reason, :user_id, :user_name]

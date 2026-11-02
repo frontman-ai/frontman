@@ -51,6 +51,12 @@ if config_env() in [:dev, :prod] do
     client_id: env!("WORKOS_CLIENT_ID", :string!)
 end
 
+if config_env() == :e2e do
+  config :workos, WorkOS.Client,
+    api_key: env!("WORKOS_API_KEY", :string?, nil),
+    client_id: env!("WORKOS_CLIENT_ID", :string?, nil)
+end
+
 if config_env() not in [:test, :e2e] do
   config :frontman_server, :stripe,
     secret_key: env!("STRIPE_SECRET_KEY", :string!),
