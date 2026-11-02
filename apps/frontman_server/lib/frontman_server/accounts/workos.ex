@@ -16,6 +16,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
   """
 
   alias Ecto.Multi
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Accounts.User
   alias FrontmanServer.Accounts.UserIdentity
   alias FrontmanServer.Accounts.WorkOS.AuthError
@@ -27,11 +28,72 @@ defmodule FrontmanServer.Accounts.WorkOS do
 
   import Ecto.Changeset
 
-  @supported_providers ~w(github google)
-  @workos_api_base "https://api.workos.com"
-  @workos_auth_max_attempts 2
-  @workos_auth_connect_timeout_ms 5_000
-  @workos_auth_receive_timeout_ms 30_000
+  @supported_providers Application.compile_env!(:frontman_server, :workos_config)
+                       |> Keyword.fetch!(:supported_providers)
+
+  def complete_oauth2(%Scope{} = scope, external_auth_id)
+      when is_binary(external_auth_id) do
+    user = Scope.user(scope)
+    config = Application.fetch_env!(:frontman_server, :workos_config)
+
+    with :ok <- reconcile_connect_user(user, config),
+         {:ok, %{redirect_uri: url}} when is_binary(url) <-
+           WorkOS.Connect.complete_oauth2(
+             workos_client(),
+             %{external_auth_id: external_auth_id, user: %{id: user.id, email: user.email}},
+             timeout: Keyword.fetch!(config, :receive_timeout_ms),
+             max_retries: Keyword.fetch!(config, :completion_max_retries)
+           ) do
+      {:ok, url}
+    else
+      _ -> {:error, :connect_failed}
+    end
+  end
+
+  defp reconcile_connect_user(user, config) do
+    case user |> list_identities() |> Enum.map(& &1.provider_id) |> Enum.uniq() do
+      [] ->
+        :ok
+
+      [provider_id] ->
+        conflicting =
+          UserIdentity |> UserIdentity.for_other_user(provider_id, user.id) |> Repo.exists?()
+
+        if conflicting,
+          do: {:error, :ambiguous_identity},
+          else: reconcile_connect_identity(user.id, provider_id, config)
+
+      _ ->
+        {:error, :ambiguous_identity}
+    end
+  end
+
+  defp reconcile_connect_identity(user_id, provider_id, config) do
+    opts = [
+      timeout: Keyword.fetch!(config, :receive_timeout_ms),
+      max_retries: Keyword.fetch!(config, :completion_max_retries)
+    ]
+
+    case WorkOS.UserManagement.get_user(workos_client(), provider_id, opts) do
+      {:ok, %WorkOS.User{id: ^provider_id, external_id: ^user_id}} ->
+        :ok
+
+      {:ok, %WorkOS.User{id: ^provider_id, external_id: external_id}}
+      when external_id in [nil, ""] ->
+        case WorkOS.UserManagement.update_user(
+               workos_client(),
+               provider_id,
+               %{external_id: user_id},
+               opts
+             ) do
+          {:ok, %WorkOS.User{id: ^provider_id, external_id: ^user_id}} -> :ok
+          _ -> {:error, :identity_update_failed}
+        end
+
+      _ ->
+        {:error, :identity_conflict}
+    end
+  end
 
   @doc """
   Generates a WorkOS authorization URL for the given provider.
@@ -377,12 +439,15 @@ defmodule FrontmanServer.Accounts.WorkOS do
   defp post_authenticate_request(body, context, attempt \\ 1) do
     require Logger
 
+    config = Application.fetch_env!(:frontman_server, :workos_config)
+    max_attempts = Keyword.fetch!(config, :max_attempts)
+
     case Req.post(
-           "#{@workos_api_base}/user_management/authenticate",
+           "#{Keyword.fetch!(config, :api_base)}/user_management/authenticate",
            [
              json: body,
-             receive_timeout: @workos_auth_receive_timeout_ms,
-             connect_options: [timeout: @workos_auth_connect_timeout_ms]
+             receive_timeout: Keyword.fetch!(config, :receive_timeout_ms),
+             connect_options: [timeout: Keyword.fetch!(config, :connect_timeout_ms)]
            ] ++ Application.get_env(:frontman_server, :workos_req_options, [])
          ) do
       {:ok, %Req.Response{status: 200, body: response_body}} ->
@@ -392,9 +457,9 @@ defmodule FrontmanServer.Accounts.WorkOS do
         Logger.debug("WorkOS #{context} error - status: #{status}, body: #{inspect(error_body)}")
         {:error, AuthError.from_response(error_body)}
 
-      {:error, %Req.TransportError{reason: :closed}} when attempt < @workos_auth_max_attempts ->
+      {:error, %Req.TransportError{reason: :closed}} when attempt < max_attempts ->
         Logger.warning(
-          "WorkOS #{context} request transport closed (attempt #{attempt}/#{@workos_auth_max_attempts}); retrying"
+          "WorkOS #{context} request transport closed (attempt #{attempt}/#{max_attempts}); retrying"
         )
 
         post_authenticate_request(body, context, attempt + 1)
@@ -450,7 +515,13 @@ defmodule FrontmanServer.Accounts.WorkOS do
     do: {:error, {:invalid_auth_response_field, field}}
 
   defp workos_client do
-    WorkOS.client(api_key: workos_api_key(), client_id: workos_client_id())
+    config = Application.fetch_env!(:frontman_server, :workos_config)
+
+    WorkOS.client(
+      api_key: workos_api_key(),
+      client_id: workos_client_id(),
+      base_url: Keyword.fetch!(config, :api_base)
+    )
   end
 
   defp workos_api_key do

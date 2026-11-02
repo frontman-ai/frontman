@@ -1,0 +1,5 @@
+<p>Continue connecting your account. This does not grant access to a WordPress site.</p>
+<.form for={to_form(%{})} action={~p"/auth/mcp/workos/pending"} method="post" id="connect-handoff">
+  <input type="hidden" name="ref" value={@ref} />
+  <button type="submit">Continue</button>
+</.form>

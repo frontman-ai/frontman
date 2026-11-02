@@ -22,6 +22,14 @@ config :frontman_server,
   stream_stall_timeout_ms: 60_000,
   web_fetch_req_options: []
 
+config :frontman_server, :workos_config,
+  api_base: "https://api.workos.com",
+  supported_providers: ~w(github google),
+  max_attempts: 2,
+  connect_timeout_ms: 5_000,
+  receive_timeout_ms: 30_000,
+  completion_max_retries: 0
+
 config :frontman_server, :backend_tools, [
   FrontmanServer.Tools.AgentFeedback,
   FrontmanServer.Tools.GetToolResult,

@@ -24,6 +24,14 @@ defmodule FrontmanServerWeb.Router do
     plug(:accepts, ["json"])
   end
 
+  pipeline :connect_handoff do
+    plug(:put_secure_browser_headers, %{
+      "cache-control" => "no-store",
+      "referrer-policy" => "no-referrer",
+      "content-security-policy" => "base-uri 'self'; frame-ancestors 'self';"
+    })
+  end
+
   pipeline :bearer_api do
     plug(:accepts, ["json"])
     plug(:require_embedded_client_bearer_token)
@@ -33,6 +41,17 @@ defmodule FrontmanServerWeb.Router do
   scope "/", FrontmanServerWeb do
     get("/.well-known/oauth-protected-resource/mcp", McpServerController, :metadata)
     get("/.well-known/oauth-protected-resource", McpServerController, :metadata)
+  end
+
+  scope "/auth/mcp/workos", FrontmanServerWeb do
+    pipe_through([:connect_handoff, :browser])
+    get("/", ConnectHandoffController, :create, log: false)
+    get("/pending", ConnectHandoffController, :show, log: false)
+  end
+
+  scope "/auth/mcp/workos", FrontmanServerWeb do
+    pipe_through([:connect_handoff, :browser, :require_authenticated_user])
+    post("/pending", ConnectHandoffController, :complete, log: false)
   end
 
   scope "/", FrontmanServerWeb do

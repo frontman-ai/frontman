@@ -2,6 +2,7 @@ defmodule FrontmanServerWeb.McpServerControllerTest do
   use FrontmanServerWeb.ConnCase
 
   alias FrontmanServerWeb.MCP.Server
+  alias FrontmanServerWeb.MCP.WorkOSToken
 
   @resource "https://resource.example/mcp"
   @issuer "https://issuer.example/tenant"
@@ -69,6 +70,29 @@ defmodule FrontmanServerWeb.McpServerControllerTest do
 
     assert response.status == 401
     assert response.headers["www-authenticate"] != nil
+  end
+
+  test "malformed bearer tokens fail closed before provider access" do
+    logs =
+      ExUnit.CaptureLog.capture_log(fn ->
+        for token <- [
+              "a.b.c",
+              "e30.e30.signature",
+              "W10.e30.signature",
+              "eyJhbGciOjF9.e30.signature",
+              String.duplicate("x", 4_097)
+            ] do
+          assert {:error, :invalid_token} =
+                   WorkOSToken.validate_token(token, %{})
+
+          response = wire(:post, "/mcp", [{"authorization", "Bearer #{token}"}], "{}")
+          assert response.status == 401
+          assert response.headers["www-authenticate"] != nil
+        end
+      end)
+
+    refute logs =~ "a.b.c"
+    refute logs =~ "signature"
   end
 
   test "metadata aliases use the same trusted configuration" do

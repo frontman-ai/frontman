@@ -78,9 +78,12 @@ defmodule FrontmanServerWeb.Endpoint do
   plug(Plug.MethodOverride)
   plug(Plug.Head)
   plug(Plug.Session, @session_options)
+  plug(:hide_connect_query)
 
   plug(Sentry.PlugContext,
-    body_scrubber: {FrontmanServerWeb.Plugs.SupportQuestionBody, :scrub_params}
+    body_scrubber: {FrontmanServerWeb.Plugs.SupportQuestionBody, :scrub_params},
+    url_scrubber: {FrontmanServerWeb.Plugs.SupportQuestionBody, :scrub_url},
+    header_scrubber: {FrontmanServerWeb.Plugs.SupportQuestionBody, :scrub_headers}
   )
 
   plug(FrontmanServerWeb.Router)
@@ -101,4 +104,9 @@ defmodule FrontmanServerWeb.Endpoint do
   end
 
   defp mcp_boundary(conn, _opts), do: conn
+
+  defp hide_connect_query(%{path_info: ["auth", "mcp", "workos" | _]} = conn, _opts),
+    do: %{conn | query_string: "", query_params: %{}}
+
+  defp hide_connect_query(conn, _opts), do: conn
 end
