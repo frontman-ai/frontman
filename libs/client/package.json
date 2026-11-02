@@ -84,7 +84,7 @@
 		"@tiptap/extension-document": "3.31.3",
 		"@tiptap/extension-paragraph": "3.31.3",
 		"@tiptap/extension-placeholder": "3.31.3",
-		"@tiptap/extension-text": "3.31.3",
+		"@tiptap/extension-text": "3.31.4",
 		"@tiptap/extensions": "3.31.3",
 		"@tiptap/pm": "3.31.3",
 		"@tiptap/react": "3.31.3",
