@@ -46,7 +46,7 @@ describe("WorkOS MCP OAuth", () => {
     });
   });
 
-  it("authenticates a synthetic user and discovers the closed server", { retry: 0 }, async () => {
+  it.each([false, true])("authenticates a synthetic user with linked provider=%s", { retry: 0 }, async (linked) => {
     const email = `mcp-${randomUUID()}@frontman.local`;
     const password = randomBytes(32).toString("base64url");
     let server: Server | undefined;
@@ -102,6 +102,29 @@ describe("WorkOS MCP OAuth", () => {
       `, email, password);
       userCreated = true;
 
+      if (linked) {
+        phase = "existing linked provider setup";
+        fixture(`
+        alias FrontmanServer.{Accounts, Repo}
+        alias FrontmanServer.Accounts.UserIdentity
+        {:ok, _} = Application.ensure_all_started(:workos)
+        client = WorkOS.client()
+        user = Accounts.get_user_by_email(System.fetch_env!("E2E_MCP_EMAIL"))
+        conflict = Ecto.UUID.generate()
+        {:ok, other} = WorkOS.UserManagement.create_user(client, %{
+          email: "conflict-" <> System.fetch_env!("E2E_MCP_EMAIL"), external_id: conflict})
+        identity = Repo.insert!(UserIdentity.changeset(%UserIdentity{}, %{
+          user_id: user.id, provider: "github", provider_id: other.id}))
+        {:error, :connect_failed} = Accounts.complete_oauth2(Accounts.Scope.for_user(user), "unused")
+        {:ok, %{external_id: ^conflict}} = WorkOS.UserManagement.get_user(client, other.id)
+        Repo.delete!(identity)
+        {:ok, existing} = WorkOS.UserManagement.create_user(client, %{email: user.email})
+        nil = existing.external_id
+        Repo.insert!(UserIdentity.changeset(%UserIdentity{}, %{
+          user_id: user.id, provider: "github", provider_id: existing.id}))
+        `, email, password);
+      }
+
       phase = "client registration";
       const client = await jsonRequest(authorization.registration_endpoint, {
         method: "POST",
@@ -115,7 +138,6 @@ describe("WorkOS MCP OAuth", () => {
         }),
       });
       if (typeof client.client_id !== "string") throw new Error("Registration returned no client ID");
-      console.log(`[e2e] Retaining test-owned WorkOS client ${client.client_id}`);
 
       const verifier = randomBytes(32).toString("base64url");
       const state = randomBytes(32).toString("base64url");
@@ -174,7 +196,10 @@ describe("WorkOS MCP OAuth", () => {
       phase = "local synthetic user lookup";
       const localId = fixture(`
         alias FrontmanServer.Accounts
+        {:ok, _} = Application.ensure_all_started(:workos)
         user = Accounts.get_user_by_email(System.fetch_env!("E2E_MCP_EMAIL")) || raise "Missing local user"
+        {:ok, provider} = WorkOS.UserManagement.get_user_by_external_id(WorkOS.client(), user.id)
+        true = provider.external_id == user.id
         IO.write(user.id)
       `, email, password);
       const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -185,7 +210,6 @@ describe("WorkOS MCP OAuth", () => {
         (Number.isInteger(claims.nbf) && claims.nbf <= Math.floor(Date.now() / 1000));
       expect(nbfValid).toBe(true);
 
-      phase = "MCP discovery";
       const mcp = async (method: string, token?: string) => fetch(resource, {
         method: "POST",
         headers: {
