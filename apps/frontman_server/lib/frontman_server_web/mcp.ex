@@ -5,7 +5,7 @@ defmodule FrontmanServerWeb.MCP do
   alias Anubis.Server.Supervisor, as: AnubisSupervisor
   alias Anubis.Server.Transport.StreamableHTTP.Plug, as: AnubisPlug
   alias Anubis.Server.Transport.WellKnown
-  alias FrontmanServerWeb.MCP.{DenyAll, Origin, Server}
+  alias FrontmanServerWeb.MCP.{Origin, Server, WorkOSToken}
 
   def child_specs do
     {:ok, resource, issuer, _origin} = config()
@@ -16,7 +16,7 @@ defmodule FrontmanServerWeb.MCP do
        authorization: [
          resource: resource,
          authorization_servers: [issuer],
-         validator: {DenyAll, []}
+         validator: {WorkOSToken, [issuer: issuer, jwks_uri: issuer <> "/oauth2/jwks"]}
        ]}
     ]
   end
@@ -45,9 +45,21 @@ defmodule FrontmanServerWeb.MCP do
 
   def available? do
     with {:ok, resource, issuer, _origin} <- config(),
-         %{resource: ^resource, authorization_servers: [^issuer], validator: {DenyAll, []}} <-
+         %{resource: ^resource, authorization_servers: [^issuer], validator: {WorkOSToken, opts}} <-
            AnubisSupervisor.get_authorization_config(Server),
+         true <- opts == [issuer: issuer, jwks_uri: issuer <> "/oauth2/jwks"],
          pid when is_pid(pid) <- Process.whereis(Anubis.Server.Registry.supervisor_name(Server)) do
+      true
+    else
+      _ -> false
+    end
+  end
+
+  def trusted_redirect?(url) when is_binary(url) do
+    with {:ok, _resource, issuer, _origin} <- config(),
+         %URI{scheme: "https", host: host, userinfo: nil, port: port} when is_binary(host) <-
+           URI.parse(url),
+         %URI{scheme: "https", host: ^host, port: ^port} <- URI.parse(issuer) do
       true
     else
       _ -> false

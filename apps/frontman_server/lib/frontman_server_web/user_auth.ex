@@ -42,9 +42,17 @@ defmodule FrontmanServerWeb.UserAuth do
     pending_embedded_client_auth_request =
       get_session(conn, EmbeddedClientAuth.pending_session_key())
 
+    pending_connect_handoff =
+      case get_session(conn, :connect_handoff) do
+        %{"user_id" => nil} = pending -> Map.put(pending, "user_id", user.id)
+        %{} = pending -> pending
+        nil -> nil
+      end
+
     conn
     |> create_or_extend_session(user, params)
     |> maybe_restore_embedded_client_auth_request(pending_embedded_client_auth_request)
+    |> put_session(:connect_handoff, pending_connect_handoff)
     |> redirect_to_return_path(user_return_to)
   end
 

@@ -50,7 +50,19 @@ defmodule FrontmanServerWeb.Plugs.SupportQuestionBody do
   end
 
   def scrub_params(%{path_info: ["api", "support", "questions"]}), do: %{}
+  def scrub_params(%{path_info: ["auth", "mcp", "workos" | _]}), do: %{}
   def scrub_params(conn), do: Sentry.PlugContext.default_body_scrubber(conn)
+
+  def scrub_url(%{path_info: ["auth", "mcp", "workos" | _]} = conn),
+    do: Sentry.PlugContext.default_url_scrubber(%{conn | query_string: ""})
+
+  def scrub_url(conn), do: Sentry.PlugContext.default_url_scrubber(conn)
+
+  def scrub_headers(conn) do
+    conn
+    |> Sentry.PlugContext.default_header_scrubber()
+    |> Enum.reject(fn {name, _value} -> String.downcase(name) == "referer" end)
+  end
 
   defp parse(conn, options) do
     Plug.Parsers.call(conn, options)

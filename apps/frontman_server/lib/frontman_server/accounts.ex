@@ -17,6 +17,8 @@ defmodule FrontmanServer.Accounts do
 
   alias FrontmanServer.Accounts.{Scope, User, UserNotifier, UserToken, WorkOS}
 
+  defdelegate complete_oauth2(scope, external_auth_id), to: WorkOS
+
   @doc """
   Returns the user map from scope.
   """
