@@ -37,7 +37,7 @@
 	"devDependencies": {
 		"@babel/core": "^8.0.6",
 		"@base-ui/react": "^1.8.0",
-		"@biomejs/biome": "^2.5.11",
+		"@biomejs/biome": "^2.5.15",
 		"@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main",
 		"@frontman-ai/astro-browser": "workspace:*",
 		"@frontman-ai/frontman-client": "workspace:*",
@@ -88,7 +88,7 @@
 		"@tiptap/extensions": "3.31.4",
 		"@tiptap/pm": "3.31.4",
 		"@tiptap/react": "3.31.4",
-		"border-beam": "^1.3.0",
+		"border-beam": "^1.4.1",
 		"diff": "^9.0.0"
 	},
 	"peerDependencies": {

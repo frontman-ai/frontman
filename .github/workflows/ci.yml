@@ -539,7 +539,7 @@ jobs:
 
 
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492
         with:
           install: true
           cache: true
@@ -630,7 +630,7 @@ jobs:
 
 
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492
         with:
           install: true
           cache: true
@@ -730,7 +730,7 @@ jobs:
 
 
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492
         with:
           install: true
           cache: true
