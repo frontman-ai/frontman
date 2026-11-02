@@ -27,16 +27,7 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
   def show(conn, %{"ref" => ref}) do
     case pending(conn, ref) do
       {:ok, _pending} ->
-        token = Plug.CSRFProtection.get_csrf_token()
-
-        html(conn, """
-        <p>Continue connecting your account. This does not grant access to a WordPress site.</p>
-        <form method="post" action="/auth/mcp/workos/pending">
-          <input type="hidden" name="_csrf_token" value="#{token}">
-          <input type="hidden" name="ref" value="#{ref}">
-          <button type="submit">Continue</button>
-        </form>
-        """)
+        render(conn, :show, ref: ref)
 
       :error ->
         send_resp(conn, 400, "Invalid or expired request")

@@ -27,7 +27,8 @@ defmodule FrontmanServerWeb.Router do
   pipeline :connect_handoff do
     plug(:put_secure_browser_headers, %{
       "cache-control" => "no-store",
-      "referrer-policy" => "no-referrer"
+      "referrer-policy" => "no-referrer",
+      "content-security-policy" => "base-uri 'self'; frame-ancestors 'self';"
     })
   end
 

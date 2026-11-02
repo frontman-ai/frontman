@@ -24,6 +24,66 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
     assert html_response(conn, 200) =~ "does not grant access to a WordPress site"
     refute conn.resp_body =~ "unverified-request"
     assert get_resp_header(conn, "referrer-policy") == ["no-referrer"]
+
+    assert get_resp_header(conn, "content-security-policy") == [
+             "base-uri 'self'; frame-ancestors 'self';"
+           ]
+
+    assert conn.resp_body =~ ~s(name="_csrf_token")
+    assert conn.resp_body =~ ~s(name="ref" value="#{pending["ref"]}")
+  end
+
+  test "escapes the pending reference in the continuation form", %{conn: conn} do
+    user = user_fixture()
+    ref = ~s|" autofocus onfocus="alert('handoff')|
+
+    conn =
+      conn
+      |> log_in_user(user)
+      |> put_session(:connect_handoff, %{
+        "external_auth_id" => "unverified",
+        "ref" => ref,
+        "started_at" => System.system_time(:second),
+        "user_id" => user.id
+      })
+      |> get("/auth/mcp/workos/pending", %{ref: ref})
+
+    document = conn |> html_response(200) |> LazyHTML.from_document()
+
+    assert LazyHTML.attribute(
+             LazyHTML.query(document, "#connect-handoff input[name=ref]"),
+             "value"
+           ) ==
+             [ref]
+
+    assert LazyHTML.query(document, "#connect-handoff input[autofocus]") |> LazyHTML.to_tree() ==
+             []
+  end
+
+  test "requires a valid CSRF token for the continuation form", %{conn: conn} do
+    conn =
+      conn
+      |> log_in_user(user_fixture())
+      |> get("/auth/mcp/workos?external_auth_id=unverified")
+
+    conn = conn |> recycle() |> get(redirected_to(conn))
+    document = conn |> html_response(200) |> LazyHTML.from_document()
+
+    [csrf_token] =
+      LazyHTML.attribute(LazyHTML.query(document, "input[name=_csrf_token]"), "value")
+
+    assert_raise Plug.CSRFProtection.InvalidCSRFTokenError, fn ->
+      conn
+      |> recycle()
+      |> put_private(:plug_skip_csrf_protection, false)
+      |> post("/auth/mcp/workos/pending", ref: "mismatch")
+    end
+
+    assert conn
+           |> recycle()
+           |> put_private(:plug_skip_csrf_protection, false)
+           |> post("/auth/mcp/workos/pending", %{ref: "mismatch", _csrf_token: csrf_token})
+           |> response(400)
   end
 
   test "rejects missing, oversized, and mismatched requests", %{conn: conn} do
