@@ -51,10 +51,17 @@ describe("WorkOS MCP OAuth", () => {
     let server: Server | undefined;
     let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
     let userCreated = false;
-    let phase = "metadata";
+    let phase = "browser certificate trust";
     let failure: Error | undefined;
 
     try {
+      browser = await chromium.launch({ headless: true });
+      const context = await browser.newContext();
+      const page = await context.newPage();
+      const loginPage = await page.goto(`${origin}/users/log-in`);
+      expect(loginPage?.status()).toBe(200);
+
+      phase = "metadata";
       const metadata = await jsonRequest(`${origin}/.well-known/oauth-protected-resource`);
       expect(metadata.resource).toBe(resource);
       expect(metadata.authorization_servers).toEqual([issuer]);
@@ -120,9 +127,6 @@ describe("WorkOS MCP OAuth", () => {
       }).toString();
 
       phase = "browser handoff";
-      browser = await chromium.launch({ headless: true });
-      const context = await browser.newContext();
-      const page = await context.newPage();
       await page.goto(authorize.toString());
       await page.locator("#login-form input[type=email]").fill(email);
       await page.locator("#login-form input[type=password]").fill(password);
