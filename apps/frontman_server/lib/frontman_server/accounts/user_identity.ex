@@ -71,6 +71,10 @@ defmodule FrontmanServer.Accounts.UserIdentity do
     from(i in query, where: i.user_id == ^user_id and i.provider == ^provider)
   end
 
+  def for_other_user(query \\ __MODULE__, provider_id, user_id) do
+    from(i in query, where: i.provider_id == ^provider_id and i.user_id != ^user_id)
+  end
+
   def for_provider_identity(query \\ __MODULE__, provider, provider_id) do
     from(i in query, where: i.provider == ^provider and i.provider_id == ^provider_id)
   end

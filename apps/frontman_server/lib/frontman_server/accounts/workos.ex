@@ -52,9 +52,19 @@ defmodule FrontmanServer.Accounts.WorkOS do
 
   defp reconcile_connect_user(user, config) do
     case user |> list_identities() |> Enum.map(& &1.provider_id) |> Enum.uniq() do
-      [] -> :ok
-      [provider_id] -> reconcile_connect_identity(user.id, provider_id, config)
-      _ -> {:error, :ambiguous_identity}
+      [] ->
+        :ok
+
+      [provider_id] ->
+        conflicting =
+          UserIdentity |> UserIdentity.for_other_user(provider_id, user.id) |> Repo.exists?()
+
+        if conflicting,
+          do: {:error, :ambiguous_identity},
+          else: reconcile_connect_identity(user.id, provider_id, config)
+
+      _ ->
+        {:error, :ambiguous_identity}
     end
   end
 

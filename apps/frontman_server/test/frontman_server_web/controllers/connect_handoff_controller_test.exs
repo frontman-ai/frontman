@@ -113,6 +113,20 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
            |> response(400) == "Authorization could not continue"
   end
 
+  test "rejects a provider identity linked to another account", %{conn: conn} do
+    user = user_fixture()
+    identity = identity_fixture(user, %{provider: "github"})
+    identity_fixture(user_fixture(), %{provider: "google", provider_id: identity.provider_id})
+
+    conn = conn |> log_in_user(user) |> get("/auth/mcp/workos?external_auth_id=opaque")
+    ref = get_session(conn, :connect_handoff)["ref"]
+
+    assert conn
+           |> recycle()
+           |> post("/auth/mcp/workos/pending", ref: ref)
+           |> response(400) == "Authorization could not continue"
+  end
+
   test "scrubs request and referrer from Sentry", %{conn: conn} do
     conn =
       conn
