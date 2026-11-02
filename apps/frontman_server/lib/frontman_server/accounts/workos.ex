@@ -36,14 +36,52 @@ defmodule FrontmanServer.Accounts.WorkOS do
     user = Scope.user(scope)
     config = Application.fetch_env!(:frontman_server, :workos_config)
 
-    case WorkOS.Connect.complete_oauth2(
-           workos_client(),
-           %{external_auth_id: external_auth_id, user: %{id: user.id, email: user.email}},
-           timeout: Keyword.fetch!(config, :receive_timeout_ms),
-           max_retries: Keyword.fetch!(config, :completion_max_retries)
-         ) do
-      {:ok, %{redirect_uri: url}} when is_binary(url) -> {:ok, url}
+    with :ok <- reconcile_connect_user(user, config),
+         {:ok, %{redirect_uri: url}} when is_binary(url) <-
+           WorkOS.Connect.complete_oauth2(
+             workos_client(),
+             %{external_auth_id: external_auth_id, user: %{id: user.id, email: user.email}},
+             timeout: Keyword.fetch!(config, :receive_timeout_ms),
+             max_retries: Keyword.fetch!(config, :completion_max_retries)
+           ) do
+      {:ok, url}
+    else
       _ -> {:error, :connect_failed}
+    end
+  end
+
+  defp reconcile_connect_user(user, config) do
+    case user |> list_identities() |> Enum.map(& &1.provider_id) |> Enum.uniq() do
+      [] -> :ok
+      [provider_id] -> reconcile_connect_identity(user.id, provider_id, config)
+      _ -> {:error, :ambiguous_identity}
+    end
+  end
+
+  defp reconcile_connect_identity(user_id, provider_id, config) do
+    opts = [
+      timeout: Keyword.fetch!(config, :receive_timeout_ms),
+      max_retries: Keyword.fetch!(config, :completion_max_retries)
+    ]
+
+    case WorkOS.UserManagement.get_user(workos_client(), provider_id, opts) do
+      {:ok, %WorkOS.User{id: ^provider_id, external_id: ^user_id}} ->
+        :ok
+
+      {:ok, %WorkOS.User{id: ^provider_id, external_id: external_id}}
+      when external_id in [nil, ""] ->
+        case WorkOS.UserManagement.update_user(
+               workos_client(),
+               provider_id,
+               %{external_id: user_id},
+               opts
+             ) do
+          {:ok, %WorkOS.User{id: ^provider_id, external_id: ^user_id}} -> :ok
+          _ -> {:error, :identity_update_failed}
+        end
+
+      _ ->
+        {:error, :identity_conflict}
     end
   end
 
