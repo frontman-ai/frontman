@@ -13,7 +13,6 @@ defmodule FrontmanServerWeb.MCP.WorkOSToken do
          true <- is_integer(expiry) and expiry > System.system_time(:second),
          true <- valid_not_before?(claims),
          true <- is_binary(client_id) and client_id != "",
-         # Standalone Connect uses the Frontman external ID as this flow's subject.
          {:ok, id} <- Ecto.UUID.cast(subject),
          user when not is_nil(user) <- Accounts.get_user(id) do
       {:ok, claims}
