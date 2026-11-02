@@ -55,11 +55,10 @@ production credentials. CI uses the repository Actions secret
 Fork pull requests without access to the secret fail rather than skip this test.
 Only run credential-bearing workflows on trusted code.
 
-The WorkOS MCP test registers a new public client and completes authorization for
-a unique synthetic user in the development environment. It removes its local
-user, but retains the provider-side client and user; each run consumes provider
-capacity. The test does not log provider identifiers, delete provider accounts,
-or modify provider configuration.
+The WorkOS MCP test uses synthetic users in the development environment. A full
+run retains two public clients and three provider users. It also changes the email
+of one synthetic provider user. The test removes its local users. It does not log
+provider identifiers, delete provider accounts, or modify provider configuration.
 
 Local run:
 
