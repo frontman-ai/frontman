@@ -10,7 +10,7 @@ const resource = `${origin}/mcp`;
 const issuer = "https://opportune-lyric-43-staging.authkit.app";
 const version = "2026-07-28";
 
-function fixture(command: string, email: string, password: string, extraEnv: NodeJS.ProcessEnv = {}) {
+function fixture(command: string, email: string, password: string) {
   return execFileSync("mix", ["run", "--no-start", "-e", `
     Logger.configure(level: :warning)
     {:ok, _} = Application.ensure_all_started(:ecto_sql)
@@ -19,7 +19,7 @@ function fixture(command: string, email: string, password: string, extraEnv: Nod
     ${command}
   `], {
     cwd: resolve(import.meta.dirname, "../../../apps/frontman_server"),
-    env: { ...process.env, ...extraEnv, MIX_ENV: "e2e", E2E_MCP_EMAIL: email, E2E_MCP_PASSWORD: password },
+    env: { ...process.env, MIX_ENV: "e2e", E2E_MCP_EMAIL: email, E2E_MCP_PASSWORD: password },
     stdio: ["ignore", "pipe", "ignore"],
   }).toString().trim();
 }
@@ -171,34 +171,19 @@ describe("WorkOS MCP OAuth", () => {
       expect(typeof claims.exp).toBe("number");
       expect(claims.exp).toBeGreaterThan(Date.now() / 1000);
 
-      const subjectValid = typeof claims.sub === "string" && claims.sub.startsWith("user_");
+      phase = "local synthetic user lookup";
+      const localId = fixture(`
+        alias FrontmanServer.Accounts
+        user = Accounts.get_user_by_email(System.fetch_env!("E2E_MCP_EMAIL")) || raise "Missing local user"
+        IO.write(user.id)
+      `, email, password);
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      expect(uuidPattern.test(localId)).toBe(true);
+      expect(typeof claims.sub === "string" && claims.sub === localId).toBe(true);
+      expect(claims.client_id === client.client_id).toBe(true);
       const nbfValid = claims.nbf === undefined ||
         (Number.isInteger(claims.nbf) && claims.nbf <= Math.floor(Date.now() / 1000));
-      console.log(`[e2e] Token diagnostics: length=${tokens.access_token.length}, subject_type=${typeof claims.sub}, subject_prefix_valid=${subjectValid}, client_id_type=${typeof claims.client_id}, client_id_nonempty=${typeof claims.client_id === "string" && claims.client_id.length > 0}, nbf_valid=${nbfValid}`);
-      if (typeof claims.sub === "string" && claims.sub.length <= 512) {
-        phase = "WorkOS subject lookup";
-        const subject = await fetch(`https://api.workos.com/user_management/users/${encodeURIComponent(claims.sub)}`, {
-          headers: { authorization: `Bearer ${process.env.WORKOS_API_KEY}` },
-          redirect: "error",
-          signal: AbortSignal.timeout(15_000),
-        });
-        phase = "local synthetic user lookup";
-        const localId = fixture(`
-          alias FrontmanServer.Accounts
-          user = Accounts.get_user_by_email(System.fetch_env!("E2E_MCP_EMAIL")) || raise "Missing local user"
-          IO.write(user.id)
-        `, email, password);
-        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (!uuidPattern.test(localId)) throw new Error("Invalid local fixture identity");
-        phase = "WorkOS external identity lookup";
-        const external = await fetch(`https://api.workos.com/user_management/users/external_id/${encodeURIComponent(localId)}`, {
-          headers: { authorization: `Bearer ${process.env.WORKOS_API_KEY}` },
-          redirect: "error",
-          signal: AbortSignal.timeout(15_000),
-        });
-        const externalUser = external.ok ? await external.json() : null;
-        console.log(`[e2e] Subject diagnostics: uuid=${uuidPattern.test(claims.sub)}, equals_local=${claims.sub === localId}, get_by_subject_ok=${subject.ok}, get_by_external_id_ok=${external.ok}, external_user_id_equals_subject=${externalUser !== null && externalUser.id === claims.sub}, external_id_equals_subject=${externalUser !== null && externalUser.external_id === claims.sub}`);
-      }
+      expect(nbfValid).toBe(true);
 
       phase = "MCP discovery";
       const mcp = async (method: string, token?: string) => fetch(resource, {
