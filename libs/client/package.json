@@ -82,7 +82,7 @@
 		"@pierre/diffs": "^1.5.1",
 		"@tiptap/core": "3.31.3",
 		"@tiptap/extension-document": "3.31.3",
-		"@tiptap/extension-paragraph": "3.31.3",
+		"@tiptap/extension-paragraph": "3.31.4",
 		"@tiptap/extension-placeholder": "3.31.3",
 		"@tiptap/extension-text": "3.31.3",
 		"@tiptap/extensions": "3.31.3",
