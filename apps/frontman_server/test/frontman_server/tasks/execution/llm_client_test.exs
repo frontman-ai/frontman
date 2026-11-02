@@ -63,7 +63,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
 
   describe "image modality guard" do
     test "strips image parts for text-only models" do
-      model = model!("nvidia:deepseek-ai/deepseek-v4-flash")
+      model = model!("nvidia:z-ai/glm-5.3")
 
       expect(LLMProviderMock, :stream_text, fn ^model, [message], _opts ->
         assert Enum.map(message.content, & &1.type) == [:text, :text, :text]
