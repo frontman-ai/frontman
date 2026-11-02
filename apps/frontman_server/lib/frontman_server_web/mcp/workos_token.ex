@@ -10,12 +10,11 @@ defmodule FrontmanServerWeb.MCP.WorkOSToken do
     with true <- valid_header?(token),
          {:ok, %{"sub" => subject, "exp" => expiry, "client_id" => client_id} = claims} <-
            JWTValidator.validate_token(token, context),
-         true <- is_binary(subject) and String.starts_with?(subject, "user_"),
          true <- is_integer(expiry) and expiry > System.system_time(:second),
          true <- valid_not_before?(claims),
          true <- is_binary(client_id) and client_id != "",
-         {:ok, user} <- WorkOS.UserManagement.get_user(workos_client(), subject, timeout: 5_000),
-         {:ok, id} <- Ecto.UUID.cast(user.external_id),
+         # Standalone Connect uses the Frontman external ID as this flow's subject.
+         {:ok, id} <- Ecto.UUID.cast(subject),
          user when not is_nil(user) <- Accounts.get_user(id) do
       {:ok, claims}
     else
@@ -42,13 +41,4 @@ defmodule FrontmanServerWeb.MCP.WorkOSToken do
 
   defp valid_not_before?(%{"nbf" => _}), do: false
   defp valid_not_before?(_claims), do: true
-
-  defp workos_client do
-    config = Application.fetch_env!(:frontman_server, :workos_config)
-
-    WorkOS.client(
-      Application.fetch_env!(:workos, WorkOS.Client) ++
-        [base_url: Keyword.fetch!(config, :api_base), timeout: 5_000, max_retries: 0]
-    )
-  end
 end
