@@ -2362,7 +2362,7 @@ __metadata:
     "@vitest/browser-playwright": "catalog:"
     "@zumer/snapdom": "npm:^2.24.18"
     babel-plugin-react-compiler: "npm:^1.0.0"
-    border-beam: "npm:^1.3.0"
+    border-beam: "npm:^1.4.1"
     diff: "npm:^9.0.0"
     dom-accessibility-api: "npm:^0.7.1"
     dom-element-to-component-source: "npm:@frontman-ai/dom-element-to-component-source@0.5.0"
@@ -7425,13 +7425,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"border-beam@npm:^1.3.0":
-  version: 1.3.0
-  resolution: "border-beam@npm:1.3.0"
+"border-beam@npm:^1.4.1":
+  version: 1.4.1
+  resolution: "border-beam@npm:1.4.1"
   peerDependencies:
     react: ">=18.0.0"
     react-dom: ">=18.0.0"
-  checksum: 10c0/4c252d7ced08f989e42f3ca614d23632223149a48bc8f479656b74d275c766cfa1bf3c270480dd34a7a873f1adc4d6a5a0dea67fe274edff0c612f515b06e99b
+  checksum: 10c0/c88215b0970b12a335d434fc6241e39b408f2cf42d6cc4531ce7c02de7bcac04f02d90e653b259cfa42714f96d2972cc53679cb9be4414a1ecd34405cbe7d807
   languageName: node
   linkType: hard
 
