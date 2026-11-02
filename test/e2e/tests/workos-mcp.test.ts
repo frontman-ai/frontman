@@ -110,18 +110,14 @@ describe("WorkOS MCP OAuth", () => {
         {:ok, _} = Application.ensure_all_started(:workos)
         client = WorkOS.client()
         user = Accounts.get_user_by_email(System.fetch_env!("E2E_MCP_EMAIL"))
-        conflict = Ecto.UUID.generate()
-        {:ok, other} = WorkOS.UserManagement.create_user(client, %{
-          email: "conflict-" <> System.fetch_env!("E2E_MCP_EMAIL"), external_id: conflict})
-        identity = Repo.insert!(UserIdentity.changeset(%UserIdentity{}, %{
-          user_id: user.id, provider: "github", provider_id: other.id}))
-        {:error, :connect_failed} = Accounts.complete_oauth2(Accounts.Scope.for_user(user), "unused")
-        {:ok, %{external_id: ^conflict}} = WorkOS.UserManagement.get_user(client, other.id)
-        Repo.delete!(identity)
-        {:ok, existing} = WorkOS.UserManagement.create_user(client, %{email: user.email})
-        nil = existing.external_id
+        {:ok, second} = Accounts.register_user(%{
+          email: "second-" <> user.email, password: System.fetch_env!("E2E_MCP_PASSWORD"), name: "MCP E2E"})
+        {:ok, other} = WorkOS.UserManagement.create_user(client, %{email: "shared-" <> user.email})
+        nil = other.external_id
         Repo.insert!(UserIdentity.changeset(%UserIdentity{}, %{
-          user_id: user.id, provider: "github", provider_id: existing.id}))
+          user_id: user.id, provider: "github", provider_id: other.id}))
+        Repo.insert!(UserIdentity.changeset(%UserIdentity{}, %{
+          user_id: second.id, provider: "google", provider_id: other.id}))
         `, email, password);
       }
 
@@ -154,6 +150,55 @@ describe("WorkOS MCP OAuth", () => {
       await page.locator("#login-form input[type=email]").fill(email);
       await page.locator("#login-form input[type=password]").fill(password);
       await page.locator("#login-submit").click();
+      if (linked) {
+        phase = "shared provider handoff";
+        const shared = page.waitForResponse((response) =>
+          response.request().method() === "POST" && response.url().endsWith("/auth/mcp/workos/pending"));
+        await page.locator('form[action="/auth/mcp/workos/pending"] button').click();
+        expect((await shared).status()).toBe(400);
+        fixture(`
+          alias FrontmanServer.{Accounts, Repo}
+          alias FrontmanServer.Accounts.UserIdentity
+          {:ok, _} = Application.ensure_all_started(:workos)
+          client = WorkOS.client()
+          user = Accounts.get_user_by_email(System.fetch_env!("E2E_MCP_EMAIL"))
+          [identity] = Accounts.WorkOS.list_identities(user)
+          {:ok, other} = WorkOS.UserManagement.get_user(client, identity.provider_id)
+          nil = other.external_id
+          Accounts.get_user_by_email("second-" <> user.email) |> Repo.delete!()
+          Repo.delete!(identity)
+          conflict = Ecto.UUID.generate()
+          {:ok, conflicting} = WorkOS.UserManagement.create_user(client, %{
+            email: "conflict-" <> user.email, external_id: conflict})
+          Repo.insert!(UserIdentity.changeset(%UserIdentity{}, %{
+            user_id: user.id, provider: "github", provider_id: conflicting.id,
+            provider_name: conflict, provider_avatar_url: other.id}))
+        `, email, password);
+        await page.goto(authorize.toString());
+        phase = "conflicting provider handoff";
+        const rejected = page.waitForResponse((response) =>
+          response.request().method() === "POST" && response.url().endsWith("/auth/mcp/workos/pending"));
+        await page.locator('form[action="/auth/mcp/workos/pending"] button').click();
+        expect((await rejected).status()).toBe(400);
+        fixture(`
+          alias FrontmanServer.{Accounts, Repo}
+          alias FrontmanServer.Accounts.UserIdentity
+          {:ok, _} = Application.ensure_all_started(:workos)
+          client = WorkOS.client()
+          user = Accounts.get_user_by_email(System.fetch_env!("E2E_MCP_EMAIL"))
+          [identity] = Accounts.WorkOS.list_identities(user)
+          {:ok, other} = WorkOS.UserManagement.get_user(client, identity.provider_id)
+          true = other.external_id == identity.provider_name
+          existing_id = identity.provider_avatar_url
+          Repo.delete!(identity)
+          {:ok, %{external_id: nil}} = WorkOS.UserManagement.get_user(client, existing_id)
+          {:ok, _} = WorkOS.UserManagement.update_user(client, existing_id, %{email: user.email})
+          Repo.insert!(UserIdentity.changeset(%UserIdentity{}, %{
+            user_id: user.id, provider: "google", provider_id: existing_id}))
+        `, email, password);
+        phase = "existing provider handoff";
+        await page.goto(authorize.toString());
+      }
       await page.locator('form[action="/auth/mcp/workos/pending"] button').click();
       const consent = page.getByRole("button", { name: /allow|authorize|continue/i });
       await Promise.race([consent.waitFor({ state: "visible" }), callback]);
@@ -200,6 +245,10 @@ describe("WorkOS MCP OAuth", () => {
         user = Accounts.get_user_by_email(System.fetch_env!("E2E_MCP_EMAIL")) || raise "Missing local user"
         {:ok, provider} = WorkOS.UserManagement.get_user_by_external_id(WorkOS.client(), user.id)
         true = provider.external_id == user.id
+        case Accounts.WorkOS.list_identities(user) do
+          [] -> :ok
+          [identity] -> true = provider.id == identity.provider_id
+        end
         IO.write(user.id)
       `, email, password);
       const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -257,6 +306,10 @@ describe("WorkOS MCP OAuth", () => {
         async () => { if (server) await new Promise<void>((done) => server!.close(() => done())); },
         async () => { if (userCreated) fixture(`
           alias FrontmanServer.{Accounts, Repo}
+          case Accounts.get_user_by_email("second-" <> System.fetch_env!("E2E_MCP_EMAIL")) do
+            nil -> :ok
+            second -> Repo.delete!(second)
+          end
           Accounts.get_user_by_email(System.fetch_env!("E2E_MCP_EMAIL")) |> Repo.delete!()
         `, email, password); },
       ];

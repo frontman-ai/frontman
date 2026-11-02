@@ -58,8 +58,8 @@ Only run credential-bearing workflows on trusted code.
 The WorkOS MCP test registers a new public client and completes authorization for
 a unique synthetic user in the development environment. It removes its local
 user, but retains the provider-side client and user; each run consumes provider
-capacity. The test logs the client ID for later review. It does not delete
-provider accounts or modify provider configuration.
+capacity. The test does not log provider identifiers, delete provider accounts,
+or modify provider configuration.
 
 Local run:
 
