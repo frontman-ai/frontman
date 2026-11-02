@@ -2354,7 +2354,7 @@ __metadata:
     "@tiptap/extension-placeholder": "npm:3.31.3"
     "@tiptap/extension-text": "npm:3.31.3"
     "@tiptap/extensions": "npm:3.31.3"
-    "@tiptap/pm": "npm:3.31.3"
+    "@tiptap/pm": "npm:3.31.4"
     "@tiptap/react": "npm:3.31.3"
     "@types/babel__core": "npm:^7"
     "@types/react": "npm:^19.3.0"
@@ -5961,9 +5961,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tiptap/pm@npm:3.31.3":
-  version: 3.31.3
-  resolution: "@tiptap/pm@npm:3.31.3"
+"@tiptap/pm@npm:3.31.4":
+  version: 3.31.4
+  resolution: "@tiptap/pm@npm:3.31.4"
   dependencies:
     prosemirror-changeset: "npm:^2.4.1"
     prosemirror-commands: "npm:^1.7.1"
@@ -5978,7 +5978,7 @@ __metadata:
     prosemirror-tables: "npm:^1.8.5"
     prosemirror-transform: "npm:^1.12.0"
     prosemirror-view: "npm:^1.42.3"
-  checksum: 10c0/ebb91d21867afeab1913c460e0a03f89bcdb97dc6db3c85fe43ffcf48f1c283d0c293bf51d549fe71373f18ef52182d32eae011371e66f125d79effde034d76a
+  checksum: 10c0/096604cc53143741f99801c8e14e574cdd457eae18679ca54c9f4e5298c640257c18af8218619b52ef5b0dc04eb0d88ccfa1537936dd7db5a734e6c740ec8d23
   languageName: node
   linkType: hard
 
