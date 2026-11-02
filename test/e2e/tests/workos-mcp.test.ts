@@ -45,7 +45,7 @@ describe("WorkOS MCP OAuth", () => {
     });
   });
 
-  it("authenticates a synthetic user and discovers the closed server", async () => {
+  it("authenticates a synthetic user and discovers the closed server", { retry: 0 }, async () => {
     const email = `mcp-${randomUUID()}@frontman.local`;
     const password = randomBytes(32).toString("base64url");
     let server: Server | undefined;
@@ -185,8 +185,13 @@ describe("WorkOS MCP OAuth", () => {
         }),
         signal: AbortSignal.timeout(15_000),
       });
-      expect((await mcp("server/discover")).status).toBe(401);
+      phase = "unauthenticated MCP discovery request";
+      const anonymous = await mcp("server/discover");
+      phase = `unauthenticated MCP discovery (HTTP ${anonymous.status})`;
+      expect(anonymous.status).toBe(401);
+      phase = "authenticated MCP discovery request";
       const discovery = await mcp("server/discover", tokens.access_token);
+      phase = `authenticated MCP discovery (HTTP ${discovery.status})`;
       expect(discovery.status).toBe(200);
       const discovered = await discovery.json();
       expect(discovered.jsonrpc).toBe("2.0");
@@ -195,7 +200,9 @@ describe("WorkOS MCP OAuth", () => {
       expect(discovered.result.resultType).toBe("complete");
       expect(discovered.result.supportedVersions).toContain(version);
       expect(discovered.result.capabilities).toEqual({});
+      phase = "authenticated MCP tools request";
       const tools = await mcp("tools/list", tokens.access_token);
+      phase = `authenticated MCP tools listing (HTTP ${tools.status})`;
       expect(tools.status).toBe(200);
       const catalog = await tools.json();
       expect(catalog.jsonrpc).toBe("2.0");
