@@ -10,7 +10,7 @@ const resource = `${origin}/mcp`;
 const issuer = "https://opportune-lyric-43-staging.authkit.app";
 const version = "2026-07-28";
 
-function fixture(command: string, email: string, password: string) {
+function fixture(command: string, email: string, password: string, extraEnv: NodeJS.ProcessEnv = {}) {
   execFileSync("mix", ["run", "--no-start", "-e", `
     {:ok, _} = Application.ensure_all_started(:ecto_sql)
     {:ok, _} = Application.ensure_all_started(:postgrex)
@@ -18,7 +18,7 @@ function fixture(command: string, email: string, password: string) {
     ${command}
   `], {
     cwd: resolve(import.meta.dirname, "../../../apps/frontman_server"),
-    env: { ...process.env, MIX_ENV: "e2e", E2E_MCP_EMAIL: email, E2E_MCP_PASSWORD: password },
+    env: { ...process.env, ...extraEnv, MIX_ENV: "e2e", E2E_MCP_EMAIL: email, E2E_MCP_PASSWORD: password },
     stdio: "ignore",
   });
 }
@@ -169,6 +169,38 @@ describe("WorkOS MCP OAuth", () => {
       expect(claims.aud).toBe(resource);
       expect(typeof claims.exp).toBe("number");
       expect(claims.exp).toBeGreaterThan(Date.now() / 1000);
+
+      const subjectValid = typeof claims.sub === "string" && claims.sub.startsWith("user_");
+      const nbfValid = claims.nbf === undefined ||
+        (Number.isInteger(claims.nbf) && claims.nbf <= Math.floor(Date.now() / 1000));
+      console.log(`[e2e] Token diagnostics: length=${tokens.access_token.length}, subject_type=${typeof claims.sub}, subject_prefix_valid=${subjectValid}, client_id_type=${typeof claims.client_id}, client_id_nonempty=${typeof claims.client_id === "string" && claims.client_id.length > 0}, nbf_valid=${nbfValid}`);
+      if (subjectValid) {
+        phase = "WorkOS subject lookup";
+        const subject = await fetch(`https://api.workos.com/user_management/users/${encodeURIComponent(claims.sub)}`, {
+          headers: { authorization: `Bearer ${process.env.WORKOS_API_KEY}` },
+          signal: AbortSignal.timeout(15_000),
+        });
+        console.log(`[e2e] WorkOS subject lookup: HTTP ${subject.status}`);
+        if (subject.ok) {
+          const user = await subject.json();
+          let identityStatus = "external_id_missing";
+          if (typeof user.external_id === "string") {
+            try {
+              fixture(`
+                alias FrontmanServer.Accounts
+                user = Accounts.get_user_by_email(System.fetch_env!("E2E_MCP_EMAIL")) || raise "Missing local user"
+                if user.id != System.fetch_env!("E2E_WORKOS_EXTERNAL_ID"), do: System.halt(42)
+              `, email, password, { E2E_WORKOS_EXTERNAL_ID: user.external_id });
+              identityStatus = "match";
+            } catch (error) {
+              identityStatus = typeof error === "object" && error !== null && "status" in error && error.status === 42
+                ? "mismatch"
+                : "fixture_error";
+            }
+          }
+          console.log(`[e2e] WorkOS subject external ID comparison: ${identityStatus}`);
+        }
+      }
 
       phase = "MCP discovery";
       const mcp = async (method: string, token?: string) => fetch(resource, {
