@@ -84,7 +84,12 @@ endef
 
 define run_e2e
 	@test -f test/e2e/.env || { printf "$(YELLOW)Error: test/e2e/.env not found. Copy test/e2e/.env.example and fill in values.$(RESET)\n"; exit 1; }
-	@set -eu; set -a; . test/e2e/.env; set +a; \
+	@set -eu; \
+	workos_api_key_set="$${WORKOS_API_KEY+x}"; workos_api_key="$${WORKOS_API_KEY-}"; \
+	workos_client_id_set="$${WORKOS_CLIENT_ID+x}"; workos_client_id="$${WORKOS_CLIENT_ID-}"; \
+	set -a; . test/e2e/.env; set +a; \
+	if [ -n "$$workos_api_key_set" ]; then export WORKOS_API_KEY="$$workos_api_key"; fi; \
+	if [ -n "$$workos_client_id_set" ]; then export WORKOS_CLIENT_ID="$$workos_client_id"; fi; \
 	CA_CERT="$${NODE_EXTRA_CA_CERTS:-$$(mkcert -CAROOT)/rootCA.pem}"; \
 	test -r "$$CA_CERT" || { printf "Error: test CA not readable: %s. Run make ssl-setup.\n" "$$CA_CERT"; exit 1; }; \
 	export NODE_EXTRA_CA_CERTS="$$(realpath "$$CA_CERT")"; \

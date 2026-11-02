@@ -32,13 +32,11 @@ export async function login(
     try {
       await loginOnce(page, opts);
       return;
-    } catch (err) {
+    } catch {
       if (attempt < maxAttempts) {
-        console.log(
-          `  [e2e] Login attempt ${attempt} failed, retrying… (${err instanceof Error ? err.message : err})`,
-        );
+        console.log(`  [e2e] Login attempt ${attempt} failed, retrying…`);
       } else {
-        throw err;
+        throw new Error("[e2e] Login failed after two attempts");
       }
     }
   }
@@ -93,7 +91,7 @@ async function loginOnce(
   await page.goto(loginUrl.toString());
 
   if (!page.url().includes("/users/log-in")) {
-    console.log(`  [e2e] Already authenticated — skipped login form (URL: ${page.url()})`);
+    console.log("  [e2e] Already authenticated — skipped login form");
     return;
   }
 

@@ -281,14 +281,20 @@ jobs:
         run: |
           SUITE="${{ github.event.inputs.test_suite }}"
           if [ "$SUITE" = "all" ] || [ -z "$SUITE" ]; then
-            echo "cmd=npx vitest run" >> "$GITHUB_OUTPUT"
+            echo "cmd=make e2e" >> "$GITHUB_OUTPUT"
           else
-            echo "cmd=npx vitest run tests/${SUITE}.test.ts" >> "$GITHUB_OUTPUT"
+            echo "cmd=cd test/e2e && npx vitest run tests/${SUITE}.test.ts" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Run E2E tests
-        working-directory: test/e2e
-        run: ${{ steps.test-cmd.outputs.cmd }}
+        env:
+          WORKOS_API_KEY: ${{ secrets.E2E_WORKOS_API_KEY }}
+          WORKOS_CLIENT_ID: ${{ vars.E2E_WORKOS_CLIENT_ID }}
+        run: |
+          test -n "$WORKOS_API_KEY" || { echo "Missing E2E_WORKOS_API_KEY Actions secret"; exit 1; }
+          test -n "$WORKOS_CLIENT_ID" || { echo "Missing E2E_WORKOS_CLIENT_ID Actions variable"; exit 1; }
+          test -e test/e2e/.env || : > test/e2e/.env
+          ${{ steps.test-cmd.outputs.cmd }}
 
       - name: Cleanup workspace
         if: always()
