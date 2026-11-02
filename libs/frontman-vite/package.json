@@ -54,7 +54,7 @@
 		"build": "yarn build:rescript && yarn build:bundle"
 	},
 	"dependencies": {
-		"chrome-launcher": "^1.1.2",
+		"chrome-launcher": "^1.2.2",
 		"lighthouse": "^13.5.0",
 		"source-map": "^0.8.0"
 	},
