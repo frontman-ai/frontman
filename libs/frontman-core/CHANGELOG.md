@@ -1,5 +1,13 @@
 # @frontman-ai/frontman-core
 
+## 2.0.6
+
+### Patch Changes
+
+- Updated dependencies [[`e6ffa01`](https://github.com/frontman-ai/frontman/commit/e6ffa0180d78296473cde14643dc837c3919d556), [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9), [`dd92757`](https://github.com/frontman-ai/frontman/commit/dd927579c6b3032fe4b172bc7aa9b1d911cb9c4a), [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9), [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9)]:
+  - @frontman-ai/frontman-protocol@4.1.3
+  - @frontman/bindings@0.3.5
+
 ## 2.0.5
 
 ### Patch Changes

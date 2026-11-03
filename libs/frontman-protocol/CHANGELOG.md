@@ -1,5 +1,21 @@
 # @frontman-ai/frontman-protocol
 
+## 4.1.3
+
+### Patch Changes
+
+- [#2047](https://github.com/frontman-ai/frontman/pull/2047) [`e6ffa01`](https://github.com/frontman-ai/frontman/commit/e6ffa0180d78296473cde14643dc837c3919d556) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Restore server-owned pending messages, execution state, and plans through regular session loading. Keep queued follow-ups cancellable after reload and move only messages explicitly claimed by the server into the transcript.
+
+- [#2013](https://github.com/frontman-ai/frontman/pull/2013) [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add MCP subscription acknowledgments and validate notification filters. Decline state-only interim tool results through the existing error-result path instead of crashing the server channel.
+
+  Centralize Phoenix, Vitest, and Sentry bindings. Strengthen MCP regression tests and fix ACP and Sentry test fixtures.
+
+- [#2057](https://github.com/frontman-ai/frontman/pull/2057) [`dd92757`](https://github.com/frontman-ai/frontman/commit/dd927579c6b3032fe4b172bc7aa9b1d911cb9c4a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add `preview_status` readiness tool; `navigate_preview` is now navigation-only and rejects blank URLs.
+
+- [#2013](https://github.com/frontman-ai/frontman/pull/2013) [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Pass request-scoped cancellation signals through browser MCP execution and local tool interfaces. Cancellation and transport teardown signal running tools without treating abort as proof of rollback. Non-cooperative tools may still return their actual result.
+
+- [#2013](https://github.com/frontman-ai/frontman/pull/2013) [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Deliver structured-only MCP tool results to the model, including arrays, scalars, and explicit JSON null. Preserve original text and image blocks and avoid appending structured JSON when an existing text block already contains equivalent serialized JSON. Extend opaque result constructors to accept arbitrary JSON while keeping dictionary-based helpers compatible.
+
 ## 4.1.2
 
 ### Patch Changes
