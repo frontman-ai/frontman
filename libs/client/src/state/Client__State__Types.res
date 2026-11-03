@@ -17,6 +17,15 @@ type submission = {
 }
 
 @schema
+type wordPressConnectionResponse = {id: string}
+
+@schema
+type wordPressConnectionError = {
+  error: string,
+  credential_created: option<bool>,
+}
+
+@schema
 type userApiKeysResponse = {
   providers: array<string>,
 }

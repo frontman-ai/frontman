@@ -109,9 +109,11 @@ $connect = static function( string $method, string $auth_cookie, ?string $reques
 try {
 	$secure_url = 'https://frontman-runtime.example.test/wordpress';
 	update_option( 'siteurl', $secure_url );
-	update_option( 'frontman_mcp_enabled', true );
+	update_option( 'frontman_mcp_enabled', false );
 	$before = WP_Application_Passwords::get_user_application_passwords( $actor_id );
-	frontman_runtime_same( 403, $connect( 'POST', $cookie, $nonce, false )['status'], 'HTTP request must reject connection even with an HTTPS site URL' );
+	$rejected = $connect( 'POST', $cookie, $nonce, false );
+	frontman_runtime_same( 403, $rejected['status'], 'HTTP request must reject connection even with an HTTPS site URL' );
+	frontman_runtime_same( 'frontman_https_required', json_decode( $rejected['body'], true )['code'], 'HTTP rejection identifies HTTPS requirement' );
 	foreach ( [
 		[ 'GET', $cookie, $nonce ],
 		[ 'POST', '', $nonce ],
@@ -120,19 +122,26 @@ try {
 	] as $request ) {
 		frontman_runtime_assert( 200 !== $connect( ...$request )['status'], 'Unapproved connect request must fail' );
 	}
-	update_option( 'frontman_mcp_enabled', false );
-	frontman_runtime_same( 403, $connect( 'POST', $cookie, $nonce )['status'], 'Disabled MCP must reject connection' );
-	update_option( 'frontman_mcp_enabled', true );
 	update_option( 'siteurl', 'http://frontman-runtime.example.test/wordpress' );
-	frontman_runtime_same( 403, $connect( 'POST', $cookie, $nonce )['status'], 'HTTP site URL must reject connection' );
+	$rejected = $connect( 'POST', $cookie, $nonce );
+	frontman_runtime_same( 403, $rejected['status'], 'HTTP site URL must reject connection' );
+	frontman_runtime_same( 'frontman_invalid_site_url', json_decode( $rejected['body'], true )['code'], 'Invalid site URL rejection has an actionable code' );
 	update_option( 'siteurl', $secure_url );
 	$actor->set_role( 'subscriber' );
 	frontman_runtime_same( 403, $connect( 'POST', $cookie, $nonce )['status'], 'Non-administrator must be rejected' );
 	$actor->set_role( 'administrator' );
 	wp_cache_delete( $actor_id, 'user_meta' );
 	frontman_runtime_same( $before, WP_Application_Passwords::get_user_application_passwords( $actor_id ), 'Rejected requests create no credentials' );
+	wp_cache_delete( 'alloptions', 'options' );
+	wp_cache_delete( 'notoptions', 'options' );
+	wp_cache_delete( 'frontman_mcp_enabled', 'options' );
+	frontman_runtime_same( false, (bool) get_option( 'frontman_mcp_enabled' ), 'Rejected requests do not enable MCP' );
 	$response = $connect( 'POST', $cookie, $nonce );
 	frontman_runtime_same( 200, $response['status'], 'Approved connection succeeds' );
+	wp_cache_delete( 'alloptions', 'options' );
+	wp_cache_delete( 'notoptions', 'options' );
+	wp_cache_delete( 'frontman_mcp_enabled', 'options' );
+	frontman_runtime_same( true, (bool) get_option( 'frontman_mcp_enabled' ), 'Approval enables MCP without a separate settings change' );
 	frontman_runtime_assert( false !== stripos( implode( "\n", $response['headers'] ), 'no-store' ), 'Credential response must not be stored' );
 	$result = json_decode( $response['body'], true, 512, JSON_THROW_ON_ERROR );
 	frontman_runtime_same( [ 'catalog_url', 'call_url', 'username', 'password' ], array_keys( $result ), 'Connection response has the agreed schema' );

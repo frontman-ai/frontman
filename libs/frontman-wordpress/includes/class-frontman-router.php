@@ -360,17 +360,24 @@ class Frontman_Router {
 		$user = wp_get_current_user();
 		$site_url = get_option( 'siteurl' );
 		$parts = is_string( $site_url ) ? wp_parse_url( $site_url ) : false;
-		if ( ! is_ssl()
-			|| ! Frontman_Sentry::sanitize_enabled( get_option( 'frontman_mcp_enabled', false ) )
-			|| ! current_user_can( 'create_app_password', $user->ID )
-			|| ! wp_is_application_passwords_available_for_user( $user )
-			|| ! is_array( $parts ) || 'https' !== ( $parts['scheme'] ?? '' ) || empty( $parts['host'] )
+		if ( ! is_ssl() ) {
+			wp_send_json( [ 'code' => 'frontman_https_required', 'error' => 'Open this WordPress site over HTTPS before connecting.' ], 403 );
+		}
+		if ( ! is_array( $parts ) || 'https' !== ( $parts['scheme'] ?? '' ) || empty( $parts['host'] )
 			|| isset( $parts['user'] ) || isset( $parts['pass'] ) || isset( $parts['query'] ) || isset( $parts['fragment'] ) ) {
-			wp_send_json( [ 'error' => 'MCP connection is unavailable.' ], 403 );
+			wp_send_json( [ 'code' => 'frontman_invalid_site_url', 'error' => 'Check the HTTPS WordPress Address in Settings > General.' ], 403 );
+		}
+		if ( ! current_user_can( 'create_app_password', $user->ID )
+			|| ! wp_is_application_passwords_available_for_user( $user ) ) {
+			wp_send_json( [ 'code' => 'frontman_application_passwords_unavailable', 'error' => 'WordPress Application Passwords are unavailable for your account. Ask your site administrator.' ], 403 );
 		}
 		$password = WP_Application_Passwords::create_new_application_password( $user->ID, [ 'name' => 'Frontman MCP' ] );
 		if ( is_wp_error( $password ) ) {
-			wp_send_json( [ 'error' => 'Could not create an Application Password.' ], 500 );
+			wp_send_json( [ 'code' => 'frontman_password_creation_failed', 'error' => 'Could not create an Application Password. Try again or ask your site administrator.' ], 500 );
+		}
+		update_option( 'frontman_mcp_enabled', true );
+		if ( ! Frontman_Sentry::sanitize_enabled( get_option( 'frontman_mcp_enabled', false ) ) ) {
+			wp_send_json( [ 'code' => 'frontman_mcp_enable_failed', 'error' => 'Could not enable MCP access. Check the Frontman settings in WordPress.', 'credential_created' => true ], 500 );
 		}
 		wp_send_json( [ 'catalog_url' => get_rest_url( null, 'frontman/v1/tools' ), 'call_url' => get_rest_url( null, 'frontman/v1/tools/call' ), 'username' => $user->user_login, 'password' => $password[0] ] );
 	}
