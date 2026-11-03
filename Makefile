@@ -248,7 +248,7 @@ install:
 
 .PHONY: prepare-deps prepare-server-deps
 prepare-deps: prepare-server-deps
-	YARN_ENABLE_GLOBAL_CACHE=true yarn install --immutable
+	MISE_YES=false MISE_AUTO_INSTALL=false YARN_ENABLE_GLOBAL_CACHE=true mise exec node yarn -- yarn install --immutable
 
 prepare-server-deps:
 	@command -v mise >/dev/null || { printf 'Install mise and the tools pinned in mise.toml first.\n' >&2; exit 1; }
