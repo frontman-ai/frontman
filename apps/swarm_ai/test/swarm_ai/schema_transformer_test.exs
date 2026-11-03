@@ -23,8 +23,8 @@ defmodule SwarmAi.SchemaTransformerTest do
                :openai_strict
     end
 
-    test "returns :flexible for Anthropic" do
-      assert SchemaTransformer.provider_for_model("anthropic:claude-3-opus") == :flexible
+    test "returns :anthropic for direct Anthropic models" do
+      assert SchemaTransformer.provider_for_model("anthropic:claude-3-opus") == :anthropic
 
       assert SchemaTransformer.provider_for_model("openrouter:anthropic/claude-3-opus") ==
                :flexible
@@ -52,9 +52,9 @@ defmodule SwarmAi.SchemaTransformerTest do
       assert SchemaTransformer.provider_for_model(model) == :openai_strict
     end
 
-    test "returns :flexible for model struct with :anthropic provider" do
+    test "returns :anthropic for model struct with :anthropic provider" do
       model = %{provider: :anthropic, model: "claude-3-opus", id: "claude-3-opus"}
-      assert SchemaTransformer.provider_for_model(model) == :flexible
+      assert SchemaTransformer.provider_for_model(model) == :anthropic
     end
 
     test "returns :flexible for model struct with :google provider" do
@@ -116,6 +116,84 @@ defmodule SwarmAi.SchemaTransformerTest do
       }
 
       assert SchemaTransformer.transform(schema, :flexible) == schema
+    end
+  end
+
+  describe "transform/2 with :anthropic" do
+    test "removes root anyOf of required property alternatives without changing base fields" do
+      schema = %{
+        "type" => "object",
+        "properties" => %{
+          "id" => %{"type" => "integer"},
+          "title" => %{"type" => "string"},
+          "description" => %{"type" => "string"}
+        },
+        "required" => ["id"],
+        "additionalProperties" => false,
+        "description" => "Updates stored SEO fields.",
+        "anyOf" => [
+          %{"required" => ["title"]},
+          %{"required" => ["description"]}
+        ]
+      }
+
+      assert SchemaTransformer.transform(schema, :anthropic) ==
+               schema
+               |> Map.delete("anyOf")
+               |> Map.put(
+                 "description",
+                 "Updates stored SEO fields. Provide at least one of title, description."
+               )
+
+      assert SchemaTransformer.transform(schema, :flexible) == schema
+    end
+
+    test "preserves nested alternatives while removing supported root alternatives" do
+      schema = %{
+        "type" => "object",
+        "properties" => %{
+          "title" => %{"anyOf" => [%{"type" => "string"}, %{"type" => "null"}]}
+        },
+        "anyOf" => [%{"required" => ["title"]}]
+      }
+
+      result = SchemaTransformer.transform(schema, :anthropic)
+
+      assert result["properties"] == schema["properties"]
+      assert result["description"] == "Provide at least one of title."
+      refute Map.has_key?(result, "anyOf")
+    end
+
+    test "does not discard root alternatives containing other constraints" do
+      schema = %{
+        "type" => "object",
+        "properties" => %{"title" => %{"type" => "string"}},
+        "anyOf" => [%{"required" => ["title"], "properties" => %{"title" => %{"minLength" => 1}}}]
+      }
+
+      assert SchemaTransformer.transform(schema, :anthropic) == schema
+    end
+
+    test "does not discard mixed or unsupported root alternatives" do
+      base = %{
+        "type" => "object",
+        "properties" => %{"title" => %{"type" => "string"}},
+        "anyOf" => [%{"required" => ["title"]}]
+      }
+
+      for alternative <- [
+            %{"required" => ["title"], "minProperties" => 1},
+            %{"required" => []},
+            %{"required" => ["unknown"]},
+            %{"required" => [1]},
+            %{"required" => ["title", "other"]}
+          ] do
+        schema = %{base | "anyOf" => base["anyOf"] ++ [alternative]}
+        assert SchemaTransformer.transform(schema, :anthropic) == schema
+      end
+
+      assert SchemaTransformer.transform(%{base | "anyOf" => []}, :anthropic) ==
+               %{base | "anyOf" => []}
     end
   end
 

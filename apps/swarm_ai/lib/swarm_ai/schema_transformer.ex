@@ -5,7 +5,8 @@ defmodule SwarmAi.SchemaTransformer do
   Different providers have different requirements for tool schemas:
   - OpenAI (strict mode): Requires all properties in `required` array,
     uses nullable types for optional fields, requires `additionalProperties: false`
-  - Anthropic/Google/Others: Flexible schemas, optional properties can be omitted
+  - Anthropic: Does not accept root-level combinators in tool input schemas
+  - Google/Others: Flexible schemas, optional properties can be omitted
 
   ## OpenAI Structured Outputs Requirements
 
@@ -38,16 +39,20 @@ defmodule SwarmAi.SchemaTransformer do
       }
   """
 
-  @type provider :: :openai_strict | :flexible
+  @type provider :: :openai_strict | :anthropic | :flexible
 
   @doc """
   Transforms a schema for the target provider.
 
-  For `:flexible` providers (Anthropic, Google, etc.), returns schema unchanged.
+  For `:anthropic`, describes and removes root-level `anyOf` constraints consisting
+  solely of single required-property alternatives. The tool handler remains
+  responsible for validating those alternatives.
+  For `:flexible` providers (Google, etc.), returns schema unchanged.
   For `:openai_strict`, normalizes schema for OpenAI's structured outputs requirements.
   """
   @spec transform(map(), provider()) :: map()
   def transform(schema, :flexible), do: schema
+  def transform(schema, :anthropic), do: transform_for_anthropic(schema)
   def transform(schema, :openai_strict), do: transform_for_openai_strict(schema)
 
   @doc """
@@ -73,16 +78,22 @@ defmodule SwarmAi.SchemaTransformer do
 
   Model strings follow the format `"provider:model_name"` or `"provider:org/model_name"`.
   Returns `:openai_strict` for OpenAI and Azure models (via OpenRouter or direct),
-  `:flexible` for all others.
+  `:anthropic` for direct Anthropic models, and `:flexible` for all others.
   """
   @spec provider_for_model(String.t() | %{provider: atom()}) :: provider()
   def provider_for_model(model) when is_binary(model) do
-    if openai_model?(model), do: :openai_strict, else: :flexible
+    cond do
+      openai_model?(model) -> :openai_strict
+      String.starts_with?(model, "anthropic:") -> :anthropic
+      true -> :flexible
+    end
   end
 
   def provider_for_model(%{provider: provider}) when provider in [:openai, :azure] do
     :openai_strict
   end
+
+  def provider_for_model(%{provider: :anthropic}), do: :anthropic
 
   def provider_for_model(%{provider: :openrouter, id: id})
       when is_binary(id) do
@@ -98,6 +109,33 @@ defmodule SwarmAi.SchemaTransformer do
       String.contains?(model, "azure/") or
       String.starts_with?(model, "openai:")
   end
+
+  defp transform_for_anthropic(
+         %{"type" => "object", "properties" => properties, "anyOf" => alternatives} = schema
+       )
+       when is_map(properties) and is_list(alternatives) and alternatives != [] do
+    case Enum.all?(alternatives, &required_property_alternative?(&1, properties)) do
+      true ->
+        fields = Enum.map(alternatives, fn %{"required" => [field]} -> field end)
+        guidance = "Provide at least one of #{Enum.join(fields, ", ")}."
+
+        schema
+        |> Map.delete("anyOf")
+        |> Map.update("description", guidance, &(&1 <> " " <> guidance))
+
+      false ->
+        schema
+    end
+  end
+
+  defp transform_for_anthropic(schema), do: schema
+
+  defp required_property_alternative?(%{"required" => [field]} = alternative, properties)
+       when is_binary(field) do
+    map_size(alternative) == 1 and Map.has_key?(properties, field)
+  end
+
+  defp required_property_alternative?(_alternative, _properties), do: false
 
   defp transform_for_openai_strict(%{"type" => "object", "properties" => properties} = schema) do
     original_required = MapSet.new(Map.get(schema, "required", []))

@@ -59,6 +59,53 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
       assert result.description == "Reads a file"
       assert result.parameter_schema["properties"]["path"]["type"] == "string"
     end
+
+    test "advertises legacy required-only WordPress schema to Anthropic without root anyOf" do
+      schema = %{
+        "type" => "object",
+        "properties" => %{
+          "id" => %{"type" => "integer"},
+          "title" => %{"type" => "string"},
+          "description" => %{"type" => "string"},
+          "focus_keyphrase" => %{"type" => "string"}
+        },
+        "required" => ["id"],
+        "additionalProperties" => false,
+        "anyOf" => [
+          %{"required" => ["title"]},
+          %{"required" => ["description"]},
+          %{"required" => ["focus_keyphrase"]}
+        ]
+      }
+
+      tool = %SwarmAi.Tool{
+        name: "wp_update_seo",
+        description: "Updates SEO overrides.",
+        access: :read_write,
+        parameter_schema: schema
+      }
+
+      result = LLMClient.to_reqllm_tool(tool, model!("anthropic:claude-sonnet-4-6"))
+
+      expected_schema =
+        schema
+        |> Map.delete("anyOf")
+        |> Map.put(
+          "description",
+          "Provide at least one of title, description, focus_keyphrase."
+        )
+
+      assert result.name == "wp_update_seo"
+      assert result.parameter_schema == expected_schema
+      assert tool.parameter_schema == schema
+
+      request =
+        %{ReqLLM.Context.new() | tools: [result]}
+        |> ReqLLM.Providers.Anthropic.Context.encode_request(%{model: "claude-sonnet-4-6"})
+
+      assert [%{input_schema: input_schema}] = request.tools
+      assert input_schema == expected_schema
+    end
   end
 
   describe "image modality guard" do
