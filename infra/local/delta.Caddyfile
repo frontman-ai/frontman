@@ -2,7 +2,7 @@
   admin off
   auto_https disable_redirects
 }
-https://{$STACK_ID}.api.frontman.local {
+https://{$STACK_ID}.api.frontman.local, https://{$STACK_ID}.api.frontman.local:{$STACK_PORT} {
   tls /etc/caddy/tls/tls.pem /etc/caddy/tls/tls-key.pem
   reverse_proxy https://127.0.0.1:4000 {
     transport http {
@@ -10,19 +10,19 @@ https://{$STACK_ID}.api.frontman.local {
     }
   }
 }
-https://{$STACK_ID}.vite.frontman.local {
+https://{$STACK_ID}.vite.frontman.local, https://{$STACK_ID}.vite.frontman.local:{$STACK_PORT} {
   tls /etc/caddy/tls/tls.pem /etc/caddy/tls/tls-key.pem
   reverse_proxy 127.0.0.1:5173
 }
-https://{$STACK_ID}.nextjs.frontman.local {
+https://{$STACK_ID}.nextjs.frontman.local, https://{$STACK_ID}.nextjs.frontman.local:{$STACK_PORT} {
   tls /etc/caddy/tls/tls.pem /etc/caddy/tls/tls-key.pem
   reverse_proxy 127.0.0.1:3000
 }
-https://{$STACK_ID}.marketing.frontman.local {
+https://{$STACK_ID}.marketing.frontman.local, https://{$STACK_ID}.marketing.frontman.local:{$STACK_PORT} {
   tls /etc/caddy/tls/tls.pem /etc/caddy/tls/tls-key.pem
   reverse_proxy 127.0.0.1:4321
 }
-https://{$STACK_ID}.wordpress.frontman.local {
+https://{$STACK_ID}.wordpress.frontman.local, https://{$STACK_ID}.wordpress.frontman.local:{$STACK_PORT} {
   tls /etc/caddy/tls/tls.pem /etc/caddy/tls/tls-key.pem
   reverse_proxy 127.0.0.1:80
 }
