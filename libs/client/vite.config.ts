@@ -24,7 +24,7 @@ function reactCompilerPlugin(): vite.Plugin {
 	};
 }
 
-export default vite.defineConfig({
+export default vite.defineConfig(({ command }) => ({
 	plugins: [reactCompilerPlugin(), tailwindcss()],
 	resolve: {
 		alias: {
@@ -50,6 +50,7 @@ export default vite.defineConfig({
 			: true,
 	},
 	build: {
+		emptyOutDir: command === "serve" ? false : undefined,
 		lib: {
 			entry: path.resolve(__dirname, "./src/Main.res.mjs"),
 			formats: ["es"],
@@ -68,4 +69,4 @@ export default vite.defineConfig({
 			},
 		},
 	},
-});
+}));
