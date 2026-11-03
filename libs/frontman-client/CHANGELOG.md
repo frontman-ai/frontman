@@ -1,5 +1,25 @@
 # @frontman-ai/frontman-client
 
+## 4.0.6
+
+### Patch Changes
+
+- [#2047](https://github.com/frontman-ai/frontman/pull/2047) [`e6ffa01`](https://github.com/frontman-ai/frontman/commit/e6ffa0180d78296473cde14643dc837c3919d556) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Restore server-owned pending messages, execution state, and plans through regular session loading. Keep queued follow-ups cancellable after reload and move only messages explicitly claimed by the server into the transcript.
+
+- [#2013](https://github.com/frontman-ai/frontman/pull/2013) [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add MCP subscription acknowledgments and validate notification filters. Decline state-only interim tool results through the existing error-result path instead of crashing the server channel.
+
+  Centralize Phoenix, Vitest, and Sentry bindings. Strengthen MCP regression tests and fix ACP and Sentry test fixtures.
+
+- [#2013](https://github.com/frontman-ai/frontman/pull/2013) [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Handle browser MCP subscriptions with validated filters, correlated acknowledgments, cancellation, and attachment teardown. Accept MCP server notification envelopes in Phoenix without treating them as tool responses. Browser change-event categories remain unsupported; Phoenix does not open subscriptions automatically.
+
+  Cancel and complete active subscriptions before intentional session teardown. Drop request state without replay after transport loss. Reject request ID reuse while tool calls remain pending or suspended.
+
+- [#2051](https://github.com/frontman-ai/frontman/pull/2051) [`57555c5`](https://github.com/frontman-ai/frontman/commit/57555c513f083f129c72e707c94cfde087cebbad) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Forward MCP request cancellation to the running relay request without cancelling sibling calls or disconnecting the relay.
+
+- [#2013](https://github.com/frontman-ai/frontman/pull/2013) [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Pass request-scoped cancellation signals through browser MCP execution and local tool interfaces. Cancellation and transport teardown signal running tools without treating abort as proof of rollback. Non-cooperative tools may still return their actual result.
+
+- [#2013](https://github.com/frontman-ai/frontman/pull/2013) [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Allow relay tool requests to accept a request-scoped abort signal without aborting sibling calls or the relay connection. Connection teardown still aborts every request. Aborting a request does not establish whether an external write took effect.
+
 ## 4.0.5
 
 ### Patch Changes

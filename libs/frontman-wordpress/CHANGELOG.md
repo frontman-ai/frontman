@@ -1,5 +1,54 @@
 # @frontman-ai/frontman-wordpress
 
+## 5.6.0
+
+### Minor Changes
+
+- [#2083](https://github.com/frontman-ai/frontman/pull/2083) [`7890c50`](https://github.com/frontman-ai/frontman/commit/7890c50e0596dcecc69ec26f22b76ad91e787d4a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add Polylang language discovery, post-language inspection and assignment, and language-filtered post listing. Fix WP Super Cache purging on single-site installations using the plugin's supported API.
+
+- [#2061](https://github.com/frontman-ai/frontman/pull/2061) [`3446375`](https://github.com/frontman-ai/frontman/commit/3446375ffa15bae8ff879b31cb632fb536919101) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add opt-in external post reads using native WordPress Application Password authentication and administrator permission checks.
+
+- [#2063](https://github.com/frontman-ai/frontman/pull/2063) [`60075b3`](https://github.com/frontman-ai/frontman/commit/60075b3df0c5b2c99b9602c1e9b09ee4d561b0d2) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add authenticated discovery of the single remote post-read tool. Return its existing registry definition only when Application Password authentication, administrator permission, and the MCP setting allow access.
+
+- [#2067](https://github.com/frontman-ai/frontman/pull/2067) [`4de62de`](https://github.com/frontman-ai/frontman/commit/4de62de619dae5907e154169df8ee23c56742221) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add a tool to save native post content as an authenticated WordPress preview without changing the published page or creating a duplicate page. Preserve conflicting editor autosaves and keep publication as a separate operation.
+
+### Patch Changes
+
+- [#2048](https://github.com/frontman-ai/frontman/pull/2048) [`f902eea`](https://github.com/frontman-ai/frontman/commit/f902eeaaa6e6e3a6c5b172b0db64930444c644e7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add native read-only SureRank SEO inspection for stored titles, descriptions, and focus keyphrases. Report read and write capabilities separately, preserve Yoast updates, and reject ambiguous ownership when both plugins are active.
+
+- [#2059](https://github.com/frontman-ai/frontman/pull/2059) [`426b407`](https://github.com/frontman-ai/frontman/commit/426b407c6d121fa89c7c9045513d3aedafa1be0f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add a read-only Directorist listing inspector for directory assignment, public field values, taxonomies, and single-layout section order. Omit claim, plan, and payment meta. Editing stays a manual handoff.
+
+- [#2046](https://github.com/frontman-ai/frontman/pull/2046) [`7d4b689`](https://github.com/frontman-ai/frontman/commit/7d4b689f1886488b4f663a54c3ec84d0f01b97fb) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add an opt-in disposable Astra fixture with Chromium storefront and real WordPress authentication coverage through the existing WordPress runtime.
+
+- [#1996](https://github.com/frontman-ai/frontman/pull/1996) [`fb11d6d`](https://github.com/frontman-ai/frontman/commit/fb11d6dbf7b6aa4bbfab60d4f0432e7c295a59ac) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Wrap modern Elementor widgets and containers in a row with an optional companion, preserving original subtree IDs and sibling placement with one rollback and one page-tree save. Legacy layouts are not supported.
+
+- [#2072](https://github.com/frontman-ai/frontman/pull/2072) [`0acddb4`](https://github.com/frontman-ai/frontman/commit/0acddb45bf7ce1aa99712666b7abcf432b6d1d19) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Return empty Elementor generated element settings as JSON objects so generated elements can be added or used as wrap companions.
+
+- [#1996](https://github.com/frontman-ai/frontman/pull/1996) [`fb11d6d`](https://github.com/frontman-ai/frontman/commit/fb11d6dbf7b6aa4bbfab60d4f0432e7c295a59ac) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Insert Elementor subtrees after a unique sibling and apply shallow root settings overrides while duplicating, with one rollback and one page save.
+
+- [#2052](https://github.com/frontman-ai/frontman/pull/2052) [`25b8007`](https://github.com/frontman-ai/frontman/commit/25b8007fe4ec96648ba9bdbd8c277d3b2d1470f3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix Anthropic request rejection caused by the SEO update tool's root `anyOf`. Keep the at-least-one-field runtime check and describe it in the tool instructions.
+
+- [#2041](https://github.com/frontman-ai/frontman/pull/2041) [`e1df04d`](https://github.com/frontman-ai/frontman/commit/e1df04d687615a10772ecfa9daff93829224943d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Support native recently viewed product widget title/count updates and reversible per-widget WooCommerce cart/checkout visibility rules.
+
+- [#2076](https://github.com/frontman-ai/frontman/pull/2076) [`e5db0f0`](https://github.com/frontman-ai/frontman/commit/e5db0f0d2a71977a833526b174c08cb306f656b7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add discovery, read, and single-setting update tools for registered theme Customizer settings, including Astra's indexed options. Use native permissions, validation, sanitization, and save hooks, with stale-state checks and persisted readback.
+
+  Reuse the native save path for existing theme-mod updates. Tool documentation directs agents to native Astra settings before CSS overrides.
+
+- [#2053](https://github.com/frontman-ai/frontman/pull/2053) [`bcdc001`](https://github.com/frontman-ai/frontman/commit/bcdc00118dce9b37da339ec5c3e9d2de3746d137) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add scoped WooCommerce catalog display read and confirmed write tools for the shop and category archives, using native Customizer validation and save with persisted readback.
+
+  Register the native WooCommerce settings without replaying theme Customizer initialization on frontend requests. This prevents a fatal error with Astra.
+
+- [#2043](https://github.com/frontman-ai/frontman/pull/2043) [`d6a05d2`](https://github.com/frontman-ai/frontman/commit/d6a05d2bc76cf47e1b8fdde4fdebdc3b0c94d291) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add checkout-isolated local development stacks for Delta, including WordPress,
+  and configurable WordPress client and backend URLs for local development.
+
+- [#2064](https://github.com/frontman-ai/frontman/pull/2064) [`fcfbc8e`](https://github.com/frontman-ai/frontman/commit/fcfbc8e8e2037490fbec7221e3deaa60118b739d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Move remote eligibility and input validation into the registered post-read definition. Discovery and execution use the same contract. No additional tools permit remote access.
+
+- [#2106](https://github.com/frontman-ai/frontman/pull/2106) [`0a496e1`](https://github.com/frontman-ai/frontman/commit/0a496e127a59e42bf8dd8ba070c7d22d239e874e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Show local prerequisites for MCP connections in WordPress settings.
+
+- [#2079](https://github.com/frontman-ai/frontman/pull/2079) [`013b120`](https://github.com/frontman-ai/frontman/commit/013b1200260b476ca342e671896932fa28ca584e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Move SEO, media, and public-file validation coverage into the real WordPress runtime.
+
+- [#2078](https://github.com/frontman-ai/frontman/pull/2078) [`f035733`](https://github.com/frontman-ai/frontman/commit/f03573360b828d42355d378df5afadcafac2c3c4) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Validate browser and remote tool arguments against their registered schemas before sanitization.
+
 ## Unreleased
 
 - Add default-off MCP post reads with native WordPress Application Password authentication and administrator permission checks.

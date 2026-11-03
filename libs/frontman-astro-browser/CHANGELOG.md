@@ -1,5 +1,11 @@
 # @frontman-ai/astro-browser
 
+## 0.3.1
+
+### Patch Changes
+
+- [#2013](https://github.com/frontman-ai/frontman/pull/2013) [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Pass request-scoped cancellation signals through browser MCP execution and local tool interfaces. Cancellation and transport teardown signal running tools without treating abort as proof of rollback. Non-cooperative tools may still return their actual result.
+
 ## 0.3.0
 
 ### Minor Changes
