@@ -19,6 +19,7 @@ defmodule FrontmanServer do
     {Agents, []},
     {Organizations, []},
     {Providers, []},
+    {WordPress, []},
     {Skills, []},
     {Support, []},
     {Tasks, []},

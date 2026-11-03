@@ -12,6 +12,8 @@ module Actions = {
 
   let reloadAfterWordPressLogin = () => Client__State__Store.dispatch(ReloadAfterWordPressLogin)
 
+  let connectWordPress = () => Client__State__Store.dispatch(ConnectWordPress)
+
   let addUserMessage = (~content, ~annotationId=?) =>
     Promise.make((resolve, _) =>
       Client__State__Store.dispatch(AddUserMessage({content, annotationId, onComplete: resolve}))

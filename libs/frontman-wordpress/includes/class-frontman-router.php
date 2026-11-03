@@ -129,6 +129,10 @@ class Frontman_Router {
 					$this->handle_tool_call( $body );
 					exit;
 
+				case $method === 'POST' && $sub_path === 'mcp/connect':
+					$this->handle_mcp_connect();
+					exit;
+
 				case $method === 'POST' && $sub_path === 'resolve-source-location':
 					$this->handle_resolve_source_location();
 					exit;
@@ -346,6 +350,29 @@ class Frontman_Router {
 		}
 
 		return $body;
+	}
+
+	/**
+	 * Create a credential only for an authorized browser approval request.
+	 */
+	private function handle_mcp_connect(): void {
+		header( 'Cache-Control: no-store, private' );
+		$user = wp_get_current_user();
+		$site_url = get_option( 'siteurl' );
+		$parts = is_string( $site_url ) ? wp_parse_url( $site_url ) : false;
+		if ( ! is_ssl()
+			|| ! Frontman_Sentry::sanitize_enabled( get_option( 'frontman_mcp_enabled', false ) )
+			|| ! current_user_can( 'create_app_password', $user->ID )
+			|| ! wp_is_application_passwords_available_for_user( $user )
+			|| ! is_array( $parts ) || 'https' !== ( $parts['scheme'] ?? '' ) || empty( $parts['host'] )
+			|| isset( $parts['user'] ) || isset( $parts['pass'] ) || isset( $parts['query'] ) || isset( $parts['fragment'] ) ) {
+			wp_send_json( [ 'error' => 'MCP connection is unavailable.' ], 403 );
+		}
+		$password = WP_Application_Passwords::create_new_application_password( $user->ID, [ 'name' => 'Frontman MCP' ] );
+		if ( is_wp_error( $password ) ) {
+			wp_send_json( [ 'error' => 'Could not create an Application Password.' ], 500 );
+		}
+		wp_send_json( [ 'catalog_url' => get_rest_url( null, 'frontman/v1/tools' ), 'call_url' => get_rest_url( null, 'frontman/v1/tools/call' ), 'username' => $user->user_login, 'password' => $password[0] ] );
 	}
 
 	/**

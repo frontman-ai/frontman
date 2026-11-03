@@ -287,7 +287,7 @@ describe("WorkOS MCP OAuth", () => {
       expect(discovered.error).toBeUndefined();
       expect(discovered.result.resultType).toBe("complete");
       expect(discovered.result.supportedVersions).toContain(version);
-      expect(discovered.result.capabilities).toEqual({});
+      expect(discovered.result.capabilities.tools).toBeDefined();
       phase = "authenticated MCP tools request";
       const tools = await mcp("tools/list", tokens.access_token);
       phase = `authenticated MCP tools listing (HTTP ${tools.status})`;
@@ -297,7 +297,7 @@ describe("WorkOS MCP OAuth", () => {
       expect(catalog.id).toBe(1);
       expect(catalog.error).toBeUndefined();
       expect(catalog.result.resultType).toBe("complete");
-      expect(catalog.result.tools).toEqual([]);
+      expect(catalog.result.tools.map((tool: { name: string }) => tool.name)).toEqual(["wordpress_read_post"]);
     } catch {
       failure = new Error(`WorkOS MCP OAuth failed during ${phase}; details are suppressed to protect credentials`);
     } finally {
