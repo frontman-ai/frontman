@@ -24,15 +24,6 @@ type apiKeyProvider = OpenRouter | Anthropic | Fireworks | Nvidia
 
 type pendingPlanHandoff = {taskId: string, executorAgentId: string}
 
-@schema
-type wordPressConnectionResponse = {id: string}
-
-@schema
-type wordPressConnectionError = {
-  error: string,
-  credential_created: option<bool>,
-}
-
 type promptInput = {
   content: array<UserContentPart.t>,
   annotationId: option<string>,
@@ -1653,7 +1644,11 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
             | 401 => "Your WordPress session expired. Sign in to WordPress and reload Frontman."
             | _ =>
               let json = await response->WebAPI.Response.json
-              let error = json->S.decodeOrThrow(~from=S.json, ~to=wordPressConnectionErrorSchema)
+              let error =
+                json->S.decodeOrThrow(
+                  ~from=S.json,
+                  ~to=Client__State__Types.wordPressConnectionErrorSchema,
+                )
               credentialCreated := error.credential_created == Some(true)
               error.error
             }
@@ -1679,7 +1674,10 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
             | (true, _) =>
               let json = await saved->WebAPI.Response.json
               let result =
-                json->S.decodeOrThrow(~from=S.json, ~to=wordPressConnectionResponseSchema)
+                json->S.decodeOrThrow(
+                  ~from=S.json,
+                  ~to=Client__State__Types.wordPressConnectionResponseSchema,
+                )
               dispatch(
                 WordPressConnectionFinished(`WordPress connected. Connection ID: ${result.id}`),
               )
