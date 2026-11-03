@@ -664,7 +664,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                   <div className="rounded-lg border border-zinc-800 px-4 py-4 space-y-3">
                     <div className="text-sm font-medium"> {React.string("Connect WordPress")} </div>
                     <p className="text-sm text-zinc-400">
-                      {React.string(`This enables MCP access and creates a native Application Password with your WordPress administrator's broader REST permissions. Frontman stores it to access this site. You can disable access later in WordPress Settings → Frontman.`)}
+                      {React.string(`This enables MCP access and creates a native Application Password with your WordPress administrator's broader REST permissions. Frontman stores it to access this site. Disabling MCP in WordPress Settings → Frontman only disables MCP routes. To revoke the password's broader REST access, remove the "Frontman MCP" Application Password in your WordPress profile.`)}
                     </p>
                     <button
                       type_="button"
