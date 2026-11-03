@@ -61,6 +61,48 @@ foreach ( [ 'PostContentRuntimeTest.php', 'TemplateCreationRuntimeTest.php', 'Pa
 }
 ( static function() use ( $call, $actor, $cookie, $nonce ): void { require '/tmp/CustomizerRuntimeTest.php'; } )();
 
+require_once ABSPATH . 'wp-admin/includes/template.php';
+do_action( 'admin_init' );
+$eligibility_render = static function(): string {
+	ob_start();
+	Frontman_Settings::render_settings();
+	return ob_get_clean();
+};
+$siteurl = get_option( 'siteurl' );
+$https = $_SERVER['HTTPS'] ?? null;
+$passwords_before = WP_Application_Passwords::get_user_application_passwords( $actor_id );
+try {
+	update_option( 'siteurl', 'https://example.com/wordpress' );
+	$_SERVER['HTTPS'] = 'on';
+	update_option( 'frontman_mcp_enabled', false );
+	frontman_runtime_assert( str_contains( $eligibility_render(), 'Enable MCP access' ), 'Disabled MCP explains how to proceed' );
+	update_option( 'frontman_mcp_enabled', true );
+	frontman_runtime_assert( ! str_contains( $eligibility_render(), 'Enable MCP access' ), 'Saved MCP setting updates feedback' );
+	frontman_runtime_assert( ! str_contains( $eligibility_render(), 'Application Passwords are unavailable' ), 'Eligible administrator has no password blocker' );
+	$_SERVER['HTTPS'] = 'off';
+	frontman_runtime_assert( ! str_contains( $eligibility_render(), 'HTTPS site URL' ), 'HTTPS site remains eligible on an HTTP admin request' );
+	$_SERVER['HTTPS'] = 'on';
+	add_filter( 'wp_is_application_passwords_available_for_user', '__return_false' );
+	frontman_runtime_assert( str_contains( $eligibility_render(), 'Application Passwords are unavailable' ), 'Disabled Application Passwords are explained' );
+	remove_filter( 'wp_is_application_passwords_available_for_user', '__return_false' );
+	$deny_password = static function( array $caps, string $cap ): array {
+		return 'create_app_password' === $cap ? [ 'do_not_allow' ] : $caps;
+	};
+	add_filter( 'map_meta_cap', $deny_password, 10, 2 );
+	frontman_runtime_assert( str_contains( $eligibility_render(), 'Application Passwords are unavailable' ), 'Password creation permission is required' );
+	remove_filter( 'map_meta_cap', $deny_password, 10 );
+	frontman_runtime_assert( ! str_contains( $eligibility_render(), 'Application Passwords are unavailable' ), 'Restored permission clears the blocker' );
+	update_option( 'siteurl', 'http://example.com/wordpress' );
+	frontman_runtime_assert( str_contains( $eligibility_render(), 'HTTPS site URL' ), 'HTTP site URL is explained' );
+	frontman_runtime_same( true, (bool) get_option( 'frontman_mcp_enabled' ), 'Rendering does not change MCP setting' );
+	frontman_runtime_same( $passwords_before, WP_Application_Passwords::get_user_application_passwords( $actor_id ), 'Rendering creates no credentials' );
+} finally {
+	remove_filter( 'wp_is_application_passwords_available_for_user', '__return_false' );
+	update_option( 'siteurl', $siteurl );
+	if ( null === $https ) { unset( $_SERVER['HTTPS'] ); } else { $_SERVER['HTTPS'] = $https; }
+	delete_option( 'frontman_mcp_enabled' );
+}
+
 $mcp_post = wp_insert_post( [ 'post_title' => 'MCP private fixture', 'post_content' => 'Private MCP bytes', 'post_status' => 'draft' ] );
 $mcp_password = WP_Application_Passwords::create_new_application_password( $actor_id, [ 'name' => 'Runtime MCP' ] );
 frontman_runtime_assert( is_array( $mcp_password ), 'Application Password creation failed' );
