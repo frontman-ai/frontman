@@ -58,7 +58,6 @@ According to [GitHub's security hardening documentation](https://docs.github.com
 1. Navigate to: `Settings → Environments → production`
 2. Enable **Required reviewers**:
    - Add: `@BlueHotDog`
-   - Add: `@itayadler`
 3. Set **Deployment branches**: **Protected branches only**
 4. (Optional) Set **Wait timer**: **5 minutes**
 5. Click **Save protection rules**
@@ -111,7 +110,7 @@ Jobs that need additional permissions escalate per-job.
 - `.github/CODEOWNERS` (the file itself)
 - `infra/` (infrastructure code)
 
-Maintainers required for approval: `@BlueHotDog`, `@itayadler`
+Maintainer required for approval: `@BlueHotDog`
 
 ---
 

@@ -7,10 +7,10 @@ import { authors } from '../content/authors'
 const SEO = {
 	title: 'About Frontman: WordPress AI Editing for Marketing Teams',
 	description:
-		'Built by Danni Friedland and Itay Adler, Frontman helps marketing teams turn their decisions into changes on existing WordPress sites.'
+		'Frontman helps marketing teams turn their decisions into changes on existing WordPress sites.'
 }
 
-const founders = Object.values(authors)
+const founders = [authors['Danni Friedland']]
 
 const personSchemas = founders.map((founder) => ({
 	'@context': 'https://schema.org',
@@ -42,7 +42,7 @@ const personSchemas = founders.map((founder) => ({
 				You know what your website needs. A lack of WordPress experience—or an agency handoff—should not hold every change hostage. Frontman helps marketing teams make changes to their existing WordPress site from the page itself. You own the direction and review the result. <a href="/blog/autonomyai-wordpress-redesign-case-study/" class="text-zinc-50 underline underline-offset-4">See how AutonomyAI's marketing lead used it</a>.
 			</p>
 
-			<div class="mb-20 grid grid-cols-1 gap-8 sm:grid-cols-2 sm:gap-10">
+			<div class="mb-20 max-w-[350px]">
 				{founders.map((founder) => (
 					<FounderCard {...founder} />
 				))}

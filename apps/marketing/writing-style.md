@@ -101,7 +101,7 @@ Field behavior:
 - `seoTitle`, when present, becomes document and social title. Layout appends `| Frontman`.
 - `description` becomes meta description, Open Graph description, Twitter description, RSS description, and schema description. Metadata rendering truncates it to 160 characters.
 - `updatedDate` appears visibly, populates article metadata, and controls sitemap freshness.
-- `author` is required and must be `Danni Friedland` or `Itay Adler`. The site gets the role and URL from `src/content/authors.ts`.
+- `author` is required. Use `Danni Friedland` for new posts; keep `Itay Adler` on posts he authored. The site gets the role and URL from `src/content/authors.ts`.
 - Do not add `authorRole` or `authorUrl` to post frontmatter. Metadata tests reject these fields.
 - `articleSection` is required and must be exactly one of: `Problem Diagnosis`, `Product Announcement`, `Tutorial`, `Comparison or Buyer Guide`, `Technical Explainer`, or `Operational Audit`.
 - `tags` are separate lowercase slug facets for topics, products, frameworks, and audiences. Their order does not define `articleSection`.

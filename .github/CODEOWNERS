@@ -1,5 +1,5 @@
 
-.github/workflows/ @BlueHotDog @itayadler
-.github/dependabot.yml @BlueHotDog @itayadler
-.github/CODEOWNERS @BlueHotDog @itayadler
-infra/ @BlueHotDog @itayadler
+.github/workflows/ @BlueHotDog
+.github/dependabot.yml @BlueHotDog
+.github/CODEOWNERS @BlueHotDog
+infra/ @BlueHotDog
