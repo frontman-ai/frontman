@@ -664,9 +664,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                   <div className="rounded-lg border border-zinc-800 px-4 py-4 space-y-3">
                     <div className="text-sm font-medium"> {React.string("Connect WordPress")} </div>
                     <p className="text-sm text-zinc-400">
-                      {React.string(
-                        "This creates a native Application Password with the current WordPress admin's broader WordPress REST access and sends it to Frontman. If interrupted, remove the Application Password in your WordPress profile before retrying.",
-                      )}
+                      {React.string(`This enables MCP access and creates a native Application Password with your WordPress administrator's broader REST permissions. Frontman stores it to access this site. You can disable access later in WordPress Settings → Frontman.`)}
                     </p>
                     <button
                       type_="button"
@@ -674,7 +672,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                       onClick={_ => State.Actions.connectWordPress()}
                       className="rounded border border-zinc-600 px-3 py-2 text-sm"
                     >
-                      {React.string("Approve and connect")}
+                      {React.string("Enable MCP and connect")}
                     </button>
                     {wordPressConnectionStatus->Option.mapOr(React.null, status =>
                       <p className="text-sm text-zinc-400" role="status">

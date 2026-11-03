@@ -27,6 +27,12 @@ type pendingPlanHandoff = {taskId: string, executorAgentId: string}
 @schema
 type wordPressConnectionResponse = {id: string}
 
+@schema
+type wordPressConnectionError = {
+  error: string,
+  credential_created: option<bool>,
+}
+
 type promptInput = {
   content: array<UserContentPart.t>,
   annotationId: option<string>,
@@ -1622,6 +1628,8 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
   | FetchApiKeySettingsEffect({apiBaseUrl}) => fetchApiKeySettingsImpl(dispatch, ~apiBaseUrl)
   | ConnectWordPressEffect({apiBaseUrl}) =>
     let connect = async () => {
+      let credentialCreated = ref(false)
+      let cleanup = ` Remove the "Frontman MCP" Application Password in your WordPress profile before retrying.`
       try {
         switch (
           Client__EmbeddedAuth.loadToken()->Option.filter(token => token->String.trim != ""),
@@ -1641,12 +1649,19 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
           )
           switch response.ok {
           | false =>
+            let message = switch response.status {
+            | 401 => "Your WordPress session expired. Sign in to WordPress and reload Frontman."
+            | _ =>
+              let json = await response->WebAPI.Response.json
+              let error = json->S.decodeOrThrow(~from=S.json, ~to=wordPressConnectionErrorSchema)
+              credentialCreated := error.credential_created == Some(true)
+              error.error
+            }
             dispatch(
-              WordPressConnectionFinished(
-                "WordPress connection failed. Check your WordPress login and remove any interrupted Application Password in your WordPress profile before retrying.",
-              ),
+              WordPressConnectionFinished(message ++ (credentialCreated.contents ? cleanup : "")),
             )
           | true =>
+            credentialCreated := true
             let body = await response->WebAPI.Response.text
             let saved = await WebAPI.Fetch.fetch(
               `${apiBaseUrl}/api/wordpress/connections`,
@@ -1671,13 +1686,14 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
             | (_, 401) =>
               dispatch(
                 WordPressConnectionFinished(
-                  "Reload Frontman and sign in, then try again. Remove the interrupted Application Password in your WordPress profile first.",
+                  "Your Frontman session expired. Sign in again." ++ cleanup,
                 ),
               )
             | _ =>
               dispatch(
                 WordPressConnectionFinished(
-                  "Connection failed. Remove the interrupted Application Password in your WordPress profile before retrying.",
+                  "WordPress approved access, but Frontman could not verify and save the connection." ++
+                  cleanup,
                 ),
               )
             }
@@ -1687,7 +1703,9 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
       | _ =>
         dispatch(
           WordPressConnectionFinished(
-            "Connection interrupted. Check your WordPress profile for an Application Password to remove before retrying.",
+            credentialCreated.contents
+              ? "Connection interrupted after WordPress approved access." ++ cleanup
+              : `WordPress did not confirm approval. Check your connection and reload Frontman. If the request reached WordPress, check your profile for a "Frontman MCP" Application Password before retrying.`,
           ),
         )
       }
