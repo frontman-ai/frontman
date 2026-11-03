@@ -15,6 +15,13 @@ cd .worktrees/feature/my-feature
 - If startup fails with WorkOS authentication errors, check `op signin`.
 - Use Tailscale to connect to servers.
 
+## Production Database Reads
+
+- Use the authorized Tailscale connection and verify the server against its trusted SSH host key. If administrator SSH is approved, use it only as transport; complete any Tailscale browser authorization check without sharing its tokenized URL.
+- The production host has a private PostgreSQL diagnostic service configuration and connection instructions. Use that service with its restricted read-only database login, not passwordless `psql`, an application credential, or the administrator database role. Do not copy its credentials or connection details into this public repository.
+- Before querying data, verify the expected database and role in a short `BEGIN READ ONLY` transaction, check that `transaction_read_only` is `on`, set statement and lock timeouts, and finish with `ROLLBACK`. Keep queries bounded and limited to authorized data. Stop if identity, permissions, or read-only status cannot be verified.
+- The diagnostic login is restricted to task metadata and interactions; it cannot read user accounts or map an email to task IDs. Obtain a task ID or separate authorization for an identity lookup instead of escalating database privileges.
+
 ## Key Principles
 
 - Keep PRs below 500 net-new lines. Prefer smaller changes.
