@@ -49,6 +49,15 @@ class Frontman_Settings {
 					<?php esc_html_e( 'Allow MCP connections', 'frontman-agentic-ai-editor' ); ?>
 				</label>
 				<p><?php esc_html_e( 'Allows authenticated post reads only, not a full MCP transport. Requires HTTPS and a WordPress Application Password for an administrator.', 'frontman-agentic-ai-editor' ); ?></p>
+				<?php if ( ! Frontman_Sentry::sanitize_enabled( get_option( 'frontman_mcp_enabled', false ) ) ) : ?>
+					<p><?php esc_html_e( 'Enable MCP access to prepare this site for a connection.', 'frontman-agentic-ai-editor' ); ?></p>
+				<?php endif; ?>
+				<?php if ( 'https' !== wp_parse_url( get_option( 'siteurl' ), PHP_URL_SCHEME ) ) : ?>
+					<p><?php esc_html_e( 'An HTTPS site URL is required for a connection.', 'frontman-agentic-ai-editor' ); ?></p>
+				<?php endif; ?>
+				<?php if ( ! current_user_can( 'create_app_password', get_current_user_id() ) || ! wp_is_application_passwords_available_for_user( wp_get_current_user() ) ) : ?>
+					<p><?php esc_html_e( 'Application Passwords are unavailable for your account. Contact your site administrator.', 'frontman-agentic-ai-editor' ); ?></p>
+				<?php endif; ?>
 				<input type="hidden" name="frontman_php_diagnostics" value="0">
 				<label>
 					<input type="checkbox" name="frontman_php_diagnostics" value="1" <?php checked( Frontman_Sentry::sanitize_enabled( get_option( 'frontman_php_diagnostics', false ) ) ); ?>>
