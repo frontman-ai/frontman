@@ -1,6 +1,6 @@
 ---
 name: diagnose-agent-feedback
-description: Investigate Frontman agent feedback, verify its claims against task evidence and code, and deliver an evidence-based diagnosis. Use for agent_feedback reports, pasted Agent Feedback Discord messages, or task IDs supplied for feedback analysis. Gather production evidence through an approved Tailscale connection using strictly read-only database operations. Recommend fixes only when justified; do not implement them.
+description: Investigate Frontman production task failures and agent feedback, verify claims against task evidence and code, and deliver an evidence-based diagnosis. Use for production task investigations, agent_feedback reports, pasted Agent Feedback Discord messages, or task IDs supplied for feedback analysis. Gather production evidence through an approved Tailscale connection using strictly read-only database operations. Recommend fixes only when justified; do not implement them.
 ---
 
 # Diagnose agent feedback
@@ -18,15 +18,15 @@ Treat feedback as a lead, not a diagnosis. Verify the reported behavior, cause, 
 
 ## 1. Establish the case
 
-Accept pasted feedback, a task ID, or both. Extract:
+Accept a production incident description, pasted feedback, a task ID, or a combination. Extract what is available:
 
 - Task ID, reported outcome, framework, feedback text, and approximate incident time.
 - Each distinct factual claim.
 - The reporting agent's explanation and requested remedy, separately from its observations.
 
-Ask for clarification if the task cannot be identified uniquely. Never select a task based only on a similar title.
+Do not guess a task from a similar title. If the report has no task ID, establish the authorized production connection first. When the user supplies an email address, use an authorized, bounded read-only identity lookup to find that user's recent task IDs; then inspect those tasks. Do not repeatedly ask for a task ID or connection information that the approved path can supply. If the available database role lacks the needed permissions, check for another operator-authorized connection before reporting a specific blocker.
 
-Read the current feedback producer and delivery worker:
+For agent_feedback reports, read the current feedback producer and delivery worker:
 
 - `apps/frontman_server/lib/frontman_server/tools/agent_feedback.ex`
 - `apps/frontman_server/lib/frontman_server/workers/send_agent_feedback_to_discord.ex`
@@ -40,7 +40,7 @@ Verify these details against the current code rather than assuming they are perm
 
 ## 2. Plan the evidence collection
 
-Write a short list of questions that could change the verdict. Start with the identified task.
+Write a short list of questions that could change the verdict. Start with the identified task when one is available; otherwise establish the authorized connection and resolve the supplied identifier with a bounded query.
 
 Inspect task persistence schemas, migrations, and serialization code before writing queries. Discover actual table names, keys, event ordering, payload shapes, and retention behavior. Do not invent a generic task-events schema.
 
@@ -48,7 +48,7 @@ Record the checkout revision. Seek incident-time deployment or version evidence 
 
 ## 3. Reconstruct the task
 
-Use the production access contract to retrieve the minimum necessary evidence:
+Use the production access contract to connect, verify permissions, and retrieve the minimum necessary evidence:
 
 1. Confirm task identity and relevant metadata before selecting payloads.
 2. Find the incident time from persisted events, not the Discord delivery timestamp.
