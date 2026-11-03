@@ -1,5 +1,43 @@
 # @frontman/frontman-server-assets
 
+## 0.2.2
+
+### Patch Changes
+
+- [#2068](https://github.com/frontman-ai/frontman/pull/2068) [`3999bf0`](https://github.com/frontman-ai/frontman/commit/3999bf08e896a9e5cbdbbabf94383f6f7862c5b0) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add server CI checks for unused dependencies, Hex advisories, and Sobelow findings.
+  Document individual security exceptions and a temporary CSP deferral.
+  Add HSTS to production Caddy configuration for setup, deployment, and rollback.
+
+- [#2013](https://github.com/frontman-ai/frontman/pull/2013) [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Bind embedded client WebSocket authentication to the actual browser handshake origin instead of a client-supplied socket parameter. Reject missing, malformed, duplicate, or unapproved handshake origins while preserving dynamically approved embedding sites and localhost development.
+
+- [#2013](https://github.com/frontman-ai/frontman/pull/2013) [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add integration coverage for an ambiguous MCP write outcome after a lost response and reconnect. This characterizes the replay risk; it does not change recovery behavior.
+
+- [#2080](https://github.com/frontman-ai/frontman/pull/2080) [`f4084d4`](https://github.com/frontman-ai/frontman/commit/f4084d4238a699b6d488512dd4e263dd31ee182f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Serve MCP authorization challenges and protected resource metadata using Anubis.
+
+- [#2013](https://github.com/frontman-ai/frontman/pull/2013) [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Recognize valid MCP input-required tool responses and report a controlled tool failure instead of treating them as final output. Do not retry or retain opaque server state.
+
+- [#2065](https://github.com/frontman-ai/frontman/pull/2065) [`e542d4b`](https://github.com/frontman-ai/frontman/commit/e542d4b2ede3d0afbcecfe164e28d7e139e0c3af) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Include subscription status and billing interval in Discord task summaries. For users without a subscription, show how many of their five lifetime free messages remain.
+
+- [#2014](https://github.com/frontman-ai/frontman/pull/2014) [`81a4b11`](https://github.com/frontman-ai/frontman/commit/81a4b11bd5a385ef618a1df504599fbd4f66728a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add durable, attempt-fenced MCP cancellation intent to task history. Cancellation records uncertainty rather than fabricating a tool failure. Channel wiring and late-result reconciliation follow separately.
+
+- [#2013](https://github.com/frontman-ai/frontman/pull/2013) [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add validated, caller-configured attempt and elapsed-time budgets for future MCP retry coordination. No retry defaults or automatic dispatch are enabled.
+
+- [#2077](https://github.com/frontman-ai/frontman/pull/2077) [`60767d9`](https://github.com/frontman-ai/frontman/commit/60767d9e0c6a58c121eb8f80c279a374dec4d790) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Expose configured OAuth protected-resource metadata for the future MCP endpoint.
+
+- [#2056](https://github.com/frontman-ai/frontman/pull/2056) [`c76cd22`](https://github.com/frontman-ai/frontman/commit/c76cd22589df14b6759ad7e1d23eacad63f28233) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Default to GPT-6.1 Sol for OpenAI and OpenRouter and Claude Sonnet 5.5 for Anthropic. Keep flagship models available and preserve saved model selections.
+
+- [#2055](https://github.com/frontman-ai/frontman/pull/2055) [`e6c0892`](https://github.com/frontman-ai/frontman/commit/e6c08929e977d89259a451810fedd14b4483fe19) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Separate provider bad requests and unavailable models into stable failure categories and Sentry groups. Stop logging raw errors in the LLM client. Keep quota classification and retry policy unchanged.
+
+- [#2013](https://github.com/frontman-ai/frontman/pull/2013) [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Handle browser MCP subscriptions with validated filters, correlated acknowledgments, cancellation, and attachment teardown. Accept MCP server notification envelopes in Phoenix without treating them as tool responses. Browser change-event categories remain unsupported; Phoenix does not open subscriptions automatically.
+
+  Cancel and complete active subscriptions before intentional session teardown. Drop request state without replay after transport loss. Reject request ID reuse while tool calls remain pending or suspended.
+
+- [#2013](https://github.com/frontman-ai/frontman/pull/2013) [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Deliver structured-only MCP tool results to the model, including arrays, scalars, and explicit JSON null. Preserve original text and image blocks and avoid appending structured JSON when an existing text block already contains equivalent serialized JSON. Extend opaque result constructors to accept arbitrary JSON while keeping dictionary-based helpers compatible.
+
+- [#2097](https://github.com/frontman-ai/frontman/pull/2097) [`4e2191f`](https://github.com/frontman-ai/frontman/commit/4e2191f4972968eaa3aa634c6e21913fa8f1f26d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Authenticate MCP clients through Frontman login and WorkOS Connect.
+- Updated dependencies [[`e6ffa01`](https://github.com/frontman-ai/frontman/commit/e6ffa0180d78296473cde14643dc837c3919d556), [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9), [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9), [`57555c5`](https://github.com/frontman-ai/frontman/commit/57555c513f083f129c72e707c94cfde087cebbad), [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9), [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9)]:
+  - @frontman-ai/frontman-client@4.0.6
+
 ## 0.2.1
 
 ### Patch Changes

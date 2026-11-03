@@ -1,5 +1,27 @@
 # @frontman-ai/client
 
+## 1.5.2
+
+### Patch Changes
+
+- [#2054](https://github.com/frontman-ai/frontman/pull/2054) [`398fbc4`](https://github.com/frontman-ai/frontman/commit/398fbc435bc9c9366aa626573821811f73323e57) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reuse pending session activation when the same task is selected again. This prevents redundant channel joins while preserving retries after failure and explicit session resets.
+
+- [#2045](https://github.com/frontman-ai/frontman/pull/2045) [`e7ec9d2`](https://github.com/frontman-ai/frontman/commit/e7ec9d20f54d40d1b84b0bb715dced801d0af9e0) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Make update notifications easier to read in narrow panels. Place the action below the message, use neutral colors, and label the WordPress link "Open WordPress admin".
+
+- [#2102](https://github.com/frontman-ai/frontman/pull/2102) [`ef1da8e`](https://github.com/frontman-ai/frontman/commit/ef1da8e69127d1b23c163af30826b9141624beb7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Update the prompt editor's Tiptap packages together to 3.31.4.
+
+- [#2047](https://github.com/frontman-ai/frontman/pull/2047) [`e6ffa01`](https://github.com/frontman-ai/frontman/commit/e6ffa0180d78296473cde14643dc837c3919d556) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Restore server-owned pending messages, execution state, and plans through regular session loading. Keep queued follow-ups cancellable after reload and move only messages explicitly claimed by the server into the transcript.
+
+- [#2042](https://github.com/frontman-ai/frontman/pull/2042) [`ace3f7e`](https://github.com/frontman-ai/frontman/commit/ace3f7e417c5e6236b92a0941272a66b3d878d65) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reload task sessions when switching back to an existing chat so pending questions and preview tools resume without a refresh. Replay history into a fresh message store and discard detached question callbacks.
+
+- [#2057](https://github.com/frontman-ai/frontman/pull/2057) [`dd92757`](https://github.com/frontman-ai/frontman/commit/dd927579c6b3032fe4b172bc7aa9b1d911cb9c4a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add `preview_status` readiness tool; `navigate_preview` is now navigation-only and rejects blank URLs.
+
+- [#2003](https://github.com/frontman-ai/frontman/pull/2003) [`1e62b7a`](https://github.com/frontman-ai/frontman/commit/1e62b7a1ce97029dbac672327c10f84b67346884) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Read the WordPress page-context bridge capability into typed client configuration. Keep prompt submission and bridge activation unchanged.
+
+- [#2050](https://github.com/frontman-ai/frontman/pull/2050) [`4b220cb`](https://github.com/frontman-ai/frontman/commit/4b220cb181f733ebfded972099c4d6e58e223360) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add agent-accessible storefront preview navigation and recovery without refreshing Frontman. Report navigation acceptance separately from document readiness and reject WordPress admin, Customizer, and login destinations.
+
+- [#2013](https://github.com/frontman-ai/frontman/pull/2013) [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Pass request-scoped cancellation signals through browser MCP execution and local tool interfaces. Cancellation and transport teardown signal running tools without treating abort as proof of rollback. Non-cooperative tools may still return their actual result.
+
 ## 1.5.1
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @frontman/bindings
 
+## 0.3.5
+
+### Patch Changes
+
+- [#2013](https://github.com/frontman-ai/frontman/pull/2013) [`52cc744`](https://github.com/frontman-ai/frontman/commit/52cc744732a14d1d73585c4fcf69ae149a2128b9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add MCP subscription acknowledgments and validate notification filters. Decline state-only interim tool results through the existing error-result path instead of crashing the server channel.
+
+  Centralize Phoenix, Vitest, and Sentry bindings. Strengthen MCP regression tests and fix ACP and Sentry test fixtures.
+
 ## 0.3.4
 
 ### Patch Changes
