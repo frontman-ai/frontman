@@ -24,25 +24,25 @@ function frontman_runtime_saved_id( string $message ): int {
 	return (int) $match[1];
 }
 
-function frontman_runtime_http( string $method, string $path, string $cookie = '', ?string $nonce = null, ?string $body = null, string $test = '', string $authorization = '' ): array {
+function frontman_runtime_http( string $method, string $path, string $cookie = '', ?string $nonce = null, ?string $body = null, string $test = '', string $authorization = '', ?string $cookie_name = null, bool $tls = false ): array {
 	$headers = [ 'Host: frontman-runtime.example.test' ];
 	$headers[] = '' === $authorization ? '' : 'Authorization: Basic ' . base64_encode( $authorization );
 	$headers[] = '' === $test ? '' : 'X-Frontman-Seo-Test: ' . $test;
 	if ( '' !== $cookie ) {
-		$headers[] = 'Cookie: ' . LOGGED_IN_COOKIE . '=' . $cookie;
+		$headers[] = 'Cookie: ' . ( $cookie_name ?? LOGGED_IN_COOKIE ) . '=' . $cookie;
 	}
 	if ( null !== $nonce ) {
 		$headers[] = 'X-WP-Nonce: ' . $nonce;
 	}
 	$response = file_get_contents(
-		'http://127.0.0.1' . $path,
+		( $tls ? 'https' : 'http' ) . '://127.0.0.1' . $path,
 		false,
 		stream_context_create( [ 'http' => [
 			'content' => $body ?? '',
 			'header' => implode( "\r\n", array_filter( $headers ) ) . "\r\nContent-Type: application/json\r\n",
 			'ignore_errors' => true, 'follow_location' => 0,
 			'method' => $method,
-		] ] )
+		], 'ssl' => [ 'cafile' => '/tmp/frontman-test.crt' ] ] )
 	);
 	preg_match_all( '/^HTTP\/\S+\s+(\d{3})/m', implode( "\n", $http_response_header ?? [] ), $status );
 	preg_match( '/<title[^>]*>(.*?)<\/title>/is', (string) $response, $title );
@@ -61,6 +61,7 @@ function frontman_runtime_http( string $method, string $path, string $cookie = '
 	}
 	return [
 		'body' => (string) $response, 'status' => (int) ( end( $status[1] ) ?: 0 ),
+		'headers' => $http_response_header ?? [],
 		'title' => isset( $title[1] ) ? html_entity_decode( trim( wp_strip_all_tags( $title[1] ) ), ENT_QUOTES | ENT_HTML5, 'UTF-8' ) : null,
 		'description' => $meta['description'] ?? null,
 		'og_title' => $meta['og:title'] ?? null, 'og_description' => $meta['og:description'] ?? null,

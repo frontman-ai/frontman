@@ -103,6 +103,72 @@ try {
 	delete_option( 'frontman_mcp_enabled' );
 }
 
+$connect = static function( string $method, string $auth_cookie, ?string $request_nonce, bool $tls = true ): array {
+	return frontman_runtime_http( $method, '/index.php/frontman/mcp/connect', $auth_cookie, $request_nonce, '{}', '', '', 'wordpress_logged_in_' . md5( get_option( 'siteurl' ) ), $tls );
+};
+try {
+	$secure_url = 'https://frontman-runtime.example.test/wordpress';
+	update_option( 'siteurl', $secure_url );
+	update_option( 'frontman_mcp_enabled', true );
+	$before = WP_Application_Passwords::get_user_application_passwords( $actor_id );
+	frontman_runtime_same( 403, $connect( 'POST', $cookie, $nonce, false )['status'], 'HTTP request must reject connection even with an HTTPS site URL' );
+	foreach ( [
+		[ 'GET', $cookie, $nonce ],
+		[ 'POST', '', $nonce ],
+		[ 'POST', $cookie, null ],
+		[ 'POST', $cookie, 'invalid' ],
+	] as $request ) {
+		frontman_runtime_assert( 200 !== $connect( ...$request )['status'], 'Unapproved connect request must fail' );
+	}
+	update_option( 'frontman_mcp_enabled', false );
+	frontman_runtime_same( 403, $connect( 'POST', $cookie, $nonce )['status'], 'Disabled MCP must reject connection' );
+	update_option( 'frontman_mcp_enabled', true );
+	update_option( 'siteurl', 'http://frontman-runtime.example.test/wordpress' );
+	frontman_runtime_same( 403, $connect( 'POST', $cookie, $nonce )['status'], 'HTTP site URL must reject connection' );
+	update_option( 'siteurl', $secure_url );
+	$actor->set_role( 'subscriber' );
+	frontman_runtime_same( 403, $connect( 'POST', $cookie, $nonce )['status'], 'Non-administrator must be rejected' );
+	$actor->set_role( 'administrator' );
+	wp_cache_delete( $actor_id, 'user_meta' );
+	frontman_runtime_same( $before, WP_Application_Passwords::get_user_application_passwords( $actor_id ), 'Rejected requests create no credentials' );
+	$response = $connect( 'POST', $cookie, $nonce );
+	frontman_runtime_same( 200, $response['status'], 'Approved connection succeeds' );
+	frontman_runtime_assert( false !== stripos( implode( "\n", $response['headers'] ), 'no-store' ), 'Credential response must not be stored' );
+	$result = json_decode( $response['body'], true, 512, JSON_THROW_ON_ERROR );
+	frontman_runtime_same( [ 'catalog_url', 'call_url', 'username', 'password' ], array_keys( $result ), 'Connection response has the agreed schema' );
+	$wp_rewrite->init();
+	$_SERVER['HTTPS'] = 'on';
+	frontman_runtime_same( get_rest_url( null, 'frontman/v1/tools' ), $result['catalog_url'], 'Connection returns WordPress REST catalog URL' );
+	frontman_runtime_same( get_rest_url( null, 'frontman/v1/tools/call' ), $result['call_url'], 'Connection returns WordPress REST call URL' );
+	if ( null === $https ) { unset( $_SERVER['HTTPS'] ); } else { $_SERVER['HTTPS'] = $https; }
+	frontman_runtime_same( $actor->user_login, $result['username'], 'Connection returns current username' );
+	wp_cache_delete( $actor_id, 'user_meta' );
+	$created = WP_Application_Passwords::get_user_application_passwords( $actor_id );
+	frontman_runtime_same( count( $before ) + 1, count( $created ), 'Approval creates exactly one credential' );
+	frontman_runtime_same( 'Frontman MCP', $created[0]['name'], 'Credential has a dedicated name' );
+	$matches = method_exists( 'WP_Application_Passwords', 'check_password' )
+		? WP_Application_Passwords::check_password( $result['password'], $created[0]['password'] )
+		: wp_check_password( $result['password'], $created[0]['password'] );
+	frontman_runtime_assert( $matches, 'Returned credential matches the stored WordPress password hash' );
+	$auth = $result['username'] . ':' . $result['password'];
+	$catalog = static function() use ( $auth ): array {
+		return frontman_runtime_http( 'GET', '/?rest_route=/frontman/v1/tools', '', null, null, '', $auth, null, true );
+	};
+	frontman_runtime_same( 200, $catalog()['status'], 'Created password authenticates to the gateway over TLS' );
+	update_option( 'frontman_mcp_enabled', false );
+	frontman_runtime_same( 403, $catalog()['status'], 'Disabling MCP rejects the created credential' );
+	update_option( 'frontman_mcp_enabled', true );
+	frontman_runtime_same( 200, $catalog()['status'], 'Re-enabling MCP restores gateway access' );
+	WP_Application_Passwords::delete_application_password( $actor_id, $created[0]['uuid'] );
+	frontman_runtime_assert( 200 !== $catalog()['status'], 'Native credential revocation denies gateway access' );
+} finally {
+	if ( null === $https ) { unset( $_SERVER['HTTPS'] ); } else { $_SERVER['HTTPS'] = $https; }
+	$actor->set_role( 'administrator' );
+	WP_Application_Passwords::delete_all_application_passwords( $actor_id );
+	update_option( 'siteurl', $siteurl );
+	delete_option( 'frontman_mcp_enabled' );
+}
+
 $mcp_post = wp_insert_post( [ 'post_title' => 'MCP private fixture', 'post_content' => 'Private MCP bytes', 'post_status' => 'draft' ] );
 $mcp_password = WP_Application_Passwords::create_new_application_password( $actor_id, [ 'name' => 'Runtime MCP' ] );
 frontman_runtime_assert( is_array( $mcp_password ), 'Application Password creation failed' );

@@ -127,6 +127,7 @@ defmodule FrontmanServerWeb.Router do
     pipe_through(:bearer_api)
 
     delete("/client-token", ClientTokenController, :delete)
+    post("/wordpress/connections", WordPressConnectionController, :create, log: false)
 
     get("/billing/status", BillingController, :status)
     post("/billing/checkout", BillingController, :checkout)

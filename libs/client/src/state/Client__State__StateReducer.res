@@ -24,6 +24,9 @@ type apiKeyProvider = OpenRouter | Anthropic | Fireworks | Nvidia
 
 type pendingPlanHandoff = {taskId: string, executorAgentId: string}
 
+@schema
+type wordPressConnectionResponse = {id: string}
+
 type promptInput = {
   content: array<UserContentPart.t>,
   annotationId: option<string>,
@@ -34,6 +37,8 @@ type rec action =
   | InitializeConnection(Connection.config)
   | WordPressAuthenticationRequired(option<string>)
   | ReloadAfterWordPressLogin
+  | ConnectWordPress
+  | WordPressConnectionFinished(string)
   | ConnectionAction(Connection.action)
   | ConnectionEvent({signal: WebAPI.EventTypes.abortSignal, action: action})
   | SessionEvent({requestId: Connection.sessionRequestId, action: action})
@@ -156,6 +161,7 @@ type effect =
   | FlushSessionActions(array<action>)
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
   | FetchApiKeySettingsEffect({apiBaseUrl: string})
+  | ConnectWordPressEffect({apiBaseUrl: string})
   | SaveApiKeyEffect({apiBaseUrl: string, provider: apiKeyProvider, key: string})
   | FetchAnthropicOAuthStatusEffect({apiBaseUrl: string})
   | GetAnthropicOAuthUrlEffect({apiBaseUrl: string})
@@ -282,6 +288,7 @@ let defaultState: state = {
   currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
   connection: None,
   wordPressLoginRecovery: None,
+  wordPressConnectionStatus: None,
   userProfile: None,
   settingsModalTab: None,
   billingStatus: Client__Billing.NotLoaded,
@@ -322,6 +329,7 @@ let defaultState: state = {
 
 module Selectors = {
   let wordPressLoginRecovery = (state: state) => state.wordPressLoginRecovery
+  let wordPressConnectionStatus = (state: state) => state.wordPressConnectionStatus
   let getSession = (state: state) =>
     state.connection->Option.flatMap(Connection.Selectors.getSession)
   let getRelay = (state: state) => state.connection->Option.flatMap(Connection.Selectors.getRelay)
@@ -1612,6 +1620,79 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
       TaskReducer.handleEffect(taskEffect, ~dispatch=taskDispatch, ~delegate)
     }
   | FetchApiKeySettingsEffect({apiBaseUrl}) => fetchApiKeySettingsImpl(dispatch, ~apiBaseUrl)
+  | ConnectWordPressEffect({apiBaseUrl}) =>
+    let connect = async () => {
+      try {
+        switch (
+          Client__EmbeddedAuth.loadToken()->Option.filter(token => token->String.trim != ""),
+          Client__EmbeddedAuth.jsonHeaders(),
+        ) {
+        | (None, _) | (_, None) =>
+          dispatch(WordPressConnectionFinished("Reload Frontman and sign in, then try again."))
+        | (Some(_), Some(headers)) =>
+          let runtime = Client__RuntimeConfig.read()
+          let relay = Client__WordPressRelay.makeConfig(
+            ~baseUrl=Client__RelayBaseUrl.current(),
+            ~nonce=runtime.wpNonce,
+          )
+          let response = await relay.fetch(
+            `${relay.baseUrl}/frontman/mcp/connect`,
+            {method: "POST", signal: Null.make(WebAPI.AbortSignal.timeout(30000))},
+          )
+          switch response.ok {
+          | false =>
+            dispatch(
+              WordPressConnectionFinished(
+                "WordPress connection failed. Check your WordPress login and remove any interrupted Application Password in your WordPress profile before retrying.",
+              ),
+            )
+          | true =>
+            let body = await response->WebAPI.Response.text
+            let saved = await WebAPI.Fetch.fetch(
+              `${apiBaseUrl}/api/wordpress/connections`,
+              ~init={
+                method: "POST",
+                headers,
+                body: WebAPI.BodyInit.fromString(body),
+                redirect: WebAPI.FetchTypes.Error,
+                cache: WebAPI.FetchTypes.NoStore,
+                signal: Null.make(WebAPI.AbortSignal.timeout(30000)),
+              },
+            )
+            Client__EmbeddedAuth.clearTokenOnUnauthorized(saved)
+            switch (saved.ok, saved.status) {
+            | (true, _) =>
+              let json = await saved->WebAPI.Response.json
+              let result =
+                json->S.decodeOrThrow(~from=S.json, ~to=wordPressConnectionResponseSchema)
+              dispatch(
+                WordPressConnectionFinished(`WordPress connected. Connection ID: ${result.id}`),
+              )
+            | (_, 401) =>
+              dispatch(
+                WordPressConnectionFinished(
+                  "Reload Frontman and sign in, then try again. Remove the interrupted Application Password in your WordPress profile first.",
+                ),
+              )
+            | _ =>
+              dispatch(
+                WordPressConnectionFinished(
+                  "Connection failed. Remove the interrupted Application Password in your WordPress profile before retrying.",
+                ),
+              )
+            }
+          }
+        }
+      } catch {
+      | _ =>
+        dispatch(
+          WordPressConnectionFinished(
+            "Connection interrupted. Check your WordPress profile for an Application Password to remove before retrying.",
+          ),
+        )
+      }
+    }
+    connect()->ignore
   | SaveApiKeyEffect({apiBaseUrl, provider, key}) =>
     saveApiKeyImpl(dispatch, ~apiBaseUrl, ~provider, ~key)
   | FetchAnthropicOAuthStatusEffect({apiBaseUrl}) =>
@@ -2271,21 +2352,23 @@ let rec next = (state: state, action) => {
       Connection.Selectors.sessionRequestId(connection)->Option.mapOr(false, requestId =>
         Connection.isCurrentSessionRequest(connection, requestId)
       ) &&
-      state.tasks->Dict.get(taskId)->Option.mapOr(false, task =>
-        Task.isLoaded(task) || Task.isLoading(task)
-      )
+      state.tasks
+      ->Dict.get(taskId)
+      ->Option.mapOr(false, task => Task.isLoaded(task) || Task.isLoading(task))
     | _ => false
     }
     switch canRegister {
     | true => state->Lens.delegateToTask(target, taskAction)
     | false =>
-      state->StateReducer.update(~sideEffect=TaskEffect({
-        target,
-        effect: RejectQuestionToolEffect({
-          resolveError,
-          message: "Question session is no longer active",
+      state->StateReducer.update(
+        ~sideEffect=TaskEffect({
+          target,
+          effect: RejectQuestionToolEffect({
+            resolveError,
+            message: "Question session is no longer active",
+          }),
         }),
-      }))
+      )
     }
   | TaskAction({target: ForTask(taskId), action: QuestionDetached(_)})
     if !(state.tasks->Dict.has(taskId)) =>
@@ -2429,10 +2512,11 @@ let rec next = (state: state, action) => {
     state->StateReducer.update
   | SwitchTask({taskId}) => {
       let (state, connectionEffects) = next(state, ConnectionAction(ClearSession))
-      let (updatedState, taskEffects) = state->Lens.delegateToTask(
-        ForTask(taskId),
-        TaskReducer.LoadStarted({previewUrl: getInitialUrl()}),
-      )
+      let (updatedState, taskEffects) =
+        state->Lens.delegateToTask(
+          ForTask(taskId),
+          TaskReducer.LoadStarted({previewUrl: getInitialUrl()}),
+        )
       let (updatedState, loadEffects) = next(
         {
           ...updatedState,
@@ -2604,6 +2688,21 @@ let rec next = (state: state, action) => {
       ->StateReducer.update(~sideEffects=[FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl})])
     | None => state->StateReducer.update
     }
+  | ConnectWordPress =>
+    switch (Selectors.apiBaseUrl(state), state.wordPressConnectionStatus) {
+    | (_, Some("Connecting...")) => state->StateReducer.update
+    | (Some(apiBaseUrl), _) =>
+      {...state, wordPressConnectionStatus: Some("Connecting...")}->StateReducer.update(
+        ~sideEffects=[ConnectWordPressEffect({apiBaseUrl: apiBaseUrl})],
+      )
+    | (None, _) =>
+      {
+        ...state,
+        wordPressConnectionStatus: Some("Reload Frontman and sign in, then try again."),
+      }->StateReducer.update
+    }
+  | WordPressConnectionFinished(message) =>
+    {...state, wordPressConnectionStatus: Some(message)}->StateReducer.update
 
   | ApiKeySettingsReceived({provider, source}) =>
     state->setApiKeySource(provider, source)->StateReducer.update

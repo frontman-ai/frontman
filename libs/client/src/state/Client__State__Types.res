@@ -210,6 +210,7 @@ type state = {
   currentTask: Task.currentTask,
   connection: option<Client__ConnectionReducer.state>,
   wordPressLoginRecovery: option<{loginUrl: option<string>}>,
+  wordPressConnectionStatus: option<string>,
   userProfile: option<userProfile>,
   settingsModalTab: option<settingsTab>,
   billingStatus: Client__Billing.state,

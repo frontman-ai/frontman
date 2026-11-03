@@ -559,6 +559,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
   let userEmail = userProfile->Option.map(p => p.email)
 
   let apiBaseUrl = State.useSelector(State.Selectors.apiBaseUrl)
+  let wordPressConnectionStatus = State.useSelector(State.Selectors.wordPressConnectionStatus)
   let keySettings = State.useSelector(State.Selectors.openrouterKeySettings)
   let anthropicKeySettings = State.useSelector(State.Selectors.anthropicKeySettings)
   let fireworksKeySettings = State.useSelector(State.Selectors.fireworksKeySettings)
@@ -658,6 +659,31 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
               ? <Client__SettingsModal__Tab__Billing />
               : activeTab == "general"
               ? <div className="space-y-6">
+                {switch runtimeConfig.framework {
+                | Wordpress =>
+                  <div className="rounded-lg border border-zinc-800 px-4 py-4 space-y-3">
+                    <div className="text-sm font-medium"> {React.string("Connect WordPress")} </div>
+                    <p className="text-sm text-zinc-400">
+                      {React.string(
+                        "This creates a native Application Password with the current WordPress admin's broader WordPress REST access and sends it to Frontman. If interrupted, remove the Application Password in your WordPress profile before retrying.",
+                      )}
+                    </p>
+                    <button
+                      type_="button"
+                      disabled={wordPressConnectionStatus == Some("Connecting...")}
+                      onClick={_ => State.Actions.connectWordPress()}
+                      className="rounded border border-zinc-600 px-3 py-2 text-sm"
+                    >
+                      {React.string("Approve and connect")}
+                    </button>
+                    {wordPressConnectionStatus->Option.mapOr(React.null, status =>
+                      <p className="text-sm text-zinc-400" role="status">
+                        {React.string(status)}
+                      </p>
+                    )}
+                  </div>
+                | Nextjs | Vite | Astro => React.null
+                }}
                 <div>
                   <div className="text-sm font-medium text-zinc-400">
                     {React.string("Account")}

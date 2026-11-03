@@ -56,6 +56,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
+openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+  -keyout "$BUILD_DIR/frontman-test.key" -out "$BUILD_DIR/frontman-test.crt" \
+  -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' >/dev/null 2>&1
+
 make -C "$ROOT_DIR" package-wordpress-plugin VERSION="$PLUGIN_VERSION" >/dev/null
 curl -fsSL "https://wordpress.org/wordpress-${WORDPRESS_VERSION}.tar.gz" -o "$BUILD_DIR/wordpress.tar.gz"
 curl -fsSL "https://downloads.wordpress.org/plugin/megamenu.${MEGAMENU_VERSION}.zip" -o "$BUILD_DIR/megamenu.zip"

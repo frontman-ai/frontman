@@ -13,6 +13,9 @@ cleanup() {
   rm -rf "$BUILD"
 }
 trap cleanup EXIT
+openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+  -keyout "$BUILD/frontman-test.key" -out "$BUILD/frontman-test.crt" \
+  -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' >/dev/null 2>&1
 curl -fsSL "https://wordpress.org/wordpress-${WP}.tar.gz" -o "$BUILD/wordpress.tar.gz"
 for SPEC in \
   '301-redirects.1.05:3423c49888af0d73e458fd9d5c1439ba7ca00d9da7ccb1b6c8ed0ac423011c8d' \
