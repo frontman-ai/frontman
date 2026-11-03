@@ -23,7 +23,7 @@ case "$ACTION" in
 esac
 fail() { printf '%s\n' "$*" >&2; exit 1; }
 exists() { podman pod exists "$POD"; }
-port() { podman port "$(podman pod inspect "$POD" --format '{{.InfraContainerID}}')" 443/tcp | cut -d: -f2; }
+port() { podman inspect "$(podman pod inspect "$POD" --format '{{.InfraContainerID}}')" --format '{{(index (index .HostConfig.PortBindings "443/tcp") 0).HostPort}}'; }
 tls_prerequisites() {
   command -v openssl >/dev/null || fail "Install OpenSSL first."
   if command -v mkcert >/dev/null; then
@@ -41,6 +41,8 @@ tls_prerequisites() {
 }
 ensure_tls() {
   tls_prerequisites
+  mkdir -p "$TLS_DIR"
+  cp "$CA_ROOT/rootCA.pem" "$TLS_DIR/rootCA.pem"
   local service cert_public key_public valid=true
   TLS_CHANGED=false
   git check-ignore -q .certs/delta/tls-key.pem ||
@@ -70,7 +72,7 @@ start_proxy() {
   podman run -d --pod "$POD" --name "$POD-proxy" \
     -v "$ROOT/infra/local/delta.Caddyfile:/etc/caddy/Caddyfile:ro" \
     -v "$TLS_DIR:/etc/caddy/tls:ro" \
-    -v "$POD-caddy:/data" -e "STACK_ID=$ID" \
+    -v "$POD-caddy:/data" -e "STACK_ID=$ID" -e "STACK_PORT=$(port)" \
     docker.io/library/caddy:2-alpine
 }
 urls() {
@@ -208,7 +210,7 @@ case "$ACTION" in
   tls)
     exists || fail "Run make delta-prepare first."
     ensure_tls
-    podman run --rm --network none -e "STACK_ID=$ID" \
+    podman run --rm --network none -e "STACK_ID=$ID" -e "STACK_PORT=$(port)" \
       -v "$ROOT/infra/local/delta.Caddyfile:/etc/caddy/Caddyfile:ro" \
       -v "$TLS_DIR:/etc/caddy/tls:ro" \
       docker.io/library/caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile

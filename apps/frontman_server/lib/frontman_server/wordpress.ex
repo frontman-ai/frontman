@@ -71,7 +71,8 @@ defmodule FrontmanServer.WordPress do
             url: url,
             auth: {:basic, "#{username}:#{password}"},
             json: body,
-            plugins: [PublicURL],
+            plugins:
+              if(Application.get_env(:frontman_server, :env) == :dev, do: [], else: [PublicURL]),
             redirect: false,
             retry: false,
             receive_timeout: 10_000,

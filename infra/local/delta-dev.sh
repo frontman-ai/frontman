@@ -81,6 +81,8 @@ case "${1:?}" in
     source infra/local/delta-processes.sh
     trap 'exit 143' TERM INT
     trap 'delta_stop_process_group; rm -f /tmp/frontman-supervisor.pid' EXIT
+    cp "$WORKTREE_BRANCH/.certs/delta/rootCA.pem" /usr/local/share/ca-certificates/frontman-local.crt
+    update-ca-certificates >/dev/null
     export PHX_HOST="$WORKTREE_HASH.api.frontman.local" PHX_URL_PORT="$2"
     export FRONTMAN_HOST="$PHX_HOST:$2"
     export FRONTMAN_CLIENT_URL="https://$WORKTREE_HASH.vite.frontman.local:$2/src/Main.res.mjs"
