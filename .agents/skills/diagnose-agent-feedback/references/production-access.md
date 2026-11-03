@@ -4,17 +4,17 @@
 
 This repository is public. Keep production hostnames, IP addresses, SSH identities, database endpoints and role names, access-policy details, and connection-check output out of repository files, including examples and evidence ledgers.
 
-1. **Discover:** Check authorized trusted local configuration for the approved diagnostic path and discover available clients only when authorized. A private runbook is optional; do not demand one when existing trusted configuration suffices. Keep configuration outside the worktree, even if ignored by Git, and never ask the operator to paste credentials into the conversation.
-2. **Authorize:** Confirm current operator authorization for the investigation, target, transport, restricted diagnostic database login, and permitted data. If administrator SSH is needed, obtain explicit authorization for it as transport before connecting. SSH authorization does not authorize an administrator database login. Do not substitute a deployment, application, or administrator database account for the restricted login.
-3. **Connect:** Use the operator-authorized Tailscale path and verify host identity against trusted configuration. Establish whether it uses direct PostgreSQL, an SSH tunnel, or a remote client, and verify required TLS. Do not automatically trust a new host key. SSH and Tailscale provide transport, not database authorization.
-4. **Verify:** Before task evidence queries, confirm the active database and restricted role match the authorized target and `transaction_read_only` is `on`. If any authorization, identity, or safety check fails, stop; never escalate privileges or bypass policy.
-5. **Bound attempts:** Check existing trusted configuration once, then make a bounded connection attempt. For a specific recoverable blocker, such as an approved browser check, resolve it and retry once. If it still fails, or required information is missing, stop and ask one specific question identifying the blocker. Do not repeatedly request details already available, retry alternate identities, or broaden discovery indefinitely.
+1. **Discover:** Check trusted private configuration for the production connection and available clients. PostgreSQL service configuration may be on the production host rather than the local machine; missing local PostgreSQL files are not a blocker. Do not demand a runbook or task ID when the available connection can establish the needed facts.
+2. **Authorize:** Use the operator's request for the investigation to establish the target and permitted data. Do not ask for the same approval again on every turn. A transport connection does not by itself authorize reading unrelated data; follow the requested scope.
+3. **Connect:** Use Tailscale and verify the production host against its trusted SSH host key. Use the private PostgreSQL service if it fits the investigation; if it lacks access to the requested data, use another existing connection only when the operator authorized its identity and scope. Verify required TLS. Do not guess a host, accept an unknown host key, or use credentials found in unrelated application configuration.
+4. **Verify:** Before evidence queries, confirm the active database and role are the intended production session and `transaction_read_only` is `on`. A database administrator role requires the same read-only transaction and query bounds; read-only transaction mode is not a privilege boundary. Stop if authorization, identity, or read-only status cannot be verified.
+5. **Bound attempts:** Check existing trusted configuration once, then make a bounded connection attempt. Preserve and classify the actual connection error privately rather than collapsing every failure into "connection blocked"; a Tailscale browser check requires different recovery from a timeout or host-key failure. For a specific recoverable blocker, resolve it and retry once. If it still fails, or required information is missing, stop and ask one specific question identifying the blocker. Do not repeatedly request details already available, retry alternate identities, or broaden discovery indefinitely.
 
 Before connecting, establish without exposing secrets:
 
 - The Tailscale host and whether access uses direct PostgreSQL, an SSH tunnel, or a remote database client.
-- The expected production database identity and permitted tables or views.
-- The operator-authorized restricted diagnostic login and a protected mechanism for supplying its credentials.
+- The expected production database identity and the requested data scope.
+- The intended database role and a protected mechanism for supplying its credentials.
 - Required TLS and host identity verification.
 - Whether the invoking environment already has the required clients and authenticated Tailscale access.
 
@@ -24,11 +24,13 @@ Keep exact connection commands and infrastructure discovery results in the appro
 
 An SSH check may require interactive browser authorization even when Tailscale is connected. Recognize the check as a policy prompt, not a database authentication failure. Do not suppress or lose the prompt: handle any one-time URL privately without printing it to the conversation, logs, or repository. After validating that it is an HTTPS `login.tailscale.com` URL, open it locally if permitted, or ask the operator to complete the authorization through their approved private channel. Never post the tokenized URL. After approval, retry the same authorized connection once. If interactive authorization is unavailable, denied, expired, or still fails, stop and report the blocker; do not bypass the check or change policy.
 
-## Use the authorized restricted database identity
+Do not replace SSH stderr with only a generic "blocked" label: inspect it privately for the actual failure before deciding whether browser approval, host verification, authentication, or connectivity is the next step. A successful Tailscale peer listing or a matching name in `known_hosts` does not prove SSH authentication succeeded or that the database is reachable.
 
-Use the restricted diagnostic database login for this investigation. If it is unavailable or its authorization cannot be verified, stop and ask the operator for the approved path; do not fall back to a broader account. Limit evidence collection to necessary task metadata and interaction history, excluding the task-to-user identity column and unrelated tables. Interaction payloads can contain sensitive customer data.
+## Use an authorized database identity
 
-If administrator SSH is explicitly approved for transport, use it only for the authorized database investigation. Do not change roles, read unrelated secrets, or repair access during diagnosis.
+Start with the production host's private PostgreSQL diagnostic service when available; local `~/.pg_service.conf` and `~/.pgpass` are not prerequisites. If it cannot read data needed for the requested investigation, an operator-authorized alternative database role may be used for bounded, read-only queries. Verify that role and database before reading evidence. Never switch credentials merely because they are discoverable or use application secrets as an implicit fallback.
+
+When investigating a user by email, resolve the identity with a narrow read-only lookup before retrieving that user's recent task metadata. Do not search unrelated users or tasks. Interaction payloads can contain sensitive customer data; retrieve only what is needed for the case.
 
 Do not install software, log in to a tailnet, alter routes or ACLs, provision roles, or weaken certificate or SSH host verification as part of diagnosis.
 
@@ -36,7 +38,7 @@ Do not install software, log in to a tailnet, alter routes or ACLs, provision ro
 
 Tailscale supplies network connectivity, not database authorization.
 
-Use a database-enforced restricted read-only role and explicit read-only transactions for the bounded queries below. Read-only transaction mode is an operational safeguard, not a privilege boundary; it does not remove the need for operator authorization or careful query selection.
+Prefer a read-only database role with access to the needed evidence. Use explicit read-only transactions for the bounded queries below, even when the authorized role has broader privileges. Read-only transaction mode is an operational safeguard, not a privilege boundary; it does not remove the need for authorization or careful query selection.
 
 Do not load a production application console or release RPC to query data. Starting application code can have side effects. Use an approved PostgreSQL client and connection path.
 
@@ -61,7 +63,7 @@ These timeout values are conservative defaults, not permission to increase load.
 ## Query constraints
 
 - Inspect only the schema metadata needed to understand the relevant records.
-- Start with the supplied task ID. Use explicit columns, indexed predicates where available, bounded time ranges, stable ordering, and limited pages.
+- Start with a supplied task ID when available. Otherwise use an authorized, indexed identity lookup (for example, email to user ID, then recent tasks for that user) before reading interactions. Use explicit columns, bounded time ranges, stable ordering, and limited pages. If the verified role lacks permission, check only an already authorized alternative; otherwise state the specific blocker once.
 - Retrieve metadata first, then select only JSON fields or small excerpts needed to verify a claim; avoid full payloads unless necessary and authorized.
 - `LIMIT` bounds output, not scan cost. Inspect a query plan with plain `EXPLAIN` if needed; do not use `EXPLAIN ANALYZE` on production.
 - Do not run writes, DDL, migrations, maintenance commands, locking reads such as `FOR UPDATE`, job retries, or application routines.
@@ -75,4 +77,4 @@ Track query purpose, sanitized query shape, scope, retrieval time in UTC, and re
 
 Do not print secrets, authentication tokens, personal identifiers unrelated to the case, or complete tool payloads when a small excerpt suffices. Treat necessary excerpts as private diagnostic data. Do not send production content to external services.
 
-If access, identity, permissions, or query safety cannot be verified, stop production collection. Report exactly what was unavailable and how that limits the conclusion. Never switch to a more privileged path to complete the analysis.
+If access, identity, permissions, or query safety cannot be verified, stop production collection. Report exactly what was unavailable and how that limits the conclusion. Do not use an unapproved identity or connection to complete the analysis.

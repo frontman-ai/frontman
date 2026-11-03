@@ -17,10 +17,8 @@ cd .worktrees/feature/my-feature
 
 ## Production Database Reads
 
-- Use the authorized Tailscale connection and verify the server against its trusted SSH host key. If administrator SSH is approved, use it only as transport; complete any Tailscale browser authorization check without sharing its tokenized URL.
-- The production host has a private PostgreSQL diagnostic service configuration and connection instructions. Use that service with its restricted read-only database login, not passwordless `psql`, an application credential, or the administrator database role. Do not copy its credentials or connection details into this public repository.
-- Before querying data, verify the expected database and role in a short `BEGIN READ ONLY` transaction, check that `transaction_read_only` is `on`, set statement and lock timeouts, and finish with `ROLLBACK`. Keep queries bounded and limited to authorized data. Stop if identity, permissions, or read-only status cannot be verified.
-- The diagnostic login is restricted to task metadata and interactions; it cannot read user accounts or map an email to task IDs. Obtain a task ID or separate authorization for an identity lookup instead of escalating database privileges.
+- For an authorized production investigation, connect through Tailscale using the trusted host and available private database configuration. Do not ask for task IDs or connection details before checking the approved path. Keep credentials, host details, and Tailscale authorization links out of this public repository and the conversation.
+- Verify the database and role, then use short `BEGIN READ ONLY` transactions with timeouts and bounded queries. Confirm `transaction_read_only` is `on` before reading data and finish with `ROLLBACK`. Follow the [production evidence access guide](.agents/skills/diagnose-agent-feedback/references/production-access.md) for details.
 
 ## Key Principles
 
