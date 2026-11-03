@@ -1,8 +1,7 @@
 defmodule FrontmanServerWeb.WordPressConnectionControllerTest do
   use FrontmanServerWeb.ConnCase, async: true
 
-  alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.{Repo, WordPress}
+  alias FrontmanServer.Repo
   alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
   alias FrontmanServer.WordPress.Connection
 
@@ -30,9 +29,8 @@ defmodule FrontmanServerWeb.WordPressConnectionControllerTest do
     assert Repo.aggregate(Connection, :count) == 0
   end
 
-  test "encrypts credentials and rejects access by another owner" do
+  test "encrypts credentials and stores the owner" do
     owner = AccountsFixtures.user_fixture()
-    other = AccountsFixtures.user_fixture()
     password = "local-test-password"
 
     connection =
@@ -52,11 +50,6 @@ defmodule FrontmanServerWeb.WordPressConnectionControllerTest do
 
     refute ciphertext =~ password
     refute inspect(connection) =~ password
-
-    assert {:error, :request_failed} =
-             WordPress.read_post(Scope.for_user(other), connection.id, 1)
-
-    assert {:error, :request_failed} =
-             WordPress.read_post(Scope.for_user(owner), Ecto.UUID.generate(), 1)
+    assert Repo.get!(Connection, connection.id).user_id == owner.id
   end
 end

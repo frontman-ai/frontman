@@ -3,4 +3,4 @@
 "@frontman-ai/client": minor
 ---
 
-Connect WordPress to an authenticated Frontman account and read a post through MCP.
+Connect WordPress to an authenticated Frontman account with verified, encrypted credentials.

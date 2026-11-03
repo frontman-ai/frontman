@@ -25,7 +25,6 @@ defmodule FrontmanServer.WordPress do
          {:ok, ^origin} <- origin(call_url),
          {:ok, %{"tools" => tools}} when is_list(tools) <-
            request(catalog_url, username, password, :get, nil),
-         true <- Enum.any?(tools, &match?(%{"name" => "wp_read_post"}, &1)),
          {:ok, connection} <-
            %Connection{user_id: Scope.user_id(scope)}
            |> Connection.changeset(%{
@@ -42,23 +41,6 @@ defmodule FrontmanServer.WordPress do
   end
 
   def connect(%Scope{}, _params), do: {:error, :connection_failed}
-
-  def read_post(%Scope{} = scope, id, post_id)
-      when is_binary(id) and is_integer(post_id) and post_id > 0 do
-    with {:ok, id} <- Ecto.UUID.cast(id),
-         %Connection{} = connection <- Repo.one(Connection.for_owner(id, Scope.user_id(scope))),
-         {:ok, body} <-
-           request(connection.call_url, connection.username, connection.password, :post, %{
-             name: "wp_read_post",
-             arguments: %{id: post_id}
-           }) do
-      {:ok, body}
-    else
-      _ -> {:error, :request_failed}
-    end
-  end
-
-  def read_post(%Scope{}, _id, _post_id), do: {:error, :request_failed}
 
   defp origin(url) do
     case URI.parse(url) do

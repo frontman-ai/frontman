@@ -9,7 +9,6 @@ defmodule FrontmanServer.WordPress.Connection do
 
   use Ecto.Schema
   import Ecto.Changeset
-  import Ecto.Query
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -30,9 +29,5 @@ defmodule FrontmanServer.WordPress.Connection do
     |> validate_length(:catalog_url, max: 2048)
     |> validate_length(:call_url, max: 2048)
     |> validate_length(:username, max: 255)
-  end
-
-  def for_owner(id, user_id) do
-    from(c in __MODULE__, where: c.id == ^id and c.user_id == ^user_id)
   end
 end
