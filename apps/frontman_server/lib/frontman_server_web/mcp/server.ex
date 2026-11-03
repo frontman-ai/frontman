@@ -6,5 +6,5 @@ defmodule FrontmanServerWeb.MCP.Server do
 
   use Anubis.Server, name: @server_name, version: @server_version, capabilities: [:tools]
 
-  component(FrontmanServerWeb.MCP.ReadWordPressPost)
+  component(FrontmanServerWeb.MCP.ReadWordPressPost, name: "wordpress_read_post")
 end

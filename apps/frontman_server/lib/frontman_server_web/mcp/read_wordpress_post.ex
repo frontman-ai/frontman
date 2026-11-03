@@ -1,7 +1,7 @@
 defmodule FrontmanServerWeb.MCP.ReadWordPressPost do
   @moduledoc "Read a post through an owned WordPress connection."
 
-  use Anubis.Server.Component, type: :tool, name: "wordpress_read_post"
+  use Anubis.Server.Component, type: :tool
 
   alias Anubis.Server.{Frame, Response}
   alias FrontmanServer.Accounts
