@@ -335,6 +335,7 @@ if [[ "$REDIRECTION_STATUS" -ne 0 || "$REDIRECTION_OUTPUT" != *"OK (Redirection 
   printf 'Redirection runtime tests did not report successful completion.\n' >&2
   exit 1
 fi
+"$RUNTIME" exec "$WORDPRESS" php /tmp/Redirects301RuntimeTest.php --coexist
 
 case "$WORDPRESS_VERSION" in
   6.[0-8].*) printf 'Skipping Angie 1.1.16: requires WordPress 6.9+.\n'; exit 0 ;;

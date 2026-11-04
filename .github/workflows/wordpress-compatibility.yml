@@ -12,7 +12,6 @@ on:
       - "scripts/build-wordpress-dependencies.sh"
       - "scripts/wordpress-*.php"
       - "scripts/test-wordpress-plugin-runtime.sh"
-      - "scripts/test-wordpress-301-runtime.sh"
       - "scripts/package-wordpress-plugin.sh"
       - "scripts/validate-wordpress-plugin-release.sh"
       - ".github/workflows/wordpress-compatibility.yml"
@@ -33,7 +32,6 @@ on:
       - "scripts/build-wordpress-dependencies.sh"
       - "scripts/wordpress-*.php"
       - "scripts/test-wordpress-plugin-runtime.sh"
-      - "scripts/test-wordpress-301-runtime.sh"
       - "scripts/package-wordpress-plugin.sh"
       - "scripts/validate-wordpress-plugin-release.sh"
       - ".github/workflows/wordpress-compatibility.yml"
@@ -105,13 +103,6 @@ jobs:
           YOAST_VERSION: ${{ matrix.yoast }}
           FRONTMAN_REQUIRE_WP_SDK: ${{ matrix.wordpress == '7.0.2' && matrix.php == '8.4' && !matrix.yoast && '1' || '0' }}
         run: make test-wordpress-runtime
-
-      - name: Run focused redirect coexistence tests
-        if: matrix.wordpress == '7.0.2' && matrix.php == '8.4' && !matrix.yoast
-        env:
-          WORDPRESS_VERSION: ${{ matrix.wordpress }}
-          PHP_VERSION: ${{ matrix.php }}
-        run: make test-wordpress-301-runtime
 
       - name: Run isolated PHP tests
         run: |
