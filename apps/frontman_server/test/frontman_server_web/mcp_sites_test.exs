@@ -22,11 +22,15 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     assert {:reply, %{"tools" => [%{name: "list_sites"}]}, _} =
              Tools.handle_list(%{}, frame, Server)
 
-    request = %{"params" => %{"name" => "list_sites", "arguments" => %{}}}
+    request = %{
+      "method" => "tools/call",
+      "params" => %{"name" => "list_sites", "arguments" => %{}}
+    }
 
-    assert {:reply, %{"content" => [%{"text" => text}]}, _} =
-             Tools.handle_call(request, frame, Server)
+    assert {:reply, %{"content" => [%{"text" => text}]}, returned} =
+             Server.handle_request(request, frame)
 
+    refute Map.has_key?(returned.assigns, :mcp_request)
     assert %{"sites" => sites} = Jason.decode!(text)
 
     assert Enum.sort(sites) ==
@@ -58,12 +62,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     owned = insert_site(owner, "owner.invalid")
     foreign = insert_site(other, "foreign.invalid")
     frame = %Frame{context: %Context{auth: %{sub: owner.id}}, assigns: %{mcp_request: :original}}
-    handler = {__MODULE__, make_ref()}
-
-    :ok =
-      :telemetry.attach(handler, [:finch, :request, :start], &__MODULE__.record_request/4, self())
-
-    on_exit(fn -> :telemetry.detach(handler) end)
+    record_requests()
 
     for arguments <- [%{}, %{"site_id" => "bad"}, %{"site_id" => foreign.id}] do
       request = %{
@@ -85,19 +84,6 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     refute_received {:outbound, "foreign.invalid"}
   end
 
-  test "the SDK request hook restores its temporary request after list_sites" do
-    user = AccountsFixtures.user_fixture()
-    site = insert_site(user, "owned.example")
-    frame = %Frame{context: %Context{auth: %{sub: user.id}}}
-    request = %{"method" => "tools/call", "params" => %{"name" => "list_sites"}}
-
-    assert {:reply, %{"content" => [%{"text" => text}]}, returned} =
-             Server.handle_request(request, frame)
-
-    assert Jason.decode!(text) == %{"sites" => [%{"id" => site.id, "label" => "owned.example"}]}
-    refute Map.has_key?(returned.assigns, :mcp_request)
-  end
-
   test "stateless SDK binding parses and dispatches a request with verified claims" do
     user = AccountsFixtures.user_fixture()
     site = insert_site(user, "owned.example")
@@ -117,37 +103,18 @@ defmodule FrontmanServerWeb.MCPSitesTest do
       }
     }
 
-    conn =
-      Plug.Test.conn(:post, "/mcp", Jason.encode!(body))
-      |> Plug.Conn.put_req_header("content-type", "application/json")
-      |> Plug.Conn.put_req_header("accept", "application/json")
-      |> Plug.Conn.put_req_header("mcp-protocol-version", "2026-07-28")
-      |> Plug.Conn.put_req_header("mcp-method", "tools/call")
-      |> Plug.Conn.put_req_header("mcp-name", "list_sites")
-
+    conn = sdk_conn(body)
     context = %{auth: %{sub: user.id}, assigns: %{}, req_headers: conn.req_headers}
     response = StatelessBinding.call(conn, "2026-07-28", context, AnubisPlug.init(server: Server))
 
     assert %{"result" => %{"content" => [%{"text" => text}]}} = Jason.decode!(response.resp_body)
     assert Jason.decode!(text) == %{"sites" => [%{"id" => site.id, "label" => "owned.example"}]}
 
-    handler = {__MODULE__, make_ref()}
-
-    :ok =
-      :telemetry.attach(handler, [:finch, :request, :start], &__MODULE__.record_request/4, self())
-
-    on_exit(fn -> :telemetry.detach(handler) end)
+    record_requests()
     body = put_in(body, ["params", "name"], "wp_read_post")
     body = put_in(body, ["params", "arguments"], %{"site_id" => Ecto.UUID.generate()})
 
-    conn =
-      Plug.Test.conn(:post, "/mcp", Jason.encode!(body))
-      |> Plug.Conn.put_req_header("content-type", "application/json")
-      |> Plug.Conn.put_req_header("accept", "application/json")
-      |> Plug.Conn.put_req_header("mcp-protocol-version", "2026-07-28")
-      |> Plug.Conn.put_req_header("mcp-method", "tools/call")
-      |> Plug.Conn.put_req_header("mcp-name", "wp_read_post")
-
+    conn = sdk_conn(body)
     response = StatelessBinding.call(conn, "2026-07-28", context, AnubisPlug.init(server: Server))
     assert %{"error" => _} = Jason.decode!(response.resp_body)
     refute_received {:outbound, "owned.example"}
@@ -177,23 +144,70 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     end
   end
 
-  test "catalog union preserves provenance, rejects conflicts and includes more than 32 sites" do
+  @tag :wordpress_runtime
+  @tag skip: System.get_env("FRONTMAN_WP_RUNTIME_URL") == nil
+  test "SDK discovers the connection after the first concurrent batch" do
+    url = System.fetch_env!("FRONTMAN_WP_RUNTIME_URL")
+    password = File.read!(System.fetch_env!("FRONTMAN_WP_RUNTIME_PASSWORD"))
+    user = AccountsFixtures.user_fixture()
+    previous_env = Application.get_env(:frontman_server, :env)
+    Application.put_env(:frontman_server, :env, :dev)
+
+    :public_key.cacerts_clear()
+
+    :ok =
+      :public_key.cacerts_load(String.to_charlist(System.fetch_env!("FRONTMAN_WP_RUNTIME_CA")))
+
+    on_exit(fn ->
+      if previous_env,
+        do: Application.put_env(:frontman_server, :env, previous_env),
+        else: Application.delete_env(:frontman_server, :env)
+
+      :public_key.cacerts_clear()
+    end)
+
+    for _ <- 1..33 do
+      %Connection{user_id: user.id}
+      |> Connection.changeset(%{
+        catalog_url: url,
+        call_url: url,
+        username: "admin",
+        password: password
+      })
+      |> Repo.insert!()
+    end
+
+    frame = %Frame{context: %Context{auth: %{sub: user.id}}}
+
+    assert {:reply, %{"tools" => tools}, _} =
+             Server.handle_request(%{"method" => "tools/list"}, frame)
+
+    tool = Enum.find(tools, &(&1.name == "wp_read_post"))
+
+    assert {:ok, _} =
+             tool.validate_input.(%{
+               "site_id" =>
+                 user
+                 |> Scope.for_user()
+                 |> WordPress.list_sites()
+                 |> List.last()
+                 |> Map.fetch!(:id)
+             })
+  end
+
+  test "catalog union preserves provenance and rejects conflicts" do
     schema = %{"type" => "object", "properties" => %{"id" => %{"type" => "integer"}}}
-
-    entries =
-      for n <- 1..33 do
-        {Ecto.UUID.generate(), %{"name" => "tool_#{n}", "inputSchema" => schema}}
-      end
-
-    [{site, first} | _] = entries
+    site = Ecto.UUID.generate()
+    first = %{"name" => "tool", "inputSchema" => schema}
     other = Ecto.UUID.generate()
     unsupported = Map.put(first, "outputSchema", %{"type" => "object"})
     conflict = Map.put(first, "inputSchema", %{"type" => "object"})
     reserved = %{"name" => "list_sites", "inputSchema" => schema}
-    tools = Server.catalog_tools(entries ++ [{other, first}, {other, reserved}], ["list_sites"])
 
-    assert length(tools) == 33
-    tool = Enum.find(tools, &(&1.name == first["name"]))
+    tools =
+      Server.catalog_tools([{site, first}, {other, first}, {other, reserved}], ["list_sites"])
+
+    assert [tool] = tools
     assert tool.input_schema["required"] == ["site_id"]
     assert tool.input_schema["properties"]["id"] == %{"type" => "integer"}
 
@@ -206,13 +220,31 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     assert Server.catalog_tools([{other, Map.put(first, "outputSchema", nil)}], []) == []
 
     refute Enum.any?(
-             Server.catalog_tools(entries ++ [{other, conflict}], []),
+             Server.catalog_tools([{site, first}, {other, conflict}], []),
              &(&1.name == first["name"])
            )
   end
 
   def record_request(_event, _measurements, %{request: request}, test) do
     send(test, {:outbound, request.host})
+  end
+
+  defp record_requests do
+    handler = {__MODULE__, make_ref()}
+
+    :ok =
+      :telemetry.attach(handler, [:finch, :request, :start], &__MODULE__.record_request/4, self())
+
+    on_exit(fn -> :telemetry.detach(handler) end)
+  end
+
+  defp sdk_conn(body) do
+    Plug.Test.conn(:post, "/mcp", Jason.encode!(body))
+    |> Plug.Conn.put_req_header("content-type", "application/json")
+    |> Plug.Conn.put_req_header("accept", "application/json")
+    |> Plug.Conn.put_req_header("mcp-protocol-version", "2026-07-28")
+    |> Plug.Conn.put_req_header("mcp-method", body["method"])
+    |> Plug.Conn.put_req_header("mcp-name", body["params"]["name"])
   end
 
   defp insert_site(user, host) do

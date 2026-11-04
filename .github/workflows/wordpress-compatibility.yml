@@ -7,6 +7,8 @@ on:
       - "libs/frontman-protocol/**"
       - "libs/frontman-astro-browser/**"
       - "libs/frontman-wordpress/**"
+      - "apps/frontman_server/**"
+      - "apps/swarm_ai/**"
       - "scripts/build-wordpress-dependencies.sh"
       - "scripts/wordpress-*.php"
       - "scripts/test-wordpress-plugin-runtime.sh"
@@ -26,6 +28,8 @@ on:
       - "libs/frontman-protocol/**"
       - "libs/frontman-astro-browser/**"
       - "libs/frontman-wordpress/**"
+      - "apps/frontman_server/**"
+      - "apps/swarm_ai/**"
       - "scripts/build-wordpress-dependencies.sh"
       - "scripts/wordpress-*.php"
       - "scripts/test-wordpress-plugin-runtime.sh"
@@ -78,11 +82,28 @@ jobs:
       - name: Install bridge build dependencies
         run: corepack enable && corepack install && yarn install --immutable
 
+      - name: Set up SDK integration toolchain
+        if: matrix.wordpress == '7.0.2' && matrix.php == '8.4' && !matrix.yoast
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492
+        with:
+          install: true
+          cache: true
+
+      - name: Prepare SDK integration dependencies
+        if: matrix.wordpress == '7.0.2' && matrix.php == '8.4' && !matrix.yoast
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          docker run -d --rm --name wp-sdk-postgres -p 127.0.0.1:5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16
+          timeout 60 bash -c 'until pg_isready -q -h 127.0.0.1; do sleep 1; done'
+          make setup-elixir-tools
+          cd apps/frontman_server && mix deps.get
+
       - name: Package plugin and run WordPress runtime tests
         env:
           WORDPRESS_VERSION: ${{ matrix.wordpress }}
           PHP_VERSION: ${{ matrix.php }}
           YOAST_VERSION: ${{ matrix.yoast }}
+          FRONTMAN_REQUIRE_WP_SDK: ${{ matrix.wordpress == '7.0.2' && matrix.php == '8.4' && !matrix.yoast && '1' || '0' }}
         run: make test-wordpress-runtime
 
       - name: Run focused redirect coexistence tests
