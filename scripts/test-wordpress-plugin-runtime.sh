@@ -18,6 +18,12 @@ if [[ "$FIXTURE" == astra && "$WORDPRESS_VERSION" != 7.0.2 ]]; then
 fi
 PUBLISH=()
 DB_PASSWORD=wordpress
+if command -v mix >/dev/null && command -v pg_isready >/dev/null && pg_isready -q -h 127.0.0.1; then
+  PUBLISH=(-p "127.0.0.1::443")
+elif [[ "${FRONTMAN_REQUIRE_WP_SDK:-0}" == 1 ]]; then
+  printf 'WordPress SDK integration requires Mix and PostgreSQL.\n' >&2
+  exit 1
+fi
 if [[ "$FIXTURE" == astra ]]; then
   [[ "$FIXTURE_PORT" =~ ^[0-9]+$ ]] && (( FIXTURE_PORT > 1024 && FIXTURE_PORT < 65536 ))
   PUBLISH=(-p "127.0.0.1:${FIXTURE_PORT}:80")
@@ -56,9 +62,14 @@ cleanup() {
 }
 trap cleanup EXIT
 
-openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
-  -keyout "$BUILD_DIR/frontman-test.key" -out "$BUILD_DIR/frontman-test.crt" \
-  -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' >/dev/null 2>&1
+openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj '/CN=Frontman test CA' \
+  -keyout "$BUILD_DIR/ca.key" -out "$BUILD_DIR/ca.crt" >/dev/null 2>&1
+openssl req -newkey rsa:2048 -nodes -subj '/CN=127.0.0.1' \
+  -keyout "$BUILD_DIR/frontman-test.key" -out "$BUILD_DIR/frontman-test.csr" >/dev/null 2>&1
+printf 'subjectAltName=IP:127.0.0.1\n' > "$BUILD_DIR/extensions"
+openssl x509 -req -in "$BUILD_DIR/frontman-test.csr" -CA "$BUILD_DIR/ca.crt" \
+  -CAkey "$BUILD_DIR/ca.key" -CAcreateserial -days 1 -extfile "$BUILD_DIR/extensions" \
+  -out "$BUILD_DIR/frontman-test.crt" >/dev/null 2>&1
 
 make -C "$ROOT_DIR" package-wordpress-plugin VERSION="$PLUGIN_VERSION" >/dev/null
 curl -fsSL "https://wordpress.org/wordpress-${WORDPRESS_VERSION}.tar.gz" -o "$BUILD_DIR/wordpress.tar.gz"
@@ -201,6 +212,16 @@ esac
 "$RUNTIME" exec "$WORDPRESS" php -r '$db = new mysqli(getenv("WORDPRESS_DB_HOST"), getenv("WORDPRESS_DB_USER"), getenv("WORDPRESS_DB_PASSWORD"), getenv("WORDPRESS_DB_NAME")); $result = $db->query("SELECT option_value FROM wp_options WHERE option_name = '\''siteurl'\''"); $row = $result ? $result->fetch_row() : false; if (!$row || !$row[0]) { throw new RuntimeException("WordPress installation did not persist a site URL."); }'
 "$RUNTIME" exec -e EXPECTED_YOAST_VERSION="$YOAST_VERSION" "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/ActivateWordPressPlugin.php
 "$RUNTIME" exec "$WORDPRESS" php -r 'require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/plugin.php"; $result = activate_plugin("elementor/elementor.php"); if (is_wp_error($result)) { throw new RuntimeException($result->get_error_message()); }'
+if [[ ${#PUBLISH[@]} -gt 0 && "$FIXTURE" != astra ]]; then
+  PORT="$("$RUNTIME" port "$([[ "$DB_NETWORK" == pasta ]] && echo "$DATABASE" || echo "$WORDPRESS")" 443/tcp | sed 's/.*://')"
+  umask 077
+  "$RUNTIME" exec "$WORDPRESS" php -r 'require "/var/www/html/wp-load.php"; update_option("frontman_mcp_enabled", true); $user = get_user_by("login", "admin"); $password = WP_Application_Passwords::create_new_application_password($user->ID, ["name" => "SDK runtime"]); if (is_wp_error($password)) { exit(1); } echo $password[0];' > "$BUILD_DIR/mcp-password"
+  FRONTMAN_WP_RUNTIME_URL="https://127.0.0.1:$PORT/?rest_route=/frontman/v1/tools" \
+    FRONTMAN_WP_RUNTIME_PASSWORD="$BUILD_DIR/mcp-password" FRONTMAN_WP_RUNTIME_CA="$BUILD_DIR/ca.crt" \
+    make -C "$ROOT_DIR/apps/frontman_server" test TEST_ARGS="test/frontman_server_web/mcp_sites_test.exs --only wordpress_runtime"
+  REQUESTS="$("$RUNTIME" logs "$WORDPRESS" 2>&1 | grep -c 'rest_route=/frontman/v1/tools' || true)"
+  (( REQUESTS >= 33 ))
+fi
 if TEST_OUTPUT="$("$RUNTIME" exec \
   -e EXPECTED_WORDPRESS_VERSION="$WORDPRESS_VERSION" \
   -e EXPECTED_YOAST_VERSION="$YOAST_VERSION" \
@@ -314,6 +335,7 @@ if [[ "$REDIRECTION_STATUS" -ne 0 || "$REDIRECTION_OUTPUT" != *"OK (Redirection 
   printf 'Redirection runtime tests did not report successful completion.\n' >&2
   exit 1
 fi
+"$RUNTIME" exec "$WORDPRESS" php /tmp/Redirects301RuntimeTest.php --coexist
 
 case "$WORDPRESS_VERSION" in
   6.[0-8].*) printf 'Skipping Angie 1.1.16: requires WordPress 6.9+.\n'; exit 0 ;;

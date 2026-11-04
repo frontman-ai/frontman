@@ -19,6 +19,36 @@ defmodule FrontmanServer.WordPress do
     |> Enum.map(fn site -> %{id: site.id, label: URI.parse(site.catalog_url).host} end)
   end
 
+  def catalog(%Scope{} = scope, site_id, timeout) when timeout > 0 do
+    with {:ok, site_id} <- Ecto.UUID.cast(site_id),
+         %Connection{} = connection <-
+           scope |> Scope.user_id() |> Connection.owned() |> Repo.get(site_id) do
+      request(
+        connection.catalog_url,
+        connection.username,
+        connection.password,
+        :get,
+        nil,
+        timeout
+      )
+    else
+      _ -> {:error, :connection_failed}
+    end
+  end
+
+  def call(%Scope{} = scope, site_id, name, arguments) do
+    with {:ok, site_id} <- Ecto.UUID.cast(site_id),
+         %Connection{} = connection <-
+           scope |> Scope.user_id() |> Connection.owned() |> Repo.get(site_id) do
+      request(connection.call_url, connection.username, connection.password, :post, %{
+        name: name,
+        arguments: arguments
+      })
+    else
+      _ -> {:error, :connection_failed}
+    end
+  end
+
   def connect(%Scope{} = scope, %{
         "catalog_url" => catalog_url,
         "call_url" => call_url,
@@ -61,7 +91,7 @@ defmodule FrontmanServer.WordPress do
     end
   end
 
-  defp request(url, username, password, method, body) do
+  defp request(url, username, password, method, body, timeout \\ 15_000) do
     limit = 1_000_000
 
     into = fn {:data, data}, {req, resp} ->
@@ -83,7 +113,7 @@ defmodule FrontmanServer.WordPress do
               if(Application.get_env(:frontman_server, :env) == :dev, do: [], else: [PublicURL]),
             redirect: false,
             retry: false,
-            receive_timeout: 10_000,
+            receive_timeout: min(timeout, 10_000),
             decode_body: false,
             into: into
           )
@@ -92,7 +122,7 @@ defmodule FrontmanServer.WordPress do
         end
       end)
 
-    case Task.yield(task, 15_000) || Task.shutdown(task, :brutal_kill) do
+    case Task.yield(task, timeout) || Task.shutdown(task, :brutal_kill) do
       {:ok, {:ok, %{status: 200, body: response}}} -> Jason.decode(response)
       _ -> {:error, :request_failed}
     end
