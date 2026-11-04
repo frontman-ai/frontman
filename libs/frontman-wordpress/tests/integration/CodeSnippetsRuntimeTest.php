@@ -20,7 +20,7 @@ $call = static function ( string $name, array $input, bool $error = false ) use 
 $ids = [];
 $editor = 0;
 try {
-	$code = "add_shortcode('innerchange_contact_form_8e526ba5', function () { return 'form'; });\n// Do not execute on read.";
+	$code = "add_shortcode('frontman_contact_form_fixture', function () { return 'form'; });\n// Do not execute on read.";
 	$snippet = \Code_Snippets\save_snippet( new \Code_Snippets\Model\Snippet( [
 		'name' => 'Contact shortcode',
 		'code' => $code,
@@ -30,7 +30,7 @@ try {
 	frontman_runtime_assert( $snippet && $snippet->id > 0, 'Create an inactive real-plugin snippet.' );
 	$ids[] = $snippet->id;
 
-	$result = $call( 'wp_search_code_snippets', [ 'search' => 'innerchange_contact_form_8e526ba5' ] );
+	$result = $call( 'wp_search_code_snippets', [ 'search' => 'frontman_contact_form_fixture' ] );
 	frontman_runtime_same( 1, count( $result['snippets'] ), 'Search stored code, not only titles.' );
 	frontman_runtime_same( $snippet->id, $result['snippets'][0]['id'], 'Search returns the real snippet ID.' );
 	frontman_runtime_same( false, $result['snippets'][0]['active'], 'Inactive status must be preserved.' );
