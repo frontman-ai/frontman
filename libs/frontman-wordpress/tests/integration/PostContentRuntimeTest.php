@@ -1,5 +1,22 @@
 <?php
 
+$catalog_response = frontman_runtime_http( 'GET', '/index.php/frontman/tools', $cookie );
+frontman_runtime_same( 200, $catalog_response['status'], 'WordPress tool catalog is available for provider schema checks' );
+$catalog_tools = json_decode( $catalog_response['body'], true, 512, JSON_THROW_ON_ERROR )['tools'];
+foreach ( $catalog_tools as $definition ) {
+	$schema = $definition['inputSchema'] ?? null;
+	frontman_runtime_assert(
+		is_array( $schema ) && 'object' === ( $schema['type'] ?? null )
+			&& ! array_intersect( [ 'anyOf', 'oneOf', 'allOf' ], array_keys( $schema ) ),
+		$definition['name'] . ' advertises a root tool schema rejected by Anthropic'
+	);
+}
+$post_schemas = array_column( $catalog_tools, 'inputSchema', 'name' );
+$edit_schema = $post_schemas['wp_update_post']['properties']['edits'];
+frontman_runtime_same( 'array', $edit_schema['type'], 'Published edit_many edits remain an array' );
+frontman_runtime_same( 'object', $edit_schema['items']['type'], 'Published edit_many entries remain objects' );
+frontman_runtime_same( [ 'oldText', 'newText' ], $edit_schema['items']['required'], 'Published edit_many entries require both fragments' );
+
 $script = '<script src="https://example.test/embed.js" defer data-region="eu1"></script>';
 $content = '<!-- wp:html -->' . $script . '<div>Été 日本語 \\path\\file "quoted"</div><!-- /wp:html -->';
 $page = [ 'title' => 'Embedded form', 'content' => $content, 'post_type' => 'page', 'status' => 'publish' ];
