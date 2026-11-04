@@ -205,15 +205,15 @@ let make = () => {
     | Available({autoUpdateEnabled: false}) =>
       <div
         role="status"
-        className="flex flex-wrap items-center gap-3 mx-4 mt-3 px-4 py-3 bg-amber-950/40 border border-amber-700/40 rounded-lg"
+        className="mx-4 mt-3 px-4 py-3 bg-white/5 border border-white/10 rounded-lg"
       >
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-amber-300">
+        <div>
+          <p className="text-sm font-medium text-zinc-100">
             {React.string("Enable auto-updates for Frontman")}
           </p>
-          <p className="text-xs text-amber-300/90 mt-1">
+          <p className="text-xs leading-relaxed text-zinc-400 mt-1">
             {React.string(
-              "Auto-updates are off in WordPress settings. We strongly recommend enabling them to receive the latest fixes and improvements. In Plugins, choose Enable auto-updates next to Frontman.",
+              "Get the latest fixes automatically. In WordPress Plugins, choose Enable auto-updates next to Frontman.",
             )}
           </p>
         </div>
@@ -223,9 +223,9 @@ let make = () => {
           )}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex-shrink-0 text-xs font-medium text-amber-300 hover:text-amber-200 bg-amber-800/30 hover:bg-amber-800/50 px-2.5 py-1 rounded transition-colors"
+          className="inline-flex mt-3 text-xs font-medium text-zinc-200 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
         >
-          {React.string("Open Plugins in wp-admin")}
+          {React.string("Open WordPress Plugins")}
         </a>
       </div>
     | Available({autoUpdateEnabled: true}) | NotChecked | Unsupported => React.null
