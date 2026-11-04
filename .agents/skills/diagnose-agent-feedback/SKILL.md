@@ -17,7 +17,8 @@ Treat feedback as a lead, not a diagnosis. Verify the reported behavior, cause, 
   username. Verify that identity and the pinned host key from trusted private
   configuration. Admin SSH does not authorize an administrator database login:
   start with the host's private diagnostic PostgreSQL service, and verify its
-  database role and read-only transaction before querying.
+  database role and read-only transaction before querying. An SSH login used
+  for deployment or host checks may not provide that diagnostic service.
 - Do not reproduce actions on production or on a customer's site. Use local tests with synthetic or sanitized inputs.
 - Do not export raw sessions into repository files. Minimize retrieved content and redact customer data, credentials, and private URLs from reports.
 - This repository is public. Keep production connection details, infrastructure identifiers, access-policy findings, and raw diagnostic output outside the worktree in an operator-approved private location. Never add them to this skill or committed reports.
