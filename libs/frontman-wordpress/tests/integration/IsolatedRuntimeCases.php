@@ -3,6 +3,22 @@
 frontman_runtime_process_case( 'installation-paths' );
 require_once ABSPATH . 'wp-admin/includes/plugin.php';
 $tools = Frontman_Tools::instance();
+if ( is_readable( WP_PLUGIN_DIR . '/code-snippets/code-snippets.php' ) ) {
+	frontman_runtime_assert( null === $tools->get( 'wp_search_code_snippets' ), 'Inactive Code Snippets must not register search.' );
+	frontman_runtime_assert( null === $tools->get( 'wp_read_code_snippet' ), 'Inactive Code Snippets must not register read.' );
+	$had_code_snippets = is_plugin_active( 'code-snippets/code-snippets.php' );
+	try {
+		if ( ! $had_code_snippets ) {
+			frontman_runtime_assert( ! is_wp_error( activate_plugin( 'code-snippets/code-snippets.php' ) ), 'Code Snippets activation failed.' );
+		}
+		frontman_runtime_process_case( 'code-snippets' );
+	} finally {
+		if ( ! $had_code_snippets ) {
+			deactivate_plugins( 'code-snippets/code-snippets.php' );
+		}
+		frontman_runtime_same( $had_code_snippets, is_plugin_active( 'code-snippets/code-snippets.php' ), 'Runtime cases must restore Code Snippets activation state.' );
+	}
+}
 $unavailable = frontman_runtime_call( $tools, 'wp_list_languages', [] );
 frontman_runtime_assert( empty( $unavailable['isError'] ), 'Language discovery must be safe without Polylang.' );
 frontman_runtime_same( false, json_decode( $unavailable['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR )['api_available'], 'Inactive Polylang must be reported unavailable.' );
