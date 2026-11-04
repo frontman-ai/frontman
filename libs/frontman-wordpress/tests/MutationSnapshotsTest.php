@@ -712,13 +712,11 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$slash_post->post_name = 'slash-before';
 		$GLOBALS['frontman_test_posts'][11] = $slash_post;
 
-		$nested_post = new WP_Post();
+		$nested_post = clone $post;
 		$nested_post->ID = 12;
 		$nested_post->post_title = 'Nested Blocks';
 		$nested_post->post_content = 'NESTED_BLOCK_FIXTURE';
-		$nested_post->post_excerpt = '';
 		$nested_post->post_status = 'publish';
-		$nested_post->post_type = 'page';
 		$GLOBALS['frontman_test_posts'][12] = $nested_post;
 
 		$navigation = new WP_Post();
@@ -865,12 +863,15 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 	}
 
 	private function test_blocks_include_before_snapshots(): void {
+		$block_post = clone $GLOBALS['frontman_test_posts'][10];
+		$block_post->ID = 14;
+		$GLOBALS['frontman_test_posts'][14] = $block_post;
 		$tool = new Frontman_Tool_Blocks();
-		$listed = $tool->list_blocks( [ 'post_id' => 10 ] );
+		$listed = $tool->list_blocks( [ 'post_id' => 14 ] );
 		$this->assert_same( 2, $listed['block_count'], 'wp_list_blocks only counts named blocks' );
 
 		$updated = $tool->update_block( [
-			'post_id' => 10,
+			'post_id' => 14,
 			'index' => 1,
 			'block_markup' => '<p>Updated Block</p>',
 		] );
@@ -880,14 +881,14 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 
 		$slash_sensitive_block = '<p>Path C:\\tmp\\file and regex /\\d+/</p>';
 		$updated_backslash_block = $tool->update_block( [
-			'post_id' => 10,
+			'post_id' => 14,
 			'index' => 1,
 			'block_markup' => $slash_sensitive_block,
 		] );
 		$this->assert_true( false !== strpos( $updated_backslash_block['after']['post_content'], $slash_sensitive_block ), 'wp_update_block preserves backslashes through WordPress unslashing' );
 
 		$inserted = $tool->insert_block( [
-			'post_id' => 10,
+			'post_id' => 14,
 			'index' => 1,
 			'block_markup' => '<p>Inserted Block</p>',
 		] );
@@ -900,20 +901,20 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 	private function test_block_move_and_delete_snapshots(): void {
 		$tool = new Frontman_Tool_Blocks();
 
-		$moved = $tool->move_block( [ 'post_id' => 10, 'from_index' => 0, 'to_index' => 2 ] );
+		$moved = $tool->move_block( [ 'post_id' => 14, 'from_index' => 0, 'to_index' => 2 ] );
 		$this->assert_same( 3, $moved['before']['blocks']['block_count'], 'wp_move_block captures prior block list' );
 		$this->assert_same( 3, $moved['after']['blocks']['block_count'], 'wp_move_block captures updated block list' );
 		$this->assert_true( false !== strpos( $moved['after']['post_content'], 'C:\\tmp\\file' ), 'wp_move_block preserves existing backslash-sensitive block markup' );
 
 		$this->assert_error_contains(
 			static function() use ( $tool ) {
-				$tool->delete_block( [ 'post_id' => 10, 'index' => 0, 'confirm' => false ] );
+				$tool->delete_block( [ 'post_id' => 14, 'index' => 0, 'confirm' => false ] );
 			},
 			'explicit confirmation',
 			'wp_delete_block requires confirm=true'
 		);
 
-		$deleted = $tool->delete_block( [ 'post_id' => 10, 'index' => 0, 'confirm' => true ] );
+		$deleted = $tool->delete_block( [ 'post_id' => 14, 'index' => 0, 'confirm' => true ] );
 		$this->assert_same( 3, $deleted['before']['blocks']['block_count'], 'wp_delete_block captures prior block list' );
 		$this->assert_same( 2, $deleted['after']['blocks']['block_count'], 'wp_delete_block captures updated block list' );
 		$this->assert_true( false !== strpos( $deleted['after']['post_content'], '<div>Loose HTML</div>' ), 'wp_delete_block preserves freeform HTML blocks' );
@@ -921,6 +922,7 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 	}
 
 	private function test_nested_blocks_use_stable_paths(): void {
+		unset( $GLOBALS['frontman_test_posts'][14] );
 		$tool = new Frontman_Tool_Blocks();
 		$listed = $tool->list_blocks( [ 'post_id' => 12 ] );
 
@@ -968,13 +970,11 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$deleted = $tool->delete_block( [ 'post_id' => 12, 'path' => [ 0, 0, 1 ], 'confirm' => true ] );
 		$this->assert_same( 5, $deleted['after']['blocks']['total_block_count'], 'wp_delete_block deletes nested blocks by path' );
 
-		$same_parent = new WP_Post();
+		$same_parent = clone $GLOBALS['frontman_test_posts'][12];
 		$same_parent->ID = 13;
 		$same_parent->post_title = 'Same Parent Move';
 		$same_parent->post_content = '<p>First</p>' . "\n\n" . '<p>Second</p>';
-		$same_parent->post_excerpt = '';
 		$same_parent->post_status = 'publish';
-		$same_parent->post_type = 'page';
 		$GLOBALS['frontman_test_posts'][13] = $same_parent;
 		$forward = $tool->move_block( [ 'post_id' => 13, 'from_path' => [ 0 ], 'to_index' => 1 ] );
 		$this->assert_same( 'Second', $forward['after']['blocks']['blocks'][0]['innerText'], 'path-based forward moves use final destination indices' );

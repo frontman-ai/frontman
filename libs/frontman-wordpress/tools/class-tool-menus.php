@@ -306,6 +306,9 @@ class Frontman_Tool_Menus {
 	}
 
 	public function create_navigation_menu( array $input ): array {
+		if ( ! current_user_can( 'edit_theme_options' ) ) {
+			throw new Frontman_Tool_Error( 'Creating block navigation requires edit_theme_options.' );
+		}
 		$title = sanitize_text_field( $input['title'] ?? '' );
 		$content = (string) ( $input['content'] ?? '' );
 		if ( '' === $title || '' === $content ) {
@@ -328,6 +331,9 @@ class Frontman_Tool_Menus {
 	public function update_navigation_menu( array $input ): array {
 		$id = absint( $input['id'] ?? 0 );
 		$before = $this->read_navigation_menu( [ 'id' => $id ] );
+		if ( ! current_user_can( 'edit_theme_options' ) || ! current_user_can( 'edit_post', $id ) ) {
+			throw new Frontman_Tool_Error( 'Insufficient permission to update block navigation.' );
+		}
 		$post_data = [ 'ID' => $id ];
 		if ( isset( $input['title'] ) ) {
 			$post_data['post_title'] = sanitize_text_field( $input['title'] );
@@ -353,6 +359,9 @@ class Frontman_Tool_Menus {
 			throw new Frontman_Tool_Error( 'Deletion requires explicit confirmation. Ask the user first, then call again with confirm=true.' );
 		}
 		$before = $this->read_navigation_menu( [ 'id' => $id ] );
+		if ( ! current_user_can( 'edit_theme_options' ) || ! current_user_can( 'delete_post', $id ) ) {
+			throw new Frontman_Tool_Error( 'Insufficient permission to delete block navigation.' );
+		}
 		if ( ! wp_delete_post( $id, true ) ) {
 			throw new Frontman_Tool_Error( "Failed to delete block navigation menu: {$id}" );
 		}

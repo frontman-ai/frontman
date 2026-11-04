@@ -10,6 +10,13 @@ switch ( $_SERVER['HTTP_X_FRONTMAN_SEO_TEST'] ?? '' ) {
 			return $data;
 		} );
 		break;
+	case 'count-post-saves':
+		add_action( 'save_post', static function( int $id ): void {
+			if ( ! wp_is_post_revision( $id ) ) {
+				update_option( 'frontman_multi_edit_save_count', (int) get_option( 'frontman_multi_edit_save_count', 0 ) + 1 );
+			}
+		} );
+		break;
 	case 'preview-race-selection':
 		$inject = static function( int $id ): void {
 			static $inserted = false;
