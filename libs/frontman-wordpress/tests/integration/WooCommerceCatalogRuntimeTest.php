@@ -29,12 +29,6 @@ function catalog_call( Frontman_Tools $tools, string $tool, array $input, bool $
 	return $error ? [] : json_decode( $result['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
 }
 
-$names = array_column( $tools->all_definitions(), 'name' );
-foreach ( [ 'product', 'order', 'customer' ] as $entity ) {
-	catalog_assert( ! in_array( 'wc_create_' . $entity . '_meta', $names, true ), 'Metadata create alias remains registered for ' . $entity );
-	catalog_assert( in_array( 'wc_update_' . $entity . '_meta', $names, true ), 'Metadata update tool missing for ' . $entity );
-}
-
 $admin = get_current_user_id();
 $unrelated = [ get_option( 'blogname' ), get_option( 'woocommerce_currency' ) ];
 foreach ( [ 'woocommerce_shop_page_display', 'woocommerce_category_archive_display' ] as $name ) {
@@ -136,42 +130,7 @@ $product->set_status( 'publish' );
 $product->set_regular_price( '12' );
 $product->set_category_ids( [ $category['term_id'] ] );
 $product->save();
-$order = wc_create_order();
-catalog_assert( ! is_wp_error( $order ), 'Could not create order' );
-$customer = new WC_Customer();
-$customer->set_username( 'frontman-runtime-' . wp_generate_password( 12, false ) );
-$customer->set_email( $customer->get_username() . '@example.com' );
-$customer->set_password( wp_generate_password() );
-$customer->save();
-require_once '/tmp/RuntimeTestSupport.php';
-$cookie = wp_generate_auth_cookie( $admin, time() + HOUR_IN_SECONDS, 'logged_in' );
-$_COOKIE[ LOGGED_IN_COOKIE ] = $cookie;
-$nonce = Frontman_Auth::create_nonce();
-unset( $_COOKIE[ LOGGED_IN_COOKIE ] );
-$http_call = static function( string $name, array $arguments ) use ( $cookie, $nonce ): array {
-	$response = frontman_runtime_tool( $cookie, $nonce, [ 'name' => $name, 'arguments' => $arguments ] );
-	catalog_assert( 200 === $response['status'] && false === $response['body']['isError'], 'HTTP metadata request failed: ' . wp_json_encode( $response ) );
-	return json_decode( $response['body']['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
-};
 try {
-	foreach ( [
-		[ 'product', 'productId', $product ],
-		[ 'order', 'orderId', $order ],
-		[ 'customer', 'customerId', $customer ],
-	] as [ $entity, $id_key, $object ] ) {
-		$input = [ $id_key => $object->get_id(), 'metaKey' => 'frontman_upsert', 'confirm' => true ];
-		$meta_id = null;
-		foreach ( [ 'created', 'updated' ] as $value ) {
-			$http_call( 'wc_update_' . $entity . '_meta', $input + [ 'metaValue' => $value ] );
-			$all_meta = $http_call( 'wc_get_' . $entity . '_meta', [ $id_key => $object->get_id() ] );
-			$matches = array_values( array_filter( $all_meta, static fn( $entry ) => 'frontman_upsert' === ( $entry['key'] ?? null ) ) );
-			catalog_assert( 1 === count( $matches ) && $value === $matches[0]['value'], 'Metadata upsert failed for ' . $entity . ': ' . $value );
-			if ( null !== $meta_id ) {
-				catalog_assert( $meta_id === $matches[0]['id'], 'Metadata update created a duplicate key for ' . $entity );
-			}
-			$meta_id = $matches[0]['id'];
-		}
-	}
 	$meta_input = [ 'productId' => $product->get_id(), 'metaKey' => '_frontman_runtime', 'metaValue' => 'value', 'confirm' => true ];
 	set_error_handler( static function( $severity, $message, $file, $line ) { throw new ErrorException( $message, 0, $severity, $file, $line ); } );
 	try {
@@ -181,6 +140,11 @@ try {
 	} finally {
 		restore_error_handler();
 	}
+	require_once '/tmp/RuntimeTestSupport.php';
+	$cookie = wp_generate_auth_cookie( $admin, time() + HOUR_IN_SECONDS, 'logged_in' );
+	$_COOKIE[ LOGGED_IN_COOKIE ] = $cookie;
+	$nonce = Frontman_Auth::create_nonce();
+	unset( $_COOKIE[ LOGGED_IN_COOKIE ] );
 	foreach ( [ 'value', 2, 2.5, true, null, (object) [ 'nested' => [ 'value' ] ], [ (object) [ 'nested' => 'value' ] ], 'value' ] as $value ) {
 		$response = frontman_runtime_tool( $cookie, $nonce, [ 'name' => 'wc_update_product_meta', 'arguments' => array_merge( $meta_input, [ 'metaValue' => $value ] ) ] );
 		catalog_assert( 200 === $response['status'] && false === $response['body']['isError'], 'HTTP metadata update failed: ' . wp_json_encode( $response ) );
@@ -235,8 +199,6 @@ try {
 	update_option( 'woocommerce_shop_page_id', $old_shop );
 	if ( null === $old_display ) { delete_option( 'woocommerce_shop_page_display' ); } else { update_option( 'woocommerce_shop_page_display', $old_display ); }
 	$product->delete( true );
-	$order->delete( true );
-	$customer->delete( true );
 	wp_delete_term( $category['term_id'], 'product_cat' );
 	wp_delete_post( $shop, true );
 }

@@ -88,6 +88,7 @@ function frontman_runtime_isolated_cases(): array {
 		'surerank' => [ 'file' => 'SureRankRuntimeTest.php', 'root_alias' => false ],
 		'directorist' => [ 'file' => 'DirectoristRuntimeTest.php', 'root_alias' => false ],
 		'super-cache' => [ 'file' => 'SuperCacheRuntimeTest.php', 'root_alias' => false ],
+		'woocommerce-meta' => [ 'file' => 'WooCommerceMetaRuntimeTest.php', 'root_alias' => false ],
 		'polylang' => [ 'file' => 'PolylangRuntimeTest.php', 'root_alias' => false ],
 		'polylang-setup' => [ 'file' => 'PolylangSetupRuntimeTest.php', 'root_alias' => false ],
 		'polylang-cleanup' => [ 'file' => 'PolylangCleanupRuntimeTest.php', 'root_alias' => false ],

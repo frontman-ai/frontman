@@ -235,6 +235,8 @@ unzip -q "$BUILD_DIR/woocommerce.zip" -d "$BUILD_DIR/woocommerce"
 "$RUNTIME" cp "$BUILD_DIR/woocommerce/woocommerce" "$WORDPRESS:/var/www/html/wp-content/plugins/woocommerce"
 "$RUNTIME" exec "$WORDPRESS" php -r 'require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/plugin.php"; $result = activate_plugin("woocommerce/woocommerce.php"); if (is_wp_error($result)) { throw new RuntimeException($result->get_error_message()); }'
 printf 'Testing WooCommerce %s on WordPress %s\n' "$WOOCOMMERCE_VERSION" "$WORDPRESS_VERSION"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/WooCommerceMetaRuntimeTest.php" "$WORDPRESS:/tmp/WooCommerceMetaRuntimeTest.php"
+"$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/RunWordPressRuntimeTest.php woocommerce-meta
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/WidgetVisibilityRuntimeTest.php" "$WORDPRESS:/tmp/WidgetVisibilityRuntimeTest.php"
 "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/WidgetVisibilityRuntimeTest.php
 if [[ "$WOOCOMMERCE_VERSION" == "10.4.3" ]]; then
