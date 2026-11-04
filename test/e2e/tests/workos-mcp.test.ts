@@ -104,7 +104,7 @@ describe("WorkOS MCP OAuth", () => {
 
       if (linked) {
         phase = "existing linked provider setup";
-        fixture(`
+        const sharedProviderId = fixture(`
         alias FrontmanServer.{Accounts, Repo}
         alias FrontmanServer.Accounts.UserIdentity
         {:ok, _} = Application.ensure_all_started(:workos)
@@ -118,7 +118,9 @@ describe("WorkOS MCP OAuth", () => {
           user_id: user.id, provider: "github", provider_id: other.id}))
         Repo.insert!(UserIdentity.changeset(%UserIdentity{}, %{
           user_id: second.id, provider: "google", provider_id: other.id}))
+        IO.write(other.id)
         `, email, password);
+        console.info(`Retained WorkOS E2E user: ${sharedProviderId}`);
       }
 
       phase = "client registration";
@@ -134,6 +136,7 @@ describe("WorkOS MCP OAuth", () => {
         }),
       });
       if (typeof client.client_id !== "string") throw new Error("Registration returned no client ID");
+      console.info(`Retained WorkOS E2E client: ${client.client_id}`);
 
       const verifier = randomBytes(32).toString("base64url");
       const state = randomBytes(32).toString("base64url");
@@ -156,7 +159,7 @@ describe("WorkOS MCP OAuth", () => {
           response.request().method() === "POST" && response.url().endsWith("/auth/mcp/workos/pending"));
         await page.locator('form[action="/auth/mcp/workos/pending"] button').click();
         expect((await shared).status()).toBe(400);
-        fixture(`
+        const conflictProviderId = fixture(`
           alias FrontmanServer.{Accounts, Repo}
           alias FrontmanServer.Accounts.UserIdentity
           {:ok, _} = Application.ensure_all_started(:workos)
@@ -173,7 +176,9 @@ describe("WorkOS MCP OAuth", () => {
           Repo.insert!(UserIdentity.changeset(%UserIdentity{}, %{
             user_id: user.id, provider: "github", provider_id: conflicting.id,
             provider_name: conflict, provider_avatar_url: other.id}))
+          IO.write(conflicting.id)
         `, email, password);
+        console.info(`Retained WorkOS E2E user: ${conflictProviderId}`);
         await page.goto(authorize.toString());
         phase = "conflicting provider handoff";
         const rejected = page.waitForResponse((response) =>
@@ -239,7 +244,7 @@ describe("WorkOS MCP OAuth", () => {
       expect(claims.exp).toBeGreaterThan(Date.now() / 1000);
 
       phase = "local synthetic user lookup";
-      const localId = fixture(`
+      const [localId, providerId] = fixture(`
         alias FrontmanServer.Accounts
         {:ok, _} = Application.ensure_all_started(:workos)
         user = Accounts.get_user_by_email(System.fetch_env!("E2E_MCP_EMAIL")) || raise "Missing local user"
@@ -249,8 +254,9 @@ describe("WorkOS MCP OAuth", () => {
           [] -> :ok
           [identity] -> true = provider.id == identity.provider_id
         end
-        IO.write(user.id)
-      `, email, password);
+        IO.write(user.id <> " " <> provider.id)
+      `, email, password).split(" ");
+      console.info(`Retained WorkOS E2E user: ${providerId}`);
       const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       expect(uuidPattern.test(localId)).toBe(true);
       expect(typeof claims.sub === "string" && claims.sub === localId).toBe(true);
@@ -259,16 +265,28 @@ describe("WorkOS MCP OAuth", () => {
         (Number.isInteger(claims.nbf) && claims.nbf <= Math.floor(Date.now() / 1000));
       expect(nbfValid).toBe(true);
 
-      const mcp = async (method: string, token?: string) => fetch(resource, {
+      phase = "local WordPress connection setup";
+      const siteId = fixture(`
+        alias FrontmanServer.{Accounts, Repo}
+        alias FrontmanServer.WordPress.Connection
+        {:ok, _} = FrontmanServer.Vault.start_link()
+        user = Accounts.get_user_by_email(System.fetch_env!("E2E_MCP_EMAIL"))
+        connection = %Connection{user_id: user.id} |> Connection.changeset(%{
+          catalog_url: "https://owned.example/tools", call_url: "https://owned.example/tools/call",
+          username: "private-user", password: "private-password"}) |> Repo.insert!()
+        IO.write(connection.id)
+      `, email, password);
+      const mcp = async (method: string, token?: string, name?: string) => fetch(resource, {
         method: "POST",
         headers: {
           accept: "application/json, text/event-stream", "content-type": "application/json",
           "mcp-protocol-version": version, "mcp-method": method,
+          ...(name ? { "mcp-name": name } : {}),
           ...(token ? { authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           jsonrpc: "2.0", id: 1, method,
-          params: { _meta: { "io.modelcontextprotocol/protocolVersion": version,
+          params: { ...(name ? { name, arguments: {} } : {}), _meta: { "io.modelcontextprotocol/protocolVersion": version,
             "io.modelcontextprotocol/clientCapabilities": {} } },
         }),
         signal: AbortSignal.timeout(15_000),
@@ -287,7 +305,7 @@ describe("WorkOS MCP OAuth", () => {
       expect(discovered.error).toBeUndefined();
       expect(discovered.result.resultType).toBe("complete");
       expect(discovered.result.supportedVersions).toContain(version);
-      expect(discovered.result.capabilities).toEqual({});
+      expect(discovered.result.capabilities.tools).toBeDefined();
       phase = "authenticated MCP tools request";
       const tools = await mcp("tools/list", tokens.access_token);
       phase = `authenticated MCP tools listing (HTTP ${tools.status})`;
@@ -297,7 +315,28 @@ describe("WorkOS MCP OAuth", () => {
       expect(catalog.id).toBe(1);
       expect(catalog.error).toBeUndefined();
       expect(catalog.result.resultType).toBe("complete");
-      expect(catalog.result.tools).toEqual([]);
+      expect(catalog.result.tools).toEqual([expect.objectContaining({
+        name: "list_sites", inputSchema: { type: "object", properties: {} },
+      })]);
+      phase = "authenticated MCP site listing";
+      for (const token of [undefined, "invalid-token"]) {
+        const denied = await mcp("tools/call", token, "list_sites");
+        expect(denied.status).toBe(401);
+        expect(denied.headers.get("www-authenticate")).toContain("Bearer");
+      }
+      const response = await mcp("tools/call", tokens.access_token, "list_sites");
+      expect(response.status).toBe(200);
+      const listing = await response.json();
+      expect(listing.jsonrpc).toBe("2.0");
+      expect(listing.id).toBe(1);
+      expect(listing.error).toBeUndefined();
+      expect(listing.result.resultType).toBe("complete");
+      expect(listing.result.isError).toBe(false);
+      expect(listing.result.content).toHaveLength(1);
+      expect(JSON.parse(listing.result.content[0].text)).toEqual({
+        sites: [{ id: siteId, label: "owned.example" }],
+      });
+      expect(JSON.stringify(listing)).not.toMatch(/private-user|private-password|\/tools/);
     } catch {
       failure = new Error(`WorkOS MCP OAuth failed during ${phase}; details are suppressed to protect credentials`);
     } finally {

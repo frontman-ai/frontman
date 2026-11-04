@@ -11,6 +11,14 @@ defmodule FrontmanServer.WordPress do
   alias FrontmanServer.{PublicURL, Repo}
   alias FrontmanServer.WordPress.Connection
 
+  def list_sites(%Scope{} = scope) do
+    scope
+    |> Scope.user_id()
+    |> Connection.sites_for_user()
+    |> Repo.all()
+    |> Enum.map(fn site -> %{id: site.id, label: URI.parse(site.catalog_url).host} end)
+  end
+
   def connect(%Scope{} = scope, %{
         "catalog_url" => catalog_url,
         "call_url" => call_url,
