@@ -5,7 +5,7 @@ defmodule FrontmanServerWeb.MCP.Server do
   @server_version Mix.Project.config()[:version]
   @input_keywords ~w(type description title default enum const minimum maximum minLength
                      maxLength minItems maxItems pattern format multipleOf exclusiveMinimum
-                     exclusiveMaximum)
+                     exclusiveMaximum minProperties maxProperties)
 
   use Anubis.Server, name: @server_name, version: @server_version, capabilities: [:tools]
 

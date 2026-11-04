@@ -202,23 +202,20 @@ try {
 	$mcp_denied( $mcp_request( $mcp_credentials ) );
 	$mcp_denied( $mcp_discover( $mcp_credentials ) );
 	update_option( 'frontman_mcp_enabled', true );
-	$read_definition = Frontman_Tools::instance()->get( 'wp_read_post' );
-	frontman_runtime_assert( is_callable( $read_definition->remote_validator ?? null ), 'Read definition owns remote validation' );
-	frontman_runtime_same( true, ( $read_definition->remote_validator )( (object) [ 'id' => $mcp_post ] ), 'Registered validator accepts the real post ID' );
-	foreach ( Frontman_Tools::instance()->all_definitions() as $definition ) {
-		$registered = Frontman_Tools::instance()->get( $definition['name'] );
-		frontman_runtime_same( 'wp_read_post' === $registered->name, null !== $registered->remote_validator, 'Only the registered read definition has a remote contract' );
-	}
 	$catalog = $mcp_discover( $mcp_credentials );
 	frontman_runtime_same( 200, $catalog['status'], 'Application Password discovery without cookies succeeds' );
 	$catalog = json_decode( $catalog['body'], true, 512, JSON_THROW_ON_ERROR );
-	$definitions = array_values( array_filter( Frontman_Tools::instance()->all_definitions(), static fn( $tool ) => 'wp_read_post' === $tool['name'] ) );
-	frontman_runtime_same( [ 'tools' => $definitions ], $catalog, 'Discovery preserves exactly the registered read definition and argument schema' );
-	$response = $mcp_request( $mcp_credentials, $catalog['tools'][0]['name'], $mcp_post );
+	$browser_catalog = frontman_runtime_http( 'GET', '/index.php/frontman/tools', $cookie, $nonce, null );
+	frontman_runtime_same( json_decode( $browser_catalog['body'], true )['tools'], $catalog['tools'], 'Discovery preserves the browser catalog and argument schemas' );
+	$response = $mcp_request( $mcp_credentials, 'wp_read_post', $mcp_post );
 	frontman_runtime_same( 200, $response['status'], 'Application Password HTTP request without cookies succeeds' );
 	$result = json_decode( $response['body'], true, 512, JSON_THROW_ON_ERROR );
 	frontman_runtime_same( false, $result['isError'], 'MCP read succeeds' );
 	frontman_runtime_same( 'Private MCP bytes', json_decode( $result['content'][0]['text'], true )['content'], 'MCP preserves raw content' );
+	$write = frontman_runtime_http( 'POST', '/?rest_route=/frontman/v1/tools/call', '', null, wp_json_encode( [ 'name' => 'wp_update_post', 'arguments' => [ 'id' => $mcp_post, 'title' => 'MCP updated fixture' ] ] ), '', $mcp_credentials );
+	frontman_runtime_same( 200, $write['status'], 'MCP write request succeeds' );
+	frontman_runtime_same( false, json_decode( $write['body'], true )['isError'], 'MCP write succeeds' );
+	frontman_runtime_same( 'MCP updated fixture', json_decode( json_decode( $mcp_request( $mcp_credentials )['body'], true )['content'][0]['text'], true )['title'], 'MCP read sees the write' );
 	$elementor = new Frontman_Tools(); ( new Frontman_Tool_Elementor() )->register( $elementor );
 	$float = $elementor->sanitize_input( 'wp_elementor_save_page_data', json_decode( '{"post_id":1,"data":[{"id":"a","elType":"widget","settings":{"slider":{"size":1.0}}}],"confirm":true}' ), true );
 	frontman_runtime_same( 1.0, $float['data'][0]['settings']['slider']['size'], 'Nested free-form whole float retains its JSON type' );
@@ -289,6 +286,8 @@ try {
 		$name = 0 === $index ? 'wp_create_post' : 'wp_update_post';
 		$browser = frontman_runtime_tool( $cookie, $nonce, [], '{"name":"' . $name . '","arguments":' . $arguments . '}' );
 		frontman_runtime_assert( $browser['body']['isError'], 'Browser mutation must reject invalid arguments: ' . $arguments );
+		$remote = frontman_runtime_http( 'POST', '/?rest_route=/frontman/v1/tools/call', '', null, '{"name":"' . $name . '","arguments":' . $arguments . '}', '', $mcp_credentials );
+		frontman_runtime_same( 400, $remote['status'], 'MCP mutation must reject invalid arguments: ' . $arguments );
 		frontman_runtime_same( $before, $wpdb->get_results( "SELECT * FROM {$wpdb->posts} ORDER BY ID", ARRAY_A ), 'Invalid mutation must not write posts or revisions' );
 	}
 	foreach ( [ '{"id":[999]}', '{"id":{}}', '{"id":null}', '{"id":true}', '{"id":"1"}', '{"id":1.0}', '{"id":1.5}', '{"id":0}', '{"id":-1}', '{"id":9223372036854775808}', '{"id":' . $mcp_post . ',"unexpected":true}', '{}', '[]', 'true', 'null' ] as $arguments ) {
@@ -314,10 +313,8 @@ try {
 	$mcp_denied( $mcp_request( $mcp_credentials ) );
 	$mcp_denied( $mcp_discover( $mcp_credentials ) );
 	$actor->set_role( 'administrator' );
-	foreach ( array_merge( array_column( Frontman_Tools::instance()->all_definitions(), 'name' ), [ 'unknown', 'WP_READ_POST' ] ) as $name ) {
-		if ( 'wp_read_post' !== $name ) {
-			$mcp_denied( $mcp_request( $mcp_credentials, $name ) );
-		}
+	foreach ( [ 'unknown', 'WP_READ_POST' ] as $name ) {
+		$mcp_denied( $mcp_request( $mcp_credentials, $name ) );
 	}
 	frontman_runtime_same( 'Private MCP bytes', $wpdb->get_var( $wpdb->prepare( "SELECT post_content FROM {$wpdb->posts} WHERE ID = %d", $mcp_post ) ), 'Denied tools did not mutate the post' );
 	update_option( 'frontman_mcp_enabled', false );
