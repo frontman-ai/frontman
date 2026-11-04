@@ -57,6 +57,14 @@ for asset in bridge.js bridge-licenses.txt; do
     "frontman-wordpress-org-v${VERSION}/trunk/assets/$asset" | cmp "$source" -
 done
 
+for destination in "$EXPORT_DIR/trunk" "$EXPORT_DIR/tags/$VERSION" \
+  "$ROOT_DIR/dist/frontman-wordpress-package/github/frontman-agentic-ai-editor"; do
+  if [ -e "$destination/AGENTS.md" ]; then
+    printf 'Development instructions leaked into plugin package: %s\n' "$destination" >&2
+    exit 1
+  fi
+done
+
 check_publish_status 0
 grep -q 'DRY_RUN=1; skipping WordPress.org SVN commit' "$TEMP_DIR/output"
 for forbidden in unexpected.sh .env; do
