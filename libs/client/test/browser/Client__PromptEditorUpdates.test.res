@@ -16,6 +16,18 @@ type locatorOptions = {@live name: string}
 @module("react-dom/client")
 external createRoot: DomTypes.element => ReactDOM.Client.Root.t = "createRoot"
 
+// Temporary diagnostics: capture the DOM and ProseMirror document at test boundaries.
+let snapshot: (DomTypes.element, string, array<bool>) => unit = %raw(`
+  function(container, label, changes) {
+    const dom = container.querySelector('[role="textbox"]');
+    const desc = dom?.pmViewDesc;
+    console.info("PROMPT_DIAGNOSTIC", JSON.stringify({
+      label, time: performance.now(), changes: [...changes],
+      html: dom?.outerHTML, document: desc?.node?.toJSON(), dirty: desc?.dirty
+    }));
+  }
+`)
+
 testAsync(
   "typing only notifies content-presence transitions and preserves submitted text",
   async t => {
@@ -34,7 +46,10 @@ testAsync(
             isEnrichingAnnotations=false
             hasAnnotations=false
             commandsRef
-            onHasContentChange={value => changes->Array.push(value)}
+            onHasContentChange={value => {
+              changes->Array.push(value)
+              snapshot(container, "callback", changes)
+            }}
             onSubmit={(text, _) => {
               submitted := text
               Promise.resolve(Ok())
@@ -45,6 +60,7 @@ testAsync(
         </React.StrictMode>,
       )
     onTestFinished(() => {
+      snapshot(container, "test finished", changes)
       root->ReactDOM.Client.Root.unmount()
       container->Element.remove
     })
@@ -76,8 +92,11 @@ testAsync(
     await userEvent->keyboard("{Enter}")
     await waitFor(() => t->expect(submitted.contents)->Expect.toBe(text))
     await waitFor(() => t->expect(changes)->Expect.toEqual([true, false]))
+    snapshot(container, "before fill", changes)
     await textbox->fill("Another draft")
+    snapshot(container, "after fill", changes)
     await textbox->fill("")
+    snapshot(container, "after clear", changes)
     await waitFor(() => t->expect(changes)->Expect.toEqual([true, false, true, false]))
   },
 )
