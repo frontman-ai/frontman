@@ -19,11 +19,21 @@ defmodule FrontmanServer.WordPress do
     |> Enum.map(fn site -> %{id: site.id, label: URI.parse(site.catalog_url).host} end)
   end
 
-  def connections(%Scope{} = scope),
-    do: scope |> Scope.user_id() |> Connection.owned() |> Repo.all()
-
-  def catalog(%Connection{} = connection, timeout) when timeout > 0 do
-    request(connection.catalog_url, connection.username, connection.password, :get, nil, timeout)
+  def catalog(%Scope{} = scope, id, timeout) when timeout > 0 do
+    with {:ok, id} <- Ecto.UUID.cast(id),
+         %Connection{} = connection <-
+           scope |> Scope.user_id() |> Connection.owned() |> Repo.get(id) do
+      request(
+        connection.catalog_url,
+        connection.username,
+        connection.password,
+        :get,
+        nil,
+        timeout
+      )
+    else
+      _ -> {:error, :connection_failed}
+    end
   end
 
   def call(%Scope{} = scope, id, name, arguments) do

@@ -5,7 +5,9 @@ defmodule FrontmanServerWeb.MCPSitesTest do
   alias Anubis.Server.Handlers.Tools
   alias Anubis.Server.Transport.StreamableHTTP.Plug, as: AnubisPlug
   alias Anubis.Server.Transport.StreamableHTTP.StatelessBinding
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
+  alias FrontmanServer.WordPress
   alias FrontmanServer.WordPress.Connection
   alias FrontmanServerWeb.MCP.Server
 
@@ -53,7 +55,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
   test "parsed SDK calls reject absent, malformed and foreign selectors before discovery" do
     owner = AccountsFixtures.user_fixture()
     other = AccountsFixtures.user_fixture()
-    insert_site(owner, "owner.invalid")
+    owned = insert_site(owner, "owner.invalid")
     foreign = insert_site(other, "foreign.invalid")
     frame = %Frame{context: %Context{auth: %{sub: owner.id}}, assigns: %{mcp_request: :original}}
     handler = {__MODULE__, make_ref()}
@@ -71,6 +73,12 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
       assert {:error, _, returned} = Server.handle_request(request, frame)
       assert returned.assigns.mcp_request == :original
+    end
+
+    Repo.delete!(owned)
+
+    for id <- [foreign.id, "bad", owned.id] do
+      assert {:error, :connection_failed} = WordPress.catalog(Scope.for_user(owner), id, 1_000)
     end
 
     refute_received {:outbound, "owner.invalid"}

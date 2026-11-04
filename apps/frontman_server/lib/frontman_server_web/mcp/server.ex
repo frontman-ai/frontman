@@ -48,7 +48,7 @@ defmodule FrontmanServerWeb.MCP.Server do
     ]
 
     with {:ok, scope} <- scope(frame),
-         connections = WordPress.connections(scope),
+         connections = WordPress.list_sites(scope),
          true <- permitted_discovery?(frame, connections) do
       selected =
         case frame.assigns.mcp_request do
@@ -60,7 +60,11 @@ defmodule FrontmanServerWeb.MCP.Server do
         end
 
       connections = Enum.sort_by(connections, &(&1.id != selected))
-      Enum.sort_by(fixed ++ remote_tools(connections, Enum.map(fixed, & &1.name)), & &1.name)
+
+      Enum.sort_by(
+        fixed ++ remote_tools(scope, connections, Enum.map(fixed, & &1.name)),
+        & &1.name
+      )
     else
       _ -> fixed
     end
@@ -140,14 +144,14 @@ defmodule FrontmanServerWeb.MCP.Server do
 
   defp permitted_discovery?(_, _), do: false
 
-  defp remote_tools(connections, reserved) do
+  defp remote_tools(scope, connections, reserved) do
     deadline = System.monotonic_time(:millisecond) + 6_000
 
     connections
     |> Task.async_stream(
       fn connection ->
         remaining = deadline - System.monotonic_time(:millisecond)
-        result = if remaining > 0, do: WordPress.catalog(connection, remaining)
+        result = if remaining > 0, do: WordPress.catalog(scope, connection.id, remaining)
         {connection.id, result}
       end,
       max_concurrency: 32,
