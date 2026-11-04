@@ -104,6 +104,12 @@ Results confirm stored overrides, not rendered HTML or search-engine indexing. Y
 
 Explicit social overrides stay unchanged and can differ from the SEO title or description. Persistence errors report observed state or mark readback as uncertain. A successful result for one page does not establish success for other pages.
 
+== Code Snippets Inspection ==
+
+On single-site installations with Code Snippets 4.0 or later active, `wp_search_code_snippets` searches stored snippet titles and code for a literal string and returns up to 20 matches without source. `wp_read_code_snippet` reads one match by ID, including stored source, activation state, and scope. Multisite and earlier plugin versions are not yet supported. Both tools are read-only and require Code Snippets management permission.
+
+An unavailable error does not mean the snippet has never failed: save-time errors are not necessarily persisted. Stored source and activation state do not establish that a shortcode is registered or that the current page executes the snippet. No snippet is activated, validated, or run by these tools.
+
 == Public Text Files ==
 
 `wp_read_public_file` and `wp_write_public_file` support only `robots.txt`, `llms.txt`, and `llms-full.txt` at the site root. They do not expose theme, plugin, or arbitrary files. Each file supports at most 128 KiB of UTF-8 text.

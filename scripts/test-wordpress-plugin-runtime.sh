@@ -71,6 +71,9 @@ unzip -q "$BUILD_DIR/elementor.zip" -d "$BUILD_DIR/elementor"
 curl -fsSL 'https://downloads.wordpress.org/plugin/wp-super-cache.3.0.3.zip' -o "$BUILD_DIR/wp-super-cache.zip"
 printf '%s  %s\n' '5d1a171541cfc864b1b8b3ed43294e866b809aedb99bb4b34465137ecdcef151' "$BUILD_DIR/wp-super-cache.zip" | sha256sum --check --status
 unzip -q "$BUILD_DIR/wp-super-cache.zip" -d "$BUILD_DIR/wp-super-cache"
+curl -fsSL 'https://downloads.wordpress.org/plugin/code-snippets.4.0.0.zip' -o "$BUILD_DIR/code-snippets.zip"
+printf '%s  %s\n' 'be7e64f8e1c77b5fcb019b4014bb76c6bf231f8401ad4cf4cd80b81cdf2eb70a' "$BUILD_DIR/code-snippets.zip" | sha256sum --check --status
+unzip -q "$BUILD_DIR/code-snippets.zip" -d "$BUILD_DIR/code-snippets"
 POLYLANG_VERSION=""
 case "$WORDPRESS_VERSION" in
   6.[0-4].*) printf 'Skipping Polylang: version 3.8.3 requires WordPress 6.5+.\n' ;;
@@ -136,6 +139,7 @@ done
 "$RUNTIME" cp "$BUILD_DIR/megamenu/megamenu" "$WORDPRESS:/var/www/html/wp-content/plugins/megamenu"
 "$RUNTIME" cp "$BUILD_DIR/elementor/elementor" "$WORDPRESS:/var/www/html/wp-content/plugins/elementor"
 "$RUNTIME" cp "$BUILD_DIR/wp-super-cache/wp-super-cache" "$WORDPRESS:/var/www/html/wp-content/plugins/wp-super-cache"
+"$RUNTIME" cp "$BUILD_DIR/code-snippets/code-snippets" "$WORDPRESS:/var/www/html/wp-content/plugins/code-snippets"
 if [[ -n "$POLYLANG_VERSION" ]]; then
   "$RUNTIME" cp "$BUILD_DIR/polylang/polylang" "$WORDPRESS:/var/www/html/wp-content/plugins/polylang"
 fi
@@ -154,6 +158,7 @@ unzip -q "$BUILD_DIR/astra-runtime.zip" -d "$BUILD_DIR/astra-runtime"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ElementorSnapshotRuntimeTest.php" "$WORDPRESS:/tmp/ElementorSnapshotRuntimeTest.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ActivateWordPressPlugin.php" "$WORDPRESS:/tmp/ActivateWordPressPlugin.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/RunWordPressRuntimeTest.php" "$WORDPRESS:/tmp/RunWordPressRuntimeTest.php"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/CodeSnippetsRuntimeTest.php" "$WORDPRESS:/tmp/CodeSnippetsRuntimeTest.php"
 for file in RuntimeTestSupport CoreRuntimeCases IsolatedRuntimeCases InstallationPathsRuntimeTest SeoCoexistenceRuntimeTest SureRankRuntimeTest DirectoristRuntimeTest; do
   "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/$file.php" "$WORDPRESS:/tmp/$file.php"
 done
