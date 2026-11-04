@@ -88,7 +88,7 @@ defmodule FrontmanServerWeb.MCP.Server do
     end
   end
 
-  def tool_response(%{"resultType" => "complete", "content" => content} = result) do
+  defp tool_response(%{"resultType" => "complete", "content" => content} = result) do
     with true <- Schema.bounded?(result),
          :ok <- Schema.validate_call_tool_result(result) do
       {:ok,
@@ -104,7 +104,7 @@ defmodule FrontmanServerWeb.MCP.Server do
     end
   end
 
-  def tool_response(_), do: :error
+  defp tool_response(_), do: :error
 
   defp scope(frame) do
     with subject when is_binary(subject) <- Frame.subject(frame),
@@ -195,6 +195,7 @@ defmodule FrontmanServerWeb.MCP.Server do
       ids = Enum.map(entries, &elem(&1, 0))
 
       if name not in reserved and length(Enum.uniq(schemas)) == 1 and
+           Enum.all?(schemas, &(not Map.has_key?(&1, "outputSchema"))) and
            supported_input?(tool["inputSchema"]) do
         [remote_tool(tool, ids)]
       else
@@ -217,7 +218,6 @@ defmodule FrontmanServerWeb.MCP.Server do
       title: tool["title"],
       description: tool["description"],
       input_schema: schema,
-      output_schema: tool["outputSchema"],
       annotations: tool["annotations"],
       icons: tool["icons"],
       meta: tool["_meta"],
@@ -230,8 +230,7 @@ defmodule FrontmanServerWeb.MCP.Server do
 
         _ ->
           {:error, ["Site unavailable"]}
-      end,
-      validate_output: fn output -> {:ok, output} end
+      end
     }
   end
 

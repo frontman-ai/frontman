@@ -1,7 +1,7 @@
 defmodule FrontmanServerWeb.MCPSitesTest do
   use FrontmanServer.DataCase, async: false
 
-  alias Anubis.Server.{Context, Frame, Response}
+  alias Anubis.Server.{Context, Frame}
   alias Anubis.Server.Handlers.Tools
   alias Anubis.Server.Transport.StreamableHTTP.Plug, as: AnubisPlug
   alias Anubis.Server.Transport.StreamableHTTP.StatelessBinding
@@ -179,7 +179,8 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
     [{site, first} | _] = entries
     other = Ecto.UUID.generate()
-    conflict = Map.put(first, "outputSchema", %{"type" => "object"})
+    unsupported = Map.put(first, "outputSchema", %{"type" => "object"})
+    conflict = Map.put(first, "inputSchema", %{"type" => "object"})
     reserved = %{"name" => "list_sites", "inputSchema" => schema}
     tools = Server.catalog_tools(entries ++ [{other, first}, {other, reserved}], ["list_sites"])
 
@@ -193,37 +194,13 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
     assert {:error, _} = tool.validate_input.(%{"site_id" => Ecto.UUID.generate()})
 
+    assert Server.catalog_tools([{other, unsupported}], []) == []
+    assert Server.catalog_tools([{other, Map.put(first, "outputSchema", nil)}], []) == []
+
     refute Enum.any?(
              Server.catalog_tools(entries ++ [{other, conflict}], []),
              &(&1.name == first["name"])
            )
-  end
-
-  test "passive output metadata does not validate or change structured content" do
-    input = %{"type" => "object", "properties" => %{}}
-    output = %{"type" => "object", "required" => ["missing"]}
-
-    [tool] =
-      Server.catalog_tools(
-        [{"site", %{"name" => "read", "inputSchema" => input, "outputSchema" => output}}],
-        []
-      )
-
-    structured = %{"different" => true}
-    assert {:ok, ^structured} = tool.validate_output.(structured)
-
-    result = %{
-      "resultType" => "complete",
-      "content" => [%{"type" => "text", "text" => "raw"}],
-      "structuredContent" => structured,
-      "isError" => true,
-      "_meta" => %{"source" => "wp"}
-    }
-
-    assert {:ok, response} = Server.tool_response(result)
-    assert Response.to_protocol(response) == Map.delete(result, "resultType")
-    assert :error = Server.tool_response(Map.put(result, "_meta", "invalid"))
-    assert :error = Server.tool_response(Map.put(result, "resultType", "input_required"))
   end
 
   def record_request(_event, _measurements, %{request: request}, test) do
