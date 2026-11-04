@@ -132,6 +132,14 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
     assert Server.supported_input?(base)
 
+    assert Server.supported_input?(
+             put_in(base, ["properties", "settings"], %{
+               "type" => "object",
+               "properties" => %{},
+               "minProperties" => 1
+             })
+           )
+
     for schema <- [
           Map.put(base, "$ref", "#/$defs/id"),
           Map.put(base, "const", %{}),
@@ -182,16 +190,22 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     assert {:reply, %{"tools" => tools}, _} =
              Server.handle_request(%{"method" => "tools/list"}, frame)
 
+    site_id = user |> Scope.for_user() |> WordPress.list_sites() |> List.last() |> Map.fetch!(:id)
+    assert {:ok, %{"tools" => catalog}} = WordPress.catalog(Scope.for_user(user), site_id, 5_000)
+    expected = catalog |> Enum.map(& &1["name"]) |> MapSet.new()
+    actual = tools |> Enum.map(& &1.name) |> MapSet.new() |> MapSet.delete("list_sites")
+    assert MapSet.difference(expected, actual) == MapSet.new()
+    assert MapSet.difference(actual, expected) == MapSet.new()
+
+    if System.get_env("FRONTMAN_WP_EXPECT_WOO") == "1" do
+      assert MapSet.member?(expected, "wc_create_product")
+    end
+
     tool = Enum.find(tools, &(&1.name == "wp_read_post"))
 
     assert {:ok, _} =
              tool.validate_input.(%{
-               "site_id" =>
-                 user
-                 |> Scope.for_user()
-                 |> WordPress.list_sites()
-                 |> List.last()
-                 |> Map.fetch!(:id)
+               "site_id" => site_id
              })
   end
 
