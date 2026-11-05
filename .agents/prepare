@@ -2,4 +2,4 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 make prepare-deps
-printf '\nJS and server dependencies ready. For the full stack: make delta-prepare, then make delta-dev in a Delta background terminal.\n'
+printf '\nJS and server dependencies ready.\nFor the full stack on Linux with Podman: make delta-prepare, then make delta-dev in a Delta background terminal.\n'
