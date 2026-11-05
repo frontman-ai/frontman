@@ -117,11 +117,7 @@ class Frontman_Tool_Posts {
 				],
 				'required' => [ 'id' ],
 			],
-			[ $this, 'read_post' ],
-			null,
-			true,
-			false,
-			static fn( \stdClass $input ): bool => true
+			[ $this, 'read_post' ]
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(

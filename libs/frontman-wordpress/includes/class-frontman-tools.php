@@ -34,8 +34,6 @@ class Frontman_Tool_Definition {
 	public bool   $preserve_input_strings;
 	/** @var callable(array): array */
 	public $handler;
-	/** @var null|callable(\stdClass): bool Remote opt-in; validate native JSON before sanitization. */
-	public $remote_validator;
 
 	/**
 	 * @param string   $name             Tool name (e.g. "wp_list_posts").
@@ -45,7 +43,6 @@ class Frontman_Tool_Definition {
 	 * @param string|null $access              Tool access level: read, write, or read-write. Inferred from name when omitted.
 	 * @param bool     $visible_to_agent       Whether the agent can see this tool.
 	 * @param bool     $preserve_input_strings Whether schema sanitization should preserve raw string values for downstream API validation.
-	 * @param callable|null $remote_validator Remote opt-in. Return true for valid decoded JSON arguments, false for HTTP 400.
 	 */
 	public function __construct(
 		string $name,
@@ -54,8 +51,7 @@ class Frontman_Tool_Definition {
 		callable $handler,
 		?string $access = null,
 		bool $visible_to_agent = true,
-		bool $preserve_input_strings = false,
-		?callable $remote_validator = null
+		bool $preserve_input_strings = false
 	) {
 		$this->name                   = $name;
 		$this->description            = $description;
@@ -64,7 +60,6 @@ class Frontman_Tool_Definition {
 		$this->handler                = $handler;
 		$this->visible_to_agent       = $visible_to_agent;
 		$this->preserve_input_strings = $preserve_input_strings;
-		$this->remote_validator       = $remote_validator;
 	}
 
 	/**
@@ -75,9 +70,20 @@ class Frontman_Tool_Definition {
 			'name'           => $this->name,
 			'description'    => $this->description,
 			'access'         => $this->access,
-			'inputSchema'    => $this->input_schema,
+			'inputSchema'    => self::serialize_schema( $this->input_schema ),
 			'visibleToAgent' => $this->visible_to_agent,
 		];
+	}
+
+	private static function serialize_schema( array $schema ): array {
+		if ( isset( $schema['properties'] ) && is_array( $schema['properties'] ) ) {
+			$properties = array_map( [ self::class, 'serialize_schema' ], $schema['properties'] );
+			$schema['properties'] = (object) $properties;
+		}
+		if ( isset( $schema['items'] ) && is_array( $schema['items'] ) ) {
+			$schema['items'] = self::serialize_schema( $schema['items'] );
+		}
+		return $schema;
 	}
 
 	private function normalize_access( string $access ): string {
@@ -142,15 +148,15 @@ class Frontman_Tools {
 	}
 
 	/**
-	 * Return serializable tool definitions, optionally limited to remote contracts.
+	 * Return serializable tool definitions.
 	 *
 	 * @return array[]
 	 */
-	public function all_definitions( bool $remote_only = false ): array {
+	public function all_definitions(): array {
 		return array_values(
 			array_map(
 				function( Frontman_Tool_Definition $t ) { return $t->to_array(); },
-				array_filter( $this->tools, static fn( Frontman_Tool_Definition $t ) => ! $remote_only || null !== $t->remote_validator )
+				$this->tools
 			)
 		);
 	}

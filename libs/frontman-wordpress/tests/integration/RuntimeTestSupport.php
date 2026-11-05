@@ -42,7 +42,7 @@ function frontman_runtime_http( string $method, string $path, string $cookie = '
 			'header' => implode( "\r\n", array_filter( $headers ) ) . "\r\nContent-Type: application/json\r\n",
 			'ignore_errors' => true, 'follow_location' => 0,
 			'method' => $method,
-		], 'ssl' => [ 'cafile' => '/tmp/frontman-test.crt' ] ] )
+		], 'ssl' => [ 'cafile' => '/tmp/ca.crt' ] ] )
 	);
 	preg_match_all( '/^HTTP\/\S+\s+(\d{3})/m', implode( "\n", $http_response_header ?? [] ), $status );
 	preg_match( '/<title[^>]*>(.*?)<\/title>/is', (string) $response, $title );

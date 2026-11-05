@@ -58,7 +58,7 @@ class Frontman_Router {
 				'methods' => 'GET',
 				'permission_callback' => $permission,
 				'callback' => static function() {
-					return [ 'tools' => Frontman_Tools::instance()->all_definitions( true ) ];
+					return [ 'tools' => Frontman_Tools::instance()->all_definitions() ];
 				},
 			] );
 			register_rest_route( 'frontman/v1', '/tools/call', [
@@ -68,12 +68,11 @@ class Frontman_Router {
 					$tools = Frontman_Tools::instance();
 					$name = $request->get_param( 'name' );
 					$tool = is_string( $name ) ? $tools->get( $name ) : null;
-					if ( ! $tool || null === $tool->remote_validator ) {
+					if ( ! $tool ) {
 						return new WP_Error( 'frontman_mcp_forbidden', 'MCP access denied.', [ 'status' => 403 ] );
 					}
 					$body = json_decode( $request->get_body() );
-					if ( ! is_object( $body ) || ! isset( $body->arguments ) || ! is_object( $body->arguments )
-						|| ! ( $tool->remote_validator )( $body->arguments ) ) {
+					if ( ! is_object( $body ) || ! isset( $body->arguments ) || ! is_object( $body->arguments ) ) {
 						return new WP_Error( 'frontman_mcp_arguments', 'Invalid tool arguments.', [ 'status' => 400 ] );
 					}
 					try {

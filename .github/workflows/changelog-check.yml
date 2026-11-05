@@ -68,6 +68,7 @@ jobs:
 
           declare -A CHANGED_PKGS
           while IFS= read -r file; do
+            if [[ "$file" == libs/frontman-wordpress/tests/* ]]; then continue; fi
             for dir in "${!DIR_TO_PKG[@]}"; do
               if [[ "$file" == "$dir/"* ]]; then
                 pkg="${DIR_TO_PKG[$dir]}"

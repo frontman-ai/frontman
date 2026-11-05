@@ -21,6 +21,7 @@ defmodule FrontmanServer.Protocols.MCP.Schema do
   @discover_result @discover_result_path |> File.read!() |> Jason.decode!() |> JSV.build!()
   @tools_list_result @tools_list_result_path |> File.read!() |> Jason.decode!() |> JSV.build!()
   @call_tool_result @call_tool_result_path |> File.read!() |> Jason.decode!() |> JSV.build!()
+  @input_meta JSV.build!(%{"$ref" => "https://json-schema.org/draft/2020-12/schema"})
 
   @state_only_input_required JSV.build!(%{
                                "type" => "object",
@@ -33,6 +34,10 @@ defmodule FrontmanServer.Protocols.MCP.Schema do
                              })
 
   def validate_discover_result(result), do: validate(result, @discover_result)
+
+  def validate_tools_list_envelope(result), do: validate(result, @tools_list_result)
+  def bounded?(value), do: schema_nodes_remaining(value, 64, 10_000) != :error
+  def validate_input_metadata(value), do: validate(value, @input_meta)
 
   def validate_tools_list_result(result) do
     with :ok <- validate(result, @tools_list_result),
