@@ -110,6 +110,7 @@ try {
 	$_SERVER['HTTPS'] = 'on';
 	update_option( 'frontman_mcp_enabled', false );
 	frontman_runtime_assert( str_contains( $eligibility_render(), 'Enable MCP access' ), 'Disabled MCP explains how to proceed' );
+	frontman_runtime_assert( str_contains( $eligibility_render(), 'including tools that change or delete site content' ), 'MCP disclosure includes destructive tools' );
 	update_option( 'frontman_mcp_enabled', true );
 	frontman_runtime_assert( ! str_contains( $eligibility_render(), 'Enable MCP access' ), 'Saved MCP setting updates feedback' );
 	frontman_runtime_assert( ! str_contains( $eligibility_render(), 'Application Passwords are unavailable' ), 'Eligible administrator has no password blocker' );
@@ -140,11 +141,30 @@ try {
 $connect = static function( string $method, string $auth_cookie, ?string $request_nonce, bool $tls = true ): array {
 	return frontman_runtime_http( $method, '/index.php/frontman/mcp/connect', $auth_cookie, $request_nonce, '{}', '', '', 'wordpress_logged_in_' . md5( get_option( 'siteurl' ) ), $tls );
 };
+$mcp_status = static function( string $auth_cookie ): array {
+	return frontman_runtime_http( 'GET', '/index.php/frontman/mcp/status', $auth_cookie, null, null, '', '', 'wordpress_logged_in_' . md5( get_option( 'siteurl' ) ), true );
+};
+$mcp_access = static function( string $action, string $method, string $auth_cookie, ?string $request_nonce ): array {
+	return frontman_runtime_http( $method, '/index.php/frontman/mcp/' . $action, $auth_cookie, $request_nonce, '{}', '', '', 'wordpress_logged_in_' . md5( get_option( 'siteurl' ) ), true );
+};
 try {
 	$secure_url = 'https://frontman-runtime.example.test/wordpress';
 	update_option( 'siteurl', $secure_url );
 	update_option( 'frontman_mcp_enabled', false );
 	$before = WP_Application_Passwords::get_user_application_passwords( $actor_id );
+	$page = frontman_runtime_http( 'GET', '/index.php/frontman', $cookie, null, null, '', '', 'wordpress_logged_in_' . md5( get_option( 'siteurl' ) ), true );
+	frontman_runtime_same( 200, $page['status'], 'Administrator can open the Frontman page' );
+	frontman_runtime_assert( 1 === preg_match( '~data-wordpress-settings-url="[^"]*/wp-admin/options-general\.php\?page=frontman-diagnostics"~', $page['body'] ), 'Runtime exposes the native settings URL' );
+	$status = $mcp_status( $cookie );
+	frontman_runtime_same( 200, $status['status'], 'Disabled MCP status is available to the administrator without a nonce' );
+	frontman_runtime_same( false, json_decode( $status['body'], true )['enabled'], 'Status reports disabled MCP' );
+	frontman_runtime_assert( false !== stripos( implode( "\n", $status['headers'] ), 'no-store' ), 'Status must not be stored' );
+	frontman_runtime_same( 401, $mcp_status( '' )['status'], 'Status requires authentication' );
+	$actor->set_role( 'subscriber' );
+	frontman_runtime_same( 403, $mcp_status( $cookie )['status'], 'Status requires administrator access' );
+	$actor->set_role( 'administrator' );
+	wp_cache_delete( $actor_id, 'user_meta' );
+	frontman_runtime_same( $before, WP_Application_Passwords::get_user_application_passwords( $actor_id ), 'Status creates no credentials' );
 	$rejected = $connect( 'POST', $cookie, $nonce, false );
 	frontman_runtime_same( 403, $rejected['status'], 'HTTP request must reject connection even with an HTTPS site URL' );
 	frontman_runtime_same( 'frontman_https_required', json_decode( $rejected['body'], true )['code'], 'HTTP rejection identifies HTTPS requirement' );
@@ -179,6 +199,8 @@ try {
 	frontman_runtime_assert( false !== stripos( implode( "\n", $response['headers'] ), 'no-store' ), 'Credential response must not be stored' );
 	$result = json_decode( $response['body'], true, 512, JSON_THROW_ON_ERROR );
 	frontman_runtime_same( [ 'catalog_url', 'call_url', 'username', 'password' ], array_keys( $result ), 'Connection response has the agreed schema' );
+	$status = $mcp_status( $cookie );
+	frontman_runtime_same( [ 'catalog_url' => $result['catalog_url'], 'enabled' => true ], json_decode( $status['body'], true ), 'Status reports the saved setting and exact catalog without credentials' );
 	$wp_rewrite->init();
 	$_SERVER['HTTPS'] = 'on';
 	frontman_runtime_same( get_rest_url( null, 'frontman/v1/tools' ), $result['catalog_url'], 'Connection returns WordPress REST catalog URL' );
@@ -198,10 +220,28 @@ try {
 		return frontman_runtime_http( 'GET', '/?rest_route=/frontman/v1/tools', '', null, null, '', $auth, null, true );
 	};
 	frontman_runtime_same( 200, $catalog()['status'], 'Created password authenticates to the gateway over TLS' );
-	update_option( 'frontman_mcp_enabled', false );
-	frontman_runtime_same( 403, $catalog()['status'], 'Disabling MCP rejects the created credential' );
-	update_option( 'frontman_mcp_enabled', true );
-	frontman_runtime_same( 200, $catalog()['status'], 'Re-enabling MCP restores gateway access' );
+	foreach ( [ 'disable' => false, 'enable' => true ] as $action => $enabled ) {
+		foreach ( [ [ 'GET', $cookie, $nonce ], [ 'POST', '', $nonce ], [ 'POST', $cookie, null ], [ 'POST', $cookie, 'invalid' ] ] as $request ) {
+			frontman_runtime_assert( 200 !== $mcp_access( $action, ...$request )['status'], 'Unapproved MCP access change must fail' );
+			frontman_runtime_same( ! $enabled, json_decode( $mcp_status( $cookie )['body'], true )['enabled'], 'Rejected request does not change MCP access' );
+		}
+		$actor->set_role( 'subscriber' );
+		frontman_runtime_same( 403, $mcp_access( $action, 'POST', $cookie, $nonce )['status'], 'Non-administrator cannot change MCP access' );
+		$actor->set_role( 'administrator' );
+		frontman_runtime_same( ! $enabled, json_decode( $mcp_status( $cookie )['body'], true )['enabled'], 'Non-administrator request does not change MCP access' );
+		foreach ( [ 1, 2 ] as $_ ) {
+			$access = $mcp_access( $action, 'POST', $cookie, $nonce );
+			frontman_runtime_same( 200, $access['status'], 'MCP access change and repeated request succeed' );
+			frontman_runtime_same( [ 'enabled' => $enabled ], json_decode( $access['body'], true ), 'Access response reports saved state' );
+			frontman_runtime_assert( false !== stripos( implode( "\n", $access['headers'] ), 'no-store' ), 'Access response must not be stored' );
+		}
+		frontman_runtime_same( $enabled, json_decode( $mcp_status( $cookie )['body'], true )['enabled'], 'Status reflects access change' );
+		frontman_runtime_same( $enabled ? 200 : 403, $catalog()['status'], 'Access change controls the existing credential' );
+		wp_cache_delete( $actor_id, 'user_meta' );
+		$current = WP_Application_Passwords::get_user_application_passwords( $actor_id );
+		frontman_runtime_same( $created[0]['uuid'], $current[0]['uuid'], 'Access change preserves credential UUID' );
+		frontman_runtime_same( $created[0]['password'], $current[0]['password'], 'Access change preserves credential hash' );
+	}
 	WP_Application_Passwords::delete_application_password( $actor_id, $created[0]['uuid'] );
 	frontman_runtime_assert( 200 !== $catalog()['status'], 'Native credential revocation denies gateway access' );
 } finally {

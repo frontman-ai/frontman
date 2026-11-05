@@ -114,6 +114,19 @@ describe("Client__RuntimeConfig", _t => {
     t->expect(Client__RuntimeConfig.read().wordpressLoginUrl)->Expect.toBe(None)
   })
 
+  test("reads native plugin settings URL without exporting it as metadata", t => {
+    let url = "https://example.test/wordpress/wp-admin/options-general.php?page=frontman-diagnostics"
+    setOldBootstrapRuntime("wordpress")
+    setNativeRuntimeAttribute(~name="data-wordpress-settings-url", ~value=url)
+    let config = Client__RuntimeConfig.read()
+    t->expect(config.wordpressSettingsUrl)->Expect.toBe(Some(url))
+    t->expect(Client__RuntimeConfig.toMeta(config))->Expect.toEqual(
+      JSON.Encode.object(dict{"framework": JSON.Encode.string("wordpress")}),
+    )
+    setOldBootstrapRuntime("nextjs")
+    t->expect(Client__RuntimeConfig.read().wordpressSettingsUrl)->Expect.toBe(None)
+  })
+
   test("other frameworks ignore the native WordPress login URL", t => {
     setNativeLoginUrl("https://example.test/wp-login.php")
     ["nextjs", "vite", "astro"]->Array.forEach(
@@ -262,6 +275,7 @@ describe("Client__RuntimeConfig", _t => {
       wpNonce: Some("nonce-123"),
       wordpressLoginUrl: Some("https://example.com/wp-login.php?redirect_to=frontman"),
       wordpressPluginsUrl: Some("https://example.com/wp-admin/plugins.php"),
+      wordpressSettingsUrl: None,
       projectRoot: None,
       traits: None,
     })

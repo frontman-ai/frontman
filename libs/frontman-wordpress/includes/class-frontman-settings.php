@@ -50,7 +50,7 @@ class Frontman_Settings {
 					<input type="checkbox" name="frontman_mcp_enabled" value="1" <?php checked( Frontman_Sentry::sanitize_enabled( get_option( 'frontman_mcp_enabled', false ) ) ); ?>>
 					<?php esc_html_e( 'Allow MCP connections', 'frontman-agentic-ai-editor' ); ?>
 				</label>
-				<p><?php esc_html_e( 'Allows authenticated post reads only, not a full MCP transport. Requires HTTPS and a WordPress Application Password for an administrator.', 'frontman-agentic-ai-editor' ); ?></p>
+				<p><?php esc_html_e( 'Allows authenticated access to registered Frontman tools, including tools that change or delete site content. Requires HTTPS and a WordPress Application Password for an administrator.', 'frontman-agentic-ai-editor' ); ?></p>
 				<?php if ( ! Frontman_Sentry::sanitize_enabled( get_option( 'frontman_mcp_enabled', false ) ) ) : ?>
 					<p><?php esc_html_e( 'Enable MCP access to prepare this site for a connection.', 'frontman-agentic-ai-editor' ); ?></p>
 				<?php endif; ?>

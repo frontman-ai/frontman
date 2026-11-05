@@ -40,6 +40,7 @@ type parsed = {
   relayBaseUrl: option<string>,
   wpNonce: option<string>,
   wordpressPluginsUrl: option<string>,
+  wordpressSettingsUrl: option<string>,
   wordpressLoginUrl: option<string>,
   projectRoot: option<string>,
   traits: option<array<string>>,
@@ -53,6 +54,7 @@ type t = {
   relayBaseUrl: option<string>,
   wpNonce: option<string>,
   wordpressPluginsUrl: option<string>,
+  wordpressSettingsUrl: option<string>,
   wordpressLoginUrl: option<string>,
   projectRoot: option<string>,
   traits: option<array<string>>,
@@ -92,6 +94,18 @@ let read = (): t => {
     ->Option.filter(value => value->String.trim != "")
   | (_, loginUrl) => loginUrl
   }
+  let wordpressSettingsUrl = switch (framework, config.wordpressSettingsUrl) {
+  | (Wordpress, None) =>
+    WebAPI.DomGlobal.document
+    ->WebAPI.Document.querySelector("#frontman-runtime-config")
+    ->Null.toOption
+    ->Option.flatMap(element =>
+      element->WebAPI.Element.getAttribute("data-wordpress-settings-url")->Null.toOption
+    )
+    ->Option.filter(value => value->String.trim != "")
+  | (Wordpress, url) => url
+  | (Nextjs | Vite | Astro, _) => None
+  }
   {
     framework,
     previewBridge,
@@ -102,6 +116,7 @@ let read = (): t => {
     relayBaseUrl: config.relayBaseUrl,
     wpNonce: config.wpNonce,
     wordpressPluginsUrl: config.wordpressPluginsUrl,
+    wordpressSettingsUrl,
     wordpressLoginUrl,
     projectRoot: config.projectRoot,
     traits: config.traits,

@@ -35,6 +35,11 @@ type rec action =
   | WordPressAuthenticationRequired(option<string>)
   | ReloadAfterWordPressLogin
   | ConnectWordPress
+  | FetchWordPressConnection
+  | SetWordPressAccess(bool)
+  | WordPressConnectionResult({requestId: int, action: action})
+  | WordPressConnectionCompletion({requestId: int, action: action, credentialRisk: bool})
+  | WordPressConnectionChecked({connected: bool, enabled: bool})
   | WordPressConnectionFinished(string)
   | ConnectionAction(Connection.action)
   | ConnectionEvent({signal: WebAPI.EventTypes.abortSignal, action: action})
@@ -158,7 +163,9 @@ type effect =
   | FlushSessionActions(array<action>)
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
   | FetchApiKeySettingsEffect({apiBaseUrl: string})
-  | ConnectWordPressEffect({apiBaseUrl: string})
+  | ConnectWordPressEffect({apiBaseUrl: string, requestId: int})
+  | FetchWordPressConnectionEffect({apiBaseUrl: string, requestId: int})
+  | SetWordPressAccessEffect({enabled: bool, requestId: int})
   | SaveApiKeyEffect({apiBaseUrl: string, provider: apiKeyProvider, key: string})
   | FetchAnthropicOAuthStatusEffect({apiBaseUrl: string})
   | GetAnthropicOAuthUrlEffect({apiBaseUrl: string})
@@ -285,7 +292,10 @@ let defaultState: state = {
   currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
   connection: None,
   wordPressLoginRecovery: None,
-  wordPressConnectionStatus: None,
+  wordPressConnectionStatus: WordPressNotChecked,
+  wordPressConnectionRequestId: 0,
+  wordPressPendingApproval: None,
+  wordPressCredentialWarning: false,
   userProfile: None,
   settingsModalTab: None,
   billingStatus: Client__Billing.NotLoaded,
@@ -327,6 +337,7 @@ let defaultState: state = {
 module Selectors = {
   let wordPressLoginRecovery = (state: state) => state.wordPressLoginRecovery
   let wordPressConnectionStatus = (state: state) => state.wordPressConnectionStatus
+  let wordPressCredentialWarning = (state: state) => state.wordPressCredentialWarning
   let getSession = (state: state) =>
     state.connection->Option.flatMap(Connection.Selectors.getSession)
   let getRelay = (state: state) => state.connection->Option.flatMap(Connection.Selectors.getRelay)
@@ -1458,6 +1469,13 @@ module ConnectionEffects = {
   }
 }
 
+let dispatchWordPressConnectionResult = (dispatch, token, requestId, action, ~credentialRisk=false) => {
+  let action = Client__EmbeddedAuth.loadToken() == token
+    ? action
+    : WordPressConnectionFinished("Your Frontman sign-in changed. Check the connection again.")
+  dispatch(WordPressConnectionCompletion({requestId, action, credentialRisk}))
+}
+
 let handleEffect = (effect, state: state, dispatch: action => unit) => {
   switch effect {
   | ReloadFrontman => WebAPI.Window.current->WebAPI.Window.location->WebAPI.Location.reload
@@ -1617,13 +1635,70 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
       TaskReducer.handleEffect(taskEffect, ~dispatch=taskDispatch, ~delegate)
     }
   | FetchApiKeySettingsEffect({apiBaseUrl}) => fetchApiKeySettingsImpl(dispatch, ~apiBaseUrl)
-  | ConnectWordPressEffect({apiBaseUrl}) =>
+  | SetWordPressAccessEffect({enabled, requestId}) =>
+    let token = Client__EmbeddedAuth.loadToken()
+    let dispatch = action => dispatchWordPressConnectionResult(dispatch, token, requestId, action)
+    let update = async () => {
+      try {
+        let runtime = Client__RuntimeConfig.read()
+        let relay = Client__WordPressRelay.makeConfig(~baseUrl=Client__RelayBaseUrl.current(), ~nonce=runtime.wpNonce)
+        let operation = enabled ? "enable" : "disable"
+        let response = await relay.fetch(`${relay.baseUrl}/frontman/mcp/${operation}`, {method: "POST", signal: Null.make(WebAPI.AbortSignal.timeout(30000))})
+        if response.ok {
+          let json = await response->WebAPI.Response.json
+          let saved = json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.wordPressAccessStatusSchema)
+          dispatch(WordPressConnectionChecked({connected: true, enabled: saved.enabled}))
+        } else {
+          dispatch(WordPressConnectionFinished("Could not change MCP access. Check the connection before trying again."))
+        }
+      } catch {
+      | _ => dispatch(WordPressConnectionFinished("Could not confirm the MCP access change. Check the connection before trying again."))
+      }
+    }
+    update()->ignore
+  | FetchWordPressConnectionEffect({apiBaseUrl, requestId}) =>
+    let token = Client__EmbeddedAuth.loadToken()
+    let dispatch = action => dispatchWordPressConnectionResult(dispatch, token, requestId, action)
+    let check = async () => {
+      try {
+        switch (token, Client__EmbeddedAuth.headers()) {
+        | (Some(_), Some(headers)) =>
+          let runtime = Client__RuntimeConfig.read()
+          let relay = Client__WordPressRelay.makeConfig(~baseUrl=Client__RelayBaseUrl.current(), ~nonce=runtime.wpNonce)
+          let response = await relay.fetch(`${relay.baseUrl}/frontman/mcp/status`, {signal: Null.make(WebAPI.AbortSignal.timeout(30000))})
+          if !response.ok {
+            dispatch(WordPressConnectionFinished("Could not check WordPress access. Sign in to WordPress and reload Frontman."))
+          } else {
+            let json = await response->WebAPI.Response.json
+            let local = json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.wordPressLocalStatusSchema)
+            let query = WebAPI.URLSearchParams.make()
+            query->WebAPI.URLSearchParams.set(~name="catalog_url", ~value=local.catalog_url)
+            let saved = await WebAPI.Fetch.fetch(`${apiBaseUrl}/api/wordpress/connections/status?${query->WebAPI.URLSearchParams.toString}`, ~init={headers, cache: WebAPI.FetchTypes.NoStore, redirect: WebAPI.FetchTypes.Error, signal: Null.make(WebAPI.AbortSignal.timeout(30000))})
+            if saved.ok {
+              let json = await saved->WebAPI.Response.json
+              let saved = json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.wordPressSavedStatusSchema)
+              dispatch(WordPressConnectionChecked({connected: saved.connected, enabled: local.enabled}))
+            } else {
+              dispatch(WordPressConnectionFinished("Could not check your saved connection. Sign in to Frontman and try again."))
+            }
+          }
+        | _ => dispatch(WordPressConnectionFinished("Sign in to Frontman to check this site's connection."))
+        }
+      } catch {
+      | _ => dispatch(WordPressConnectionFinished("Could not check the connection. Check your network and try again."))
+      }
+    }
+    check()->ignore
+  | ConnectWordPressEffect({apiBaseUrl, requestId}) =>
+    let token = Client__EmbeddedAuth.loadToken()
+    let credentialRisk = ref(false)
+    let dispatch = action => dispatchWordPressConnectionResult(dispatch, token, requestId, action, ~credentialRisk=credentialRisk.contents)
     let connect = async () => {
       let credentialCreated = ref(false)
       let cleanup = ` Remove the "Frontman MCP" Application Password in your WordPress profile before retrying.`
       try {
         switch (
-          Client__EmbeddedAuth.loadToken()->Option.filter(token => token->String.trim != ""),
+          token->Option.filter(token => token->String.trim != ""),
           Client__EmbeddedAuth.jsonHeaders(),
         ) {
         | (None, _) | (_, None) =>
@@ -1634,6 +1709,7 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
             ~baseUrl=Client__RelayBaseUrl.current(),
             ~nonce=runtime.wpNonce,
           )
+          credentialRisk := true
           let response = await relay.fetch(
             `${relay.baseUrl}/frontman/mcp/connect`,
             {method: "POST", signal: Null.make(WebAPI.AbortSignal.timeout(30000))},
@@ -1658,6 +1734,9 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
           | true =>
             credentialCreated := true
             let body = await response->WebAPI.Response.text
+            if Client__EmbeddedAuth.loadToken() != token {
+              JsError.throwWithMessage("Frontman account changed during WordPress approval")
+            }
             let saved = await WebAPI.Fetch.fetch(
               `${apiBaseUrl}/api/wordpress/connections`,
               ~init={
@@ -1669,7 +1748,6 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
                 signal: Null.make(WebAPI.AbortSignal.timeout(30000)),
               },
             )
-            Client__EmbeddedAuth.clearTokenOnUnauthorized(saved)
             switch (saved.ok, saved.status) {
             | (true, _) =>
               let json = await saved->WebAPI.Response.json
@@ -1678,9 +1756,7 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
                   ~from=S.json,
                   ~to=Client__State__Types.wordPressConnectionResponseSchema,
                 )
-              dispatch(
-                WordPressConnectionFinished(`WordPress connected. Connection ID: ${result.id}`),
-              )
+              dispatch(WordPressConnectionChecked({connected: result.id != "", enabled: true}))
             | (_, 401) =>
               dispatch(
                 WordPressConnectionFinished(
@@ -2154,6 +2230,8 @@ let clearPendingQuestions = (state: state) => {
 let clearConnectionState = (state: state) => {
   {
     ...clearPendingQuestions(state),
+    wordPressConnectionStatus: WordPressNotChecked,
+    wordPressConnectionRequestId: state.wordPressConnectionRequestId + 1,
     billingStatus: Client__Billing.NotLoaded,
     billingFlow: Client__Billing.Idle,
     billingAbortController: None,
@@ -2705,20 +2783,65 @@ let rec next = (state: state, action) => {
     | None => state->StateReducer.update
     }
   | ConnectWordPress =>
-    switch (Selectors.apiBaseUrl(state), state.wordPressConnectionStatus) {
-    | (_, Some("Connecting...")) => state->StateReducer.update
-    | (Some(apiBaseUrl), _) =>
-      {...state, wordPressConnectionStatus: Some("Connecting...")}->StateReducer.update(
-        ~sideEffects=[ConnectWordPressEffect({apiBaseUrl: apiBaseUrl})],
-      )
-    | (None, _) =>
+    switch (state.wordPressPendingApproval, Selectors.apiBaseUrl(state), state.wordPressConnectionStatus) {
+    | (Some(_), _, _) => state->StateReducer.update
+    | (None, Some(apiBaseUrl), WordPressUnlinked) =>
+      let requestId = state.wordPressConnectionRequestId + 1
+      {...state, wordPressConnectionStatus: WordPressLinking, wordPressConnectionRequestId: requestId, wordPressPendingApproval: Some(requestId)}
+      ->StateReducer.update(~sideEffects=[ConnectWordPressEffect({apiBaseUrl, requestId})])
+    | (None, None, _) =>
       {
         ...state,
-        wordPressConnectionStatus: Some("Reload Frontman and sign in, then try again."),
+        wordPressConnectionStatus: WordPressConnectionFailed("Reload Frontman and sign in, then try again."),
       }->StateReducer.update
+    | _ => state->StateReducer.update
     }
+  | FetchWordPressConnection =>
+    switch (Selectors.apiBaseUrl(state), state.wordPressConnectionStatus) {
+    | (_, WordPressLinking | WordPressUpdatingAccess(_)) => state->StateReducer.update
+    | (Some(apiBaseUrl), _) =>
+      let requestId = state.wordPressConnectionRequestId + 1
+      {...state, wordPressConnectionStatus: WordPressChecking, wordPressConnectionRequestId: requestId}
+      ->StateReducer.update(~sideEffects=[FetchWordPressConnectionEffect({apiBaseUrl, requestId})])
+    | _ => state->StateReducer.update
+    }
+  | SetWordPressAccess(enabled) =>
+    switch state.wordPressConnectionStatus {
+    | WordPressLinked({enabled: current}) if current != enabled =>
+      let requestId = state.wordPressConnectionRequestId + 1
+      {...state, wordPressConnectionStatus: WordPressUpdatingAccess({enabled: current}), wordPressConnectionRequestId: requestId}
+      ->StateReducer.update(~sideEffects=[SetWordPressAccessEffect({enabled, requestId})])
+    | _ => state->StateReducer.update
+    }
+  | WordPressConnectionResult({requestId, action}) =>
+    requestId == state.wordPressConnectionRequestId ? next(state, action) : state->StateReducer.update
+  | WordPressConnectionCompletion({requestId, action, credentialRisk}) =>
+    let current = requestId == state.wordPressConnectionRequestId
+    let approvalFinished = state.wordPressPendingApproval == Some(requestId)
+    let state = approvalFinished
+      ? {...state, wordPressPendingApproval: None}
+      : state
+    let success = switch action {
+    | WordPressConnectionChecked({connected: true}) => true
+    | _ => false
+    }
+    let state = credentialRisk && (!current || !success)
+      ? {...state, wordPressCredentialWarning: true}
+      : state
+    if current {
+      next(state, action)
+    } else if approvalFinished {
+      {...state,
+        wordPressConnectionRequestId: state.wordPressConnectionRequestId + 1,
+        wordPressConnectionStatus: WordPressConnectionFailed("A previous connection attempt finished. Check the connection again."),
+      }->StateReducer.update
+    } else {
+      state->StateReducer.update
+    }
+  | WordPressConnectionChecked({connected, enabled}) =>
+    {...state, wordPressConnectionStatus: connected ? WordPressLinked({enabled: enabled}) : WordPressUnlinked}->StateReducer.update
   | WordPressConnectionFinished(message) =>
-    {...state, wordPressConnectionStatus: Some(message)}->StateReducer.update
+    {...state, wordPressConnectionStatus: WordPressConnectionFailed(message)}->StateReducer.update
 
   | ApiKeySettingsReceived({provider, source}) =>
     state->setApiKeySource(provider, source)->StateReducer.update

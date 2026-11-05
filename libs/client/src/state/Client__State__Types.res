@@ -20,6 +20,13 @@ type submission = {
 type wordPressConnectionResponse = {id: string}
 
 @schema
+type wordPressLocalStatus = {catalog_url: string, enabled: bool}
+@schema
+type wordPressSavedStatus = {connected: bool}
+@schema
+type wordPressAccessStatus = {enabled: bool}
+
+@schema
 type wordPressConnectionError = {
   error: string,
   credential_created: option<bool>,
@@ -214,12 +221,24 @@ type highlightedAnnotation = {
 
 type settingsTab = General | Providers | Billing
 
+type wordPressConnectionStatus =
+  | WordPressNotChecked
+  | WordPressChecking
+  | WordPressUnlinked
+  | WordPressLinking
+  | WordPressLinked({enabled: bool})
+  | WordPressUpdatingAccess({enabled: bool})
+  | WordPressConnectionFailed(string)
+
 type state = {
   tasks: Dict.t<Task.t>,
   currentTask: Task.currentTask,
   connection: option<Client__ConnectionReducer.state>,
   wordPressLoginRecovery: option<{loginUrl: option<string>}>,
-  wordPressConnectionStatus: option<string>,
+  wordPressConnectionStatus: wordPressConnectionStatus,
+  wordPressConnectionRequestId: int,
+  wordPressPendingApproval: option<int>,
+  wordPressCredentialWarning: bool,
   userProfile: option<userProfile>,
   settingsModalTab: option<settingsTab>,
   billingStatus: Client__Billing.state,

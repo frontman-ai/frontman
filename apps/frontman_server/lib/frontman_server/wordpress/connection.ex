@@ -34,6 +34,11 @@ defmodule FrontmanServer.WordPress.Connection do
     from connection in __MODULE__, where: connection.user_id == ^user_id, order_by: connection.id
   end
 
+  def owned_catalog(user_id, catalog_url) do
+    from connection in __MODULE__,
+      where: connection.user_id == ^user_id and connection.catalog_url == ^catalog_url
+  end
+
   def changeset(connection, attrs) do
     connection
     |> cast(attrs, [:catalog_url, :call_url, :username, :password])

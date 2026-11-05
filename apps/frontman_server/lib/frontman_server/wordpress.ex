@@ -80,6 +80,10 @@ defmodule FrontmanServer.WordPress do
 
   def connect(%Scope{}, _params), do: {:error, :connection_failed}
 
+  def connected?(%Scope{} = scope, catalog_url) when is_binary(catalog_url) do
+    scope |> Scope.user_id() |> Connection.owned_catalog(catalog_url) |> Repo.exists?()
+  end
+
   defp origin(url) do
     case URI.parse(url) do
       %URI{scheme: "https", host: host, userinfo: nil, fragment: nil, port: port}

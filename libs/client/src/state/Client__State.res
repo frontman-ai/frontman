@@ -14,6 +14,10 @@ module Actions = {
 
   let connectWordPress = () => Client__State__Store.dispatch(ConnectWordPress)
 
+  let fetchWordPressConnection = () => Client__State__Store.dispatch(FetchWordPressConnection)
+
+  let setWordPressAccess = enabled => Client__State__Store.dispatch(SetWordPressAccess(enabled))
+
   let addUserMessage = (~content, ~annotationId=?) =>
     Promise.make((resolve, _) =>
       Client__State__Store.dispatch(AddUserMessage({content, annotationId, onComplete: resolve}))
