@@ -262,7 +262,6 @@ class Frontman_Router {
 		if ( $home_path !== '' && $home_path !== '/' ) {
 			$home_path = rtrim( $home_path, '/' );
 			if ( strpos( $path, $home_path ) === 0 ) {
-				// PHP 7.4 returns false when the request is exactly the home path.
 				$path = (string) substr( $path, strlen( $home_path ) );
 			}
 		}
@@ -317,7 +316,6 @@ class Frontman_Router {
 
 		$data = json_decode( $raw, true );
 		if ( ! is_array( $data ) ) {
-			// Older WordPress returns false when iconv cannot repair the input.
 			$raw  = (string) wp_check_invalid_utf8( $raw, true );
 			$data = json_decode( $raw, true );
 			if ( is_array( $data ) && isset( $data['name'] ) && is_string( $data['name'] )
