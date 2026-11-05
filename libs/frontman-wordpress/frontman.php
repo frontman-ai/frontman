@@ -13,6 +13,8 @@
  * Text Domain:       frontman-agentic-ai-editor
  */
 
+declare(strict_types=1);
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }

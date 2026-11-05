@@ -1,9 +1,43 @@
 <?php
 
+declare(strict_types=1);
+
 require '/tmp/WordPressRuntimeTest.php';
 require '/tmp/CustomCssRuntimeTest.php';
 require '/tmp/ElementorSnapshotRuntimeTest.php';
 require '/tmp/PostAuthorsRuntimeTest.php';
+
+$permalink_structure = get_option( 'permalink_structure' );
+try {
+	delete_option( 'permalink_structure' );
+	frontman_runtime_same( false, get_option( 'permalink_structure' ), 'Missing permalink option uses the native WordPress false value' );
+	frontman_runtime_same( home_url( '/index.php/frontman' ), Frontman_UI::url( '/frontman' ), 'Missing permalink option preserves plain Frontman URLs in strict mode' );
+} finally {
+	if ( false === $permalink_structure ) {
+		delete_option( 'permalink_structure' );
+	} else {
+		update_option( 'permalink_structure', $permalink_structure );
+	}
+}
+$home = get_option( 'home' );
+$request_uri = $_SERVER['REQUEST_URI'] ?? null;
+try {
+	update_option( 'home', untrailingslashit( $home ) . '/wordpress' );
+	$router = new Frontman_Router( Frontman_Tools::instance(), new Frontman_UI() );
+	foreach ( [ '/wordpress', '/wordpress?query=1', '/wordpress/' ] as $path ) {
+		$_SERVER['REQUEST_URI'] = $path;
+		ob_start();
+		$router->intercept( new WP() );
+		frontman_runtime_same( '', ob_get_clean(), 'The subdirectory home request passes through without a strict PHP path error: ' . $path );
+	}
+} finally {
+	update_option( 'home', $home );
+	if ( null === $request_uri ) {
+		unset( $_SERVER['REQUEST_URI'] );
+	} else {
+		$_SERVER['REQUEST_URI'] = $request_uri;
+	}
+}
 
 $actor_id = wp_insert_user( [ 'user_login' => 'landing-page-actor', 'user_pass' => wp_generate_password(), 'role' => 'administrator' ] );
 frontman_runtime_assert( is_int( $actor_id ), 'Landing-page actor creation failed' );
@@ -201,6 +235,10 @@ try {
 	frontman_runtime_assert( false !== strpos( ob_get_clean(), 'Allow MCP connections' ), 'MCP setting appears on the existing settings page' );
 	$mcp_denied( $mcp_request( $mcp_credentials ) );
 	$mcp_denied( $mcp_discover( $mcp_credentials ) );
+	foreach ( [ '0', '1' ] as $enabled ) {
+		update_option( 'frontman_mcp_enabled', $enabled );
+		frontman_runtime_same( '1' === $enabled ? 200 : 403, $mcp_discover( $mcp_credentials )['status'], 'Stored WordPress string flags retain their explicit MCP access semantics' );
+	}
 	update_option( 'frontman_mcp_enabled', true );
 	$catalog = $mcp_discover( $mcp_credentials );
 	frontman_runtime_same( 200, $catalog['status'], 'Application Password discovery without cookies succeeds' );
@@ -216,6 +254,24 @@ try {
 	frontman_runtime_same( 200, $write['status'], 'MCP write request succeeds' );
 	frontman_runtime_same( false, json_decode( $write['body'], true )['isError'], 'MCP write succeeds' );
 	frontman_runtime_same( 'MCP updated fixture', json_decode( json_decode( $mcp_request( $mcp_credentials )['body'], true )['content'][0]['text'], true )['title'], 'MCP read sees the write' );
+	foreach ( [ false, true, 'false', 0, 1, null ] as $include_paths ) {
+		$request = [ 'name' => 'wp_get_site_info', 'arguments' => [ 'include_installation_paths' => $include_paths ] ];
+		$browser = frontman_runtime_tool( $cookie, $nonce, $request );
+		$remote = frontman_runtime_http( 'POST', '/?rest_route=/frontman/v1/tools/call', '', null, wp_json_encode( $request ), '', $mcp_credentials );
+		$result = json_decode( $remote['body'], true, 512, JSON_THROW_ON_ERROR );
+		if ( is_bool( $include_paths ) ) {
+			frontman_runtime_same( 200, $remote['status'], 'Native JSON booleans remain valid through the strict REST boundary' );
+			foreach ( [ $browser['body'], $result ] as $read ) {
+				frontman_runtime_same( false, $read['isError'], 'Native JSON boolean succeeds on both transports' );
+				$data = json_decode( $read['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
+				frontman_runtime_same( $include_paths, isset( $data['installation'] ), 'Both transports preserve the boolean opt-in without coercion' );
+			}
+		} else {
+			frontman_runtime_same( true, $browser['body']['isError'], 'Browser rejects non-boolean opt-ins as tool errors' );
+			frontman_runtime_same( 400, $remote['status'], 'REST rejects non-boolean opt-ins as input errors, not TypeErrors' );
+			frontman_runtime_same( 'frontman_mcp_arguments', $result['code'], 'REST preserves the expected input error contract' );
+		}
+	}
 	$elementor = new Frontman_Tools(); ( new Frontman_Tool_Elementor() )->register( $elementor );
 	$float = $elementor->sanitize_input( 'wp_elementor_save_page_data', json_decode( '{"post_id":1,"data":[{"id":"a","elType":"widget","settings":{"slider":{"size":1.0}}}],"confirm":true}' ), true );
 	frontman_runtime_same( 1.0, $float['data'][0]['settings']['slider']['size'], 'Nested free-form whole float retains its JSON type' );

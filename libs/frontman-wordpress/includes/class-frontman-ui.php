@@ -11,6 +11,8 @@
  * @package Frontman
  */
 
+declare(strict_types=1);
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -202,7 +204,8 @@ class Frontman_UI {
 	 * Return a Frontman URL for the active permalink mode.
 	 */
 	public static function url( string $path ): string {
-		$permalink_structure = get_option( 'permalink_structure' );
+		// A missing WordPress option returns false, which means plain permalinks.
+		$permalink_structure = (string) get_option( 'permalink_structure' );
 		$front_controller = '' === $permalink_structure || 0 === strpos( $permalink_structure, '/index.php' ) ? '/index.php' : '';
 		return home_url( $front_controller . $path );
 	}

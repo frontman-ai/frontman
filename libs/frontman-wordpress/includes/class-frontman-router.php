@@ -23,6 +23,8 @@
  * @package Frontman
  */
 
+declare(strict_types=1);
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -260,7 +262,8 @@ class Frontman_Router {
 		if ( $home_path !== '' && $home_path !== '/' ) {
 			$home_path = rtrim( $home_path, '/' );
 			if ( strpos( $path, $home_path ) === 0 ) {
-				$path = substr( $path, strlen( $home_path ) );
+				// PHP 7.4 returns false when the request is exactly the home path.
+				$path = (string) substr( $path, strlen( $home_path ) );
 			}
 		}
 
@@ -314,7 +317,8 @@ class Frontman_Router {
 
 		$data = json_decode( $raw, true );
 		if ( ! is_array( $data ) ) {
-			$raw  = wp_check_invalid_utf8( $raw, true );
+			// Older WordPress returns false when iconv cannot repair the input.
+			$raw  = (string) wp_check_invalid_utf8( $raw, true );
 			$data = json_decode( $raw, true );
 			if ( is_array( $data ) && isset( $data['name'] ) && is_string( $data['name'] )
 				&& in_array( sanitize_key( $data['name'] ), [ 'wp_read_seo', 'wp_update_seo', 'wp_read_public_file', 'wp_write_public_file' ], true ) ) {
