@@ -48,6 +48,7 @@ foreach ( [ false, true, false ] as $enabled ) {
 update_option( 'permalink_structure', '/index.php/%postname%/' );
 frontman_runtime_assert( home_url( '/index.php/frontman' ) === Frontman_UI::url( '/frontman' ), 'PATHINFO permalink URL skipped the front controller.' );
 
+wp_set_current_user( $admin->ID );
 $block_tool = new Frontman_Tool_Blocks();
 $content = '<!-- wp:group --><div class="wp-block-group"><!-- wp:paragraph --><p>Nested one</p><!-- /wp:paragraph --><!-- wp:group --><div class="wp-block-group"><!-- wp:paragraph --><p>Nested two</p><!-- /wp:paragraph --></div><!-- /wp:group --></div><!-- /wp:group --><!-- wp:paragraph --><p>Top level</p><!-- /wp:paragraph -->';
 $post_id = wp_insert_post(

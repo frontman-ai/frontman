@@ -247,7 +247,9 @@ install:
 
 .PHONY: prepare-deps prepare-server-deps
 prepare-deps: prepare-server-deps
-	MISE_YES=false MISE_AUTO_INSTALL=false YARN_ENABLE_GLOBAL_CACHE=true mise exec node yarn -- yarn install --immutable
+	@MISE_YES=false MISE_AUTO_INSTALL=false YARN_ENABLE_GLOBAL_CACHE=true mise exec node yarn -- yarn install --immutable </dev/null || { \
+		printf 'JS dependency preparation failed. Read the error above. For toolchain errors, run mise trust and mise install node yarn, then retry make prepare-deps.\n' >&2; exit 1; \
+	}
 
 prepare-server-deps:
 	@command -v mise >/dev/null || { printf 'Install mise and the tools pinned in mise.toml first.\n' >&2; exit 1; }

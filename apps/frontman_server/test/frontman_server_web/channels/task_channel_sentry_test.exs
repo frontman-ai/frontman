@@ -94,7 +94,6 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
   end
 
   describe "MCP tool error Sentry reporting (Gap 4)" do
-    @tag :capture_log
     test "reports MCP tool error to Sentry with context", %{
       socket: socket,
       task_id: task_id,
@@ -154,7 +153,6 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
       refute Map.has_key?(metadata, :error_message)
     end
 
-    @tag :capture_log
     test "MCP tool error with missing message field defaults to 'Unknown MCP error'", %{
       socket: socket,
       task_id: task_id,

@@ -261,6 +261,8 @@ unzip -q "$BUILD_DIR/woocommerce.zip" -d "$BUILD_DIR/woocommerce"
 "$RUNTIME" cp "$BUILD_DIR/woocommerce/woocommerce" "$WORDPRESS:/var/www/html/wp-content/plugins/woocommerce"
 "$RUNTIME" exec "$WORDPRESS" php -r 'require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/plugin.php"; $result = activate_plugin("woocommerce/woocommerce.php"); if (is_wp_error($result)) { throw new RuntimeException($result->get_error_message()); }'
 printf 'Testing WooCommerce %s on WordPress %s\n' "$WOOCOMMERCE_VERSION" "$WORDPRESS_VERSION"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/WooCommerceMetaRuntimeTest.php" "$WORDPRESS:/tmp/WooCommerceMetaRuntimeTest.php"
+"$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/RunWordPressRuntimeTest.php woocommerce-meta
 if [[ ${#PUBLISH[@]} -gt 0 && "$FIXTURE" != astra ]]; then
   "$RUNTIME" exec "$WORDPRESS" php -r 'require "/var/www/html/wp-load.php"; update_option("frontman_mcp_enabled", true);'
   FRONTMAN_WP_RUNTIME_URL="https://127.0.0.1:$PORT/?rest_route=/frontman/v1/tools" \

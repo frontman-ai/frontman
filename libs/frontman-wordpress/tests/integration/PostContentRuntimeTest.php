@@ -1,5 +1,22 @@
 <?php
 
+$catalog_response = frontman_runtime_http( 'GET', '/index.php/frontman/tools', $cookie );
+frontman_runtime_same( 200, $catalog_response['status'], 'WordPress tool catalog is available for provider schema checks' );
+$catalog_tools = json_decode( $catalog_response['body'], true, 512, JSON_THROW_ON_ERROR )['tools'];
+foreach ( $catalog_tools as $definition ) {
+	$schema = $definition['inputSchema'] ?? null;
+	frontman_runtime_assert(
+		is_array( $schema ) && 'object' === ( $schema['type'] ?? null )
+			&& ! array_intersect( [ 'anyOf', 'oneOf', 'allOf' ], array_keys( $schema ) ),
+		$definition['name'] . ' advertises a root tool schema rejected by Anthropic'
+	);
+}
+$post_schemas = array_column( $catalog_tools, 'inputSchema', 'name' );
+$edit_schema = $post_schemas['wp_update_post']['properties']['edits'];
+frontman_runtime_same( 'array', $edit_schema['type'], 'Published edit_many edits remain an array' );
+frontman_runtime_same( 'object', $edit_schema['items']['type'], 'Published edit_many entries remain objects' );
+frontman_runtime_same( [ 'oldText', 'newText' ], $edit_schema['items']['required'], 'Published edit_many entries require both fragments' );
+
 $script = '<script src="https://example.test/embed.js" defer data-region="eu1"></script>';
 $content = '<!-- wp:html -->' . $script . '<div>Été 日本語 \\path\\file "quoted"</div><!-- /wp:html -->';
 $page = [ 'title' => 'Embedded form', 'content' => $content, 'post_type' => 'page', 'status' => 'publish' ];
@@ -132,6 +149,246 @@ $reject( 'wp_update_post', $edit, 'exactly once' );
 $edit['oldText'] = 'aaa';
 $deleted = $call( 'wp_update_post', $edit );
 frontman_runtime_same( '', $deleted['after']['content'], 'Empty newText deletes the unique fragment' );
+
+$original = '<p>Été 日本語</p><p>Old \\path</p>';
+$multi = $call( 'wp_create_post', [ 'title' => 'Multiple exact edits', 'content' => $original, 'post_type' => 'page', 'status' => 'publish' ] );
+$id = $multi['id'];
+$edits = [
+	[ 'oldText' => 'Été 日本語', 'newText' => 'Hiver 日本語' ],
+	[ 'newText' => 'New \\path', 'oldText' => 'Old \\path' ],
+];
+$expected = '<p>Hiver 日本語</p><p>New \\path</p>';
+$request = [ 'id' => $id, 'mode' => 'edit_many', 'expected_current_sha256' => $multi['after']['content_sha256'], 'edits' => $edits ];
+global $wpdb;
+try {
+	$preview = $call( 'wp_update_post', $request + [ 'dryRun' => true ], false, 'count-post-saves' );
+	frontman_runtime_same( true, $preview['dry_run'], 'Multiple-edit dry run is labeled as proposed' );
+	frontman_runtime_same( 2, $preview['edit_count'], 'Dry run counts the requested edits' );
+	frontman_runtime_same( [ 0 => 3, 1 => strpos( $original, 'Old \\path' ) ], $preview['match_offsets'], 'Dry run reports original byte offsets by edit index' );
+	frontman_runtime_same( hash( 'sha256', $expected ), $preview['proposed_sha256'], 'Dry run hashes proposed bytes' );
+	frontman_runtime_same( null, $wpdb->get_var( "SELECT option_value FROM {$wpdb->options} WHERE option_name = 'frontman_multi_edit_save_count'" ), 'Dry run does not invoke post save hooks' );
+	frontman_runtime_same( $original, $call( 'wp_read_post', [ 'id' => $id ] )['content'], 'Dry run does not change post content' );
+	frontman_runtime_assert( ! isset( $preview['before'] ) && ! isset( $preview['after'] ) && ! isset( $preview['content'] ), 'Dry run must not echo the page' );
+	$reversed = $call( 'wp_update_post', array_replace( $request, [ 'edits' => array_reverse( $edits ), 'dryRun' => true ] ) );
+	frontman_runtime_same( [ strpos( $original, 'Old \\path' ), 3 ], $reversed['match_offsets'], 'Out-of-order edits return an indexed JSON array in input order' );
+	frontman_runtime_same( $preview['proposed_sha256'], $reversed['proposed_sha256'], 'Edit order does not change the proposed content' );
+
+	$saved = $call( 'wp_update_post', $request, false, 'count-post-saves' );
+	frontman_runtime_same( '1', $wpdb->get_var( "SELECT option_value FROM {$wpdb->options} WHERE option_name = 'frontman_multi_edit_save_count'" ), 'Multiple edits save the post once' );
+	frontman_runtime_same( false, $saved['dry_run'], 'Multiple-edit receipt reports a saved change' );
+	frontman_runtime_same( 2, $saved['edit_count'], 'Receipt counts saved edits' );
+	frontman_runtime_same( $request['expected_current_sha256'], $saved['before_sha256'], 'Receipt identifies original content' );
+	frontman_runtime_same( hash( 'sha256', $expected ), $saved['after_sha256'], 'Receipt hashes persisted content' );
+	frontman_runtime_assert( ! isset( $saved['before'] ) && ! isset( $saved['after'] ) && ! isset( $saved['content'] ), 'Saved receipt must not echo the page' );
+	frontman_runtime_same( $expected, $call( 'wp_read_post', [ 'id' => $id ] )['content'], 'Readback confirms both exact edits' );
+	$reject( 'wp_update_post', $request, 'Stale content hash' );
+	$reject( 'wp_update_post', $request + [ 'dryRun' => 'true' ], 'dryRun' );
+	$reject( 'wp_update_post', $request + [ 'title' => 'Must not change' ], 'not allowed in edit_many' );
+	$reject( 'wp_update_post', [ 'id' => $id, 'mode' => 'edit', 'edits' => $edits ], 'only allowed in edit_many' );
+	$reject( 'wp_update_post', [ 'id' => $id, 'edits' => $edits ], 'only allowed in edit_many' );
+
+	$overlap = $call( 'wp_create_post', [ 'title' => 'Overlapping edits', 'content' => 'abc' ] );
+	$overlap_request = [
+		'id' => $overlap['id'], 'mode' => 'edit_many', 'expected_current_sha256' => $overlap['after']['content_sha256'],
+		'edits' => [ [ 'oldText' => 'ab', 'newText' => 'x' ], [ 'oldText' => 'bc', 'newText' => 'y' ] ],
+	];
+	$reject( 'wp_update_post', $overlap_request, 'must not overlap' );
+	frontman_runtime_same( 'abc', $call( 'wp_read_post', [ 'id' => $overlap['id'] ] )['content'], 'Overlapping edits do not write' );
+	$missing_edits = $overlap_request;
+	unset( $missing_edits['edits'] );
+	$reject( 'wp_update_post', $missing_edits, 'edits' );
+	$reject( 'wp_update_post', array_replace( $overlap_request, [ 'edits' => [] ] ), 'at least 1' );
+	$reject( 'wp_update_post', array_replace( $overlap_request, [ 'edits' => (object) [ '0' => $overlap_request['edits'][0] ] ] ), 'edits' );
+	$reject( 'wp_update_post', array_replace( $overlap_request, [ 'edits' => [ [ 'oldText' => 'a' ] ] ] ), 'newText' );
+	$reject( 'wp_update_post', array_replace( $overlap_request, [ 'edits' => [ [ 'oldText' => false, 'newText' => 'x' ] ] ] ), 'oldText' );
+	$reject( 'wp_update_post', array_replace( $overlap_request, [ 'edits' => [ [ 'oldText' => 'missing', 'newText' => 'x' ] ] ] ), 'match exactly once' );
+	$reject( 'wp_update_post', array_replace( $overlap_request, [ 'edits' => [ [ 'oldText' => 'ab', 'newText' => 'ab' ] ] ] ), 'different newText' );
+	$reject( 'wp_update_post', array_replace( $overlap_request, [ 'edits' => [ [ 'oldText' => 'ab', 'newText' => 'x', 'unexpected' => 'y' ] ] ] ), 'not a valid property' );
+	$reject( 'wp_update_post', array_replace( $overlap_request, [ 'edits' => [
+		[ 'oldText' => 'ab', 'newText' => 'x' ], [ 'oldText' => 'ab', 'newText' => 'y' ],
+	] ] ), 'must not overlap' );
+	$reject( 'wp_update_post', array_replace( $overlap_request, [ 'edits' => array_fill( 0, 51, [ 'oldText' => 'abc', 'newText' => 'x' ] ) ] ), 'at most 50' );
+	$reject( 'wp_update_post', array_replace( $overlap_request, [ 'edits' => [ [ 'oldText' => 'a', 'newText' => 'x' ], [ 'oldText' => 'missing', 'newText' => 'y' ] ] ] ), 'match exactly once' );
+	frontman_runtime_same( 'abc', $call( 'wp_read_post', [ 'id' => $overlap['id'] ] )['content'], 'A later invalid edit does not save an earlier valid edit' );
+	$repeated = $call( 'wp_create_post', [ 'title' => 'Ambiguous edits', 'content' => 'same same' ] );
+	$reject( 'wp_update_post', [
+		'id' => $repeated['id'], 'mode' => 'edit_many', 'expected_current_sha256' => $repeated['after']['content_sha256'],
+		'edits' => [ [ 'oldText' => 'same', 'newText' => 'new' ] ],
+	], 'match exactly once' );
+	$adjacent = $call( 'wp_create_post', [ 'title' => 'Adjacent edits', 'content' => 'abc' ] );
+	$adjacent_receipt = $call( 'wp_update_post', [
+		'id' => $adjacent['id'], 'mode' => 'edit_many', 'expected_current_sha256' => $adjacent['after']['content_sha256'],
+		'edits' => [
+			[ 'oldText' => 'a', 'newText' => 'b' ],
+			[ 'oldText' => 'b', 'newText' => '' ],
+			[ 'oldText' => 'c', 'newText' => 'd' ],
+		],
+	] );
+	frontman_runtime_same( 3, $adjacent_receipt['edit_count'], 'Adjacent edits accept a deletion' );
+	frontman_runtime_same( 'bd', $call( 'wp_read_post', [ 'id' => $adjacent['id'] ] )['content'], 'Each adjacent match uses original bytes, not prior replacements' );
+	$many_edits = [];
+	$many_parts = [];
+	for ( $index = 0; $index < 50; ++$index ) {
+		$part = sprintf( 'marker-%02d', $index );
+		$many_parts[] = $part;
+		$many_edits[] = [ 'oldText' => $part, 'newText' => sprintf( 'value-%02d', $index ) ];
+	}
+	$many = $call( 'wp_create_post', [ 'title' => 'Maximum edits', 'content' => implode( '|', $many_parts ) ] );
+	$many_preview = $call( 'wp_update_post', [
+		'id' => $many['id'], 'mode' => 'edit_many', 'expected_current_sha256' => $many['after']['content_sha256'],
+		'edits' => $many_edits, 'dryRun' => true,
+	] );
+	frontman_runtime_same( 50, $many_preview['edit_count'], 'Dry run accepts the documented maximum of 50 edits' );
+	frontman_runtime_same( implode( '|', $many_parts ), $call( 'wp_read_post', [ 'id' => $many['id'] ] )['content'], 'Large dry run does not save' );
+
+	$filtered = $call( 'wp_create_post', [ 'title' => 'Filtered edit', 'content' => '<p>First</p><p>Second</p>' ] );
+	$filtered_request = [
+		'id' => $filtered['id'], 'mode' => 'edit_many', 'expected_current_sha256' => $filtered['after']['content_sha256'],
+		'edits' => [ [ 'oldText' => 'First', 'newText' => 'One' ], [ 'oldText' => 'Second', 'newText' => 'Two' ] ],
+	];
+	$proposed = $call( 'wp_update_post', $filtered_request + [ 'dryRun' => true ], false, 'transform-content' );
+	frontman_runtime_same( hash( 'sha256', '<p>One</p><p>Two</p>' ), $proposed['proposed_sha256'], 'Dry run does not apply save filters' );
+	frontman_runtime_same( '<p>First</p><p>Second</p>', $call( 'wp_read_post', [ 'id' => $filtered['id'] ] )['content'], 'Dry run does not persist filtered content' );
+	$partial = $call( 'wp_update_post', $filtered_request, true, 'transform-content' );
+	frontman_runtime_assert( false !== strpos( $partial, 'content readback did not match' ), 'Filtered edits report partial writes without a success receipt' );
+	frontman_runtime_same( '<p>One</p><p>Two</p><p>Plugin transformation</p>', $call( 'wp_read_post', [ 'id' => $filtered['id'] ] )['content'], 'Readback exposes the save-filter change' );
+	$competing = $call( 'wp_create_post', [ 'title' => 'Concurrent change', 'content' => '<p>Before</p>' ] );
+	$competing_request = [
+		'id' => $competing['id'], 'mode' => 'edit_many', 'expected_current_sha256' => $competing['after']['content_sha256'],
+		'edits' => [ [ 'oldText' => 'Before', 'newText' => 'After' ] ],
+	];
+	$call( 'wp_update_post', $competing_request + [ 'dryRun' => true ] );
+	$call( 'wp_update_post', [ 'id' => $competing['id'], 'content' => '<p>Other writer</p>' ] );
+	$reject( 'wp_update_post', $competing_request, 'Stale content hash' );
+	$reject( 'wp_update_post', $competing_request + [ 'dryRun' => true ], 'Stale content hash' );
+	frontman_runtime_same( '<p>Other writer</p>', $call( 'wp_read_post', [ 'id' => $competing['id'] ] )['content'], 'Stale edits preserve the competing write' );
+
+	$actor->add_cap( 'edit_published_pages', false );
+	try {
+		$reject( 'wp_update_post', [ 'id' => $id, 'mode' => 'edit_many', 'expected_current_sha256' => $saved['after_sha256'], 'edits' => [ [ 'oldText' => 'Hiver', 'newText' => 'Summer' ] ], 'dryRun' => true ], 'permission' );
+	} finally {
+		$actor->remove_cap( 'edit_published_pages' );
+	}
+	update_post_meta( $id, '_elementor_edit_mode', 'builder' );
+	$reject( 'wp_update_post', [ 'id' => $id, 'mode' => 'edit_many', 'expected_current_sha256' => $saved['after_sha256'], 'edits' => [ [ 'oldText' => 'Hiver', 'newText' => 'Summer' ] ], 'dryRun' => true ], 'Elementor-managed', 'elementor-content-guard' );
+	delete_post_meta( $id, '_elementor_edit_mode' );
+	$actor->add_cap( 'unfiltered_html', false );
+	try {
+		$unsafe = [
+			'id' => $id, 'mode' => 'edit_many', 'expected_current_sha256' => $saved['after_sha256'],
+			'edits' => [ [ 'oldText' => 'Hiver', 'newText' => '<script>alert(1)</script>' ] ],
+		];
+		$reject( 'wp_update_post', $unsafe + [ 'dryRun' => true ], 'unfiltered_html' );
+		$reject( 'wp_update_post', $unsafe, 'unfiltered_html' );
+		frontman_runtime_same( $expected, $call( 'wp_read_post', [ 'id' => $id ] )['content'], 'Denied HTML does not change the post' );
+		$safe = array_replace( $unsafe, [ 'edits' => [ [ 'oldText' => 'Hiver', 'newText' => 'Winter' ] ] ] );
+		$call( 'wp_update_post', $safe );
+		frontman_runtime_same( '<p>Winter 日本語</p><p>New \\path</p>', $call( 'wp_read_post', [ 'id' => $id ] )['content'], 'Permitted edits work without unfiltered_html' );
+	} finally {
+		$actor->remove_cap( 'unfiltered_html' );
+	}
+} finally {
+	delete_option( 'frontman_multi_edit_save_count' );
+}
+
+$specialist_content = '<!-- wp:paragraph --><p>Specialist state</p><!-- /wp:paragraph -->';
+foreach ( [
+	'custom_css' => 'wp_update_custom_css',
+	'wp_navigation' => 'wp_update_navigation_menu',
+	'wp_template' => 'wp_update_template',
+	'wp_template_part' => 'wp_update_template',
+] as $type => $specialist ) {
+	$id = wp_insert_post( [
+		'post_type' => $type,
+		'post_status' => 'publish',
+		'post_name' => 'frontman-specialist-' . $type,
+		'post_title' => 'Specialist fixture',
+		'post_content' => $specialist_content,
+	], true );
+	frontman_runtime_assert( is_int( $id ), $type . ' fixture must exist' );
+	frontman_runtime_assert( current_user_can( get_post_type_object( $type )->cap->create_posts ), $type . ' fixture must be creatable by the administrator' );
+	frontman_runtime_same( 'custom_css' !== $type, current_user_can( 'edit_post', $id ), $type . ' editing capability differs from the generic route' );
+	try {
+		$create_tool = in_array( $type, [ 'wp_template', 'wp_template_part' ], true )
+			? 'wp_create_template'
+			: ( 'wp_navigation' === $type ? 'wp_create_navigation_menu' : 'wp_update_custom_css' );
+		if ( in_array( $type, [ 'wp_template', 'wp_template_part' ], true ) ) {
+			wp_set_post_terms( $id, [ get_stylesheet() ], 'wp_theme' );
+		}
+		frontman_runtime_same( $specialist_content, $call( 'wp_read_post', [ 'id' => $id ] )['content'], 'Raw post recovery still reads ' . $type );
+		$reject( 'wp_create_post', [ 'post_type' => $type, 'title' => 'Blocked', 'content' => $specialist_content ], $create_tool );
+		$reject( 'wp_duplicate_post', [ 'source_id' => $id ], $create_tool );
+		if ( in_array( $type, [ 'wp_template', 'wp_template_part' ], true ) ) {
+			$call( 'wp_update_post', [ 'id' => $id, 'title' => 'Recovered template by ID' ] );
+			$call( 'wp_update_post', [
+				'id' => $id, 'mode' => 'edit_many', 'expected_current_sha256' => hash( 'sha256', $specialist_content ),
+				'edits' => [ [ 'oldText' => 'Specialist state', 'newText' => 'Raw recovery' ] ],
+			] );
+			frontman_runtime_assert( false !== strpos( $call( 'wp_read_post', [ 'id' => $id ] )['content'], 'Raw recovery' ), 'Template post remains editable by ID' );
+			$call( 'wp_update_block', [
+				'post_id' => $id, 'index' => 0,
+				'block_markup' => '<!-- wp:paragraph --><p>Block recovery</p><!-- /wp:paragraph -->',
+			] );
+			frontman_runtime_assert( false !== strpos( $call( 'wp_read_post', [ 'id' => $id ] )['content'], 'Block recovery' ), 'Template block remains editable by ID' );
+			$reject( 'wp_delete_post', [ 'id' => $id, 'confirm' => true ], 'permanent' );
+			$deleted_template = $call( 'wp_delete_post', [ 'id' => $id, 'confirm' => true, 'force' => true ] );
+			frontman_runtime_same( false, $deleted_template['trashed'], 'Permanent template deletion is not reported as trash' );
+			clean_post_cache( $id );
+			frontman_runtime_same( null, get_post( $id ), 'Approved template deletion removes its post' );
+		} else {
+			$reject( 'wp_update_post', [ 'id' => $id, 'title' => 'Blocked' ], $specialist );
+			$reject( 'wp_update_post', [
+				'id' => $id, 'mode' => 'edit_many', 'expected_current_sha256' => hash( 'sha256', $specialist_content ),
+				'edits' => [ [ 'oldText' => 'Specialist state', 'newText' => 'Blocked' ] ], 'dryRun' => true,
+			], $specialist );
+			$reject( 'wp_update_block', [
+				'post_id' => $id, 'index' => 0,
+				'block_markup' => '<!-- wp:paragraph --><p>Blocked</p><!-- /wp:paragraph -->',
+			], $specialist );
+			$reject( 'wp_delete_post', [ 'id' => $id, 'confirm' => true, 'force' => true ], current_user_can( 'delete_post', $id ) ? ( 'custom_css' === $type ? 'wp_update_custom_css' : 'wp_delete_navigation_menu' ) : 'permission' );
+		}
+	} finally {
+		wp_delete_post( $id, true );
+	}
+}
+
+$block_page = $call( 'wp_create_post', [ 'title' => 'Block permissions', 'post_type' => 'page', 'status' => 'publish', 'content' => $specialist_content ] );
+$actor->add_cap( 'edit_published_pages', false );
+try {
+	$reject( 'wp_update_block', [
+		'post_id' => $block_page['id'], 'index' => 0,
+		'block_markup' => '<!-- wp:paragraph --><p>Blocked</p><!-- /wp:paragraph -->',
+	], 'permission' );
+} finally {
+	$actor->remove_cap( 'edit_published_pages' );
+}
+frontman_runtime_same( $specialist_content, $call( 'wp_read_post', [ 'id' => $block_page['id'] ] )['content'], 'Denied block update preserves its post' );
+$ordinary = $call( 'wp_create_post', [ 'title' => 'Ordinary deletion', 'content' => '<p>Keep until trash</p>' ] );
+$trash = $call( 'wp_delete_post', [ 'id' => $ordinary['id'], 'confirm' => true ] );
+frontman_runtime_same( true, $trash['trashed'], 'Ordinary posts report their observed trash state' );
+frontman_runtime_same( 'trash', $call( 'wp_read_post', [ 'id' => $ordinary['id'] ] )['status'], 'Ordinary deletion moves the post to trash' );
+$navigation = $call( 'wp_create_navigation_menu', [ 'title' => 'Protected navigation', 'content' => $specialist_content ] );
+$actor->add_cap( 'edit_theme_options', false );
+try {
+	$reject( 'wp_create_navigation_menu', [ 'title' => 'Denied navigation', 'content' => $specialist_content ], 'edit_theme_options' );
+	$reject( 'wp_update_navigation_menu', [ 'id' => $navigation['id'], 'title' => 'Denied navigation' ], 'permission' );
+	$reject( 'wp_delete_navigation_menu', [ 'id' => $navigation['id'], 'confirm' => true ], 'permission' );
+} finally {
+	$actor->remove_cap( 'edit_theme_options' );
+}
+$call( 'wp_delete_navigation_menu', [ 'id' => $navigation['id'], 'confirm' => true ] );
+$actor->add_cap( 'unfiltered_html', false );
+try {
+	$reject( 'wp_update_custom_css', [ 'css' => '.denied { color: red; }', 'confirm' => true ], 'edit_css' );
+} finally {
+	$actor->remove_cap( 'unfiltered_html' );
+}
+$actor->add_cap( 'delete_published_pages', false );
+try {
+	$reject( 'wp_delete_post', [ 'id' => $block_page['id'], 'confirm' => true ], 'permission' );
+} finally {
+	$actor->remove_cap( 'delete_published_pages' );
+}
 
 $published = $call( 'wp_create_post', [ 'title' => 'Preview page', 'content' => '<p>Public original</p>', 'post_type' => 'page', 'status' => 'publish' ] );
 $id = $published['id'];

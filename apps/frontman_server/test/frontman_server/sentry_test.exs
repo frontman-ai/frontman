@@ -49,7 +49,6 @@ defmodule FrontmanServer.SentryTest do
                |> Sentry.JSON.encode(Sentry.Config.json_library())
     end
 
-    @tag :capture_log
     test "adds nested changeset errors while preserving the exception message" do
       content = String.duplicate("private-инструкции", 8192)
 
@@ -74,7 +73,6 @@ defmodule FrontmanServer.SentryTest do
       assert reported.value == Exception.message(exception)
     end
 
-    @tag :capture_log
     test "captures Logger errors with metadata" do
       Logger.error(
         "Logger error with metadata",
@@ -88,7 +86,6 @@ defmodule FrontmanServer.SentryTest do
       assert event.extra[:logger_metadata][:task_id] == "task-test"
     end
 
-    @tag :capture_log
     test "captures unmarked Logger errors" do
       Logger.error("Unmarked logger error")
 
@@ -96,7 +93,6 @@ defmodule FrontmanServer.SentryTest do
       assert event.message.formatted == "Unmarked logger error"
     end
 
-    @tag :capture_log
     test "captures user and task context for logger errors" do
       user = %User{id: Ecto.UUID.generate(), email: "sentry@test.local", name: "Sentry User"}
       task_id = Ecto.UUID.generate()
