@@ -1603,7 +1603,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert agent_error.category == "unknown"
     end
 
-    @tag :capture_log
     @tag billing: :pretrial
     test "fifth-turn retry waits for the channel timer and survives subscription cancellation", %{
       task_id: task_id,
