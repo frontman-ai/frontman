@@ -452,6 +452,9 @@ class Frontman_Tool_Options {
 		if ( true !== ( $input['confirm'] ?? false ) ) {
 			throw new Frontman_Tool_Error( 'Additional CSS revision restore requires confirm=true after user approval.' );
 		}
+		if ( ! current_user_can( 'edit_css' ) ) {
+			throw new Frontman_Tool_Error( 'Additional CSS changes require edit_css.' );
+		}
 		if ( ! function_exists( 'wp_restore_post_revision' ) || ! function_exists( 'clean_post_cache' ) || ! function_exists( 'get_post' ) ) {
 			throw new Frontman_Tool_Error( 'WordPress revision restore API is unavailable.' );
 		}
@@ -501,6 +504,9 @@ class Frontman_Tool_Options {
 	public function update_custom_css( array $input ): array {
 		if ( true !== ( $input['confirm'] ?? false ) ) {
 			throw new Frontman_Tool_Error( 'Additional CSS update requires confirm=true after user approval.' );
+		}
+		if ( ! current_user_can( 'edit_css' ) ) {
+			throw new Frontman_Tool_Error( 'Additional CSS changes require edit_css.' );
 		}
 		if ( ! function_exists( 'wp_update_custom_css_post' ) || ! function_exists( 'wp_get_custom_css' ) ) {
 			throw new Frontman_Tool_Error( 'WordPress custom CSS API is unavailable.' );
