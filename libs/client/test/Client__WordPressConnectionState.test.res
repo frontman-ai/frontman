@@ -4,8 +4,6 @@ module Reducer = Client__State__StateReducer
 
 afterEach(() => Client__EmbeddedAuth.clearToken())
 
-// These cases supply completions to test ordering after a request is already
-// pending. The browser runtime test covers actual HTTP and credential creation.
 let store = state => StateStore.make(module(Reducer), state)
 let complete = (store, requestId, action, ~credentialRisk=false) =>
   store->StateStore.dispatch(Reducer.WordPressConnectionCompletion({requestId, action, credentialRisk}))

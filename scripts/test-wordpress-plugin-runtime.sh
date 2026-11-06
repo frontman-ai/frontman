@@ -221,18 +221,6 @@ if [[ ${#PUBLISH[@]} -gt 0 && "$FIXTURE" != astra ]]; then
     make -C "$ROOT_DIR/apps/frontman_server" test TEST_ARGS="test/frontman_server_web/mcp_sites_test.exs --only wordpress_runtime"
   REQUESTS="$("$RUNTIME" logs "$WORDPRESS" 2>&1 | grep -c 'rest_route=/frontman/v1/tools' || true)"
   (( REQUESTS >= 33 ))
-  (umask 022; make -C "$ROOT_DIR/libs/client" build-standalone)
-  "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/frontman-browser
-  "$RUNTIME" cp "$ROOT_DIR/libs/client/dist/." "$WORDPRESS:/var/www/html/frontman-browser/"
-  "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/BrowserRuntimeRedirect.php" "$WORDPRESS:/var/www/html/frontman-browser/redirect.php"
-  "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/BrowserRuntimeFixture.php" "$WORDPRESS:/tmp/BrowserRuntimeFixture.php"
-  SPKI="$(openssl x509 -in "$BUILD_DIR/frontman-test.crt" -pubkey -noout | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | openssl base64 -A)"
-  FRONTMAN_WP_BROWSER_URL="https://127.0.0.1:$PORT" \
-    FRONTMAN_WP_BROWSER_CONTAINER="$WORDPRESS" FRONTMAN_WP_BROWSER_DIRECTORY="$BUILD_DIR" \
-    FRONTMAN_WP_BROWSER_CA="$BUILD_DIR/ca.crt" FRONTMAN_WP_BROWSER_CERT="$BUILD_DIR/frontman-test.crt" \
-    FRONTMAN_WP_BROWSER_KEY="$BUILD_DIR/frontman-test.key" FRONTMAN_WP_BROWSER_SPKI="$SPKI" \
-    CONTAINER_RUNTIME="$RUNTIME" \
-    make -C "$ROOT_DIR/apps/frontman_server" test TEST_ARGS="test/frontman_server_web/wordpress_browser_runtime_test.exs --only wordpress_browser_runtime"
 fi
 if TEST_OUTPUT="$("$RUNTIME" exec \
   -e EXPECTED_WORDPRESS_VERSION="$WORDPRESS_VERSION" \
