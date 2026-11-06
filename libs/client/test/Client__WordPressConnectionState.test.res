@@ -4,83 +4,86 @@ module Reducer = Client__State__StateReducer
 
 afterEach(() => Client__EmbeddedAuth.clearToken())
 
-let store = state => StateStore.make(module(Reducer), state)
-let complete = (store, requestId, action, ~credentialRisk=false) =>
-  store->StateStore.dispatch(Reducer.WordPressConnectionCompletion({requestId, action, credentialRisk}))
-let checked = connected => Reducer.WordPressConnectionChecked({connected, enabled: true})
+let reduce = (state, action) => Reducer.next(state, action)->Pair.first
+let completion = (requestId, result, ~credentialRisk=false) =>
+  Reducer.WordPressConnectionCompletion({requestId, result, credentialRisk})
+let checked = connected => {
+  let connection: Reducer.wordPressConnection = {connected, enabled: true}
+  Ok(connection)
+}
 
 test("stale completions cannot replace a linking or linked status", t => {
-  let store = store({...Reducer.defaultState, wordPressConnectionRequestId: 2, wordPressConnectionStatus: WordPressLinking})
-  complete(store, 1, checked(false))
-  t->expect((store->StateStore.getState).wordPressConnectionStatus)->Expect.toEqual(Client__State__Types.WordPressLinking)
-  complete(store, 2, checked(true))
-  complete(store, 1, Reducer.WordPressConnectionFinished("Old failure"))
-  t->expect((store->StateStore.getState).wordPressConnectionStatus)->Expect.toEqual(Client__State__Types.WordPressLinked({enabled: true}))
+  let state = {...Reducer.defaultState, wordPressConnectionRequestId: 2, wordPressConnectionStatus: WordPressLinking}
+  let state = reduce(state, completion(1, checked(false)))
+  t->expect(state.wordPressConnectionStatus)->Expect.toEqual(Client__State__Types.WordPressLinking)
+  let state = reduce(state, completion(2, checked(true)))
+  let state = reduce(state, completion(1, Error(WordPressRequestFailed("Old failure"))))
+  t->expect(state.wordPressConnectionStatus)->Expect.toEqual(Client__State__Types.WordPressLinked({enabled: true}))
 })
 
-test("updates reject overlapping writes, checks and stale completions", t => {
-  let status = Client__State__Types.WordPressUpdatingAccess({enabled: true})
-  let store = store({...Reducer.defaultState, wordPressConnectionRequestId: 3, wordPressConnectionStatus: status})
-  store->StateStore.dispatch(Reducer.SetWordPressAccess(false))
-  store->StateStore.dispatch(Reducer.FetchWordPressConnection)
-  complete(store, 2, checked(true))
-  t->expect((store->StateStore.getState).wordPressConnectionStatus)->Expect.toEqual(status)
-  t->expect((store->StateStore.getState).wordPressConnectionRequestId)->Expect.toBe(3)
-})
-
-test("account changes replace old results and preserve supplied credential risk", t => {
-  [true, false]->Array.forEach(replace => {
+test("completion preserves credential risk and authenticates only the current account", t => {
+  [
+    (Some("account-b"), Reducer.WordPressRequestFailed("Old failure"), true),
+    (None, WordPressRequestFailed("Old failure"), true),
+    (Some("account-b"), WordPressRequestFailed("Old failure"), false),
+    (Some("account-b"), WordPressAuthRequired, false),
+    (Some("account-a"), WordPressAuthRequired, false),
+  ]->Array.forEach(((nextToken, error, credentialRisk)) => {
     Client__EmbeddedAuth.saveToken("account-a")
     let token = Client__EmbeddedAuth.loadToken()
-    let store = store({...Reducer.defaultState, wordPressConnectionRequestId: 1, wordPressConnectionStatus: WordPressLinking})
-    if replace { Client__EmbeddedAuth.saveToken("account-b") } else { Client__EmbeddedAuth.clearToken() }
-    Reducer.dispatchWordPressConnectionResult(
-      action => store->StateStore.dispatch(action), token, 1,
-      WordPressConnectionFinished("account-specific failure"), ~credentialRisk=true,
+    switch nextToken {
+    | Some(token) => Client__EmbeddedAuth.saveToken(token)
+    | None => Client__EmbeddedAuth.clearToken()
+    }
+    let current = nextToken == token
+    let state = ref({...Reducer.defaultState, wordPressConnectionRequestId: 1, wordPressConnectionStatus: WordPressChecking})
+    let required = ref(false)
+    Reducer.completeWordPressRequest(
+      action => {
+        switch action {
+        | Reducer.ConnectionAction(RequireAuthentication) => required := true
+        | _ => ()
+        }
+        state := reduce(state.contents, action)
+      },
+      token, 1, Error(error), ~credentialRisk,
     )
-    t->expect((store->StateStore.getState).wordPressCredentialWarning)->Expect.toBe(true)
-    t->expect((store->StateStore.getState).wordPressConnectionStatus)->Expect.toEqual(
-      Client__State__Types.WordPressConnectionFailed("Your Frontman sign-in changed. Check the connection again."),
+    t->expect(state.contents.wordPressCredentialWarning)->Expect.toBe(credentialRisk)
+    t->expect(required.contents)->Expect.toBe(current)
+    t->expect(Client__EmbeddedAuth.loadToken())->Expect.toEqual(current ? None : nextToken)
+    t->expect(state.contents.wordPressConnectionStatus)->Expect.toEqual(
+      Client__State__Types.WordPressConnectionFailed(current
+        ? "Your Frontman session expired. Sign in again."
+        : "Frontman sign-in changed. Check again."),
     )
   })
 })
 
-test("account changes also neutralize ordinary check failures", t => {
-  Client__EmbeddedAuth.saveToken("account-a")
-  let token = Client__EmbeddedAuth.loadToken()
-  let store = store({...Reducer.defaultState, wordPressConnectionRequestId: 1, wordPressConnectionStatus: WordPressChecking})
-  Client__EmbeddedAuth.saveToken("account-b")
-  Reducer.dispatchWordPressConnectionResult(
-    action => store->StateStore.dispatch(action), token, 1, WordPressConnectionFinished("Old failure"),
-  )
-  t->expect((store->StateStore.getState).wordPressCredentialWarning)->Expect.toBe(false)
-  t->expect((store->StateStore.getState).wordPressConnectionStatus)->Expect.toEqual(
-    Client__State__Types.WordPressConnectionFailed("Your Frontman sign-in changed. Check the connection again."),
-  )
+test("reset retains mutation identity and never publishes its stale snapshot", t => {
+  [Client__State__Types.WordPressLinking, WordPressUpdatingAccess({enabled: true})]->Array.forEach(status => {
+    let state = {...Reducer.defaultState, wordPressConnectionRequestId: 1, wordPressConnectionStatus: status, wordPressPendingMutation: Some(1)}
+    let state = reduce(state, ConnectionAction(Dispose))
+    t->expect(state.wordPressConnectionRequestId)->Expect.toBe(2)
+    t->expect(state.wordPressPendingMutation)->Expect.toEqual(Some(1))
+    let state = reduce(state, completion(2, Error(WordPressRequestFailed("unrelated"))))
+    t->expect(state.wordPressPendingMutation)->Expect.toEqual(Some(1))
+    let (state, effects) = Reducer.next(state, completion(1, checked(true), ~credentialRisk=true))
+    t->expect(effects)->Expect.toEqual([])
+    t->expect(state.wordPressPendingMutation)->Expect.toEqual(None)
+    t->expect(state.wordPressCredentialWarning)->Expect.toBe(true)
+    t->expect(state.wordPressConnectionStatus)->Expect.toEqual(Client__State__Types.WordPressNotChecked)
+  })
 })
 
-test("a pending approval blocks a second approval", t => {
-  let store = store({...Reducer.defaultState, wordPressPendingApproval: Some(1), wordPressConnectionStatus: WordPressUnlinked})
-  store->StateStore.dispatch(Reducer.ConnectWordPress)
-  t->expect((store->StateStore.getState).wordPressConnectionStatus)->Expect.toEqual(Client__State__Types.WordPressUnlinked)
-  t->expect((store->StateStore.getState).wordPressPendingApproval)->Expect.toBe(Some(1))
-})
-
-test("dispose invalidates checks but keeps a pending approval until its completion", t => {
-  let store = store({...Reducer.defaultState, wordPressConnectionRequestId: 1, wordPressConnectionStatus: WordPressLinking, wordPressPendingApproval: Some(1)})
-  store->StateStore.dispatch(Reducer.ConnectionAction(Dispose))
-  t->expect((store->StateStore.getState).wordPressConnectionRequestId)->Expect.toBe(2)
-  t->expect((store->StateStore.getState).wordPressPendingApproval)->Expect.toBe(Some(1))
-  complete(store, 2, Reducer.WordPressConnectionFinished("unrelated"))
-  t->expect((store->StateStore.getState).wordPressPendingApproval)->Expect.toBe(Some(1))
-  complete(store, 1, checked(true), ~credentialRisk=true)
-  t->expect((store->StateStore.getState).wordPressPendingApproval)->Expect.toBe(None)
-  t->expect((store->StateStore.getState).wordPressCredentialWarning)->Expect.toBe(true)
-  t->expect((store->StateStore.getState).wordPressConnectionStatus)->Expect.toEqual(
-    Client__State__Types.WordPressConnectionFailed("A previous connection attempt finished. Check the connection again."),
-  )
-  complete(store, 2, checked(false))
-  t->expect((store->StateStore.getState).wordPressConnectionStatus)->Expect.toEqual(
-    Client__State__Types.WordPressConnectionFailed("A previous connection attempt finished. Check the connection again."),
+test("only definitive approval rejections clear credential risk", t => {
+  [
+    (Some("frontman_invalid_nonce"), None, false),
+    (Some("frontman_password_creation_failed"), None, false),
+    (None, None, true),
+    (Some("unknown_failure"), None, true),
+    (Some("frontman_invalid_nonce"), Some(true), true),
+    (None, Some(false), false),
+  ]->Array.forEach(((code, credential_created, risk)) =>
+    t->expect(Client__State__Types.wordPressCredentialRisk({error: "Rejected", code, credential_created}))->Expect.toBe(risk)
   )
 })

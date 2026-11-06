@@ -29,8 +29,28 @@ type wordPressAccessStatus = {enabled: bool}
 @schema
 type wordPressConnectionError = {
   error: string,
+  code: option<string>,
   credential_created: option<bool>,
 }
+
+let wordPressCredentialRisk = error =>
+  switch (error.credential_created, error.code) {
+  | (Some(created), _) => created
+  | (
+      None,
+      Some(
+        "frontman_not_authenticated"
+        | "frontman_forbidden"
+        | "frontman_missing_nonce"
+        | "frontman_invalid_nonce"
+        | "frontman_https_required"
+        | "frontman_invalid_site_url"
+        | "frontman_application_passwords_unavailable"
+        | "frontman_password_creation_failed",
+      ),
+    ) => false
+  | _ => true
+  }
 
 @schema
 type userApiKeysResponse = {
@@ -237,7 +257,7 @@ type state = {
   wordPressLoginRecovery: option<{loginUrl: option<string>}>,
   wordPressConnectionStatus: wordPressConnectionStatus,
   wordPressConnectionRequestId: int,
-  wordPressPendingApproval: option<int>,
+  wordPressPendingMutation: option<int>,
   wordPressCredentialWarning: bool,
   userProfile: option<userProfile>,
   settingsModalTab: option<settingsTab>,
