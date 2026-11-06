@@ -8,7 +8,7 @@ type response
 type context
 type webSocketRoute
 type launchOptions = {@live headless: bool, @live args?: array<string>}
-type pageOptions = {@live serviceWorkers: string}
+type pageOptions = {@live serviceWorkers: string, @live storageState?: string}
 type waitOptions = {@live state: string}
 type screenshotOptions = {@live path: string, @live fullPage: bool}
 
@@ -31,7 +31,6 @@ type screenshotOptions = {@live path: string, @live fullPage: bool}
 @send external abort: route => promise<unit> = "abort"
 @send external continueRequest: route => promise<unit> = "continue"
 @send external screenshot: (page, screenshotOptions) => promise<unit> = "screenshot"
-@send external evaluate: (page, string => unit, string) => promise<unit> = "evaluate"
 @send external waitFor: (locator, ~options: waitOptions=?) => promise<unit> = "waitFor"
 @send external isVisible: locator => promise<bool> = "isVisible"
 @send external reload: page => promise<unit> = "reload"

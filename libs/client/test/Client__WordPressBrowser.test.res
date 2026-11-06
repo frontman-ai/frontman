@@ -152,23 +152,17 @@ testAsync(
 )
 
 @schema
-type clientFixture = {origin: string, api: string, token: string, password: string}
-@schema
 type approval = {catalog_url: string, username: string, password: string}
-let setToken: string => unit = %raw(`token => localStorage.setItem("frontman:embeddedClientToken", token)`)
 let directory = Process.env->Dict.get("FRONTMAN_WP_RUNTIME_DIRECTORY")
 testAsync(
   "real client approves, restores and changes WordPress access",
   ~skip=directory->Option.isNone,
   ~timeout=120000,
   async t => {
-    let fixture = try {
-      Fs.readFileSync(directory->Option.getOrThrow ++ "/client.json")
-      ->JSON.parseOrThrow
-      ->S.parseOrThrow(~to=clientFixtureSchema)
-    } catch {
-    | _ => failwith("Could not read private WordPress client fixture")
-    }
+    let origin = WebAPI.URL.make(
+      ~url=Process.env->Dict.get("FRONTMAN_WP_RUNTIME_URL")->Option.getOrThrow,
+    ).origin
+    let api = Process.env->Dict.get("FRONTMAN_WP_CLIENT_API")->Option.getOrThrow
     let browser = await chromium->launch({
       headless: true,
       args: [
@@ -178,35 +172,32 @@ testAsync(
       ],
     })
     let verify = async () => {
-      let page = await browser->newPage(~options={serviceWorkers: "block"})
+      let page = try {
+        await browser->newPage(
+          ~options={
+            serviceWorkers: "block",
+            storageState: directory->Option.getOrThrow ++ "/client.json",
+          },
+        )
+      } catch {
+      | _ => failwith("Could not load private WordPress browser state; details redacted.")
+      }
       let allowed = (url, origin) => url == origin || url->String.startsWith(origin ++ "/")
       await page->route("**/*", async route => {
-        if (
-          allowed(route->request->requestUrl, fixture.origin) ||
-          allowed(route->request->requestUrl, fixture.api)
-        ) {
+        if allowed(route->request->requestUrl, origin) || allowed(route->request->requestUrl, api) {
           await route->continueRequest
         } else {
           await route->abort
         }
       })
       await page->routeWebSocket("**/*", socket => {
-        if allowed(socket->socketUrl, fixture.api->String.replace("https:", "wss:")) {
+        if allowed(socket->socketUrl, api->String.replace("https:", "wss:")) {
           socket->connectToServer
         } else {
           socket->closeSocket
         }
       })
-      await page->goto(fixture.origin ++ "/wp-login.php")
-      await page->locator("#user_login")->fill("admin")
-      try {
-        await page->locator("#user_pass")->fill(fixture.password)
-        await page->evaluate(setToken, fixture.token)
-      } catch {
-      | _ => failwith("Could not initialize private WordPress browser credentials")
-      }
-      await page->locator("#wp-submit")->click
-      await page->goto(fixture.origin ++ "/index.php/frontman")
+      await page->goto(origin ++ "/index.php/frontman")
       await page->locator("#frontman-warning-dismiss")->click
       let settings = async () => {
         await page
@@ -228,7 +219,7 @@ testAsync(
       } catch {
       | _ => failwith("Invalid private WordPress approval response")
       }
-      t->expect(WebAPI.URL.make(~url=credential.catalog_url).origin)->Expect.toBe(fixture.origin)
+      t->expect(WebAPI.URL.make(~url=credential.catalog_url).origin)->Expect.toBe(origin)
       let linked = page->locator("text=This site is linked to your Frontman account.")
       await linked->waitFor
       await page->reload

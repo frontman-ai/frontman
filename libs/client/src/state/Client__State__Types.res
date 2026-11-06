@@ -17,7 +17,7 @@ type submission = {
 }
 
 @schema
-type wordPressConnectionResponse = {id: string}
+type wordPressConnectionResponse = {@live id: @s.matches(S.string->S.min(1)) string}
 
 @schema
 type wordPressLocalStatus = {catalog_url: string, enabled: bool}

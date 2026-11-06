@@ -1567,12 +1567,7 @@ let runWordPressRequest = async (dispatch, apiBaseUrl, requestId, operation) => 
           Some(WebAPI.BodyInit.fromString(body)),
           Types.wordPressConnectionResponseSchema,
         )
-        saved->Result.map(saved => {
-          switch saved.id {
-          | "" => failwith("WordPress connection response has no ID")
-          | _ => {connected: true, enabled: true}
-          }
-        })
+        saved->Result.map(_ => {connected: true, enabled: true})
       }
     }
   } catch {
@@ -1587,6 +1582,26 @@ let runWordPressRequest = async (dispatch, apiBaseUrl, requestId, operation) => 
     result,
     ~credentialRisk=credentialRisk.contents,
   )
+}
+
+let fetchOAuthStatus = async (~url, ~dispatch, ~onSuccess, ~onError) => {
+  try {
+    switch Client__EmbeddedAuth.headers() {
+    | Some(headers) =>
+      let response = await WebAPI.Fetch.fetch(url, ~init={headers: headers})
+      switch (response.ok, response.status) {
+      | (true, _) =>
+        let json = await response->WebAPI.Response.json
+        let status = json->S.decodeOrThrow(~from=S.json, ~to=Types.oauthStatusResponseSchema)
+        dispatch(onSuccess(status))
+      | (false, 401) => requireEmbeddedAuthentication(dispatch)
+      | (false, _) => ()
+      }
+    | None => requireEmbeddedAuthentication(dispatch)
+    }
+  } catch {
+  | _ => dispatch(onError)
+  }
 }
 
 let handleEffect = (effect, state: state, dispatch: action => unit) => {
@@ -1753,36 +1768,12 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
   | SaveApiKeyEffect({apiBaseUrl, provider, key}) =>
     saveApiKeyImpl(dispatch, ~apiBaseUrl, ~provider, ~key)
   | FetchAnthropicOAuthStatusEffect({apiBaseUrl}) =>
-    let fetch = async () => {
-      let url = `${apiBaseUrl}/api/oauth/anthropic/status`
-
-      try {
-        switch Client__EmbeddedAuth.headers() {
-        | Some(headers) =>
-          let response = await WebAPI.Fetch.fetch(url, ~init={headers: headers})
-          Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
-          switch response.ok {
-          | true =>
-            let json = await response->WebAPI.Response.json
-            let {connected, expiresAt} =
-              json->S.decodeOrThrow(
-                ~from=S.json,
-                ~to=Client__State__Types.oauthStatusResponseSchema,
-              )
-            dispatch(AnthropicOAuthStatusReceived({connected, expiresAt}))
-          | false =>
-            switch response.status {
-            | 401 => requireEmbeddedAuthentication(dispatch)
-            | _ => ()
-            }
-          }
-        | None => requireEmbeddedAuthentication(dispatch)
-        }
-      } catch {
-      | _ => dispatch(AnthropicOAuthError({error: "Failed to fetch OAuth status"}))
-      }
-    }
-    fetch()->ignore
+    fetchOAuthStatus(
+      ~url=`${apiBaseUrl}/api/oauth/anthropic/status`,
+      ~dispatch,
+      ~onSuccess=({connected, expiresAt}) => AnthropicOAuthStatusReceived({connected, expiresAt}),
+      ~onError=AnthropicOAuthError({error: "Failed to fetch OAuth status"}),
+    )->ignore
 
   | GetAnthropicOAuthUrlEffect({apiBaseUrl}) =>
     let fetch = async () => {
@@ -1894,39 +1885,12 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
     disconnect()->ignore
 
   | FetchOpenAIOAuthStatusEffect({apiBaseUrl}) =>
-    let fetch = async () => {
-      let url = `${apiBaseUrl}/api/oauth/openai/status`
-
-      try {
-        switch Client__EmbeddedAuth.headers() {
-        | Some(headers) =>
-          let response = await WebAPI.Fetch.fetch(url, ~init={headers: headers})
-          Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
-          switch response.ok {
-          | true =>
-            let json = await response->WebAPI.Response.json
-            let {connected, expiresAt} =
-              json->S.decodeOrThrow(
-                ~from=S.json,
-                ~to=Client__State__Types.oauthStatusResponseSchema,
-              )
-            dispatch(OpenAIOAuthStatusReceived({connected, expiresAt}))
-          | false =>
-            switch response.status {
-            | 401 => requireEmbeddedAuthentication(dispatch)
-            | _ => ()
-            }
-          }
-        | None => requireEmbeddedAuthentication(dispatch)
-        }
-      } catch {
-      | _ =>
-        dispatch(
-          OpenAIOAuthError({deviceAuthId: None, error: "Failed to fetch OpenAI OAuth status"}),
-        )
-      }
-    }
-    fetch()->ignore
+    fetchOAuthStatus(
+      ~url=`${apiBaseUrl}/api/oauth/openai/status`,
+      ~dispatch,
+      ~onSuccess=({connected, expiresAt}) => OpenAIOAuthStatusReceived({connected, expiresAt}),
+      ~onError=OpenAIOAuthError({deviceAuthId: None, error: "Failed to fetch OpenAI OAuth status"}),
+    )->ignore
 
   | InitiateOpenAIDeviceAuthEffect({apiBaseUrl}) =>
     let fetch = async () => {

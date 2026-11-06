@@ -244,6 +244,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     {output, status} =
       System.cmd("make", ["test", "TEST_FILTER=test/Client__WordPressBrowser.test.res.mjs"],
         cd: Path.expand("../../../../libs/client", __DIR__),
+        env: [{"FRONTMAN_WP_CLIENT_API", api}],
         stderr_to_stdout: true
       )
 
