@@ -1473,7 +1473,7 @@ module ConnectionEffects = {
   }
 }
 
-let completeWordPressRequest = (dispatch, token, requestId, result, ~credentialRisk=false) => {
+let completeWordPressRequest = (dispatch, token, requestId, result, ~credentialRisk) => {
   let result = switch (Client__EmbeddedAuth.loadToken() == token, result) {
   | (false, _) => Error(WordPressRequestFailed("Frontman sign-in changed. Check again."))
   | (true, Error(WordPressAuthRequired)) =>
