@@ -15,14 +15,20 @@ defmodule FrontmanServerWeb.MCP.Server do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Protocols.MCP.Schema
   alias FrontmanServer.WordPress
+  alias FrontmanServer.WordPress.Onboarding
+  alias FrontmanServerWeb.Endpoint
 
   @impl true
   def handle_request(%{"method" => method} = request, frame)
       when method in ["tools/list", "tools/call"] do
     previous = Map.fetch(frame.assigns, :mcp_request)
+    frame = Frame.assign(frame, :mcp_request, request)
 
     {status, result, returned} =
-      Handlers.handle(request, __MODULE__, Frame.assign(frame, :mcp_request, request))
+      case validate_site_selection(frame) do
+        :ok -> Handlers.handle(request, __MODULE__, frame)
+        {:error, error} -> {:error, error, frame}
+      end
 
     assigns =
       case previous do
@@ -35,12 +41,37 @@ defmodule FrontmanServerWeb.MCP.Server do
 
   def handle_request(request, frame), do: Handlers.handle(request, __MODULE__, frame)
 
+  defp validate_site_selection(
+         %{assigns: %{mcp_request: %{"method" => "tools/call", "params" => %{"name" => name}}}} =
+           frame
+       )
+       when is_binary(name) and name != "list_sites" do
+    with {:ok, scope} <- scope(frame),
+         true <- permitted_discovery?(frame, WordPress.list_sites(scope)) do
+      :ok
+    else
+      :error ->
+        {:error, Error.execution("Account unavailable")}
+
+      false ->
+        {:error,
+         Error.protocol(:invalid_params, %{
+           message:
+             "Call list_sites and pass an accessible site's id as site_id. " <>
+               "If no sites are listed, connect a WordPress site first."
+         })}
+    end
+  end
+
+  defp validate_site_selection(_frame), do: :ok
+
   @impl true
   def server_tools(tools, frame) do
     fixed = [
       %Tool{
         name: "list_sites",
-        description: "List WordPress sites connected to your Frontman account.",
+        description:
+          "List connected WordPress sites for a requested WordPress task. If none are connected, guide the user through setup.",
         input_schema: %{"type" => "object", "properties" => %{}},
         validate_input: fn args -> {:ok, args} end
       }
@@ -75,7 +106,26 @@ defmodule FrontmanServerWeb.MCP.Server do
     case scope(frame) do
       {:ok, scope} ->
         sites = WordPress.list_sites(scope)
-        {:reply, Response.json(Response.tool(), %{sites: sites}), frame}
+
+        result =
+          case sites do
+            [] ->
+              %{
+                sites: [],
+                status: "connection_required",
+                explanation:
+                  "No WordPress sites are connected to this Frontman account. Guide the user through connecting a site; do not attempt WordPress edits yet.",
+                connection_url: Endpoint.url() <> "/wordpress/connect",
+                next_steps:
+                  Onboarding.steps() ++
+                    ["Run list_sites again to confirm the connection before editing."]
+              }
+
+            _ ->
+              %{sites: sites}
+          end
+
+        {:reply, Response.json(Response.tool(), result), frame}
 
       :error ->
         {:error, Error.execution("Account unavailable"), frame}
@@ -214,7 +264,14 @@ defmodule FrontmanServerWeb.MCP.Server do
 
     schema =
       schema
-      |> Map.put("properties", Map.put(properties, "site_id", %{"type" => "string"}))
+      |> Map.put(
+        "properties",
+        Map.put(properties, "site_id", %{
+          "type" => "string",
+          "description" =>
+            "The connected site's id returned by list_sites. Call list_sites first; do not use a URL or WordPress post ID."
+        })
+      )
       |> Map.put("required", ["site_id" | Map.get(schema, "required", [])])
 
     %Tool{
