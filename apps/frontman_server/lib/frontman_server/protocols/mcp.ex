@@ -23,7 +23,6 @@ defmodule FrontmanServer.Protocols.MCP do
   use Boundary, top_level?: true, deps: [FrontmanServer.Protocols.JsonRpc], exports: :all
 
   alias FrontmanServer.Protocols.JsonRpc
-  require Logger
 
   @protocol_version "2026-07-28"
   @execution_context_extension "ai.frontman/execution-context"
@@ -126,8 +125,6 @@ defmodule FrontmanServer.Protocols.MCP do
   identifiers are carried by the negotiated execution-context extension.
   """
   def build_tool_execution(%ToolCallParams{} = params) do
-    Logger.info("MCP tool call: #{params.tool_name}")
-
     JsonRpc.request(params.request_id, "tools/call", %{
       "name" => params.tool_name,
       "arguments" => params.arguments,

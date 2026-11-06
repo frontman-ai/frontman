@@ -18,7 +18,6 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
     @describetag billing: :active
     setup [:setup_sandbox, :setup_user, :setup_task]
 
-    @tag :capture_log
     test "LLM stream raise persists AgentError interaction via PubSub", %{
       task_id: task_id,
       scope: scope
@@ -56,7 +55,6 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
     end
 
     for delivery <- [:error, :stream_raise] do
-      @tag :capture_log
       test "#{delivery} preserves safe, non-retryable model guidance in storage and PubSub", %{
         task_id: task_id,
         scope: scope

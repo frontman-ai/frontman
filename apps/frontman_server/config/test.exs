@@ -100,7 +100,7 @@ config :frontman_server, FrontmanServer.Workers.SendAgentFeedbackToDiscord,
 
 config :swoosh, :api_client, false
 
-config :logger, level: :warning
+config :logger, level: :info
 
 config :phoenix, :plug_init_mode, :runtime
 

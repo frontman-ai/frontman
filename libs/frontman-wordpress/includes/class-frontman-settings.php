@@ -1,6 +1,8 @@
 <?php
 /** Frontman administrator settings, shared by diagnostics and MCP access. */
 
+declare(strict_types=1);
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }

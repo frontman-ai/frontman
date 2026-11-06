@@ -14,7 +14,6 @@ defmodule FrontmanServerWeb.CustomerFeedbackTest do
   alias FrontmanServerWeb.UserSocket
 
   @name "request_customer_feedback"
-  @moduletag :capture_log
 
   for output <- [%{"outcome" => "answered", "score" => 0}, %{"outcome" => "skipped"}] do
     test "persists #{output["outcome"]} through the normal MCP tool result path", %{scope: scope} do

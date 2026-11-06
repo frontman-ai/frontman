@@ -36,7 +36,6 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
   end
 
   describe "failed event Sentry reporting (Gap 3)" do
-    @tag :capture_log
     test "reports LLM error to Sentry with agent_execution_error tag", %{
       task_id: task_id,
       scope: scope
@@ -62,7 +61,6 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
   end
 
   describe "stream error Sentry reporting (Gap 3)" do
-    @tag :capture_log
     test "reports LLM stream error to Sentry as agent_execution_error (not crash)", %{
       task_id: task_id,
       scope: scope
@@ -82,7 +80,6 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       assert report.extra[:reason] == "Sentry test: simulated stream error"
     end
 
-    @tag :capture_log
     test "persists wrapped stream stall timeout as retryable overload without Sentry error", %{
       task_id: task_id,
       scope: scope
@@ -99,7 +96,6 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       assert pop_all_reports() == []
     end
 
-    @tag :capture_log
     test "persists retryable rate limits without Sentry error", %{
       task_id: task_id,
       scope: scope
@@ -131,7 +127,6 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
          }, "quota"},
         {"unknown_model", :unknown_model, "model_unavailable"}
       ] do
-    @tag :capture_log
     test "reports nonretryable #{label} failure exactly once", %{
       task_id: task_id,
       scope: scope

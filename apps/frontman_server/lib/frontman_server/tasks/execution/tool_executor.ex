@@ -102,8 +102,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
       when is_integer(turn_number) and turn_number > 0 do
     SentryContext.set_task_scope_context(scope, task_id)
 
-    Logger.info("ToolExecutor: Routing to MCP tool #{tool_call.name}")
-
     register_mcp_tool(task_id, tool_call)
     publish_mcp_tool_call(scope, task_id, turn_number, tool_call, execution_mode)
     :ok

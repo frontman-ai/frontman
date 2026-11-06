@@ -187,7 +187,6 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
       end
     end
 
-    @tag :capture_log
     test "transport timeout leaves no account, identity, jobs, or session", %{conn: conn} do
       Req.Test.expect(__MODULE__, &Req.Test.transport_error(&1, :timeout))
       conn = sign_in(conn)

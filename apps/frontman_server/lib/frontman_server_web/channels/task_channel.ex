@@ -1209,6 +1209,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     push(socket, "mcp:message", request)
 
     Logger.info("MCP tool request pushed",
+      tool_name: tool_call.tool_name,
       mcp_request_id: request_id,
       tool_call_id: tool_call.tool_call_id
     )

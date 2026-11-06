@@ -18,7 +18,7 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
 
   describe "perform/1" do
     for failure <- [500, :timeout, :exception] do
-      @tag failure: failure, capture_log: true
+      @tag failure: failure
       test "activation failure #{failure} retries five times and reports only exhaustion",
            %{failure: failure} do
         user = Accounts.user_fixture()

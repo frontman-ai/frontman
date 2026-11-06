@@ -70,7 +70,6 @@ defmodule FrontmanServerWeb.UserSettingsControllerTest do
   end
 
   describe "PUT /users/settings (change email form)" do
-    @tag :capture_log
     test "updates the user email", %{conn: conn, user: user} do
       conn =
         put(conn, ~p"/users/settings", %{
