@@ -18,8 +18,7 @@ defmodule FrontmanServer.MixProject do
       hex: [
         ignore_advisories: [
           "EEF-CVE-2026-95105",
-          "EEF-CVE-2026-94206",
-          "EEF-CVE-2026-43966"
+          "EEF-CVE-2026-94206"
         ]
       ],
       releases: [
@@ -113,6 +112,17 @@ defmodule FrontmanServer.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.18", only: :dev, runtime: false},
       {:bypass, "~> 2.1", only: :test},
+      {:cowboy,
+       github: "ninenines/cowboy",
+       ref: "3a630c07e1521abf63a1b9ea080509aa1337b60d",
+       only: :test,
+       override: true},
+      {:cowlib,
+       github: "ninenines/cowlib",
+       ref: "a3b15e29b3067644bfd580246c87f7af7a90b3b8",
+       only: :test,
+       override: true},
+      {:ranch, "~> 1.8", only: :test, override: true},
       {:mox, "~> 1.2", only: :test}
     ]
   end
