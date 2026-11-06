@@ -13,7 +13,8 @@ module UserContentPart = Client__State__Types.UserContentPart
 module Message = Client__State__Types.Message
 module Task = Client__State__Types.Task
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
-type state = Client__State__Types.state
+module Types = Client__State__Types
+type state = Types.state
 
 module TaskReducer = Client__Task__Reducer
 module Connection = Client__ConnectionReducer
@@ -23,6 +24,10 @@ type taskTarget = CurrentTask | ForTask(string)
 type apiKeyProvider = OpenRouter | Anthropic | Fireworks | Nvidia
 
 type pendingPlanHandoff = {taskId: string, executorAgentId: string}
+
+type wordPressOperation = CheckConnection | ApproveConnection | UpdateAccess(bool)
+type wordPressConnection = {connected: bool, enabled: bool}
+type wordPressError = WordPressRequestFailed(string) | WordPressAuthRequired
 
 type promptInput = {
   content: array<UserContentPart.t>,
@@ -35,7 +40,13 @@ type rec action =
   | WordPressAuthenticationRequired(option<string>)
   | ReloadAfterWordPressLogin
   | ConnectWordPress
-  | WordPressConnectionFinished(string)
+  | FetchWordPressConnection
+  | SetWordPressAccess(bool)
+  | WordPressConnectionCompletion({
+      requestId: int,
+      result: result<wordPressConnection, wordPressError>,
+      credentialRisk: bool,
+    })
   | ConnectionAction(Connection.action)
   | ConnectionEvent({signal: WebAPI.EventTypes.abortSignal, action: action})
   | SessionEvent({requestId: Connection.sessionRequestId, action: action})
@@ -158,7 +169,7 @@ type effect =
   | FlushSessionActions(array<action>)
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
   | FetchApiKeySettingsEffect({apiBaseUrl: string})
-  | ConnectWordPressEffect({apiBaseUrl: string})
+  | WordPressConnectionEffect({apiBaseUrl: string, requestId: int, operation: wordPressOperation})
   | SaveApiKeyEffect({apiBaseUrl: string, provider: apiKeyProvider, key: string})
   | FetchAnthropicOAuthStatusEffect({apiBaseUrl: string})
   | GetAnthropicOAuthUrlEffect({apiBaseUrl: string})
@@ -285,7 +296,10 @@ let defaultState: state = {
   currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
   connection: None,
   wordPressLoginRecovery: None,
-  wordPressConnectionStatus: None,
+  wordPressConnectionStatus: WordPressNotChecked,
+  wordPressConnectionRequestId: 0,
+  wordPressPendingMutation: None,
+  wordPressCredentialWarning: false,
   userProfile: None,
   settingsModalTab: None,
   billingStatus: Client__Billing.NotLoaded,
@@ -327,6 +341,7 @@ let defaultState: state = {
 module Selectors = {
   let wordPressLoginRecovery = (state: state) => state.wordPressLoginRecovery
   let wordPressConnectionStatus = (state: state) => state.wordPressConnectionStatus
+  let wordPressCredentialWarning = (state: state) => state.wordPressCredentialWarning
   let getSession = (state: state) =>
     state.connection->Option.flatMap(Connection.Selectors.getSession)
   let getRelay = (state: state) => state.connection->Option.flatMap(Connection.Selectors.getRelay)
@@ -1458,6 +1473,137 @@ module ConnectionEffects = {
   }
 }
 
+let completeWordPressRequest = (dispatch, token, requestId, result, ~credentialRisk) => {
+  let result = switch (Client__EmbeddedAuth.loadToken() == token, result) {
+  | (false, _) => Error(WordPressRequestFailed("Frontman sign-in changed. Check again."))
+  | (true, Error(WordPressAuthRequired)) =>
+    requireEmbeddedAuthentication(dispatch)
+    result
+  | (true, _) => result
+  }
+  dispatch(WordPressConnectionCompletion({requestId, result, credentialRisk}))
+}
+
+let runWordPressRequest = async (dispatch, apiBaseUrl, requestId, operation) => {
+  let token = Client__EmbeddedAuth.loadToken()
+  let credentialRisk = ref(false)
+  let result = try {
+    switch (
+      token->Option.filter(token => token->String.trim != ""),
+      Client__EmbeddedAuth.jsonHeaders(),
+    ) {
+    | (None, _) | (_, None) => Error(WordPressAuthRequired)
+    | (Some(_), Some(headers)) =>
+      let account = async (path, body, schema) => {
+        switch Client__EmbeddedAuth.loadToken() == token {
+        | false => Error(WordPressRequestFailed("Frontman sign-in changed. Check again."))
+        | true =>
+          let response = await WebAPI.Fetch.fetch(
+            `${apiBaseUrl}/api/wordpress/connections${path}`,
+            ~init={
+              method: body->Option.isSome ? "POST" : "GET",
+              headers,
+              ?body,
+              redirect: WebAPI.FetchTypes.Error,
+              cache: WebAPI.FetchTypes.NoStore,
+              signal: Null.make(WebAPI.AbortSignal.timeout(30000)),
+            },
+          )
+          switch (response.status, response.ok) {
+          | (401, _) => Error(WordPressAuthRequired)
+          | (_, false) =>
+            Error(WordPressRequestFailed("Could not check or save the connection. Try again."))
+          | (_, true) =>
+            let json = await response->WebAPI.Response.json
+            Ok(json->S.decodeOrThrow(~from=S.json, ~to=schema))
+          }
+        }
+      }
+      let runtime = Client__RuntimeConfig.read()
+      let relay = Client__WordPressRelay.makeConfig(
+        ~baseUrl=Client__RelayBaseUrl.current(),
+        ~nonce=runtime.wpNonce,
+        ~onAuthenticationRequired=() =>
+          dispatch(WordPressAuthenticationRequired(runtime.wordpressLoginUrl)),
+      )
+      let path = switch operation {
+      | CheckConnection => "status"
+      | ApproveConnection => "connect"
+      | UpdateAccess(enabled) => enabled ? "enable" : "disable"
+      }
+      credentialRisk := operation == ApproveConnection
+      let response = await relay.fetch(
+        `${relay.baseUrl}/frontman/mcp/${path}`,
+        {
+          method: operation == CheckConnection ? "GET" : "POST",
+          signal: Null.make(WebAPI.AbortSignal.timeout(30000)),
+        },
+      )
+      switch (response.ok, operation) {
+      | (false, _) =>
+        let json = await response->WebAPI.Response.json
+        let error = json->S.decodeOrThrow(~from=S.json, ~to=Types.wordPressConnectionErrorSchema)
+        credentialRisk := credentialRisk.contents && Types.wordPressCredentialRisk(error)
+        Error(WordPressRequestFailed(error.error))
+      | (true, UpdateAccess(_)) =>
+        let json = await response->WebAPI.Response.json
+        let saved = json->S.decodeOrThrow(~from=S.json, ~to=Types.wordPressAccessStatusSchema)
+        Ok({connected: true, enabled: saved.enabled})
+      | (true, CheckConnection) =>
+        let json = await response->WebAPI.Response.json
+        let local = json->S.decodeOrThrow(~from=S.json, ~to=Types.wordPressLocalStatusSchema)
+        let query = WebAPI.URLSearchParams.make()
+        query->WebAPI.URLSearchParams.set(~name="catalog_url", ~value=local.catalog_url)
+        let saved = await account(
+          `/status?${query->WebAPI.URLSearchParams.toString}`,
+          None,
+          Types.wordPressSavedStatusSchema,
+        )
+        saved->Result.map(saved => {connected: saved.connected, enabled: local.enabled})
+      | (true, ApproveConnection) =>
+        let body = await response->WebAPI.Response.text
+        let saved = await account(
+          "",
+          Some(WebAPI.BodyInit.fromString(body)),
+          Types.wordPressConnectionResponseSchema,
+        )
+        saved->Result.map(_ => {connected: true, enabled: true})
+      }
+    }
+  } catch {
+  | exn =>
+    Log.error(~error=JsExn.fromException(exn), "WordPress connection request failed")
+    Error(WordPressRequestFailed("Could not confirm WordPress access. Check again."))
+  }
+  completeWordPressRequest(
+    dispatch,
+    token,
+    requestId,
+    result,
+    ~credentialRisk=credentialRisk.contents,
+  )
+}
+
+let fetchOAuthStatus = async (~url, ~dispatch, ~onSuccess, ~onError) => {
+  try {
+    switch Client__EmbeddedAuth.headers() {
+    | Some(headers) =>
+      let response = await WebAPI.Fetch.fetch(url, ~init={headers: headers})
+      switch (response.ok, response.status) {
+      | (true, _) =>
+        let json = await response->WebAPI.Response.json
+        let status = json->S.decodeOrThrow(~from=S.json, ~to=Types.oauthStatusResponseSchema)
+        dispatch(onSuccess(status))
+      | (false, 401) => requireEmbeddedAuthentication(dispatch)
+      | (false, _) => ()
+      }
+    | None => requireEmbeddedAuthentication(dispatch)
+    }
+  } catch {
+  | _ => dispatch(onError)
+  }
+}
+
 let handleEffect = (effect, state: state, dispatch: action => unit) => {
   switch effect {
   | ReloadFrontman => WebAPI.Window.current->WebAPI.Window.location->WebAPI.Location.reload
@@ -1617,131 +1763,17 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
       TaskReducer.handleEffect(taskEffect, ~dispatch=taskDispatch, ~delegate)
     }
   | FetchApiKeySettingsEffect({apiBaseUrl}) => fetchApiKeySettingsImpl(dispatch, ~apiBaseUrl)
-  | ConnectWordPressEffect({apiBaseUrl}) =>
-    let connect = async () => {
-      let credentialCreated = ref(false)
-      let cleanup = ` Remove the "Frontman MCP" Application Password in your WordPress profile before retrying.`
-      try {
-        switch (
-          Client__EmbeddedAuth.loadToken()->Option.filter(token => token->String.trim != ""),
-          Client__EmbeddedAuth.jsonHeaders(),
-        ) {
-        | (None, _) | (_, None) =>
-          dispatch(WordPressConnectionFinished("Reload Frontman and sign in, then try again."))
-        | (Some(_), Some(headers)) =>
-          let runtime = Client__RuntimeConfig.read()
-          let relay = Client__WordPressRelay.makeConfig(
-            ~baseUrl=Client__RelayBaseUrl.current(),
-            ~nonce=runtime.wpNonce,
-          )
-          let response = await relay.fetch(
-            `${relay.baseUrl}/frontman/mcp/connect`,
-            {method: "POST", signal: Null.make(WebAPI.AbortSignal.timeout(30000))},
-          )
-          switch response.ok {
-          | false =>
-            let message = switch response.status {
-            | 401 => "Your WordPress session expired. Sign in to WordPress and reload Frontman."
-            | _ =>
-              let json = await response->WebAPI.Response.json
-              let error =
-                json->S.decodeOrThrow(
-                  ~from=S.json,
-                  ~to=Client__State__Types.wordPressConnectionErrorSchema,
-                )
-              credentialCreated := error.credential_created == Some(true)
-              error.error
-            }
-            dispatch(
-              WordPressConnectionFinished(message ++ (credentialCreated.contents ? cleanup : "")),
-            )
-          | true =>
-            credentialCreated := true
-            let body = await response->WebAPI.Response.text
-            let saved = await WebAPI.Fetch.fetch(
-              `${apiBaseUrl}/api/wordpress/connections`,
-              ~init={
-                method: "POST",
-                headers,
-                body: WebAPI.BodyInit.fromString(body),
-                redirect: WebAPI.FetchTypes.Error,
-                cache: WebAPI.FetchTypes.NoStore,
-                signal: Null.make(WebAPI.AbortSignal.timeout(30000)),
-              },
-            )
-            Client__EmbeddedAuth.clearTokenOnUnauthorized(saved)
-            switch (saved.ok, saved.status) {
-            | (true, _) =>
-              let json = await saved->WebAPI.Response.json
-              let result =
-                json->S.decodeOrThrow(
-                  ~from=S.json,
-                  ~to=Client__State__Types.wordPressConnectionResponseSchema,
-                )
-              dispatch(
-                WordPressConnectionFinished(`WordPress connected. Connection ID: ${result.id}`),
-              )
-            | (_, 401) =>
-              dispatch(
-                WordPressConnectionFinished(
-                  "Your Frontman session expired. Sign in again." ++ cleanup,
-                ),
-              )
-            | _ =>
-              dispatch(
-                WordPressConnectionFinished(
-                  "WordPress approved access, but Frontman could not verify and save the connection." ++
-                  cleanup,
-                ),
-              )
-            }
-          }
-        }
-      } catch {
-      | _ =>
-        dispatch(
-          WordPressConnectionFinished(
-            credentialCreated.contents
-              ? "Connection interrupted after WordPress approved access." ++ cleanup
-              : `WordPress did not confirm approval. Check your connection and reload Frontman. If the request reached WordPress, check your profile for a "Frontman MCP" Application Password before retrying.`,
-          ),
-        )
-      }
-    }
-    connect()->ignore
+  | WordPressConnectionEffect({apiBaseUrl, requestId, operation}) =>
+    runWordPressRequest(dispatch, apiBaseUrl, requestId, operation)->ignore
   | SaveApiKeyEffect({apiBaseUrl, provider, key}) =>
     saveApiKeyImpl(dispatch, ~apiBaseUrl, ~provider, ~key)
   | FetchAnthropicOAuthStatusEffect({apiBaseUrl}) =>
-    let fetch = async () => {
-      let url = `${apiBaseUrl}/api/oauth/anthropic/status`
-
-      try {
-        switch Client__EmbeddedAuth.headers() {
-        | Some(headers) =>
-          let response = await WebAPI.Fetch.fetch(url, ~init={headers: headers})
-          Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
-          switch response.ok {
-          | true =>
-            let json = await response->WebAPI.Response.json
-            let {connected, expiresAt} =
-              json->S.decodeOrThrow(
-                ~from=S.json,
-                ~to=Client__State__Types.oauthStatusResponseSchema,
-              )
-            dispatch(AnthropicOAuthStatusReceived({connected, expiresAt}))
-          | false =>
-            switch response.status {
-            | 401 => requireEmbeddedAuthentication(dispatch)
-            | _ => ()
-            }
-          }
-        | None => requireEmbeddedAuthentication(dispatch)
-        }
-      } catch {
-      | _ => dispatch(AnthropicOAuthError({error: "Failed to fetch OAuth status"}))
-      }
-    }
-    fetch()->ignore
+    fetchOAuthStatus(
+      ~url=`${apiBaseUrl}/api/oauth/anthropic/status`,
+      ~dispatch,
+      ~onSuccess=({connected, expiresAt}) => AnthropicOAuthStatusReceived({connected, expiresAt}),
+      ~onError=AnthropicOAuthError({error: "Failed to fetch OAuth status"}),
+    )->ignore
 
   | GetAnthropicOAuthUrlEffect({apiBaseUrl}) =>
     let fetch = async () => {
@@ -1853,39 +1885,12 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
     disconnect()->ignore
 
   | FetchOpenAIOAuthStatusEffect({apiBaseUrl}) =>
-    let fetch = async () => {
-      let url = `${apiBaseUrl}/api/oauth/openai/status`
-
-      try {
-        switch Client__EmbeddedAuth.headers() {
-        | Some(headers) =>
-          let response = await WebAPI.Fetch.fetch(url, ~init={headers: headers})
-          Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
-          switch response.ok {
-          | true =>
-            let json = await response->WebAPI.Response.json
-            let {connected, expiresAt} =
-              json->S.decodeOrThrow(
-                ~from=S.json,
-                ~to=Client__State__Types.oauthStatusResponseSchema,
-              )
-            dispatch(OpenAIOAuthStatusReceived({connected, expiresAt}))
-          | false =>
-            switch response.status {
-            | 401 => requireEmbeddedAuthentication(dispatch)
-            | _ => ()
-            }
-          }
-        | None => requireEmbeddedAuthentication(dispatch)
-        }
-      } catch {
-      | _ =>
-        dispatch(
-          OpenAIOAuthError({deviceAuthId: None, error: "Failed to fetch OpenAI OAuth status"}),
-        )
-      }
-    }
-    fetch()->ignore
+    fetchOAuthStatus(
+      ~url=`${apiBaseUrl}/api/oauth/openai/status`,
+      ~dispatch,
+      ~onSuccess=({connected, expiresAt}) => OpenAIOAuthStatusReceived({connected, expiresAt}),
+      ~onError=OpenAIOAuthError({deviceAuthId: None, error: "Failed to fetch OpenAI OAuth status"}),
+    )->ignore
 
   | InitiateOpenAIDeviceAuthEffect({apiBaseUrl}) =>
     let fetch = async () => {
@@ -2154,6 +2159,8 @@ let clearPendingQuestions = (state: state) => {
 let clearConnectionState = (state: state) => {
   {
     ...clearPendingQuestions(state),
+    wordPressConnectionStatus: WordPressNotChecked,
+    wordPressConnectionRequestId: state.wordPressConnectionRequestId + 1,
     billingStatus: Client__Billing.NotLoaded,
     billingFlow: Client__Billing.Idle,
     billingAbortController: None,
@@ -2704,21 +2711,54 @@ let rec next = (state: state, action) => {
       ->StateReducer.update(~sideEffects=[FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl})])
     | None => state->StateReducer.update
     }
-  | ConnectWordPress =>
-    switch (Selectors.apiBaseUrl(state), state.wordPressConnectionStatus) {
-    | (_, Some("Connecting...")) => state->StateReducer.update
-    | (Some(apiBaseUrl), _) =>
-      {...state, wordPressConnectionStatus: Some("Connecting...")}->StateReducer.update(
-        ~sideEffects=[ConnectWordPressEffect({apiBaseUrl: apiBaseUrl})],
-      )
-    | (None, _) =>
+  | ConnectWordPress | FetchWordPressConnection | SetWordPressAccess(_) =>
+    let operation = switch (action, state.wordPressConnectionStatus) {
+    | (ConnectWordPress, WordPressUnlinked) =>
+      Some((ApproveConnection, Client__State__Types.WordPressLinking))
+    | (FetchWordPressConnection, _) =>
+      Some((CheckConnection, Client__State__Types.WordPressChecking))
+    | (SetWordPressAccess(enabled), WordPressLinked({enabled: current})) if current != enabled =>
+      Some((
+        UpdateAccess(enabled),
+        Client__State__Types.WordPressUpdatingAccess({enabled: current}),
+      ))
+    | _ => None
+    }
+    switch (state.wordPressPendingMutation, Selectors.apiBaseUrl(state), operation) {
+    | (None, Some(apiBaseUrl), Some((operation, status))) =>
+      let requestId = state.wordPressConnectionRequestId + 1
       {
         ...state,
-        wordPressConnectionStatus: Some("Reload Frontman and sign in, then try again."),
-      }->StateReducer.update
+        wordPressConnectionStatus: status,
+        wordPressConnectionRequestId: requestId,
+        wordPressPendingMutation: operation == CheckConnection ? None : Some(requestId),
+      }->StateReducer.update(
+        ~sideEffects=[WordPressConnectionEffect({apiBaseUrl, requestId, operation})],
+      )
+    | _ => state->StateReducer.update
     }
-  | WordPressConnectionFinished(message) =>
-    {...state, wordPressConnectionStatus: Some(message)}->StateReducer.update
+  | WordPressConnectionCompletion({requestId, result, credentialRisk}) =>
+    let current = requestId == state.wordPressConnectionRequestId
+    let mutationFinished = state.wordPressPendingMutation == Some(requestId)
+    let status: Client__State__Types.wordPressConnectionStatus = switch result {
+    | Ok({connected, enabled}) =>
+      connected ? WordPressLinked({enabled: enabled}) : WordPressUnlinked
+    | Error(WordPressRequestFailed(message)) => WordPressConnectionFailed(message)
+    | Error(WordPressAuthRequired) =>
+      WordPressConnectionFailed("Your Frontman session expired. Sign in again.")
+    }
+    let state = {
+      ...state,
+      wordPressPendingMutation: mutationFinished ? None : state.wordPressPendingMutation,
+      wordPressCredentialWarning: state.wordPressCredentialWarning ||
+      (credentialRisk && (!current || result->Result.isError)),
+    }
+    switch (current, mutationFinished) {
+    | (true, _) => {...state, wordPressConnectionStatus: status}->StateReducer.update
+    | (false, true) =>
+      next({...state, wordPressConnectionStatus: WordPressNotChecked}, FetchWordPressConnection)
+    | (false, false) => state->StateReducer.update
+    }
 
   | ApiKeySettingsReceived({provider, source}) =>
     state->setApiKeySource(provider, source)->StateReducer.update

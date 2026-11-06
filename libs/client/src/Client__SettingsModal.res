@@ -560,6 +560,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
 
   let apiBaseUrl = State.useSelector(State.Selectors.apiBaseUrl)
   let wordPressConnectionStatus = State.useSelector(State.Selectors.wordPressConnectionStatus)
+  let wordPressCredentialWarning = State.useSelector(State.Selectors.wordPressCredentialWarning)
   let keySettings = State.useSelector(State.Selectors.openrouterKeySettings)
   let anthropicKeySettings = State.useSelector(State.Selectors.anthropicKeySettings)
   let fireworksKeySettings = State.useSelector(State.Selectors.fireworksKeySettings)
@@ -569,6 +570,10 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
 
   React.useEffect2(() => {
     if open_ {
+      switch runtimeConfig.framework {
+      | Wordpress => State.Actions.fetchWordPressConnection()
+      | Nextjs | Vite | Astro => ()
+      }
       State.Actions.fetchApiKeySettings()
       State.Actions.fetchCustomProviders()
       State.Actions.fetchAnthropicOAuthStatus()
@@ -661,25 +666,14 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
               ? <div className="space-y-6">
                 {switch runtimeConfig.framework {
                 | Wordpress =>
-                  <div className="rounded-lg border border-zinc-800 px-4 py-4 space-y-3">
-                    <div className="text-sm font-medium"> {React.string("Connect WordPress")} </div>
-                    <p className="text-sm text-zinc-400">
-                      {React.string(`This enables MCP access and creates a native Application Password with your WordPress administrator's broader REST permissions. Frontman stores it to access this site. Disabling MCP in WordPress Settings → Frontman only disables MCP routes. To revoke the password's broader REST access, remove the "Frontman MCP" Application Password in your WordPress profile.`)}
-                    </p>
-                    <button
-                      type_="button"
-                      disabled={wordPressConnectionStatus == Some("Connecting...")}
-                      onClick={_ => State.Actions.connectWordPress()}
-                      className="rounded border border-zinc-600 px-3 py-2 text-sm"
-                    >
-                      {React.string("Enable MCP and connect")}
-                    </button>
-                    {wordPressConnectionStatus->Option.mapOr(React.null, status =>
-                      <p className="text-sm text-zinc-400" role="status">
-                        {React.string(status)}
-                      </p>
-                    )}
-                  </div>
+                  <Client__WordPressConnectionCard
+                    status={wordPressConnectionStatus}
+                    credentialWarning={wordPressCredentialWarning}
+                    onConnect={State.Actions.connectWordPress}
+                    onCheck={State.Actions.fetchWordPressConnection}
+                    onSetAccess={State.Actions.setWordPressAccess}
+                    settingsUrl={runtimeConfig.wordpressSettingsUrl}
+                  />
                 | Nextjs | Vite | Astro => React.null
                 }}
                 <div>

@@ -4,6 +4,10 @@ type execOptions = {
   maxBuffer?: int,
 }
 
+type execFileSyncOptions = {encoding: string, stdio: array<string>}
+@module("node:child_process")
+external execFileSync: (string, array<string>, execFileSyncOptions) => string = "execFileSync"
+
 type execResult = {
   stdout: string,
   stderr: string,

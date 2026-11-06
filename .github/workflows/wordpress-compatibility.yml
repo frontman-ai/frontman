@@ -6,6 +6,7 @@ on:
       - "libs/frontman-preview-bridge/**"
       - "libs/frontman-protocol/**"
       - "libs/frontman-astro-browser/**"
+      - "libs/client/**"
       - "libs/frontman-wordpress/**"
       - "apps/frontman_server/**"
       - "apps/swarm_ai/**"
@@ -26,6 +27,7 @@ on:
       - "libs/frontman-preview-bridge/**"
       - "libs/frontman-protocol/**"
       - "libs/frontman-astro-browser/**"
+      - "libs/client/**"
       - "libs/frontman-wordpress/**"
       - "apps/frontman_server/**"
       - "apps/swarm_ai/**"
@@ -94,6 +96,7 @@ jobs:
           docker run -d --rm --name wp-sdk-postgres -p 127.0.0.1:5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16
           timeout 60 bash -c 'until pg_isready -q -h 127.0.0.1; do sleep 1; done'
           make setup-elixir-tools
+          make -C libs/frontman-preview-bridge install-browser
           cd apps/frontman_server && mix deps.get
 
       - name: Package plugin and run WordPress runtime tests

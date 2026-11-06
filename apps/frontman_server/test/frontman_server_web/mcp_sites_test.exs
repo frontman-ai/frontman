@@ -1,11 +1,12 @@
 defmodule FrontmanServerWeb.MCPSitesTest do
-  use FrontmanServer.DataCase, async: false
+  use FrontmanServerWeb.ConnCase, async: true
 
   alias Anubis.Server.{Context, Frame}
   alias Anubis.Server.Handlers.Tools
   alias Anubis.Server.Transport.StreamableHTTP.Plug, as: AnubisPlug
   alias Anubis.Server.Transport.StreamableHTTP.StatelessBinding
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Repo
   alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
   alias FrontmanServer.WordPress
   alias FrontmanServer.WordPress.Connection
@@ -90,7 +91,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
     body = %{
       "jsonrpc" => "2.0",
-      "id" => 1,
+      "id" => Ecto.UUID.generate(),
       "method" => "tools/call",
       "params" => %{
         "name" => "list_sites",
@@ -103,6 +104,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
       }
     }
 
+    record_requests(body["id"])
     conn = sdk_conn(body)
     context = %{auth: %{sub: user.id}, assigns: %{}, req_headers: conn.req_headers}
     response = StatelessBinding.call(conn, "2026-07-28", context, AnubisPlug.init(server: Server))
@@ -110,7 +112,6 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     assert %{"result" => %{"content" => [%{"text" => text}]}} = Jason.decode!(response.resp_body)
     assert Jason.decode!(text) == %{"sites" => [%{"id" => site.id, "label" => "owned.example"}]}
 
-    record_requests()
     body = put_in(body, ["params", "name"], "wp_read_post")
     body = put_in(body, ["params", "arguments"], %{"site_id" => Ecto.UUID.generate()})
 
@@ -158,21 +159,6 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     url = System.fetch_env!("FRONTMAN_WP_RUNTIME_URL")
     password = File.read!(System.fetch_env!("FRONTMAN_WP_RUNTIME_PASSWORD"))
     user = AccountsFixtures.user_fixture()
-    previous_env = Application.get_env(:frontman_server, :env)
-    Application.put_env(:frontman_server, :env, :dev)
-
-    :public_key.cacerts_clear()
-
-    :ok =
-      :public_key.cacerts_load(String.to_charlist(System.fetch_env!("FRONTMAN_WP_RUNTIME_CA")))
-
-    on_exit(fn ->
-      if previous_env,
-        do: Application.put_env(:frontman_server, :env, previous_env),
-        else: Application.delete_env(:frontman_server, :env)
-
-      :public_key.cacerts_clear()
-    end)
 
     for _ <- 1..33 do
       %Connection{user_id: user.id}
@@ -209,6 +195,64 @@ defmodule FrontmanServerWeb.MCPSitesTest do
              })
   end
 
+  @tag :wordpress_client
+  @tag skip: System.get_env("FRONTMAN_WP_RUNTIME_URL") == nil
+  @tag timeout: 180_000
+  test "the real client approves, restores and changes WordPress access" do
+    user = AccountsFixtures.user_fixture()
+
+    %{scheme: scheme, host: host, port: port} =
+      URI.parse(System.fetch_env!("FRONTMAN_WP_RUNTIME_URL"))
+
+    origin = "#{scheme}://#{host}:#{port}"
+    auth = embedded_client_auth(user, origin)
+
+    server =
+      start_supervised!(
+        {Bandit,
+         plug: {FrontmanServerWeb.WordPressRuntime, self()},
+         scheme: :https,
+         port: 0,
+         ip: {127, 0, 0, 1},
+         certfile: System.fetch_env!("FRONTMAN_WP_RUNTIME_CERT"),
+         keyfile: System.fetch_env!("FRONTMAN_WP_RUNTIME_KEY")}
+      )
+
+    {:ok, {_, api_port}} = ThousandIsland.listener_info(server)
+    api = "https://127.0.0.1:#{api_port}"
+
+    assert {:error, %ArgumentError{}} =
+             Req.get(api, plugins: [FrontmanServerWeb.WordPressRuntime])
+
+    path = Path.join(System.fetch_env!("FRONTMAN_WP_RUNTIME_DIRECTORY"), "client.json")
+
+    File.open!(path, [:write, :exclusive], fn file ->
+      File.chmod!(path, 0o600)
+
+      IO.write(file, Jason.encode!(%{origin: origin, api: api, token: auth.token}))
+    end)
+
+    assert {_, 0} =
+             System.cmd(System.get_env("CONTAINER_RUNTIME", "docker"), [
+               "exec",
+               System.fetch_env!("FRONTMAN_WP_RUNTIME_CONTAINER"),
+               "php",
+               "/tmp/RunWordPressRuntimeTest.php",
+               "client-setup"
+             ])
+
+    {output, status} =
+      System.cmd("make", ["test", "TEST_FILTER=test/Client__WordPressBrowser.test.res.mjs"],
+        cd: Path.expand("../../../../libs/client", __DIR__),
+        env: [{"FRONTMAN_WP_CLIENT_API", api}],
+        stderr_to_stdout: true
+      )
+
+    assert status == 0, output
+    assert [%{id: id}] = WordPress.list_sites(Scope.for_user(user))
+    assert {:ok, %{"tools" => [_ | _]}} = WordPress.catalog(Scope.for_user(user), id, 5_000)
+  end
+
   test "catalog union preserves provenance and rejects conflicts" do
     schema = %{"type" => "object", "properties" => %{"id" => %{"type" => "integer"}}}
     site = Ecto.UUID.generate()
@@ -239,15 +283,26 @@ defmodule FrontmanServerWeb.MCPSitesTest do
            )
   end
 
-  def record_request(_event, _measurements, %{request: request}, test) do
-    send(test, {:outbound, request.host})
+  def record_request([:anubis_mcp, :server, :request], _, %{id: id}, {test, id})
+      when is_binary(id),
+      do: Process.put(:"$callers", [test])
+
+  def record_request([:finch, :request, :start], _, %{request: request}, {test, _id}) do
+    if test in [self() | Process.get(:"$callers", [])], do: send(test, {:outbound, request.host})
   end
 
-  defp record_requests do
+  def record_request(_, _, _, _), do: :ok
+
+  defp record_requests(id \\ nil) do
     handler = {__MODULE__, make_ref()}
 
     :ok =
-      :telemetry.attach(handler, [:finch, :request, :start], &__MODULE__.record_request/4, self())
+      :telemetry.attach_many(
+        handler,
+        [[:finch, :request, :start], [:anubis_mcp, :server, :request]],
+        &__MODULE__.record_request/4,
+        {self(), id}
+      )
 
     on_exit(fn -> :telemetry.detach(handler) end)
   end

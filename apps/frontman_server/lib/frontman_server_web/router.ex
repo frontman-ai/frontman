@@ -128,6 +128,7 @@ defmodule FrontmanServerWeb.Router do
 
     delete("/client-token", ClientTokenController, :delete)
     post("/wordpress/connections", WordPressConnectionController, :create, log: false)
+    get("/wordpress/connections/status", WordPressConnectionController, :status, log: false)
 
     get("/billing/status", BillingController, :status)
     post("/billing/checkout", BillingController, :checkout)

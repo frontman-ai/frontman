@@ -126,12 +126,28 @@ class Frontman_Router {
 					$this->handle_get_update();
 					exit;
 
+				case $method === 'GET' && $sub_path === 'mcp/status':
+					header( 'Cache-Control: no-store, private' );
+					wp_send_json( [ 'catalog_url' => get_rest_url( null, 'frontman/v1/tools' ), 'enabled' => Frontman_Sentry::sanitize_enabled( get_option( 'frontman_mcp_enabled', false ) ) ] );
+					exit;
+
 				case $method === 'POST' && $sub_path === 'tools/call':
 					$this->handle_tool_call( $body );
 					exit;
 
 				case $method === 'POST' && $sub_path === 'mcp/connect':
 					$this->handle_mcp_connect();
+					exit;
+
+				case $method === 'POST' && in_array( $sub_path, [ 'mcp/enable', 'mcp/disable' ], true ):
+					$enabled = 'mcp/enable' === $sub_path;
+					update_option( 'frontman_mcp_enabled', $enabled );
+					$saved = Frontman_Sentry::sanitize_enabled( get_option( 'frontman_mcp_enabled', false ) );
+					header( 'Cache-Control: no-store, private' );
+					if ( $saved !== $enabled ) {
+						wp_send_json( [ 'error' => 'Could not save MCP access. Check your WordPress settings and try again.' ], 500 );
+					}
+					wp_send_json( [ 'enabled' => $saved ] );
 					exit;
 
 				case $method === 'POST' && $sub_path === 'resolve-source-location':
