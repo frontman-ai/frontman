@@ -94,6 +94,7 @@ function frontman_runtime_isolated_cases(): array {
 		'polylang-setup' => [ 'file' => 'PolylangSetupRuntimeTest.php', 'root_alias' => false ],
 		'polylang-cleanup' => [ 'file' => 'PolylangCleanupRuntimeTest.php', 'root_alias' => false ],
 		'polylang-cleanup-verify' => [ 'file' => 'PolylangCleanupVerifyRuntimeTest.php', 'root_alias' => false ],
+		'client-setup' => [ 'file' => 'ClientRuntimeCase.php', 'root_alias' => false ],
 	];
 }
 

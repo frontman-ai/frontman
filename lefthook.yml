@@ -7,12 +7,12 @@ pre-commit:
     biome-lint:
       root: "libs/client/"
       glob: "libs/client/**/*.{ts,tsx,js,jsx,mjs}"
-      run: npx biome check --no-errors-on-unmatched {staged_files}
+      run: yarn biome check --no-errors-on-unmatched {staged_files}
 
     rescript-format:
       glob: "**/*.{res,resi}"
       exclude: "libs/experimental-rescript-webapi/**"
-      run: npx rescript format --check {staged_files}
+      run: yarn rescript format --check {staged_files}
 
     elixir-format-server:
       root: "apps/frontman_server/"

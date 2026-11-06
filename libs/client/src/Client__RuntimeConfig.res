@@ -70,41 +70,28 @@ let read = (): t => {
   let json = getRuntime()->Nullable.toOption->Option.getOrThrow
   let config = S.parseOrThrow(json, ~to=parsedSchema)
   let framework = frameworkIdFromString(config.framework)
-  let previewBridge = switch framework {
+  let (previewBridge, wordpressLoginUrl, wordpressSettingsUrl) = switch framework {
   | Wordpress =>
-    switch WebAPI.DomGlobal.document
-    ->WebAPI.Document.querySelector("#frontman-runtime-config")
-    ->Null.toOption
-    ->Option.flatMap(element =>
-      element->WebAPI.Element.getAttribute("data-preview-bridge")->Null.toOption
-    ) {
-    | Some("page-context-v1") => Some(PageContextV1)
-    | Some(_) | None => None
-    }
-  | Nextjs | Vite | Astro => None
-  }
-  let wordpressLoginUrl = switch (framework, config.wordpressLoginUrl) {
-  | (Wordpress, None) =>
-    WebAPI.DomGlobal.document
-    ->WebAPI.Document.querySelector("#frontman-runtime-config")
-    ->Null.toOption
-    ->Option.flatMap(element =>
-      element->WebAPI.Element.getAttribute("data-wordpress-login-url")->Null.toOption
+    let element =
+      WebAPI.DomGlobal.document
+      ->WebAPI.Document.querySelector("#frontman-runtime-config")
+      ->Null.toOption
+    let attribute = name =>
+      element->Option.flatMap(element => element->WebAPI.Element.getAttribute(name)->Null.toOption)
+    let url = (explicit, name) =>
+      switch explicit {
+      | Some(_) => explicit
+      | None => attribute(name)->Option.filter(value => value->String.trim != "")
+      }
+    (
+      switch attribute("data-preview-bridge") {
+      | Some("page-context-v1") => Some(PageContextV1)
+      | Some(_) | None => None
+      },
+      url(config.wordpressLoginUrl, "data-wordpress-login-url"),
+      url(config.wordpressSettingsUrl, "data-wordpress-settings-url"),
     )
-    ->Option.filter(value => value->String.trim != "")
-  | (_, loginUrl) => loginUrl
-  }
-  let wordpressSettingsUrl = switch (framework, config.wordpressSettingsUrl) {
-  | (Wordpress, None) =>
-    WebAPI.DomGlobal.document
-    ->WebAPI.Document.querySelector("#frontman-runtime-config")
-    ->Null.toOption
-    ->Option.flatMap(element =>
-      element->WebAPI.Element.getAttribute("data-wordpress-settings-url")->Null.toOption
-    )
-    ->Option.filter(value => value->String.trim != "")
-  | (Wordpress, url) => url
-  | (Nextjs | Vite | Astro, _) => None
+  | Nextjs | Vite | Astro => (None, config.wordpressLoginUrl, None)
   }
   {
     framework,

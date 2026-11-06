@@ -6,6 +6,8 @@ config :frontman_server,
   env: :dev,
   llm_wire_tap_enabled: true
 
+config :frontman_server, FrontmanServer.WordPress, plugins: []
+
 config :frontman_server, FrontmanServer.Repo,
   username: "postgres",
   password: "postgres",

@@ -20,33 +20,11 @@ defmodule FrontmanServer.WordPress do
   end
 
   def catalog(%Scope{} = scope, site_id, timeout) when timeout > 0 do
-    with {:ok, site_id} <- Ecto.UUID.cast(site_id),
-         %Connection{} = connection <-
-           scope |> Scope.user_id() |> Connection.owned() |> Repo.get(site_id) do
-      request(
-        connection.catalog_url,
-        connection.username,
-        connection.password,
-        :get,
-        nil,
-        timeout
-      )
-    else
-      _ -> {:error, :connection_failed}
-    end
+    request_site(scope, site_id, :get, nil, timeout)
   end
 
   def call(%Scope{} = scope, site_id, name, arguments) do
-    with {:ok, site_id} <- Ecto.UUID.cast(site_id),
-         %Connection{} = connection <-
-           scope |> Scope.user_id() |> Connection.owned() |> Repo.get(site_id) do
-      request(connection.call_url, connection.username, connection.password, :post, %{
-        name: name,
-        arguments: arguments
-      })
-    else
-      _ -> {:error, :connection_failed}
-    end
+    request_site(scope, site_id, :post, %{name: name, arguments: arguments}, 15_000)
   end
 
   def connect(%Scope{} = scope, %{
@@ -84,6 +62,22 @@ defmodule FrontmanServer.WordPress do
     scope |> Scope.user_id() |> Connection.owned_catalog(catalog_url) |> Repo.exists?()
   end
 
+  defp request_site(scope, site_id, method, body, timeout) do
+    with {:ok, site_id} <- Ecto.UUID.cast(site_id),
+         %Connection{} = connection <-
+           scope |> Scope.user_id() |> Connection.owned() |> Repo.get(site_id) do
+      url =
+        case method do
+          :get -> connection.catalog_url
+          :post -> connection.call_url
+        end
+
+      request(url, connection.username, connection.password, method, body, timeout)
+    else
+      _ -> {:error, :connection_failed}
+    end
+  end
+
   defp origin(url) do
     case URI.parse(url) do
       %URI{scheme: "https", host: host, userinfo: nil, fragment: nil, port: port}
@@ -96,34 +90,26 @@ defmodule FrontmanServer.WordPress do
   end
 
   defp request(url, username, password, method, body, timeout \\ 15_000) do
-    limit = 1_000_000
-
-    into = fn {:data, data}, {req, resp} ->
-      case byte_size(resp.body) + byte_size(data) <= limit do
-        true -> {:cont, {req, %{resp | body: resp.body <> data}}}
-        false -> {:halt, {req, %{resp | status: 0, body: ""}}}
-      end
-    end
+    client = Req.new(Application.get_env(:frontman_server, __MODULE__, plugins: [PublicURL]))
 
     task =
       Task.async(fn ->
-        try do
-          Req.request(
-            method: method,
-            url: url,
-            auth: {:basic, "#{username}:#{password}"},
-            json: body,
-            plugins:
-              if(Application.get_env(:frontman_server, :env) == :dev, do: [], else: [PublicURL]),
-            redirect: false,
-            retry: false,
-            receive_timeout: min(timeout, 10_000),
-            decode_body: false,
-            into: into
-          )
-        rescue
-          _ -> {:error, :request_failed}
-        end
+        Req.request(client,
+          method: method,
+          url: url,
+          auth: {:basic, "#{username}:#{password}"},
+          json: body,
+          redirect: false,
+          retry: false,
+          receive_timeout: min(timeout, 10_000),
+          decode_body: false,
+          into: fn {:data, data}, {req, resp} ->
+            case byte_size(resp.body) + byte_size(data) <= 1_000_000 do
+              true -> {:cont, {req, %{resp | body: resp.body <> data}}}
+              false -> {:halt, {req, %{resp | status: 0, body: ""}}}
+            end
+          end
+        )
       end)
 
     case Task.yield(task, timeout) || Task.shutdown(task, :brutal_kill) do

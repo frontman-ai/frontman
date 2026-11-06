@@ -15,7 +15,7 @@ defmodule FrontmanServerWeb.WordPressConnectionControllerTest do
     assert json_response(conn, 401)["error"] == "authentication_required"
   end
 
-  test "status reports only an exact saved catalog for its owner" do
+  test "credentials are encrypted and status reports only an exact catalog for its owner" do
     owner = AccountsFixtures.user_fixture()
     other = AccountsFixtures.user_fixture()
     url = "https://example.com/?rest_route=/frontman/v1/tools"
@@ -25,14 +25,26 @@ defmodule FrontmanServerWeb.WordPressConnectionControllerTest do
 
     assert json_response(status.(auth, url), 200) == %{"connected" => false}
 
-    %Connection{user_id: owner.id}
-    |> Connection.changeset(%{
-      catalog_url: url,
-      call_url: "https://example.com/call",
-      username: "private-user",
-      password: "private-password"
-    })
-    |> Repo.insert!()
+    password = "private-password"
+
+    connection =
+      %Connection{user_id: owner.id}
+      |> Connection.changeset(%{
+        catalog_url: url,
+        call_url: "https://example.com/call",
+        username: "private-user",
+        password: password
+      })
+      |> Repo.insert!()
+
+    assert %{rows: [[ciphertext]]} =
+             Repo.query!("SELECT password FROM wordpress_connections WHERE id = $1", [
+               Ecto.UUID.dump!(connection.id)
+             ])
+
+    refute ciphertext =~ password
+    refute inspect(connection) =~ password
+    assert Repo.get!(Connection, connection.id).user_id == owner.id
 
     response = status.(auth, url)
     assert json_response(response, 200) == %{"connected" => true}
@@ -65,29 +77,5 @@ defmodule FrontmanServerWeb.WordPressConnectionControllerTest do
     end
 
     assert Repo.aggregate(Connection, :count) == 0
-  end
-
-  test "encrypts credentials and stores the owner" do
-    owner = AccountsFixtures.user_fixture()
-    password = "local-test-password"
-
-    connection =
-      %Connection{user_id: owner.id}
-      |> Connection.changeset(%{
-        catalog_url: "https://example.com/tools",
-        call_url: "https://example.com/tools/call",
-        username: "test",
-        password: password
-      })
-      |> Repo.insert!()
-
-    assert %{rows: [[ciphertext]]} =
-             Repo.query!("SELECT password FROM wordpress_connections WHERE id = $1", [
-               Ecto.UUID.dump!(connection.id)
-             ])
-
-    refute ciphertext =~ password
-    refute inspect(connection) =~ password
-    assert Repo.get!(Connection, connection.id).user_id == owner.id
   end
 end
