@@ -6,6 +6,7 @@ on:
       - "libs/frontman-preview-bridge/**"
       - "libs/frontman-protocol/**"
       - "libs/frontman-astro-browser/**"
+      - "libs/client/**"
       - "libs/frontman-wordpress/**"
       - "apps/frontman_server/**"
       - "apps/swarm_ai/**"
@@ -26,6 +27,7 @@ on:
       - "libs/frontman-preview-bridge/**"
       - "libs/frontman-protocol/**"
       - "libs/frontman-astro-browser/**"
+      - "libs/client/**"
       - "libs/frontman-wordpress/**"
       - "apps/frontman_server/**"
       - "apps/swarm_ai/**"
@@ -95,6 +97,10 @@ jobs:
           timeout 60 bash -c 'until pg_isready -q -h 127.0.0.1; do sleep 1; done'
           make setup-elixir-tools
           cd apps/frontman_server && mix deps.get
+
+      - name: Install runtime browser
+        if: matrix.wordpress == '7.0.2' && matrix.php == '8.4' && !matrix.yoast
+        run: cd libs/client && yarn playwright install --with-deps chromium
 
       - name: Package plugin and run WordPress runtime tests
         env:

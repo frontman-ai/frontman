@@ -37,7 +37,6 @@ type rec action =
   | ConnectWordPress
   | FetchWordPressConnection
   | SetWordPressAccess(bool)
-  | WordPressConnectionResult({requestId: int, action: action})
   | WordPressConnectionCompletion({requestId: int, action: action, credentialRisk: bool})
   | WordPressConnectionChecked({connected: bool, enabled: bool})
   | WordPressConnectionFinished(string)
@@ -2813,8 +2812,6 @@ let rec next = (state: state, action) => {
       ->StateReducer.update(~sideEffects=[SetWordPressAccessEffect({enabled, requestId})])
     | _ => state->StateReducer.update
     }
-  | WordPressConnectionResult({requestId, action}) =>
-    requestId == state.wordPressConnectionRequestId ? next(state, action) : state->StateReducer.update
   | WordPressConnectionCompletion({requestId, action, credentialRisk}) =>
     let current = requestId == state.wordPressConnectionRequestId
     let approvalFinished = state.wordPressPendingApproval == Some(requestId)

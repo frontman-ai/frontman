@@ -221,12 +221,24 @@ try {
 	};
 	frontman_runtime_same( 200, $catalog()['status'], 'Created password authenticates to the gateway over TLS' );
 	foreach ( [ 'disable' => false, 'enable' => true ] as $action => $enabled ) {
-		foreach ( [ [ 'GET', $cookie, $nonce ], [ 'POST', '', $nonce ], [ 'POST', $cookie, null ], [ 'POST', $cookie, 'invalid' ] ] as $request ) {
-			frontman_runtime_assert( 200 !== $mcp_access( $action, ...$request )['status'], 'Unapproved MCP access change must fail' );
+		foreach ( [
+			[ [ 'GET', $cookie, $nonce ], 404, [ 'error' => 'Not found' ] ],
+			[ [ 'POST', '', $nonce ], 401, [ 'code' => 'frontman_not_authenticated' ] ],
+			[ [ 'POST', $cookie, null ], 403, [ 'code' => 'frontman_missing_nonce' ] ],
+			[ [ 'POST', $cookie, 'invalid' ], 403, [ 'code' => 'frontman_invalid_nonce' ] ],
+		] as [ $request, $expected_status, $expected_body ] ) {
+			$rejected = $mcp_access( $action, ...$request );
+			frontman_runtime_same( $expected_status, $rejected['status'], 'Unapproved MCP access change status' );
+			$body = json_decode( $rejected['body'], true, 512, JSON_THROW_ON_ERROR );
+			foreach ( $expected_body as $key => $value ) {
+				frontman_runtime_same( $value, $body[ $key ], 'Unapproved MCP access change response' );
+			}
 			frontman_runtime_same( ! $enabled, json_decode( $mcp_status( $cookie )['body'], true )['enabled'], 'Rejected request does not change MCP access' );
 		}
 		$actor->set_role( 'subscriber' );
-		frontman_runtime_same( 403, $mcp_access( $action, 'POST', $cookie, $nonce )['status'], 'Non-administrator cannot change MCP access' );
+		$rejected = $mcp_access( $action, 'POST', $cookie, $nonce );
+		frontman_runtime_same( 403, $rejected['status'], 'Non-administrator cannot change MCP access' );
+		frontman_runtime_same( 'frontman_forbidden', json_decode( $rejected['body'], true )['code'], 'Non-administrator rejection identifies permission failure' );
 		$actor->set_role( 'administrator' );
 		frontman_runtime_same( ! $enabled, json_decode( $mcp_status( $cookie )['body'], true )['enabled'], 'Non-administrator request does not change MCP access' );
 		foreach ( [ 1, 2 ] as $_ ) {

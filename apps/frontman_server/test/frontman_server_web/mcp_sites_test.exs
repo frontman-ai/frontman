@@ -1,11 +1,12 @@
 defmodule FrontmanServerWeb.MCPSitesTest do
-  use FrontmanServer.DataCase, async: false
+  use FrontmanServerWeb.ConnCase, async: false
 
   alias Anubis.Server.{Context, Frame}
   alias Anubis.Server.Handlers.Tools
   alias Anubis.Server.Transport.StreamableHTTP.Plug, as: AnubisPlug
   alias Anubis.Server.Transport.StreamableHTTP.StatelessBinding
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Repo
   alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
   alias FrontmanServer.WordPress
   alias FrontmanServer.WordPress.Connection
@@ -174,7 +175,28 @@ defmodule FrontmanServerWeb.MCPSitesTest do
       :public_key.cacerts_clear()
     end)
 
-    for _ <- 1..33 do
+    auth = embedded_client_auth(user)
+    status_path = ~p"/api/wordpress/connections/status?#{%{catalog_url: url}}"
+
+    assert json_response(bearer_get(build_conn(), auth, status_path), 200) == %{
+             "connected" => false
+           }
+
+    response =
+      bearer_post(build_conn(), auth, ~p"/api/wordpress/connections", %{
+        catalog_url: url,
+        call_url: url,
+        username: "admin",
+        password: password
+      })
+
+    assert %{"id" => created_site_id} = json_response(response, 200)
+
+    assert json_response(bearer_get(build_conn(), auth, status_path), 200) == %{
+             "connected" => true
+           }
+
+    for _ <- 1..32 do
       %Connection{user_id: user.id}
       |> Connection.changeset(%{
         catalog_url: url,
@@ -190,7 +212,9 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     assert {:reply, %{"tools" => tools}, _} =
              Server.handle_request(%{"method" => "tools/list"}, frame)
 
-    site_id = user |> Scope.for_user() |> WordPress.list_sites() |> List.last() |> Map.fetch!(:id)
+    sites = WordPress.list_sites(Scope.for_user(user))
+    assert Enum.any?(sites, &(&1.id == created_site_id))
+    site_id = sites |> List.last() |> Map.fetch!(:id)
     assert {:ok, %{"tools" => catalog}} = WordPress.catalog(Scope.for_user(user), site_id, 5_000)
     expected = catalog |> Enum.map(& &1["name"]) |> MapSet.new()
     actual = tools |> Enum.map(& &1.name) |> MapSet.new() |> MapSet.delete("list_sites")
