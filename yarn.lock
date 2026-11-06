@@ -1335,10 +1335,10 @@ __metadata:
 
 "@bluehotdog/reworker@https://github.com/frontman-ai/reworker.git#head=main":
   version: 0.0.2
-  resolution: "@bluehotdog/reworker@https://github.com/frontman-ai/reworker.git#commit=29ad2c9b7a610dead396126609224eedbdb83772"
+  resolution: "@bluehotdog/reworker@https://github.com/frontman-ai/reworker.git#commit=f7882f27a6ed9dd9efe8ebbdedd8d984a1b47967"
   peerDependencies:
     rescript: ^12.0.0
-  checksum: 10c0/bfe753fc1ee0da0a1bcae409715e0f5b180179c68760dff30c749b0f49bea136b52b598bb4bbf3d03148198b8ed63df3c41c044240ceb3539ab02a2e70e12da8
+  checksum: 10c0/08dd658edb6f1a43d9e2b8f1b31097bd705e0b29bcffa0fa33af60f215be1b5fd9ea5009f3ac1ffe9265c6b2b2974d84b60cf770769bf0f39c1ffd0acde16527
   languageName: node
   linkType: hard
 
