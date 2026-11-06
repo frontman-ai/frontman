@@ -45,6 +45,6 @@ defmodule FrontmanServer.CowboySecurityTest do
     assert {:binary, binaries} = Process.info(connection, :binary)
     assert Enum.sum(for {_, size, _} <- binaries, do: size) < 1024 * 1024
     send(handler, :release)
-    assert {:ok, "HTTP/1.1 200" <> _} = :gen_tcp.recv(socket, 0, 2_000)
+    assert {:ok, "HTTP/1.1 200"} = :gen_tcp.recv(socket, 12, 2_000)
   end
 end
