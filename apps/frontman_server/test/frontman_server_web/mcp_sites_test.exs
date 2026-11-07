@@ -79,6 +79,23 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     assert {:error, _, _} = Tools.handle_call(request, %Frame{}, Server)
   end
 
+  test "HTTP discovery declares read-only OAuth-protected site discovery for empty accounts" do
+    user = AccountsFixtures.user_fixture()
+
+    assert %{"result" => %{"tools" => [tool]}} = sdk_request(user, "tools/list")
+    assert tool["name"] == "list_sites"
+    assert tool["inputSchema"] == %{"type" => "object", "properties" => %{}}
+
+    assert tool["annotations"] == %{
+             "readOnlyHint" => true,
+             "destructiveHint" => false,
+             "openWorldHint" => false,
+             "idempotentHint" => true
+           }
+
+    assert_oauth(tool)
+  end
+
   test "parsed SDK calls reject absent, malformed and foreign selectors before discovery" do
     owner = AccountsFixtures.user_fixture()
     other = AccountsFixtures.user_fixture()
@@ -123,39 +140,17 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     user = AccountsFixtures.user_fixture()
     site = insert_site(user, "owned.example")
 
-    body = %{
-      "jsonrpc" => "2.0",
-      "id" => Ecto.UUID.generate(),
-      "method" => "tools/call",
-      "params" => %{
-        "name" => "list_sites",
-        "arguments" => %{},
-        "_meta" => %{
-          "io.modelcontextprotocol/protocolVersion" => "2026-07-28",
-          "io.modelcontextprotocol/clientCapabilities" => %{},
-          "io.modelcontextprotocol/clientInfo" => %{"name" => "test", "version" => "1"}
-        }
-      }
-    }
+    assert %{"result" => %{"content" => [%{"text" => text}]}} =
+             sdk_request(user, "tools/call", %{"name" => "list_sites", "arguments" => %{}})
 
-    record_requests(body["id"])
-    conn = sdk_conn(body)
-    context = %{auth: %{sub: user.id}, assigns: %{}, req_headers: conn.req_headers}
-    response = StatelessBinding.call(conn, "2026-07-28", context, AnubisPlug.init(server: Server))
-
-    assert %{"result" => %{"content" => [%{"text" => text}]}} = Jason.decode!(response.resp_body)
     assert Jason.decode!(text) == %{"sites" => [%{"id" => site.id, "label" => "owned.example"}]}
 
-    body = put_in(body, ["params", "name"], "wp_read_post")
-
     for arguments <- [%{}, %{"site_id" => Ecto.UUID.generate()}] do
-      conn = sdk_conn(put_in(body, ["params", "arguments"], arguments))
-
-      response =
-        StatelessBinding.call(conn, "2026-07-28", context, AnubisPlug.init(server: Server))
-
       assert %{"error" => %{"code" => -32_602, "data" => %{"message" => message}}} =
-               Jason.decode!(response.resp_body)
+               sdk_request(user, "tools/call", %{
+                 "name" => "wp_read_post",
+                 "arguments" => arguments
+               })
 
       assert message =~ "Call list_sites"
       assert message =~ "site_id"
@@ -198,43 +193,53 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
   @tag :wordpress_runtime
   @tag skip: System.get_env("FRONTMAN_WP_RUNTIME_URL") == nil
-  test "SDK discovers the connection after the first concurrent batch" do
-    url = System.fetch_env!("FRONTMAN_WP_RUNTIME_URL")
-    password = File.read!(System.fetch_env!("FRONTMAN_WP_RUNTIME_PASSWORD"))
+  test "HTTP discovery preserves the full WordPress catalog beyond the first concurrent batch" do
     user = AccountsFixtures.user_fixture()
+    connect_wordpress_runtime(user)
 
-    for _ <- 1..33 do
-      %Connection{user_id: user.id}
-      |> Connection.changeset(%{
-        catalog_url: url,
-        call_url: url,
-        username: "admin",
-        password: password
-      })
-      |> Repo.insert!()
-    end
-
-    frame = %Frame{context: %Context{auth: %{sub: user.id}}}
-
-    assert {:reply, %{"tools" => tools}, _} =
-             Server.handle_request(%{"method" => "tools/list"}, frame)
-
+    assert %{"result" => %{"tools" => tools}} = sdk_request(user, "tools/list")
     site_id = user |> Scope.for_user() |> WordPress.list_sites() |> List.last() |> Map.fetch!(:id)
     assert {:ok, %{"tools" => catalog}} = WordPress.catalog(Scope.for_user(user), site_id, 5_000)
     expected = catalog |> Enum.map(& &1["name"]) |> MapSet.new()
-    actual = tools |> Enum.map(& &1.name) |> MapSet.new() |> MapSet.delete("list_sites")
-    assert MapSet.difference(expected, actual) == MapSet.new()
-    assert MapSet.difference(actual, expected) == MapSet.new()
+    actual = tools |> Enum.map(& &1["name"]) |> MapSet.new() |> MapSet.delete("list_sites")
+    assert actual == expected
 
     if System.get_env("FRONTMAN_WP_EXPECT_WOO") == "1" do
       assert MapSet.member?(expected, "wc_create_product")
     end
 
-    tool = Enum.find(tools, &(&1.name == "wp_read_post"))
+    by_name = Map.new(tools, &{&1["name"], &1})
 
-    assert {:ok, _} =
-             tool.validate_input.(%{
-               "site_id" => site_id
+    for remote <- catalog do
+      tool = Map.fetch!(by_name, remote["name"])
+      assert tool["description"] == remote["description"]
+      assert tool["annotations"] == remote["annotations"]
+
+      for hint <- ~w(readOnlyHint destructiveHint openWorldHint idempotentHint) do
+        assert is_boolean(tool["annotations"][hint])
+      end
+
+      schema = remote["inputSchema"]
+
+      assert tool["inputSchema"] ==
+               schema
+               |> Map.put(
+                 "properties",
+                 Map.put(Map.get(schema, "properties", %{}), "site_id", %{
+                   "type" => "string",
+                   "description" =>
+                     "The connected site's id returned by list_sites. Call list_sites first; do not use a URL or WordPress post ID."
+                 })
+               )
+               |> Map.put("required", ["site_id" | Map.get(schema, "required", [])])
+    end
+
+    Enum.each(tools, &assert_oauth/1)
+
+    assert %{"result" => %{"content" => [_ | _], "isError" => false}} =
+             sdk_request(user, "tools/call", %{
+               "name" => "wp_get_site_info",
+               "arguments" => %{"site_id" => site_id}
              })
   end
 
@@ -327,6 +332,56 @@ defmodule FrontmanServerWeb.MCPSitesTest do
            )
   end
 
+  test "SDK pagination preserves descriptor metadata but replaces upstream OAuth declarations" do
+    site = Ecto.UUID.generate()
+
+    remote = %{
+      "name" => "wp_read_post",
+      "title" => "Read post",
+      "description" => "Read stored post content.",
+      "inputSchema" => %{"type" => "object", "properties" => %{}},
+      "annotations" => %{
+        "readOnlyHint" => true,
+        "destructiveHint" => false,
+        "openWorldHint" => false,
+        "idempotentHint" => true
+      },
+      "icons" => [%{"src" => "https://example.com/icon.png"}],
+      "securitySchemes" => [%{"type" => "noauth"}],
+      "_meta" => %{
+        "securitySchemes" => [%{"type" => "noauth"}],
+        "ai.frontman/tool-metadata" => %{"access" => "read"}
+      }
+    }
+
+    assert [tool] = Server.catalog_tools([{site, remote}], [])
+    frame = %Frame{tools: %{tool.name => tool}, pagination_limit: 1}
+
+    assert {:reply, %{"tools" => [first], "nextCursor" => cursor}, returned} =
+             Server.handle_request(%{"method" => "tools/list"}, frame)
+
+    assert first["name"] == "list_sites"
+    assert_oauth(first)
+    refute Map.has_key?(returned.assigns, :mcp_request)
+
+    assert {:reply, page, _} =
+             Server.handle_request(
+               %{"method" => "tools/list", "params" => %{"cursor" => cursor}},
+               frame
+             )
+
+    assert %{"tools" => [forwarded]} = page |> JSON.encode!() |> Jason.decode!()
+    refute Map.has_key?(page, "nextCursor")
+    assert_oauth(forwarded)
+    assert forwarded["_meta"]["ai.frontman/tool-metadata"] == %{"access" => "read"}
+
+    for key <- ~w(name title description annotations icons) do
+      assert forwarded[key] == remote[key]
+    end
+
+    assert forwarded["inputSchema"] == tool.input_schema
+  end
+
   def record_request([:anubis_mcp, :server, :request], _, %{id: id}, {test, id})
       when is_binary(id),
       do: Process.put(:"$callers", [test])
@@ -357,7 +412,54 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     |> Plug.Conn.put_req_header("accept", "application/json")
     |> Plug.Conn.put_req_header("mcp-protocol-version", "2026-07-28")
     |> Plug.Conn.put_req_header("mcp-method", body["method"])
-    |> Plug.Conn.put_req_header("mcp-name", body["params"]["name"])
+    |> then(fn conn ->
+      case body["params"]["name"] do
+        nil -> conn
+        name -> Plug.Conn.put_req_header(conn, "mcp-name", name)
+      end
+    end)
+  end
+
+  defp sdk_request(user, method, params \\ %{}) do
+    body = %{
+      "jsonrpc" => "2.0",
+      "id" => Ecto.UUID.generate(),
+      "method" => method,
+      "params" =>
+        Map.put(params, "_meta", %{
+          "io.modelcontextprotocol/protocolVersion" => "2026-07-28",
+          "io.modelcontextprotocol/clientCapabilities" => %{},
+          "io.modelcontextprotocol/clientInfo" => %{"name" => "test", "version" => "1"}
+        })
+    }
+
+    record_requests(body["id"])
+    conn = sdk_conn(body)
+    context = %{auth: %{sub: user.id}, assigns: %{}, req_headers: conn.req_headers}
+    response = StatelessBinding.call(conn, "2026-07-28", context, AnubisPlug.init(server: Server))
+    assert response.status == 200
+    Jason.decode!(response.resp_body)
+  end
+
+  defp assert_oauth(tool) do
+    assert tool["securitySchemes"] == [%{"type" => "oauth2", "scopes" => []}]
+    assert tool["_meta"]["securitySchemes"] == tool["securitySchemes"]
+  end
+
+  defp connect_wordpress_runtime(user) do
+    url = System.fetch_env!("FRONTMAN_WP_RUNTIME_URL")
+    password = File.read!(System.fetch_env!("FRONTMAN_WP_RUNTIME_PASSWORD"))
+
+    for _ <- 1..33 do
+      %Connection{user_id: user.id}
+      |> Connection.changeset(%{
+        catalog_url: url,
+        call_url: url <> "/call",
+        username: "admin",
+        password: password
+      })
+      |> Repo.insert!()
+    end
   end
 
   defp insert_site(user, host) do

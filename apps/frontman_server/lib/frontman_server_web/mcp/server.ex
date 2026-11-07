@@ -3,6 +3,7 @@ defmodule FrontmanServerWeb.MCP.Server do
 
   @server_name Mix.Project.config()[:app] |> Atom.to_string()
   @server_version Mix.Project.config()[:version]
+  @security_schemes [%{"type" => "oauth2", "scopes" => []}]
   @input_keywords ~w(type description title default enum const minimum maximum minLength
                      maxLength minItems maxItems pattern format multipleOf exclusiveMinimum
                      exclusiveMaximum minProperties maxProperties)
@@ -36,7 +37,7 @@ defmodule FrontmanServerWeb.MCP.Server do
         :error -> Map.delete(returned.assigns, :mcp_request)
       end
 
-    {status, result, %{returned | assigns: assigns}}
+    {status, tool_list_result(method, status, result), %{returned | assigns: assigns}}
   end
 
   def handle_request(request, frame), do: Handlers.handle(request, __MODULE__, frame)
@@ -73,6 +74,12 @@ defmodule FrontmanServerWeb.MCP.Server do
         description:
           "List connected WordPress sites for a requested WordPress task. If none are connected, guide the user through setup.",
         input_schema: %{"type" => "object", "properties" => %{}},
+        annotations: %{
+          "readOnlyHint" => true,
+          "destructiveHint" => false,
+          "openWorldHint" => false,
+          "idempotentHint" => true
+        },
         validate_input: fn args -> {:ok, args} end
       }
       | tools
@@ -141,6 +148,25 @@ defmodule FrontmanServerWeb.MCP.Server do
       _ -> {:error, Error.execution("WordPress tool unavailable"), frame}
     end
   end
+
+  defp tool_list_result("tools/list", :reply, result) do
+    tools =
+      result
+      |> Map.fetch!("tools")
+      |> JSON.encode!()
+      |> JSON.decode!()
+      |> Enum.map(fn tool ->
+        tool
+        |> Map.put("securitySchemes", @security_schemes)
+        |> Map.update("_meta", %{"securitySchemes" => @security_schemes}, fn meta ->
+          Map.put(meta, "securitySchemes", @security_schemes)
+        end)
+      end)
+
+    Map.put(result, "tools", tools)
+  end
+
+  defp tool_list_result(_method, _status, result), do: result
 
   defp tool_response(%{"resultType" => "complete", "content" => content} = result) do
     with true <- Schema.bounded?(result),
