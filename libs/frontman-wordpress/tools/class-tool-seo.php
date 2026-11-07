@@ -3,6 +3,9 @@
  * Stored SEO inspection and runtime-validated Yoast updates.
  * @package Frontman
  */
+
+declare(strict_types=1);
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }

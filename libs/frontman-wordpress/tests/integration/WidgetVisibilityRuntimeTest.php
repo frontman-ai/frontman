@@ -3,6 +3,9 @@
  * Real WordPress/WooCommerce integration. Run after both plugins are active.
  * No replacement conditionals, widgets, database, or authorization services.
  */
+
+declare(strict_types=1);
+
 require '/var/www/html/wp-load.php';
 
 if ( ( $argv[1] ?? '' ) === '--render' ) {

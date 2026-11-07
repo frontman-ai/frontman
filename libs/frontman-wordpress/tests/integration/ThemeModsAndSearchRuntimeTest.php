@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 define( 'WP_ADMIN', true );
 require '/var/www/html/wp-load.php';
 require_once __DIR__ . '/RuntimeTestSupport.php';

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 frontman_runtime_same( $runtime_alias . '/', ABSPATH, 'WordPress bootstrap must preserve the configured installation alias.' );
 wp_set_current_user( get_user_by( 'login', 'admin' )->ID );
 $tools = Frontman_Tools::instance();

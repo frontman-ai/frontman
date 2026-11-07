@@ -1,5 +1,8 @@
 <?php
 /** Read-only Directorist listing fields, terms, and single-layout assignment. */
+
+declare(strict_types=1);
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }

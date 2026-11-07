@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 require_once ABSPATH . 'wp-admin/includes/plugin.php';
 frontman_runtime_same( '3.8.3', get_plugin_data( WP_PLUGIN_DIR . '/polylang/polylang.php', false, false )['Version'], 'Installed Polylang must match the tested package.' );
 frontman_runtime_assert( function_exists( 'pll_languages_list' ), 'Polylang public API must load when languages are configured.' );
@@ -30,6 +32,10 @@ try {
 	}
 	[ $en, $fr, $other ] = $posts;
 	$reject( 'wp_set_post_language', [ 'id' => $en, 'lang' => 'zz' ], 'Unknown Polylang language' );
+	foreach ( [ 1, true, null ] as $lang ) {
+		$reject( 'wp_set_post_language', [ 'id' => $en, 'lang' => $lang ], 'must be of type string' );
+	}
+	$reject( 'wp_set_post_language', [ 'id' => (string) $en, 'lang' => 'fr' ], 'must be of type integer' );
 	frontman_runtime_same( 'en', $call( 'wp_read_post_language', [ 'id' => $en ] )['lang'], 'Polylang assigns the default language to new pages.' );
 	frontman_runtime_same( 'en', $call( 'wp_set_post_language', [ 'id' => $en, 'lang' => 'en' ] )['lang'], 'Language assignment must read back.' );
 	frontman_runtime_same( 'fr', $call( 'wp_set_post_language', [ 'id' => $fr, 'lang' => 'fr' ] )['lang'], 'Second language assignment must read back.' );

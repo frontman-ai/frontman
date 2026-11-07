@@ -1,5 +1,8 @@
 <?php
 /** Guarded physical public text files. @package Frontman */
+
+declare(strict_types=1);
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }

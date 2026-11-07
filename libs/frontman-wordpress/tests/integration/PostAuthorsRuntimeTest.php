@@ -1,6 +1,8 @@
 <?php
 /** Real packaged plugin HTTP author permissions and lookup privacy. */
 
+declare(strict_types=1);
+
 $wp_rewrite->set_permalink_structure( '' );
 $actor_id = wp_insert_user( [ 'user_login' => 'author-actor', 'user_pass' => wp_generate_password(), 'role' => 'administrator' ] );
 $target_id = wp_insert_user( [ 'user_login' => 'author-target', 'user_pass' => wp_generate_password(), 'role' => 'subscriber', 'display_name' => 'Author Duplicate' ] );

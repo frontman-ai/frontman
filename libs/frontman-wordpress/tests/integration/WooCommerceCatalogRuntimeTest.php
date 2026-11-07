@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 define( 'WP_ADMIN', false );
 require '/var/www/html/wp-load.php';
 require_once ABSPATH . 'wp-admin/includes/plugin.php';
