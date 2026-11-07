@@ -293,6 +293,7 @@ try {
 	frontman_runtime_same( json_decode( $browser_catalog['body'], true )['tools'], $catalog['tools'], 'Discovery preserves the browser catalog and argument schemas' );
 	( static function() use ( $catalog, $browser_catalog, $cookie, $nonce, $mcp_post, $mcp_request, $mcp_credentials, $call ): void {
 		require '/tmp/ToolAnnotationsRuntimeCases.php';
+		require '/tmp/CoreToolAnnotationsRuntimeCases.php';
 	} )();
 	$response = $mcp_request( $mcp_credentials, 'wp_read_post', $mcp_post );
 	frontman_runtime_same( 200, $response['status'], 'Application Password HTTP request without cookies succeeds' );

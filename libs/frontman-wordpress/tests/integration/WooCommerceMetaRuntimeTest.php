@@ -1,6 +1,7 @@
 <?php
 
 frontman_runtime_assert( class_exists( 'WooCommerce' ), 'WooCommerce must be active for metadata cases.' );
+require_once ABSPATH . 'wp-admin/includes/user.php';
 $tools = Frontman_Tools::instance();
 $names = array_column( $tools->all_definitions(), 'name' );
 foreach ( [ 'product', 'order', 'customer' ] as $entity ) {
