@@ -141,6 +141,9 @@ jobs:
       - name: Sync WordPress plugin release metadata
         run: bash ./scripts/sync-wordpress-plugin-release.sh "${{ steps.version.outputs.version }}"
 
+      - name: Sync directory package release metadata
+        run: make -C plugins/openai-wordpress sync-release NODE=node VERSION="${{ steps.version.outputs.version }}"
+
       - name: Create release branch and PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
