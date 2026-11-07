@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 frontman_runtime_assert( defined( 'SURERANK_VERSION' ) && '1.10.2' === SURERANK_VERSION, 'Real pinned SureRank must be loaded.' );
 wp_set_current_user( get_user_by( 'login', 'admin' )->ID );
 $tools = Frontman_Tools::instance();

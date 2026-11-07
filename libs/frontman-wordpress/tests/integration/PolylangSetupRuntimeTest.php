@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 frontman_runtime_assert( function_exists( 'PLL' ), 'Polylang must load in the setup admin context.' );
 frontman_runtime_same( [], pll_languages_list( [ 'hide_empty' => false, 'fields' => 'slug' ] ), 'Polylang fixture must start without languages.' );
 update_option( '_frontman_runtime_polylang_baseline', [

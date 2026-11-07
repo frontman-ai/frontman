@@ -1,5 +1,8 @@
 <?php
 /** Read-only inspection of snippets stored by the Code Snippets plugin. */
+
+declare(strict_types=1);
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 frontman_runtime_same( [], pll_languages_list( [ 'hide_empty' => false, 'fields' => 'slug' ] ), 'Fixture languages must not persist after cleanup.' );
 foreach ( [ 'language', 'term_language', 'term_translations' ] as $taxonomy ) {
 	$terms = get_terms( [ 'taxonomy' => $taxonomy, 'hide_empty' => false, 'fields' => 'ids' ] );

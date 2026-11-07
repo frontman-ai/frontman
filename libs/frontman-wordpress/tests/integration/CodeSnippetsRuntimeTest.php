@@ -1,5 +1,8 @@
 <?php
 /** Integration coverage for read-only Code Snippets tools with the real plugin. */
+
+declare(strict_types=1);
+
 require_once ABSPATH . 'wp-admin/includes/user.php';
 global $wpdb;
 

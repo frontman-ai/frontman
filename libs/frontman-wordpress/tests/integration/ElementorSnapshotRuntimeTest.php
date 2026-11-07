@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 require_once WP_PLUGIN_DIR . '/frontman-agentic-ai-editor/includes/class-frontman-elementor-data.php';
 require_once WP_PLUGIN_DIR . '/frontman-agentic-ai-editor/tools/class-tool-elementor.php';
 
