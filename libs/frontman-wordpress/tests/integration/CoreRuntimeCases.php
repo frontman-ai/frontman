@@ -291,6 +291,9 @@ try {
 	$catalog = json_decode( $catalog['body'], true, 512, JSON_THROW_ON_ERROR );
 	$browser_catalog = frontman_runtime_http( 'GET', '/index.php/frontman/tools', $cookie, $nonce, null );
 	frontman_runtime_same( json_decode( $browser_catalog['body'], true )['tools'], $catalog['tools'], 'Discovery preserves the browser catalog and argument schemas' );
+	( static function() use ( $catalog, $browser_catalog, $cookie, $nonce, $mcp_post, $mcp_request, $mcp_credentials, $call ): void {
+		require '/tmp/ToolAnnotationsRuntimeCases.php';
+	} )();
 	$response = $mcp_request( $mcp_credentials, 'wp_read_post', $mcp_post );
 	frontman_runtime_same( 200, $response['status'], 'Application Password HTTP request without cookies succeeds' );
 	$result = json_decode( $response['body'], true, 512, JSON_THROW_ON_ERROR );

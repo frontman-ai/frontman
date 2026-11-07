@@ -29,16 +29,15 @@ class Frontman_Tool_Elementor {
 				],
 			],
 			[ $this, 'list_pages' ],
-			'read',
-			true,
-			true
+			new Frontman_Tool_Annotations( true, false, false, true ), 'read', true, true
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_elementor_get_page_structure',
 			'Gets a compact Elementor page tree with element IDs, element types, widget types, and key text/style hints. Start here before editing Elementor content.',
 			$this->post_id_schema(),
-			[ $this, 'get_page_structure' ]
+			[ $this, 'get_page_structure' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -56,7 +55,8 @@ class Frontman_Tool_Elementor {
 				],
 				'required' => [ 'post_id' ],
 			],
-			[ $this, 'get_page_data' ]
+			[ $this, 'get_page_data' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -84,14 +84,16 @@ class Frontman_Tool_Elementor {
 				],
 				'required'             => [ 'post_id', 'data', 'confirm' ],
 			],
-			[ $this, 'save_page_data' ]
+			[ $this, 'save_page_data' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_elementor_get_element',
 			'Gets one Elementor element by post_id and element_id. Selected Elementor elements include these IDs in the selected-element context.',
 			$this->element_id_schema(),
-			[ $this, 'get_element' ]
+			[ $this, 'get_element' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -125,7 +127,8 @@ class Frontman_Tool_Elementor {
 				],
 				'required'             => [ 'post_id', 'element_id' ],
 			],
-			[ $this, 'update_element' ]
+			[ $this, 'update_element' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -143,7 +146,8 @@ class Frontman_Tool_Elementor {
 				],
 				'required'             => [ 'post_id', 'element' ],
 			],
-			[ $this, 'add_element' ]
+			[ $this, 'add_element' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -161,7 +165,7 @@ class Frontman_Tool_Elementor {
 				'required' => [ 'post_id', 'element_id' ],
 			],
 			[ $this, 'wrap_element' ],
-			'read-write'
+			new Frontman_Tool_Annotations( false, true, true, false ), 'read-write'
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -178,14 +182,16 @@ class Frontman_Tool_Elementor {
 				],
 				'required'             => [ 'post_id', 'element_id', 'scope', 'confirm' ],
 			],
-			[ $this, 'remove_element' ]
+			[ $this, 'remove_element' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_elementor_list_rollbacks',
 			'Lists private Elementor rollback snapshots for a post. Use this to find rollback_id values before restoring.',
 			$this->post_id_schema(),
-			[ $this, 'list_rollbacks' ]
+			[ $this, 'list_rollbacks' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -201,7 +207,8 @@ class Frontman_Tool_Elementor {
 				],
 				'required'             => [ 'post_id', 'rollback_id', 'confirm' ],
 			],
-			[ $this, 'restore_rollback' ]
+			[ $this, 'restore_rollback' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -212,7 +219,8 @@ class Frontman_Tool_Elementor {
 					'settings' => [ 'type' => 'object', 'additionalProperties' => true, 'properties' => new \stdClass(), 'minProperties' => 1 ],
 				],
 			] ),
-			[ $this, 'duplicate_element' ]
+			[ $this, 'duplicate_element' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -229,7 +237,8 @@ class Frontman_Tool_Elementor {
 				],
 				'required'             => [ 'post_id', 'element_id' ],
 			],
-			[ $this, 'move_element' ]
+			[ $this, 'move_element' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -269,14 +278,16 @@ class Frontman_Tool_Elementor {
 				],
 				'required'             => [ 'type' ],
 			],
-			[ $this, 'generate_element' ]
+			[ $this, 'generate_element' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_elementor_list_widgets',
 			'Lists registered Elementor widgets with names, titles, icons, and categories.',
 			[ 'type' => 'object', 'additionalProperties' => false, 'properties' => new \stdClass() ],
-			[ $this, 'list_widgets' ]
+			[ $this, 'list_widgets' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -288,7 +299,8 @@ class Frontman_Tool_Elementor {
 				'properties'           => [ 'widget_name' => [ 'type' => 'string' ] ],
 				'required'             => [ 'widget_name' ],
 			],
-			[ $this, 'get_widget_schema' ]
+			[ $this, 'get_widget_schema' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -299,7 +311,8 @@ class Frontman_Tool_Elementor {
 				'additionalProperties' => false,
 				'properties'           => [ 'post_id' => [ 'type' => 'integer' ] ],
 			],
-			[ $this, 'flush_css' ]
+			[ $this, 'flush_css' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 	}
 

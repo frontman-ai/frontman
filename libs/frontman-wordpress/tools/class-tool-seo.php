@@ -34,7 +34,7 @@ class Frontman_Tool_Seo {
 			'Reads stored SEO title, description, and focus keyphrase for an editable post, not computed tags.',
 			$schema,
 			[ $this, 'read_seo' ],
-			'read'
+			new Frontman_Tool_Annotations( true, false, false, true ), 'read'
 		) );
 		if ( null !== self::unavailable_reason() ) {
 			return;
@@ -49,7 +49,7 @@ class Frontman_Tool_Seo {
 			'Updates SEO overrides or the focus keyphrase. Provide at least one of title, description, or focus_keyphrase. Omitted fields stay unchanged; empty strings restore provider defaults.',
 			$schema,
 			[ $this, 'update_seo' ],
-			'read-write'
+			new Frontman_Tool_Annotations( false, true, true, false ), 'read-write'
 		) );
 	}
 	public static function read_unavailable_reason(): ?string {

@@ -99,7 +99,8 @@ class Frontman_Tool_Posts {
 					],
 				],
 			],
-			[ $this, 'list_posts' ]
+			[ $this, 'list_posts' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -117,7 +118,8 @@ class Frontman_Tool_Posts {
 				],
 				'required' => [ 'id' ],
 			],
-			[ $this, 'read_post' ]
+			[ $this, 'read_post' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -161,7 +163,8 @@ class Frontman_Tool_Posts {
 				],
 				'required' => [ 'title', 'content' ],
 			],
-			[ $this, 'create_post' ]
+			[ $this, 'create_post' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -182,7 +185,8 @@ class Frontman_Tool_Posts {
 				],
 				'required' => [ 'source_id' ],
 			],
-			[ $this, 'duplicate_post' ]
+			[ $this, 'duplicate_post' ],
+			new Frontman_Tool_Annotations( false, false, false, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -266,7 +270,8 @@ class Frontman_Tool_Posts {
 				],
 				'required' => [ 'id' ],
 			],
-			[ $this, 'update_post' ]
+			[ $this, 'update_post' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -282,9 +287,7 @@ class Frontman_Tool_Posts {
 				'required' => [ 'id', 'content' ],
 			],
 			[ $this, 'save_post_preview' ],
-			'read-write',
-			true,
-			true
+			new Frontman_Tool_Annotations( false, false, false, false ), 'read-write', true, true
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -310,7 +313,8 @@ class Frontman_Tool_Posts {
 				],
 				'required' => [ 'id', 'confirm' ],
 			],
-			[ $this, 'delete_post' ]
+			[ $this, 'delete_post' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 	}
 

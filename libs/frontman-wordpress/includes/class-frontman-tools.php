@@ -16,6 +16,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once __DIR__ . '/class-frontman-tool-annotations.php';
+
 /**
  * Exception for tool execution errors.
  *
@@ -34,6 +36,7 @@ class Frontman_Tool_Definition {
 	public array  $input_schema;
 	public bool   $visible_to_agent;
 	public bool   $preserve_input_strings;
+	public Frontman_Tool_Annotations $annotations;
 	/** @var callable(array): array */
 	public $handler;
 
@@ -42,6 +45,7 @@ class Frontman_Tool_Definition {
 	 * @param string   $description      Human-readable description.
 	 * @param array    $input_schema     JSON Schema for input (as PHP array).
 	 * @param callable $handler          fn(array $input): array — returns plain data (JSON-serializable).
+	 * @param Frontman_Tool_Annotations $annotations Explicit, reviewed safety hints.
 	 * @param string|null $access              Tool access level: read, write, or read-write. Inferred from name when omitted.
 	 * @param bool     $visible_to_agent       Whether the agent can see this tool.
 	 * @param bool     $preserve_input_strings Whether schema sanitization should preserve raw string values for downstream API validation.
@@ -51,6 +55,7 @@ class Frontman_Tool_Definition {
 		string $description,
 		array $input_schema,
 		callable $handler,
+		Frontman_Tool_Annotations $annotations,
 		?string $access = null,
 		bool $visible_to_agent = true,
 		bool $preserve_input_strings = false
@@ -62,6 +67,7 @@ class Frontman_Tool_Definition {
 		$this->handler                = $handler;
 		$this->visible_to_agent       = $visible_to_agent;
 		$this->preserve_input_strings = $preserve_input_strings;
+		$this->annotations            = $annotations;
 	}
 
 	/**
@@ -74,6 +80,7 @@ class Frontman_Tool_Definition {
 			'access'         => $this->access,
 			'inputSchema'    => self::serialize_schema( $this->input_schema ),
 			'visibleToAgent' => $this->visible_to_agent,
+			'annotations'    => $this->annotations->to_array(),
 		];
 	}
 
