@@ -9352,6 +9352,7 @@ __metadata:
     "@changesets/changelog-github": "npm:^1.0.1"
     "@changesets/cli": "npm:^3.0.2"
     "@vitest/coverage-v8": "catalog:"
+    ajv: "npm:^8.20.0"
     cookie: "npm:^2.0.1"
     rescript: "catalog:"
     vite: "catalog:"
