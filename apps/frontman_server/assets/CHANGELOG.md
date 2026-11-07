@@ -1,5 +1,21 @@
 # @frontman/frontman-server-assets
 
+## 0.2.3
+
+### Patch Changes
+
+- [#2132](https://github.com/frontman-ai/frontman/pull/2132) [`ce01fee`](https://github.com/frontman-ai/frontman/commit/ce01feed5981b90d1e1627a792d576f2b129e79b) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Consolidate MCP dispatch diagnostics at the channel boundary, retaining tool and request identifiers without logging private arguments or responses.
+
+- [#2127](https://github.com/frontman-ai/frontman/pull/2127) [`0ac95d8`](https://github.com/frontman-ai/frontman/commit/0ac95d8d69a2abbf59e87adcb739534c153bb609) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Expose registered WordPress tools automatically to connected MCP accounts. Preserve object property-count constraints in the relay.
+
+- [#2134](https://github.com/frontman-ai/frontman/pull/2134) [`7445bd8`](https://github.com/frontman-ai/frontman/commit/7445bd82d36c695175b1286761548183eb3f5aaa) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Explain how to select a connected WordPress site when an MCP call omits a valid, owned site ID, instead of returning a misleading "Tool not found" error.
+
+- [#2134](https://github.com/frontman-ai/frontman/pull/2134) [`7445bd8`](https://github.com/frontman-ai/frontman/commit/7445bd82d36c695175b1286761548183eb3f5aaa) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Guide accounts without connected WordPress sites through the existing connection flow.
+
+- [#2118](https://github.com/frontman-ai/frontman/pull/2118) [`a356cec`](https://github.com/frontman-ai/frontman/commit/a356cec871e8bf172a6b3ce1db46d054f5c23e03) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - List WordPress connections owned by the authenticated MCP account.
+
+- [#2126](https://github.com/frontman-ai/frontman/pull/2126) [`1d9e410`](https://github.com/frontman-ai/frontman/commit/1d9e41013a196c2b12babb250d693838b16d1035) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Expose connected WordPress tools without declared output schemas to the owning MCP account.
+
 ## 0.2.2
 
 ### Patch Changes

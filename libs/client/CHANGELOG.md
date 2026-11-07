@@ -1,5 +1,25 @@
 # @frontman-ai/client
 
+## 1.6.0
+
+### Minor Changes
+
+- [#2113](https://github.com/frontman-ai/frontman/pull/2113) [`166a7a6`](https://github.com/frontman-ai/frontman/commit/166a7a6c26da9f5df93ea8ffc4e1d8ccd7d6f5e4) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Connect WordPress to an authenticated Frontman account with verified, encrypted credentials.
+
+### Patch Changes
+
+- [#2124](https://github.com/frontman-ai/frontman/pull/2124) [`4c69ed2`](https://github.com/frontman-ai/frontman/commit/4c69ed220daeeaf1182596958c54f2341e4eb41e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Make the WordPress auto-update notice more compact with shorter copy, neutral colors, and an action below the text.
+
+- [#2112](https://github.com/frontman-ai/frontman/pull/2112) [`4eb2dbb`](https://github.com/frontman-ai/frontman/commit/4eb2dbb79016d09d7fa966fd0ec200096f92733f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep the standalone WordPress bundle available to the Vite development server.
+
+- [#2134](https://github.com/frontman-ai/frontman/pull/2134) [`7445bd8`](https://github.com/frontman-ai/frontman/commit/7445bd82d36c695175b1286761548183eb3f5aaa) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add a WordPress shortcut to AI assistant connection settings from the provider setup dialog.
+
+- [#2117](https://github.com/frontman-ai/frontman/pull/2117) [`f350392`](https://github.com/frontman-ai/frontman/commit/f350392148086cea25c954891bae84f3264aa397) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Enable MCP during WordPress connection approval and show actionable errors.
+
+- [#2114](https://github.com/frontman-ai/frontman/pull/2114) [`13318a2`](https://github.com/frontman-ai/frontman/commit/13318a24cce104c49ca63050578f3363a8a330b7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Support WordPress connections in the local development stack.
+
+- [#2128](https://github.com/frontman-ai/frontman/pull/2128) [`828fb32`](https://github.com/frontman-ai/frontman/commit/828fb3236b67c3b9b740a8ac3df32933770cb0c0) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Clarify MCP tool access and show the saved WordPress connection and site access settings.
+
 ## 1.5.2
 
 ### Patch Changes
