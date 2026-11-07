@@ -149,7 +149,7 @@ HELP_infra-down := Tear down all pods, volumes, and Caddy
 HELP_infra-build := Rebuild the frontman-dev container image
 
 HELP_REL_TITLE := Release
-HELP_REL_TARGETS := publish publish-astro publish-vite publish-nextjs publish-react-statestore publish-swarm-ai release package-wordpress-plugin publish-wordpress-plugin-svn build-wordpress-dependencies wordpress-composer-lock test-wordpress-core-tools test-wordpress-sentry test-wordpress-runtime
+HELP_REL_TARGETS := publish publish-astro publish-vite publish-nextjs publish-react-statestore publish-swarm-ai release package-wordpress-plugin package-wordpress-directory publish-wordpress-plugin-svn build-wordpress-dependencies wordpress-composer-lock test-wordpress-core-tools test-wordpress-sentry test-wordpress-runtime
 HELP_publish := Publish all npm packages (pass OTP=<code> for 2FA)
 HELP_publish-astro := Publish @frontman-ai/astro to npm (pass OTP=<code> for 2FA)
 HELP_publish-vite := Publish @frontman-ai/vite to npm (pass OTP=<code> for 2FA)
@@ -158,6 +158,7 @@ HELP_publish-react-statestore := Publish @frontman-ai/react-statestore to npm (p
 HELP_publish-swarm-ai := Publish swarm_ai to Hex (dry run by default, HEX_PUBLISH=1 for real)
 HELP_release := Create a release PR from pending changesets
 HELP_package-wordpress-plugin := Build WordPress ZIP and WordPress.org bundle
+HELP_package-wordpress-directory := Build the OpenAI directory candidate for VERSION (does not submit)
 HELP_publish-wordpress-plugin-svn := Publish WordPress.org bundle to SVN (requires WORDPRESS_ORG_* env vars)
 HELP_test-wordpress-core-tools := Run PHP tests (select basenames with WORDPRESS_TESTS="ToolRegistryTest ElementorToolsTest")
 HELP_test-wordpress-runtime := Run plugin integration tests in WordPress containers
@@ -583,7 +584,7 @@ worktree-registry:
 
 
 
-.PHONY: publish publish-astro publish-vite publish-nextjs publish-react-statestore publish-swarm-ai release package-wordpress-plugin publish-wordpress-plugin-svn test-wordpress-core-tools
+.PHONY: publish publish-astro publish-vite publish-nextjs publish-react-statestore publish-swarm-ai release package-wordpress-plugin package-wordpress-directory publish-wordpress-plugin-svn test-wordpress-core-tools
 
 publish: publish-astro publish-vite publish-nextjs publish-react-statestore
 
@@ -646,6 +647,9 @@ test-wordpress-sentry: build-wordpress-dependencies
 
 package-wordpress-plugin:
 	@VERSION=$(VERSION) bash ./scripts/package-wordpress-plugin.sh
+
+package-wordpress-directory:
+	$(MAKE) -C plugins/wordpress-directory release-artifact VERSION="$(VERSION)"
 
 .PHONY: test-wordpress-plugin-export
 test-wordpress-plugin-export: package-wordpress-plugin

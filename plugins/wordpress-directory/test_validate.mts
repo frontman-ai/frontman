@@ -14,7 +14,7 @@ async function fixture(withDependencies = true) {
   const dir = join(root, "plugins/wordpress-directory");
   await mkdir(dir, { recursive: true });
   await mkdir(join(root, "apps/marketing/public"), { recursive: true });
-  for (const file of ["validate.mts", "plugin.json", "mcp.json"]) await copyFile(join(source, file), join(dir, file));
+  for (const file of ["Makefile", "release.mts", "validate.mts", "plugin.json", "mcp.json"]) await copyFile(join(source, file), join(dir, file));
   await copyFile(resolve(source, "../../apps/marketing/public/favicon.svg"), join(root, "apps/marketing/public/favicon.svg"));
   if (withDependencies) await symlink(modules, join(root, "node_modules"), "dir");
   return { root, dir };
@@ -136,6 +136,57 @@ test("OpenAI interface limits accept boundaries and reject overflows", async () 
       assert.notEqual(result.status, 0);
       assert.match(result.stderr, new RegExp(`interface\\.${field}`));
     }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("release targets synchronize and package the exact top release notes", async () => {
+  const { root, dir } = await fixture();
+  const changelog = join(root, "CHANGELOG.md");
+  const manifest = join(dir, "plugin.json");
+  const archive = join(dir, "frontman-wordpress-directory-v2.3.4.zip");
+  const notes = "### Patch Changes\n\n- First change.\n\n  More detail.";
+  const make = (target: string, version: string) => spawnSync("make", ["-C", dir, target, `VERSION=${version}`, `NODE=${process.execPath}`], { encoding: "utf8" });
+  try {
+    await writeFile(changelog, `# Changelog\n\n## [Unreleased]\n\n## [2.3.4] - 2026-01-02\n\n${notes}\n\n## [2.3.3] - 2025-12-01\n\n- Older.\n`);
+    const original = await readFile(manifest, "utf8");
+    const mislabeled = run(dir, "--package-draft", "--release-version=2.3.4");
+    assert.notEqual(mislabeled.status, 0);
+    assert.match(mislabeled.stderr, /Release version does not match/);
+    await assert.rejects(readFile(archive), { code: "ENOENT" });
+    for (const version of ["", "v2.3.4", "02.3.4", "2.3.3"]) {
+      assert.notEqual(make("sync-release", version).status, 0);
+      assert.equal(await readFile(manifest, "utf8"), original);
+    }
+    await writeFile(changelog, "## [2.3.4] - 2026-01-02\n\n## [2.3.3] - 2025-12-01\n\n- Older.\n");
+    assert.notEqual(make("sync-release", "2.3.4").status, 0);
+    assert.equal(await readFile(manifest, "utf8"), original);
+    await writeFile(changelog, `## [2.3.4] - 2026-01-02\n\n${notes}\n\n## [2.3.3] - 2025-12-01\n\n- Older.\n`);
+    assert.notEqual(make("release-artifact", "2.3.4").status, 0);
+    await assert.rejects(readFile(archive), { code: "ENOENT" });
+    let result = make("sync-release", "2.3.4");
+    assert.equal(result.status, 0, result.stderr);
+    const synced = await readFile(manifest, "utf8");
+    const plugin = JSON.parse(synced);
+    assert.equal(plugin.version, "2.3.4");
+    assert.equal(plugin.extensions["com.openai"].publication.release_notes, notes);
+    result = make("release-artifact", "2.3.4");
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(await readFile(manifest, "utf8"), synced);
+    const embedded = spawnSync("unzip", ["-p", archive, "plugin.json"], { encoding: "utf8" });
+    assert.equal(embedded.status, 0, embedded.stderr);
+    assert.deepEqual(JSON.parse(embedded.stdout), plugin);
+    plugin.extensions["com.openai"].publication.release_notes = "stale";
+    await writeFile(manifest, JSON.stringify(plugin));
+    assert.notEqual(make("release-artifact", "2.3.4").status, 0);
+    await assert.rejects(readFile(archive), { code: "ENOENT" });
+    await writeFile(manifest, synced);
+    const invalid = JSON.parse(synced);
+    invalid.unexpected = true;
+    await writeFile(manifest, JSON.stringify(invalid));
+    assert.notEqual(make("release-artifact", "2.3.4").status, 0);
+    await assert.rejects(readFile(archive), { code: "ENOENT" });
   } finally {
     await rm(root, { recursive: true, force: true });
   }

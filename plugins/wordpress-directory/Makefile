@@ -1,16 +1,24 @@
-.PHONY: check check-upstream test package package-draft
+.PHONY: check check-upstream test package package-draft sync-release release-artifact
+
+NODE ?= mise exec node -- node
 
 check:
-	mise exec node -- node validate.mts
+	$(NODE) validate.mts
 
 check-upstream:
-	mise exec node -- node validate.mts --strict-upstream
+	$(NODE) validate.mts --strict-upstream
 
 test:
-	mise exec node -- node --test test_validate.mts
+	$(NODE) --test test_validate.mts
 
 package:
-	mise exec node -- node validate.mts --package
+	$(NODE) validate.mts --package
 
 package-draft:
-	mise exec node -- node validate.mts --package-draft
+	$(NODE) validate.mts --package-draft
+
+sync-release:
+	$(NODE) release.mts sync "$(VERSION)"
+
+release-artifact:
+	$(NODE) release.mts artifact "$(VERSION)"

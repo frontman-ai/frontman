@@ -12,6 +12,10 @@ const errors: string[] = [];
 const fail = (message: string) => errors.push(message);
 const packaging = process.argv.includes("--package");
 const draft = process.argv.includes("--package-draft");
+const releaseVersion = process.argv.find(arg => arg.startsWith("--release-version="))?.slice("--release-version=".length);
+if (releaseVersion && (!draft || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(releaseVersion))) {
+  throw new Error("A canonical release version requires --package-draft.");
+}
 if (packaging && draft) throw new Error("Choose --package or --package-draft, not both.");
 
 function httpsUrl(value: unknown): boolean {
@@ -26,6 +30,7 @@ async function load(name: string): Promise<any> {
 
 const plugin = await load("plugin.json");
 const mcp = await load("mcp.json");
+if (releaseVersion && plugin.version !== releaseVersion) throw new Error("Release version does not match plugin.json.");
 
 for (const [name, document] of [["plugin.json", plugin], ["mcp.json", mcp]] as const) {
   const url = `https://agent-plugins.org/schemas/1.0.0/${name === "plugin.json" ? "plugin" : "mcp"}.schema.json`;
@@ -112,7 +117,7 @@ if (packaging || draft) {
     await copyFile(join(root, "plugin.json"), join(staging, "plugin.json"));
     await copyFile(join(root, "mcp.json"), join(staging, "mcp.json"));
     await copyFile(icon, join(staging, "assets/icon.svg"));
-    const output = join(root, draft ? "frontman-wordpress-draft.zip" : "frontman-wordpress.zip");
+    const output = join(root, releaseVersion ? `frontman-wordpress-directory-v${releaseVersion}.zip` : draft ? "frontman-wordpress-draft.zip" : "frontman-wordpress.zip");
     const archive = join(staging, "package.zip");
     const result = spawnSync("zip", ["-q", archive, "plugin.json", "mcp.json", "assets/icon.svg"], { cwd: staging, encoding: "utf8" });
     if (result.error || result.status !== 0) throw new Error(`zip failed: ${result.error ?? result.stderr}`);

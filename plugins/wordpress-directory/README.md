@@ -81,9 +81,55 @@ Follow [OpenAI submission instructions](https://developers.openai.com/plugins/de
 upload the ZIP under a verified identity, connect the single remote server,
 complete the portal's domain challenge and OAuth flow, inspect scans, enter
 reviewer access privately, and submit for review. OpenAI asks for release notes
-for review, but `publication.release_notes` is optional in the ZIP. Enter notes
-for the submitted package version in Review details, using the relevant
-Changesets-generated release entry when applicable. Omission preserves saved
-portal notes; it does not automatically populate them. Package metadata changes
+for review, but `publication.release_notes` is optional in the ZIP. The release
+workflow generates this field from the Changesets-derived root changelog.
+Package metadata changes
 require a new ZIP; hosted MCP tool updates are scanned separately. Approval and publication
 are separate actions. This package does not submit or publish anything.
+
+## Release integration
+
+`make release` remains the release entry point. Its workflow computes the
+release version and changelog, then runs `sync-release VERSION=X.Y.Z`.
+That command updates the manifest version and release notes in the release PR.
+No second version or changelog process is needed.
+
+After Release Tag succeeds, the independent WordPress Directory Release
+workflow builds from the tagged commit. It checks the tag, published release,
+manifest version, and changelog before attaching
+`frontman-wordpress-directory-vX.Y.Z.zip` to the GitHub Release.
+The ZIP is a candidate, not an approved OpenAI publication.
+This workflow uses `workflow_run` because releases created with `GITHUB_TOKEN`
+do not start ordinary `release` workflows.
+
+Directory failures do not block the separate WordPress.org publisher.
+The workflow reports failures in GitHub Actions. A retry replaces the same
+versioned asset instead of adding duplicates.
+Root `make publish` continues to publish npm packages only.
+
+To rebuild a candidate from an existing release checkout:
+
+```sh
+make package-wordpress-directory VERSION=X.Y.Z
+```
+
+To retry the GitHub attachment, run WordPress Directory Release with the existing
+release tag. Older tags without this tooling cannot build a directory artifact.
+Neither command creates a release or changes production services.
+
+### Remaining OpenAI automation
+
+The intended next stages are automatic upload, review submission, status checks,
+and publication of the approved version. The current
+[OpenAI guide](https://developers.openai.com/plugins/deploy/submission)
+documents portal operations, not a supported API or CLI for these stages.
+No portal cookies, undocumented endpoints, or fabricated approval flags are used.
+
+OpenAI must provide a supported interface and non-interactive credentials before
+these stages can run automatically. It must identify the existing plugin and
+each uploaded version, expose validation and review status, and publish a
+specific approved version. Only one review can be active per plugin.
+The future integration must queue releases and avoid duplicate submissions or
+publication of an older approved version over a newer version.
+Reviewer credentials stay outside the ZIP. Review evidence and policy
+attestations cannot be generated from a successful package build.
