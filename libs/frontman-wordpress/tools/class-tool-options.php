@@ -82,7 +82,8 @@ class Frontman_Tool_Options {
 				],
 				'required' => [ 'name' ],
 			],
-			[ $this, 'get_option' ]
+			[ $this, 'get_option' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -104,7 +105,8 @@ class Frontman_Tool_Options {
 				],
 				'required' => [ 'name', 'value' ],
 			],
-			[ $this, 'update_option' ]
+			[ $this, 'update_option' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -115,7 +117,8 @@ class Frontman_Tool_Options {
 				'additionalProperties' => false,
 				'properties'           => new \stdClass(),
 			],
-			[ $this, 'list_options' ]
+			[ $this, 'list_options' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -129,7 +132,8 @@ class Frontman_Tool_Options {
 					'source'     => [ 'type' => 'string', 'enum' => [ 'rendered', 'persisted' ], 'description' => 'Defaults to rendered. Use persisted before exact-text editing; its css matches persisted_css_sha256.' ],
 				],
 			],
-			[ $this, 'get_custom_css' ]
+			[ $this, 'get_custom_css' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -145,9 +149,7 @@ class Frontman_Tool_Options {
 				'required'             => [ 'stylesheet', 'parent_post_id' ],
 			],
 			[ $this, 'list_custom_css_revisions' ],
-			null,
-			true,
-			true
+			new Frontman_Tool_Annotations( true, false, false, true ), null, true, true
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -164,9 +166,7 @@ class Frontman_Tool_Options {
 				'required'             => [ 'stylesheet', 'parent_post_id', 'revision_id' ],
 			],
 			[ $this, 'get_custom_css_revision' ],
-			null,
-			true,
-			true
+			new Frontman_Tool_Annotations( true, false, false, true ), null, true, true
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -185,9 +185,7 @@ class Frontman_Tool_Options {
 				'required'             => [ 'stylesheet', 'parent_post_id', 'revision_id', 'expected_current_sha256', 'confirm' ],
 			],
 			[ $this, 'restore_custom_css_revision' ],
-			null,
-			true,
-			true
+			new Frontman_Tool_Annotations( false, true, true, false ), null, true, true
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -209,7 +207,8 @@ class Frontman_Tool_Options {
 				],
 				'required'             => [ 'confirm' ],
 			],
-			[ $this, 'update_custom_css' ]
+			[ $this, 'update_custom_css' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -220,7 +219,8 @@ class Frontman_Tool_Options {
 				'additionalProperties' => false,
 				'properties'           => new \stdClass(),
 			],
-			[ $this, 'list_theme_mods' ]
+			[ $this, 'list_theme_mods' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -234,7 +234,8 @@ class Frontman_Tool_Options {
 				],
 				'required'             => [ 'name' ],
 			],
-			[ $this, 'get_theme_mod' ]
+			[ $this, 'get_theme_mod' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -252,9 +253,7 @@ class Frontman_Tool_Options {
 				'required'             => [ 'name', 'value', 'stylesheet', 'confirm' ],
 			],
 			[ $this, 'update_theme_mod' ],
-			null,
-			true,
-			true
+			new Frontman_Tool_Annotations( false, true, true, false ), null, true, true
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -268,7 +267,8 @@ class Frontman_Tool_Options {
 					'limit' => [ 'type' => 'integer', 'minimum' => 1, 'maximum' => 100 ],
 				],
 			],
-			[ $this, 'list_customizer_settings' ], null, true, true
+			[ $this, 'list_customizer_settings' ],
+			new Frontman_Tool_Annotations( true, false, false, true ), null, true, true
 		) );
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_get_customizer_setting',
@@ -278,7 +278,8 @@ class Frontman_Tool_Options {
 				'properties' => [ 'id' => [ 'type' => 'string', 'description' => 'Exact ID from wp_list_customizer_settings.' ] ],
 				'required' => [ 'id' ],
 			],
-			[ $this, 'get_customizer_setting' ], null, true, true
+			[ $this, 'get_customizer_setting' ],
+			new Frontman_Tool_Annotations( true, false, false, true ), null, true, true
 		) );
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_update_customizer_setting',
@@ -294,7 +295,8 @@ class Frontman_Tool_Options {
 				],
 				'required' => [ 'id', 'value', 'stylesheet', 'expected_fingerprint', 'confirm' ],
 			],
-			[ $this, 'update_customizer_setting' ], null, true, true
+			[ $this, 'update_customizer_setting' ],
+			new Frontman_Tool_Annotations( false, true, true, false ), null, true, true
 		) );
 	}
 

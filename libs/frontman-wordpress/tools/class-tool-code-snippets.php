@@ -29,7 +29,8 @@ class Frontman_Tool_Code_Snippets {
 				],
 				'required' => [ 'search' ],
 			],
-			[ $this, 'search' ], 'read', true, true
+			[ $this, 'search' ],
+			new Frontman_Tool_Annotations( true, false, false, true ), 'read', true, true
 		) );
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_read_code_snippet',
@@ -42,7 +43,8 @@ class Frontman_Tool_Code_Snippets {
 				],
 				'required' => [ 'id' ],
 			],
-			[ $this, 'read' ], 'read'
+			[ $this, 'read' ],
+			new Frontman_Tool_Annotations( true, false, false, true ), 'read'
 		) );
 	}
 
