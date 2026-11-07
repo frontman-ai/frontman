@@ -306,7 +306,6 @@ test_redirects_and_angie() {
     "$RUNTIME" exec "$WORDPRESS" rm -rf /var/www/html/wp-content/plugins/angie
     "$RUNTIME" cp "$BUILD_DIR/angie-${ANGIE_VERSION}/angie" "$WORDPRESS:/var/www/html/wp-content/plugins/angie"
     "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/AngieRuntimeTest.php --setup
-    "$RUNTIME" restart "$WORDPRESS" >/dev/null
     "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/RunWordPressRuntimeTest.php integration-annotations
     "$RUNTIME" exec -e EXPECTED_ANGIE_VERSION="$ANGIE_VERSION" "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/AngieRuntimeTest.php
   done
