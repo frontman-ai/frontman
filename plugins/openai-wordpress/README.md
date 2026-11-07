@@ -1,4 +1,4 @@
-# Frontman WordPress directory package
+# Frontman OpenAI WordPress package
 
 This is a draft portable Agent Plugins package, separate from the marketing
 site's documentation-skills manifest. It points at the full hosted MCP catalog;
@@ -62,13 +62,13 @@ that check.
 These are human attestations, not automated proof.
 Network access and the current upstream schemas are required. It cannot verify
 the recording, reviewer account, policy compliance, or actual test outcomes.
-`make package` creates `frontman-wordpress.zip` here only after checks pass;
+`make package` creates `frontman-openai-wordpress.zip` here only after checks pass;
 the ZIP contains only root `plugin.json`, `mcp.json`, and `assets/icon.svg`.
 The icon is copied at build time from `apps/marketing/public/favicon.svg`.
 No secrets should be placed in either manifest.
 
 For a private portal validation attempt, `make package-draft` runs local checks
-and creates `frontman-wordpress-draft.zip` without claiming readiness or requiring
+and creates `frontman-openai-wordpress-draft.zip` without claiming readiness or requiring
 the human attestations. It does not pass strict upstream validation. Do not
 submit it for review until the blockers are resolved. OpenAI's
 [submission errors](https://developers.openai.com/plugins/deploy/submission-errors)
@@ -89,9 +89,9 @@ Do not select **Submit for review**.
 ### 1. Get the correct ZIP
 
 1. Complete the normal Frontman release: run `make release`, then review and merge its release PR.
-2. Wait for **Release Tag** and **WordPress Directory Release** to succeed in GitHub Actions.
+2. Wait for **Release Tag** and **OpenAI WordPress Release** to succeed in GitHub Actions.
 3. Open the matching version in [GitHub Releases](https://github.com/frontman-ai/frontman/releases).
-4. Download **`frontman-wordpress-directory-vX.Y.Z.zip`** from that release.
+4. Download **`frontman-openai-wordpress-vX.Y.Z.zip`** from that release.
 5. Record the release tag and commit before you continue.
 
 The directory ZIP contains `plugin.json`, `mcp.json`, and `assets/icon.svg`.
@@ -99,7 +99,7 @@ The directory ZIP contains `plugin.json`, `mcp.json`, and `assets/icon.svg`.
 Those files install the WordPress plugin, not the OpenAI listing.
 The directory manifest version and release notes come from the tagged release.
 
-If the candidate asset is missing, inspect **WordPress Directory Release** first.
+If the candidate asset is missing, inspect **OpenAI WordPress Release** first.
 After correcting the failure, run that workflow again with the same release tag.
 Tags from before this workflow was introduced do not contain the required tooling.
 
@@ -198,10 +198,10 @@ release version and changelog, then runs `sync-release VERSION=X.Y.Z`.
 That command updates the manifest version and release notes in the release PR.
 No second version or changelog process is needed.
 
-After Release Tag succeeds, the independent WordPress Directory Release
+After Release Tag succeeds, the independent OpenAI WordPress Release
 workflow builds from the tagged commit. It checks the tag, published release,
 manifest version, and changelog before attaching
-`frontman-wordpress-directory-vX.Y.Z.zip` to the GitHub Release.
+`frontman-openai-wordpress-vX.Y.Z.zip` to the GitHub Release.
 The ZIP is a candidate, not an approved OpenAI publication.
 This workflow uses `workflow_run` because releases created with `GITHUB_TOKEN`
 do not start ordinary `release` workflows.
@@ -214,10 +214,10 @@ Root `make publish` continues to publish npm packages only.
 To rebuild a candidate from an existing release checkout:
 
 ```sh
-make package-wordpress-directory VERSION=X.Y.Z
+make package-openai-wordpress VERSION=X.Y.Z
 ```
 
-To retry the GitHub attachment, run WordPress Directory Release with the existing
+To retry the GitHub attachment, run OpenAI WordPress Release with the existing
 release tag. Older tags without this tooling cannot build a directory artifact.
 Neither command creates a release or changes production services.
 

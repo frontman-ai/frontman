@@ -1,4 +1,4 @@
-name: WordPress Directory Release
+name: OpenAI WordPress Release
 
 on:
   workflow_run:
@@ -13,13 +13,13 @@ on:
         type: string
   pull_request:
     paths:
-      - 'plugins/wordpress-directory/**'
+      - 'plugins/openai-wordpress/**'
       - 'apps/marketing/public/favicon.svg'
       - 'package.json'
       - 'yarn.lock'
       - 'Makefile'
       - '.github/workflows/release-pr.yml'
-      - '.github/workflows/wordpress-directory-release.yml'
+      - '.github/workflows/openai-wordpress-release.yml'
 
 permissions:
   contents: read
@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
-      group: wordpress-directory-test-${{ github.ref }}
+      group: openai-wordpress-test-${{ github.ref }}
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -38,7 +38,7 @@ jobs:
         with:
           node-version: '24.4.1'
       - run: corepack enable && corepack install && yarn install --immutable
-      - run: make -C plugins/wordpress-directory check test NODE=node
+      - run: make -C plugins/openai-wordpress check test NODE=node
 
   resolve-release:
     if: >-
@@ -75,7 +75,7 @@ jobs:
               exit 0
             fi
           fi
-          VERSION=$(node -p 'require("./plugins/wordpress-directory/plugin.json").version')
+          VERSION=$(node -p 'require("./plugins/openai-wordpress/plugin.json").version')
           [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
           TAG="v$VERSION"
           [ "$EVENT_NAME" != workflow_dispatch ] || [ "$INPUT_TAG" = "$TAG" ]
@@ -93,7 +93,7 @@ jobs:
     permissions:
       contents: write
     concurrency:
-      group: wordpress-directory-${{ needs.resolve-release.outputs.tag }}
+      group: openai-wordpress-${{ needs.resolve-release.outputs.tag }}
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -108,19 +108,19 @@ jobs:
         env:
           VERSION: ${{ needs.resolve-release.outputs.version }}
         run: |
-          make -C plugins/wordpress-directory check test NODE=node
-          make package-wordpress-directory NODE=node VERSION="$VERSION"
+          make -C plugins/openai-wordpress check test NODE=node
+          make package-openai-wordpress NODE=node VERSION="$VERSION"
       - name: Attach candidate to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.resolve-release.outputs.version }}
           TAG: ${{ needs.resolve-release.outputs.tag }}
         run: |
-          gh release upload "$TAG" "plugins/wordpress-directory/frontman-wordpress-directory-v${VERSION}.zip" --clobber
+          gh release upload "$TAG" "plugins/openai-wordpress/frontman-openai-wordpress-v${VERSION}.zip" --clobber
           {
             echo "## Directory candidate: $TAG"
             echo "Built from $(git rev-parse HEAD); attached to the GitHub Release."
-            echo "Download frontman-wordpress-directory-v${VERSION}.zip, not the WordPress installation ZIP."
+            echo "Download frontman-openai-wordpress-v${VERSION}.zip, not the WordPress installation ZIP."
             echo "OpenAI upload, review submission, and publication are manual."
-            echo "[Manual release instructions](https://github.com/${GITHUB_REPOSITORY}/blob/$(git rev-parse HEAD)/plugins/wordpress-directory/README.md#manual-openai-release)"
+            echo "[Manual release instructions](https://github.com/${GITHUB_REPOSITORY}/blob/$(git rev-parse HEAD)/plugins/openai-wordpress/README.md#manual-openai-release)"
           } >> "$GITHUB_STEP_SUMMARY"

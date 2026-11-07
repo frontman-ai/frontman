@@ -117,7 +117,7 @@ if (packaging || draft) {
     await copyFile(join(root, "plugin.json"), join(staging, "plugin.json"));
     await copyFile(join(root, "mcp.json"), join(staging, "mcp.json"));
     await copyFile(icon, join(staging, "assets/icon.svg"));
-    const output = join(root, releaseVersion ? `frontman-wordpress-directory-v${releaseVersion}.zip` : draft ? "frontman-wordpress-draft.zip" : "frontman-wordpress.zip");
+    const output = join(root, releaseVersion ? `frontman-openai-wordpress-v${releaseVersion}.zip` : draft ? "frontman-openai-wordpress-draft.zip" : "frontman-openai-wordpress.zip");
     const archive = join(staging, "package.zip");
     const result = spawnSync("zip", ["-q", archive, "plugin.json", "mcp.json", "assets/icon.svg"], { cwd: staging, encoding: "utf8" });
     if (result.error || result.status !== 0) throw new Error(`zip failed: ${result.error ?? result.stderr}`);

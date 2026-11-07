@@ -8,7 +8,7 @@ const [action, version] = process.argv.slice(2);
 if (!["sync", "artifact"].includes(action) || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version ?? "")) {
   throw new Error("Expected sync or artifact and a canonical X.Y.Z VERSION.");
 }
-if (action === "artifact") await rm(join(root, `frontman-wordpress-directory-v${version}.zip`), { force: true });
+if (action === "artifact") await rm(join(root, `frontman-openai-wordpress-v${version}.zip`), { force: true });
 const changelog = await readFile(resolve(root, "../../CHANGELOG.md"), "utf8");
 const headings = [...changelog.matchAll(/^## \[([^\]]+)\][^\r\n]*$/gm)];
 const released = headings.find(heading => heading[1] !== "Unreleased");

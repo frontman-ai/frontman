@@ -11,7 +11,7 @@ const modules = resolve(source, "../../node_modules");
 
 async function fixture(withDependencies = true) {
   const root = await mkdtemp(join(tmpdir(), "frontman-test-"));
-  const dir = join(root, "plugins/wordpress-directory");
+  const dir = join(root, "plugins/openai-wordpress");
   await mkdir(dir, { recursive: true });
   await mkdir(join(root, "apps/marketing/public"), { recursive: true });
   for (const file of ["Makefile", "release.mts", "validate.mts", "plugin.json", "mcp.json"]) await copyFile(join(source, file), join(dir, file));
@@ -57,10 +57,10 @@ test("CLI validates the draft and rejects invalid manifests and missing evidence
     for (const error of upstream.stderr.split("\n").filter(line => line.includes(": schema:"))) {
       assert.ok(result.stderr.includes(error), error);
     }
-    await assert.rejects(readFile(join(dir, "frontman-wordpress.zip")), { code: "ENOENT" });
+    await assert.rejects(readFile(join(dir, "frontman-openai-wordpress.zip")), { code: "ENOENT" });
     result = run(dir, "--package-draft");
     assert.equal(result.status, 0, result.stderr);
-    const listing = spawnSync("unzip", ["-Z1", join(dir, "frontman-wordpress-draft.zip")], { encoding: "utf8" });
+    const listing = spawnSync("unzip", ["-Z1", join(dir, "frontman-openai-wordpress-draft.zip")], { encoding: "utf8" });
     assert.equal(listing.status, 0, listing.stderr);
     assert.deepEqual(listing.stdout.trim().split("\n").sort(), ["assets/icon.svg", "mcp.json", "plugin.json"]);
   } finally {
@@ -83,7 +83,7 @@ test("CLI crashes on malformed or missing manifests without creating an archive"
   const { root, dir } = await fixture();
   try {
     const manifest = join(dir, "plugin.json");
-    const archive = join(dir, "frontman-wordpress.zip");
+    const archive = join(dir, "frontman-openai-wordpress.zip");
     await writeFile(manifest, "{");
     let result = run(dir, "--package");
     assert.notEqual(result.status, 0);
@@ -145,7 +145,7 @@ test("release targets synchronize and package the exact top release notes", asyn
   const { root, dir } = await fixture();
   const changelog = join(root, "CHANGELOG.md");
   const manifest = join(dir, "plugin.json");
-  const archive = join(dir, "frontman-wordpress-directory-v2.3.4.zip");
+  const archive = join(dir, "frontman-openai-wordpress-v2.3.4.zip");
   const notes = "### Patch Changes\n\n- First change.\n\n  More detail.";
   const make = (target: string, version: string) => spawnSync("make", ["-C", dir, target, `VERSION=${version}`, `NODE=${process.execPath}`], { encoding: "utf8" });
   try {
