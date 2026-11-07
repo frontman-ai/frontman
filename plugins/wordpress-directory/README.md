@@ -75,17 +75,121 @@ submit it for review until the blockers are resolved. OpenAI's
 also say a public submission ZIP requires a valid skill or approved local MCP
 server; confirm how that applies to a remote-only **With MCP** submission.
 
-## Submission (manual, after blockers are resolved)
+## Manual OpenAI release
 
-Follow [OpenAI submission instructions](https://developers.openai.com/plugins/deploy/submission):
-upload the ZIP under a verified identity, connect the single remote server,
-complete the portal's domain challenge and OAuth flow, inspect scans, enter
-reviewer access privately, and submit for review. OpenAI asks for release notes
-for review, but `publication.release_notes` is optional in the ZIP. The release
-workflow generates this field from the Changesets-derived root changelog.
-Package metadata changes
-require a new ZIP; hosted MCP tool updates are scanned separately. Approval and publication
-are separate actions. This package does not submit or publish anything.
+**GitHub builds the candidate. A release owner uploads, submits, and publishes it in OpenAI.**
+These are separate steps. A successful GitHub release does not mean that the
+plugin is available in ChatGPT.
+
+Use the [OpenAI submission guide](https://developers.openai.com/plugins/deploy/submission)
+as the source for current portal labels.
+Until the blockers above are resolved, stop at draft upload and scan results.
+Do not select **Submit for review**.
+
+### 1. Get the correct ZIP
+
+1. Complete the normal Frontman release: run `make release`, then review and merge its release PR.
+2. Wait for **Release Tag** and **WordPress Directory Release** to succeed in GitHub Actions.
+3. Open the matching version in [GitHub Releases](https://github.com/frontman-ai/frontman/releases).
+4. Download **`frontman-wordpress-directory-vX.Y.Z.zip`** from that release.
+5. Record the release tag and commit before you continue.
+
+The directory ZIP contains `plugin.json`, `mcp.json`, and `assets/icon.svg`.
+**Do not upload `frontman-wordpress-vX.Y.Z.zip` or the WordPress.org TAR archive.**
+Those files install the WordPress plugin, not the OpenAI listing.
+The directory manifest version and release notes come from the tagged release.
+
+If the candidate asset is missing, inspect **WordPress Directory Release** first.
+After correcting the failure, run that workflow again with the same release tag.
+Tags from before this workflow was introduced do not contain the required tooling.
+
+For a draft-only diagnostic before a tagged release, use `make package-draft`
+from this directory. Its unversioned filename identifies it as a diagnostic
+candidate, not the normal release artifact.
+
+### 2. Prepare reviewer access and evidence
+
+- [ ] Use an OpenAI organization with a verified publishing identity and permission to manage apps.
+- [ ] Prepare a dedicated Frontman test account accepted by the production OAuth flow.
+- [ ] Connect a persistent, public HTTPS WordPress test site to that account.
+- [ ] Add WooCommerce, a `Review About` page, synthetic products, and synthetic orders.
+- [ ] Make reviewer login work without local-network access, MFA approval, or one-time email/SMS codes.
+- [ ] Run the five positive and three negative cases in `plugin.json` through ChatGPT.
+- [ ] Record the actual cases and provide a reviewer-accessible video URL.
+- [ ] Check production login, consent, tool discovery, and tool calls with this account.
+- [ ] Check the full exposed catalog against the annotation and policy requirements above.
+
+Keep the account and site available during review and subsequent reviews.
+Enter reviewer credentials and sign-in instructions only in the secure portal.
+Do not add them to the repository, ZIP, video, GitHub issues, or release notes.
+Changes to ZIP-managed review fields, including the recording URL, require a new package.
+Make those changes in source before the release. Do not edit a downloaded ZIP.
+
+### 3. Upload to the correct OpenAI plugin
+
+1. Open [OpenAI Plugins](https://platform.openai.com/plugins) in the correct organization and project.
+2. For the first submission, select **Upload new or existing plugin** and the verified developer identity.
+3. For an update, open the existing Frontman plugin and select **Upload plugin to make changes**.
+4. Upload the directory ZIP from step 1.
+5. Check that **Metadata & Skills** shows the intended version, listing text, URLs, icon, and release notes.
+6. Inspect the automated findings.
+
+Do not create another listing for each Frontman release.
+If OpenAI rejects the OAuth extension or remote-only package, save the exact findings.
+Resolve those findings before continuing.
+Do not remove OAuth or add a meaningless skill to silence a finding.
+Required setup and validation errors block submission.
+
+### 4. Connect and scan the hosted MCP server
+
+1. Open **MCPs** and select the Frontman server.
+2. Select **Connect**, or **Reconnect** for an existing connection that needs attention.
+3. Check that the URL is **`https://api.frontman.sh/mcp`** and authentication is OAuth with CIMD preference.
+4. If required, complete the domain challenge at the exact URL shown by OpenAI.
+5. Serve only the exact challenge token as plain text.
+6. Complete OAuth with the dedicated test account that owns the synthetic WordPress site.
+7. Wait for the tool scan, then inspect the catalog and **Issues**.
+8. After server corrections are deployed, select **Rescan** and inspect the results again.
+
+Do not overwrite a domain challenge used by another plugin.
+The package cannot prove that the deployed server contains the intended tool changes.
+Check the deployment separately from the GitHub release.
+The reviewer account must have a connected site or discovery will not include its WordPress tools.
+
+### 5. Submit for review
+
+1. Open **Metadata & Skills → Review information → Review details**.
+2. Check the imported five positive cases, three negative cases, recording URL, and release notes.
+3. Enter the dedicated reviewer credentials, site details, and sign-in instructions privately.
+4. Save the details.
+5. Check that required findings are resolved and the evidence applies to this version.
+6. Select **Submit for review** and complete the policy attestations truthfully.
+
+Only one review can be active per plugin.
+If another version is under review, wait for its decision or deliberately cancel it before uploading a replacement.
+Track **Review status** in the portal and the review email.
+If rejected, correct the stated findings and prepare a new candidate.
+
+### 6. Publish after approval
+
+1. Open the approved package version.
+2. Check that it matches the intended release and is not older than the version already live.
+3. Select **Publish plugin**.
+4. Check the live listing in ChatGPT.
+5. With the synthetic account, run site discovery and a representative safe workflow.
+6. Record the Git tag, OpenAI version, review decision, publication time, and smoke-test result.
+
+Approval alone does not publish the plugin.
+Publishing an update replaces the previous package version.
+If publication or the smoke test fails, record the failure before attempting another release.
+
+### Later updates
+
+Listing metadata, assets, or skill changes require a new ZIP and the manual steps above.
+Hosted MCP tool changes follow a separate path after initial publication.
+OpenAI scans them automatically, and **Rescan** requests another scan after deployment.
+A held update can leave the previously approved tool definition live.
+A GitHub release does not prove that OpenAI accepted new tools.
 
 ## Release integration
 
@@ -117,19 +221,6 @@ To retry the GitHub attachment, run WordPress Directory Release with the existin
 release tag. Older tags without this tooling cannot build a directory artifact.
 Neither command creates a release or changes production services.
 
-### Remaining OpenAI automation
-
-The intended next stages are automatic upload, review submission, status checks,
-and publication of the approved version. The current
-[OpenAI guide](https://developers.openai.com/plugins/deploy/submission)
-documents portal operations, not a supported API or CLI for these stages.
-No portal cookies, undocumented endpoints, or fabricated approval flags are used.
-
-OpenAI must provide a supported interface and non-interactive credentials before
-these stages can run automatically. It must identify the existing plugin and
-each uploaded version, expose validation and review status, and publish a
-specific approved version. Only one review can be active per plugin.
-The future integration must queue releases and avoid duplicate submissions or
-publication of an older approved version over a newer version.
-Reviewer credentials stay outside the ZIP. Review evidence and policy
-attestations cannot be generated from a successful package build.
+OpenAI upload, submission, review tracking, and publication are manual.
+No workflow performs those actions or generates their attestations.
+The workflow summary links to the manual release instructions for its exact source revision.

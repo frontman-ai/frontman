@@ -120,5 +120,7 @@ jobs:
           {
             echo "## Directory candidate: $TAG"
             echo "Built from $(git rev-parse HEAD); attached to the GitHub Release."
-            echo "Not uploaded, submitted, or published to OpenAI. A supported directory publishing API is still required."
+            echo "Download frontman-wordpress-directory-v${VERSION}.zip, not the WordPress installation ZIP."
+            echo "OpenAI upload, review submission, and publication are manual."
+            echo "[Manual release instructions](https://github.com/${GITHUB_REPOSITORY}/blob/$(git rev-parse HEAD)/plugins/wordpress-directory/README.md#manual-openai-release)"
           } >> "$GITHUB_STEP_SUMMARY"
