@@ -50,10 +50,32 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     request = %{"params" => %{"name" => "list_sites", "arguments" => %{}}}
     frame = %Frame{context: %Context{auth: %{sub: user.id}}}
 
+    assert {:reply, %{"content" => [%{"text" => text}]} = result, _} =
+             Tools.handle_call(request, frame, Server)
+
+    refute result["isError"]
+
+    assert %{
+             "sites" => [],
+             "status" => "connection_required",
+             "connection_url" => "https://resource.example/wordpress/connect",
+             "explanation" => explanation,
+             "next_steps" => steps
+           } = Jason.decode!(text)
+
+    assert is_binary(explanation) and byte_size(explanation) > 0
+    assert is_list(steps) and steps != []
+    assert Enum.all?(steps, &is_binary/1)
+
+    site = insert_site(user, "connected.example")
+
     assert {:reply, %{"content" => [%{"text" => text}]}, _} =
              Tools.handle_call(request, frame, Server)
 
-    assert Jason.decode!(text) == %{"sites" => []}
+    assert Jason.decode!(text) == %{
+             "sites" => [%{"id" => site.id, "label" => "connected.example"}]
+           }
+
     assert {:error, _, _} = Tools.handle_call(request, %Frame{}, Server)
   end
 
@@ -65,13 +87,25 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     frame = %Frame{context: %Context{auth: %{sub: owner.id}}, assigns: %{mcp_request: :original}}
     record_requests()
 
-    for arguments <- [%{}, %{"site_id" => "bad"}, %{"site_id" => foreign.id}] do
+    for arguments <- [
+          %{},
+          %{"site_id" => nil},
+          %{"site_id" => "bad"},
+          %{"site_id" => "https://owner.invalid"},
+          %{"site_id" => foreign.id}
+        ] do
       request = %{
         "method" => "tools/call",
         "params" => %{"name" => "wp_read_post", "arguments" => arguments}
       }
 
-      assert {:error, _, returned} = Server.handle_request(request, frame)
+      assert {:error, error, returned} = Server.handle_request(request, frame)
+      assert error.code == -32_602
+
+      assert error.data.message ==
+               "Call list_sites and pass an accessible site's id as site_id. " <>
+                 "If no sites are listed, connect a WordPress site first."
+
       assert returned.assigns.mcp_request == :original
     end
 
@@ -113,11 +147,20 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     assert Jason.decode!(text) == %{"sites" => [%{"id" => site.id, "label" => "owned.example"}]}
 
     body = put_in(body, ["params", "name"], "wp_read_post")
-    body = put_in(body, ["params", "arguments"], %{"site_id" => Ecto.UUID.generate()})
 
-    conn = sdk_conn(body)
-    response = StatelessBinding.call(conn, "2026-07-28", context, AnubisPlug.init(server: Server))
-    assert %{"error" => _} = Jason.decode!(response.resp_body)
+    for arguments <- [%{}, %{"site_id" => Ecto.UUID.generate()}] do
+      conn = sdk_conn(put_in(body, ["params", "arguments"], arguments))
+
+      response =
+        StatelessBinding.call(conn, "2026-07-28", context, AnubisPlug.init(server: Server))
+
+      assert %{"error" => %{"code" => -32_602, "data" => %{"message" => message}}} =
+               Jason.decode!(response.resp_body)
+
+      assert message =~ "Call list_sites"
+      assert message =~ "site_id"
+    end
+
     refute_received {:outbound, "owned.example"}
   end
 
@@ -268,6 +311,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     assert [tool] = tools
     assert tool.input_schema["required"] == ["site_id"]
     assert tool.input_schema["properties"]["id"] == %{"type" => "integer"}
+    assert tool.input_schema["properties"]["site_id"]["description"] =~ "returned by list_sites"
 
     assert {:ok, %{"site_id" => ^site, "id" => 1}} =
              tool.validate_input.(%{"site_id" => site, "id" => 1})

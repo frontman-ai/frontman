@@ -68,7 +68,10 @@ let make = () => {
       open_={settingsOpen} onOpenChange={handleSettingsOpenChange} initialTab=?{settingsInitialTab}
     />
     <Client__ProviderSetupModal
-      open_={showProviderSetupModal} onOpenSettings=openSettingsProviders
+      open_={showProviderSetupModal}
+      onOpenSettings=openSettingsProviders
+      onOpenGeneralSettings={() => Client__State.Actions.openSettingsModal()}
+      isWordpress={Client__RuntimeConfig.read().framework == Wordpress}
     />
     {switch authRedirectUrl {
     | Some(loginUrl) =>
