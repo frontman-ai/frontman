@@ -3,6 +3,55 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+## [5.7.0] - 2026-11-07
+
+
+#### @frontman-ai/client
+
+
+### Minor Changes
+
+- [#2113](https://github.com/frontman-ai/frontman/pull/2113) [`166a7a6`](https://github.com/frontman-ai/frontman/commit/166a7a6c26da9f5df93ea8ffc4e1d8ccd7d6f5e4) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Connect WordPress to an authenticated Frontman account with verified, encrypted credentials.
+
+### Patch Changes
+
+- [#2124](https://github.com/frontman-ai/frontman/pull/2124) [`4c69ed2`](https://github.com/frontman-ai/frontman/commit/4c69ed220daeeaf1182596958c54f2341e4eb41e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Make the WordPress auto-update notice more compact with shorter copy, neutral colors, and an action below the text.
+
+- [#2112](https://github.com/frontman-ai/frontman/pull/2112) [`4eb2dbb`](https://github.com/frontman-ai/frontman/commit/4eb2dbb79016d09d7fa966fd0ec200096f92733f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep the standalone WordPress bundle available to the Vite development server.
+
+- [#2134](https://github.com/frontman-ai/frontman/pull/2134) [`7445bd8`](https://github.com/frontman-ai/frontman/commit/7445bd82d36c695175b1286761548183eb3f5aaa) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add a WordPress shortcut to AI assistant connection settings from the provider setup dialog.
+
+- [#2117](https://github.com/frontman-ai/frontman/pull/2117) [`f350392`](https://github.com/frontman-ai/frontman/commit/f350392148086cea25c954891bae84f3264aa397) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Enable MCP during WordPress connection approval and show actionable errors.
+
+- [#2114](https://github.com/frontman-ai/frontman/pull/2114) [`13318a2`](https://github.com/frontman-ai/frontman/commit/13318a24cce104c49ca63050578f3363a8a330b7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Support WordPress connections in the local development stack.
+
+- [#2128](https://github.com/frontman-ai/frontman/pull/2128) [`828fb32`](https://github.com/frontman-ai/frontman/commit/828fb3236b67c3b9b740a8ac3df32933770cb0c0) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Clarify MCP tool access and show the saved WordPress connection and site access settings.
+
+#### @frontman-ai/frontman-wordpress
+
+
+### Minor Changes
+
+- [#2125](https://github.com/frontman-ai/frontman/pull/2125) [`4ef3465`](https://github.com/frontman-ai/frontman/commit/4ef34650a00031ebe845ca5e63bb37db2fe7dc8d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add `edit_many` to `wp_update_post`. It checks several exact text edits against one post, supports a dry run, and returns a short receipt after one save.
+
+- [#2127](https://github.com/frontman-ai/frontman/pull/2127) [`0ac95d8`](https://github.com/frontman-ai/frontman/commit/0ac95d8d69a2abbf59e87adcb739534c153bb609) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Expose registered WordPress tools automatically to connected MCP accounts. Preserve object property-count constraints in the relay.
+
+- [`d4e4563`](https://github.com/frontman-ai/frontman/commit/d4e4563544cd6952ca014765958c3f5ed3237803) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add read-only Code Snippets search and detail tools with scoped permission checks, bounded results, and stored activation and error-state reporting.
+
+- [#2125](https://github.com/frontman-ai/frontman/pull/2125) [`4ef3465`](https://github.com/frontman-ai/frontman/commit/4ef34650a00031ebe845ca5e63bb37db2fe7dc8d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove the WooCommerce metadata create aliases. Use `wc_update_product_meta`, `wc_update_order_meta`, and `wc_update_customer_meta` to create or update metadata.
+
+- [#2113](https://github.com/frontman-ai/frontman/pull/2113) [`166a7a6`](https://github.com/frontman-ai/frontman/commit/166a7a6c26da9f5df93ea8ffc4e1d8ccd7d6f5e4) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Connect WordPress to an authenticated Frontman account with verified, encrypted credentials.
+
+### Patch Changes
+
+- [#2125](https://github.com/frontman-ai/frontman/pull/2125) [`4ef3465`](https://github.com/frontman-ai/frontman/commit/4ef34650a00031ebe845ca5e63bb37db2fe7dc8d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reject generic creation and duplication of Additional CSS, block navigation, and theme templates. Route Additional CSS and block navigation updates through their dedicated tools. Block edits use post permissions, and post deletion checks permissions and reports permanent template removal accurately.
+
+- [#2117](https://github.com/frontman-ai/frontman/pull/2117) [`f350392`](https://github.com/frontman-ai/frontman/commit/f350392148086cea25c954891bae84f3264aa397) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Enable MCP during WordPress connection approval and show actionable errors.
+
+- [#2128](https://github.com/frontman-ai/frontman/pull/2128) [`828fb32`](https://github.com/frontman-ai/frontman/commit/828fb3236b67c3b9b740a8ac3df32933770cb0c0) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Clarify MCP tool access and show the saved WordPress connection and site access settings.
+
+- [#2132](https://github.com/frontman-ai/frontman/pull/2132) [`ce01fee`](https://github.com/frontman-ai/frontman/commit/ce01feed5981b90d1e1627a792d576f2b129e79b) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Enable strict PHP typing in the WordPress bootstrap, tool registry, and request infrastructure while preserving explicit input validation and stored settings compatibility.
+
 ## [5.6.0] - 2026-11-03
 
 
