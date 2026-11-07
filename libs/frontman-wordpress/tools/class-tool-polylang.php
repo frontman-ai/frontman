@@ -19,13 +19,15 @@ class Frontman_Tool_Polylang {
 			'wp_list_languages',
 			'Reports whether Polylang is available and lists configured language slugs and the default language. Does not read private plugin options.',
 			[ 'type' => 'object', 'additionalProperties' => false, 'properties' => new \stdClass() ],
-			[ $this, 'list_languages' ]
+			[ $this, 'list_languages' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_read_post_language',
 			'Reads a post language and readable translation IDs through Polylang. Unreadable translations are omitted.',
 			[ 'type' => 'object', 'additionalProperties' => false, 'properties' => [ 'id' => self::POST ], 'required' => [ 'id' ] ],
-			[ $this, 'read_post_language' ]
+			[ $this, 'read_post_language' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_set_post_language',
@@ -34,7 +36,8 @@ class Frontman_Tool_Polylang {
 				'id' => self::POST,
 				'lang' => [ 'type' => 'string', 'description' => 'Configured Polylang language slug.' ],
 			], 'required' => [ 'id', 'lang' ] ],
-			[ $this, 'set_post_language' ]
+			[ $this, 'set_post_language' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 	}
 

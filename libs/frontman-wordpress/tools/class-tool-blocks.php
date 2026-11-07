@@ -34,7 +34,8 @@ class Frontman_Tool_Blocks {
 				],
 				'required' => [ 'post_id' ],
 			],
-			[ $this, 'list_blocks' ]
+			[ $this, 'list_blocks' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -56,7 +57,8 @@ class Frontman_Tool_Blocks {
 				],
 				'required' => [ 'post_id' ],
 			],
-			[ $this, 'read_block' ]
+			[ $this, 'read_block' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -82,7 +84,8 @@ class Frontman_Tool_Blocks {
 				],
 				'required' => [ 'post_id', 'block_markup' ],
 			],
-			[ $this, 'update_block' ]
+			[ $this, 'update_block' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -108,7 +111,8 @@ class Frontman_Tool_Blocks {
 				],
 				'required' => [ 'post_id', 'block_markup' ],
 			],
-			[ $this, 'insert_block' ]
+			[ $this, 'insert_block' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -126,7 +130,8 @@ class Frontman_Tool_Blocks {
 				],
 				'required' => [ 'post_id', 'to_index' ],
 			],
-			[ $this, 'move_block' ]
+			[ $this, 'move_block' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -143,7 +148,8 @@ class Frontman_Tool_Blocks {
 				],
 				'required' => [ 'post_id', 'confirm' ],
 			],
-			[ $this, 'delete_block' ]
+			[ $this, 'delete_block' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 	}
 
