@@ -53,7 +53,16 @@ test("CLI validates the draft and rejects invalid manifests and missing evidence
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /demo_recording_url/);
     assert.match(result.stderr, /REVIEW_CASES_VERIFIED/);
+    const upstream = run(dir, "--strict-upstream");
+    for (const error of upstream.stderr.split("\n").filter(line => line.includes(": schema:"))) {
+      assert.ok(result.stderr.includes(error), error);
+    }
     await assert.rejects(readFile(join(dir, "frontman-wordpress.zip")), { code: "ENOENT" });
+    result = run(dir, "--package-draft");
+    assert.equal(result.status, 0, result.stderr);
+    const listing = spawnSync("unzip", ["-Z1", join(dir, "frontman-wordpress-draft.zip")], { encoding: "utf8" });
+    assert.equal(listing.status, 0, listing.stderr);
+    assert.deepEqual(listing.stdout.trim().split("\n").sort(), ["assets/icon.svg", "mcp.json", "plugin.json"]);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -11,6 +11,8 @@ const icon = resolve(root, "../../apps/marketing/public/favicon.svg");
 const errors: string[] = [];
 const fail = (message: string) => errors.push(message);
 const packaging = process.argv.includes("--package");
+const draft = process.argv.includes("--package-draft");
+if (packaging && draft) throw new Error("Choose --package or --package-draft, not both.");
 
 function httpsUrl(value: unknown): boolean {
   if (typeof value !== "string" || !URL.canParse(value)) return false;
@@ -35,7 +37,7 @@ for (const [name, document] of [["plugin.json", plugin], ["mcp.json", mcp]] as c
   if (!response.ok) throw new Error(`${name}: schema request failed with HTTP ${response.status}`);
   const schema = await response.json();
   const checked = structuredClone(document);
-  if (name === "mcp.json" && !process.argv.includes("--strict-upstream")) {
+  if (name === "mcp.json" && !packaging && !process.argv.includes("--strict-upstream")) {
     for (const server of Object.values(checked.mcpServers ?? {}) as any[]) {
       if (server && typeof server === "object") delete server.extensions;
     }
@@ -93,7 +95,6 @@ if (packaging) {
     ["REVIEW_CASES_VERIFIED", "Run all eight review cases in ChatGPT using the staging account"],
     ["OAUTH_VERIFIED", "Verify the production ChatGPT OAuth and login flow"],
     ["POLICY_VERIFIED", "Audit the full catalog, tool annotations and OpenAI policies"],
-    ["UPSTREAM_CONFLICT_RESOLVED", "Resolve the documented upstream schema conflict with OpenAI"],
   ]) {
     if (process.env[variable] !== "yes") fail(`${instruction}; then set ${variable}=yes for this invocation.`);
   }
@@ -104,14 +105,14 @@ if (errors.length) {
   process.exit(1);
 }
 
-if (packaging) {
+if (packaging || draft) {
   const staging = await mkdtemp(join(tmpdir(), "frontman-plugin-"));
   try {
     await mkdir(join(staging, "assets"));
     await copyFile(join(root, "plugin.json"), join(staging, "plugin.json"));
     await copyFile(join(root, "mcp.json"), join(staging, "mcp.json"));
     await copyFile(icon, join(staging, "assets/icon.svg"));
-    const output = join(root, "frontman-wordpress.zip");
+    const output = join(root, draft ? "frontman-wordpress-draft.zip" : "frontman-wordpress.zip");
     const archive = join(staging, "package.zip");
     const result = spawnSync("zip", ["-q", archive, "plugin.json", "mcp.json", "assets/icon.svg"], { cwd: staging, encoding: "utf8" });
     if (result.error || result.status !== 0) throw new Error(`zip failed: ${result.error ?? result.stderr}`);

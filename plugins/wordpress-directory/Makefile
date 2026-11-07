@@ -1,4 +1,4 @@
-.PHONY: check check-upstream test package
+.PHONY: check check-upstream test package package-draft
 
 check:
 	mise exec node -- node validate.mts
@@ -11,3 +11,6 @@ test:
 
 package:
 	mise exec node -- node validate.mts --package
+
+package-draft:
+	mise exec node -- node validate.mts --package-draft

@@ -55,8 +55,10 @@ prompts and capabilities. `check-upstream`
 validates the unmodified manifests, including the extension, against those
 schemas. It is expected to fail until the upstream conflict is resolved.
 After completing the relevant checks and resolving that conflict with OpenAI,
-pass `REVIEW_CASES_VERIFIED=yes`, `OAUTH_VERIFIED=yes`, `POLICY_VERIFIED=yes`,
-and `UPSTREAM_CONFLICT_RESOLVED=yes` as environment variables to `make package`.
+pass `REVIEW_CASES_VERIFIED=yes`, `OAUTH_VERIFIED=yes` and `POLICY_VERIFIED=yes`
+as environment variables to `make package`. Packaging also validates the
+unmodified manifests against the upstream schemas; an attestation cannot bypass
+that check.
 These are human attestations, not automated proof.
 Network access and the current upstream schemas are required. It cannot verify
 the recording, reviewer account, policy compliance, or actual test outcomes.
@@ -64,6 +66,14 @@ the recording, reviewer account, policy compliance, or actual test outcomes.
 the ZIP contains only root `plugin.json`, `mcp.json`, and `assets/icon.svg`.
 The icon is copied at build time from `apps/marketing/public/favicon.svg`.
 No secrets should be placed in either manifest.
+
+For a private portal validation attempt, `make package-draft` runs local checks
+and creates `frontman-wordpress-draft.zip` without claiming readiness or requiring
+the human attestations. It does not pass strict upstream validation. Do not
+submit it for review until the blockers are resolved. OpenAI's
+[submission errors](https://developers.openai.com/plugins/deploy/submission-errors)
+also say a public submission ZIP requires a valid skill or approved local MCP
+server; confirm how that applies to a remote-only **With MCP** submission.
 
 ## Submission (manual, after blockers are resolved)
 
