@@ -51,7 +51,8 @@ class Frontman_Tool_Media {
 					'post_id'     => [ 'type' => 'integer', 'description' => 'Optional post/page ID to attach the media to.' ],
 				],
 			],
-			[ $this, 'upload_media' ]
+			[ $this, 'upload_media' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 	}
 

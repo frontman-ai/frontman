@@ -23,21 +23,24 @@ class Frontman_Tool_301_Redirects {
 			'wp_301_redirects_list',
 			'Lists WebFactory 301 Redirects rules (exact URL matching, fixed 301). Page is zero-based with up to 100 rules per page. Inspect this store and Redirection separately; ask the user about ownership and conflicts before choosing a store. Never automatically select a provider.',
 			[ 'type' => 'object', 'properties' => [ 'page' => [ 'type' => 'integer', 'minimum' => 0 ] ], 'additionalProperties' => false ],
-			[ $this, 'list_redirects' ], 'read', true, true
+			[ $this, 'list_redirects' ],
+			new Frontman_Tool_Annotations( true, false, false, true ), 'read', true, true
 		) );
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_301_redirects_create',
 			'Creates one fixed 301 in WebFactory 301 Redirects only. Inspect both redirect stores and ask about ownership/conflicts first. Exact URL matching: slash, case and query variants are distinct. No child-path coverage or chain detection. Requires approval; verify public HTTP and clear caches. Never blindly retry failures.',
 			[ 'type' => 'object', 'additionalProperties' => false, 'required' => [ 'source', 'target', 'confirm' ],
 				'properties' => [ 'source' => [ 'type' => 'string' ], 'target' => [ 'type' => 'string' ], 'confirm' => [ 'type' => 'boolean' ] ] ],
-			[ $this, 'create_redirect' ], 'read-write', true, true
+			[ $this, 'create_redirect' ],
+			new Frontman_Tool_Annotations( false, true, true, false ), 'read-write', true, true
 		) );
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_301_redirects_delete',
 			'Deletes one WebFactory rule only after approval. Read wp_301_redirects_list and supply its exact old_link as expected_source. Does not alter Redirection or other rules.',
 			[ 'type' => 'object', 'additionalProperties' => false, 'required' => [ 'id', 'expected_source', 'confirm' ],
 				'properties' => [ 'id' => [ 'type' => 'integer', 'minimum' => 1 ], 'expected_source' => [ 'type' => 'string' ], 'confirm' => [ 'type' => 'boolean' ] ] ],
-			[ $this, 'delete_redirect' ], 'read-write', true, true
+			[ $this, 'delete_redirect' ],
+			new Frontman_Tool_Annotations( false, true, true, false ), 'read-write', true, true
 		) );
 	}
 

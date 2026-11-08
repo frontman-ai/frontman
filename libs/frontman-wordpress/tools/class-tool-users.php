@@ -31,7 +31,7 @@ class Frontman_Tool_Users {
 				'required' => [ 'search', 'match_by' ],
 			],
 			[ $this, 'find_users' ],
-			'read'
+			new Frontman_Tool_Annotations( true, false, false, true ), 'read'
 		) );
 	}
 

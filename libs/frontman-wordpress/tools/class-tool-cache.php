@@ -24,7 +24,8 @@ class Frontman_Tool_Cache {
 				'additionalProperties' => false,
 				'properties'           => new \stdClass(),
 			],
-			[ $this, 'list_cache_plugins' ]
+			[ $this, 'list_cache_plugins' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -35,7 +36,8 @@ class Frontman_Tool_Cache {
 				'additionalProperties' => false,
 				'properties'           => new \stdClass(),
 			],
-			[ $this, 'clear_cache' ]
+			[ $this, 'clear_cache' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 	}
 
