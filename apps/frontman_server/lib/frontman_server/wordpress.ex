@@ -23,9 +23,13 @@ defmodule FrontmanServer.WordPress do
     request_site(scope, site_id, :get, nil, timeout)
   end
 
+  @doc """
+  Streams catalogs until an absolute monotonic deadline in milliseconds.
+
+  Loads owned connections before starting cancellable HTTP workers. Cancellation
+  must not interrupt a database checkout and disconnect its transaction.
+  """
   def stream_catalogs(%Scope{} = scope, site_ids, deadline) do
-    # Resolve ownership before starting cancellable workers. Killing a worker
-    # during a database checkout disconnects that connection and its transaction.
     connections =
       scope
       |> Scope.user_id()
