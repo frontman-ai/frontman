@@ -148,3 +148,4 @@ jobs:
               echo "OpenAI upload, review submission, and publication remain manual."
               echo "[Manual release instructions](https://github.com/${GITHUB_REPOSITORY}/blob/$(git rev-parse HEAD)/plugins/openai-wordpress/README.md#manual-openai-release)"
             } >> "$GITHUB_STEP_SUMMARY"
+          fi
