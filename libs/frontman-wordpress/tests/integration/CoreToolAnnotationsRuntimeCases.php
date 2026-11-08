@@ -44,7 +44,7 @@ try {
 	frontman_runtime_same( $current['content'], $call( 'wp_read_post', [ 'id' => $published['id'] ] )['content'], 'Dry-run does not change stored content, but shares a descriptor with the write mode.' );
 	$call( 'wp_update_post', $batch );
 	frontman_runtime_same( '<p>Batch edited content</p>', $call( 'wp_read_post', [ 'id' => $published['id'] ] )['content'], 'The batch mode also overwrites published content.' );
-	$page = frontman_runtime_http( 'GET', wp_parse_url( $published['permalink'], PHP_URL_PATH ) );
+	$page = frontman_runtime_http( 'GET', wp_make_link_relative( $published['permalink'] ) );
 	frontman_runtime_same( 200, $page['status'], 'Published fixture is publicly readable.' );
 	frontman_runtime_assert( false !== strpos( $page['body'], 'Batch edited content' ), 'Updates change actual public output.' );
 	$call( 'wp_delete_post', [ 'id' => $published['id'], 'confirm' => true ] );

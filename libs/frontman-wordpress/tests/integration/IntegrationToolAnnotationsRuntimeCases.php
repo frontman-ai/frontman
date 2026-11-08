@@ -56,8 +56,8 @@ declare(strict_types=1);
 	if ( Frontman_Plugin_Dependencies::is_available( 'woocommerce/woocommerce.php', '\WooCommerce' ) ) {
 		$expected_catalog += frontman_runtime_woocommerce_annotations();
 	}
-	frontman_runtime_assert_catalog( $expected_catalog );
-	fwrite( STDOUT, "OK (complete reviewed catalog, conditional registration and browser/REST parity)\n" );
+	frontman_runtime_assert_annotations( Frontman_Tools::instance(), $expected_catalog );
+	fwrite( STDOUT, "OK (complete reviewed catalog and conditional registration)\n" );
 } )();
 
 if ( '' === $runtime_case && class_exists( 'Frontman_Tool_Elementor' ) ) {

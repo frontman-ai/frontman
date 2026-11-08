@@ -289,6 +289,8 @@ try {
 	$catalog = $mcp_discover( $mcp_credentials );
 	frontman_runtime_same( 200, $catalog['status'], 'Application Password discovery without cookies succeeds' );
 	$catalog = json_decode( $catalog['body'], true, 512, JSON_THROW_ON_ERROR );
+	$registry = json_decode( wp_json_encode( Frontman_Tools::instance()->all_definitions() ), true, 512, JSON_THROW_ON_ERROR );
+	frontman_runtime_same( $registry, $catalog['tools'], 'REST discovery preserves the entire registry and every annotation' );
 	$browser_catalog = frontman_runtime_http( 'GET', '/index.php/frontman/tools', $cookie, $nonce, null );
 	frontman_runtime_same( json_decode( $browser_catalog['body'], true )['tools'], $catalog['tools'], 'Discovery preserves the browser catalog and argument schemas' );
 	( static function() use ( $catalog, $browser_catalog, $cookie, $nonce, $mcp_post, $mcp_request, $mcp_credentials, $call ): void {

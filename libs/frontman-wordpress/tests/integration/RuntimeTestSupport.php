@@ -26,29 +26,6 @@ function frontman_runtime_assert_annotations( Frontman_Tools $tools, array $expe
 	}
 }
 
-/** Compare the entire actual bootstrap catalog, not just each known provider's subset. */
-function frontman_runtime_assert_catalog( array $expected ): void {
-	$tools = Frontman_Tools::instance();
-	frontman_runtime_assert_annotations( $tools, $expected );
-	$definitions = json_decode( wp_json_encode( $tools->all_definitions() ), true, 512, JSON_THROW_ON_ERROR );
-	$admin = get_user_by( 'login', 'admin' );
-	$enabled = get_option( 'frontman_mcp_enabled', null );
-	$credential = WP_Application_Passwords::create_new_application_password( $admin->ID, [ 'name' => 'Catalog completeness runtime' ] );
-	frontman_runtime_assert( is_array( $credential ), 'Create a disposable catalog credential.' );
-	try {
-		update_option( 'frontman_mcp_enabled', true );
-		$browser = frontman_runtime_http( 'GET', '/index.php/frontman/tools', wp_generate_auth_cookie( $admin->ID, time() + 300, 'logged_in' ) );
-		$rest = frontman_runtime_http( 'GET', '/?rest_route=/frontman/v1/tools', '', null, null, '', $admin->user_login . ':' . $credential[0], null, true );
-		foreach ( [ 'browser' => $browser, 'REST' => $rest ] as $transport => $response ) {
-			frontman_runtime_same( 200, $response['status'], $transport . ' catalog discovery succeeds.' );
-			frontman_runtime_same( $definitions, json_decode( $response['body'], true, 512, JSON_THROW_ON_ERROR )['tools'], $transport . ' preserves the entire reviewed registry, including every annotation.' );
-		}
-	} finally {
-		WP_Application_Passwords::delete_application_password( $admin->ID, $credential[1]['uuid'] );
-		if ( null === $enabled ) { delete_option( 'frontman_mcp_enabled' ); } else { update_option( 'frontman_mcp_enabled', $enabled ); }
-	}
-}
-
 function frontman_runtime_call( Frontman_Tools $tools, string $name, array $input ): array {
 	try {
 		return $tools->call( $name, $tools->sanitize_input( $name, $input ) );
