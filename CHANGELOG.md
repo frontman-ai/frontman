@@ -3,6 +3,34 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+## [5.8.0] - 2026-11-08
+
+
+#### @frontman-ai/frontman-wordpress
+
+
+### Patch Changes
+
+- [#2145](https://github.com/frontman-ai/frontman/pull/2145) [`e620170`](https://github.com/frontman-ai/frontman/commit/e620170c5f623ff6b786c679802db49e363475d2) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Return an error instead of a partial MCP tool list when a connected WordPress site's catalog is unavailable or invalid. Load owned connections before parallel HTTP requests so discovery cancellation cannot interrupt a database checkout.
+
+- [#2145](https://github.com/frontman-ai/frontman/pull/2145) [`e620170`](https://github.com/frontman-ai/frontman/commit/e620170c5f623ff6b786c679802db49e363475d2) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Discover tools only on the selected WordPress site when executing MCP calls, so unrelated sites cannot block calls through conflicting schemas or outages.
+
+- [#2140](https://github.com/frontman-ai/frontman/pull/2140) [`6d49f60`](https://github.com/frontman-ai/frontman/commit/6d49f60c10a7bde0b5b15f0c878145abe83aacb6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Declare explicit safety and retry hints for every core WordPress tool. Classifications cover publication, persisted previews, destructive changes, public HTTP inspection, and repeated writes without changing tool inputs or execution.
+
+- [#2138](https://github.com/frontman-ai/frontman/pull/2138) [`b35a555`](https://github.com/frontman-ai/frontman/commit/b35a555b7b5c5d628828d61befb5f03a64da9b4c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Declare explicit safety and retry hints for non-commerce integrations, including conditional SEO tools, Elementor generation and public mutations, translation changes, and both redirect providers. Preserve existing catalogs and execution contracts.
+
+- [#2138](https://github.com/frontman-ai/frontman/pull/2138) [`b35a555`](https://github.com/frontman-ai/frontman/commit/b35a555b7b5c5d628828d61befb5f03a64da9b4c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Require explicit safety annotations when constructing WordPress tools. Remove the optional migration path and check the complete registered catalog against reviewed classifications and both authenticated discovery transports.
+
+- [#2145](https://github.com/frontman-ai/frontman/pull/2145) [`e620170`](https://github.com/frontman-ai/frontman/commit/e620170c5f623ff6b786c679802db49e363475d2) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Make runtime dependency checksum checks portable and record tool inventories across real WordPress integrations. Exercise hosted discovery, selected-site execution, outages, and recovery with and without WooCommerce.
+
+- [#2139](https://github.com/frontman-ai/frontman/pull/2139) [`02d9132`](https://github.com/frontman-ai/frontman/commit/02d91325153db1cbeeec37efcc24eff4a2473a59) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Enable strict PHP typing in the core WordPress tools and their runtime tests while preserving existing input validation and tool behavior.
+
+- [#2139](https://github.com/frontman-ai/frontman/pull/2139) [`02d9132`](https://github.com/frontman-ai/frontman/commit/02d91325153db1cbeeec37efcc24eff4a2473a59) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Enable strict PHP typing in the WordPress integration tools and their real-plugin runtime tests.
+
+- [#2140](https://github.com/frontman-ai/frontman/pull/2140) [`6d49f60`](https://github.com/frontman-ai/frontman/commit/6d49f60c10a7bde0b5b15f0c878145abe83aacb6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add a validated tool annotation value type and preserve explicit safety hints in WordPress catalogs. Existing tools remain available without inferred annotations during migration.
+
+- [#2140](https://github.com/frontman-ai/frontman/pull/2140) [`6d49f60`](https://github.com/frontman-ai/frontman/commit/6d49f60c10a7bde0b5b15f0c878145abe83aacb6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Declare reviewed safety and retry hints for the full WooCommerce catalog, including generated metadata upserts, public catalog changes, notifications, refunds, external diagnostics, and maintenance actions. Preserve existing inputs and execution.
+
 ## [5.7.0] - 2026-11-07
 
 
