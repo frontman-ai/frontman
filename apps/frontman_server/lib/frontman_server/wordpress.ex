@@ -23,6 +23,43 @@ defmodule FrontmanServer.WordPress do
     request_site(scope, site_id, :get, nil, timeout)
   end
 
+  @doc """
+  Streams catalogs until an absolute monotonic deadline in milliseconds.
+
+  Loads owned connections before starting cancellable HTTP workers. Cancellation
+  must not interrupt a database checkout and disconnect its transaction.
+  """
+  def stream_catalogs(%Scope{} = scope, site_ids, deadline) do
+    connections =
+      scope
+      |> Scope.user_id()
+      |> Connection.owned_ids(site_ids)
+      |> Repo.all()
+      |> Map.new(&{&1.id, &1})
+
+    Task.async_stream(
+      site_ids,
+      fn id ->
+        remaining = deadline - System.monotonic_time(:millisecond)
+
+        result =
+          case Map.fetch(connections, id) do
+            {:ok, connection} when remaining > 0 ->
+              request_connection(connection, :get, nil, remaining)
+
+            _ ->
+              {:error, :connection_failed}
+          end
+
+        {id, result}
+      end,
+      max_concurrency: 32,
+      ordered: false,
+      timeout: max(deadline - System.monotonic_time(:millisecond), 1),
+      on_timeout: :kill_task
+    )
+  end
+
   def call(%Scope{} = scope, site_id, name, arguments) do
     request_site(scope, site_id, :post, %{name: name, arguments: arguments}, 15_000)
   end
@@ -66,16 +103,20 @@ defmodule FrontmanServer.WordPress do
     with {:ok, site_id} <- Ecto.UUID.cast(site_id),
          %Connection{} = connection <-
            scope |> Scope.user_id() |> Connection.owned() |> Repo.get(site_id) do
-      url =
-        case method do
-          :get -> connection.catalog_url
-          :post -> connection.call_url
-        end
-
-      request(url, connection.username, connection.password, method, body, timeout)
+      request_connection(connection, method, body, timeout)
     else
       _ -> {:error, :connection_failed}
     end
+  end
+
+  defp request_connection(connection, method, body, timeout) do
+    url =
+      case method do
+        :get -> connection.catalog_url
+        :post -> connection.call_url
+      end
+
+    request(url, connection.username, connection.password, method, body, timeout)
   end
 
   defp origin(url) do

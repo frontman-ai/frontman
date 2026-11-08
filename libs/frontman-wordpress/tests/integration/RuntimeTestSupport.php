@@ -2,6 +2,25 @@
 
 require_once __DIR__ . '/ToolAnnotationExpectations.php';
 
+function frontman_runtime_inventory( string $checkpoint ): void {
+	require_once ABSPATH . 'wp-admin/includes/plugin.php';
+	$names = array_column( Frontman_Tools::instance()->all_definitions(), 'name' );
+	sort( $names );
+	$plugins = [];
+	foreach ( get_plugins() as $file => $plugin ) {
+		if ( is_plugin_active( $file ) ) {
+			$plugins[ $file ] = $plugin['Version'];
+		}
+	}
+	fwrite( STDOUT, 'FRONTMAN_INVENTORY ' . wp_json_encode( [
+		'checkpoint' => $checkpoint,
+		'wordpress' => get_bloginfo( 'version' ),
+		'php' => PHP_VERSION,
+		'plugins' => $plugins,
+		'names' => $names,
+	] ) . "\n" );
+}
+
 function frontman_runtime_assert( bool $condition, string $message ): void {
 	if ( ! $condition ) {
 		throw new RuntimeException( $message );
