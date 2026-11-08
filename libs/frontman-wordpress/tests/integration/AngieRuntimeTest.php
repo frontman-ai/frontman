@@ -20,6 +20,7 @@ if ( in_array( '--setup', $argv, true ) ) {
 	angie_check( ! is_wp_error( $result ), 'Angie activation failed: ' . ( is_wp_error( $result ) ? $result->get_error_message() : '' ) );
 	exit( 0 );
 }
+frontman_runtime_inventory( 'angie' );
 angie_check( ANGIE_VERSION === getenv( 'EXPECTED_ANGIE_VERSION' ), 'Unexpected Angie version.' );
 angie_check( 'read' === $tools->get( 'wp_read_angie_snippet' )->access, 'Reader must be classified read-only.' );
 angie_check( null === $tools->get( 'wp_update_angie_snippet' ), 'No Angie writer should be exposed.' );

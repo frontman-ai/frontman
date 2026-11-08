@@ -65,7 +65,7 @@ trap cleanup EXIT
 download_zip() {
   local url="$1" archive="$2" checksum="$3" destination="$4"
   curl -fsSL "$url" -o "$BUILD_DIR/$archive.zip"
-  printf '%s  %s\n' "$checksum" "$BUILD_DIR/$archive.zip" | sha256sum --check --status
+  printf '%s  %s\n' "$checksum" "$BUILD_DIR/$archive.zip" | shasum -a 256 --check --status
   unzip -q "$BUILD_DIR/$archive.zip" -d "$BUILD_DIR/$destination"
 }
 

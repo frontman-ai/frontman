@@ -31,7 +31,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     assert {:reply, %{"content" => [%{"text" => text}]}, returned} =
              Server.handle_request(request, frame)
 
-    refute Map.has_key?(returned.assigns, :mcp_request)
+    refute Map.has_key?(returned.assigns, :mcp_catalog)
     assert %{"sites" => sites} = Jason.decode!(text)
 
     assert Enum.sort(sites) ==
@@ -49,6 +49,9 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     user = AccountsFixtures.user_fixture()
     request = %{"params" => %{"name" => "list_sites", "arguments" => %{}}}
     frame = %Frame{context: %Context{auth: %{sub: user.id}}}
+
+    assert {:reply, %{"tools" => [%{name: "list_sites"}]}, _} =
+             Server.handle_request(%{"method" => "tools/list"}, frame)
 
     assert {:reply, %{"content" => [%{"text" => text}]} = result, _} =
              Tools.handle_call(request, frame, Server)
@@ -84,7 +87,13 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     other = AccountsFixtures.user_fixture()
     owned = insert_site(owner, "owner.invalid")
     foreign = insert_site(other, "foreign.invalid")
-    frame = %Frame{context: %Context{auth: %{sub: owner.id}}, assigns: %{mcp_request: :original}}
+    Repo.delete!(owned)
+
+    frame = %Frame{
+      context: %Context{auth: %{sub: owner.id}},
+      assigns: %{mcp_catalog: :original}
+    }
+
     record_requests()
 
     for arguments <- [
@@ -92,7 +101,8 @@ defmodule FrontmanServerWeb.MCPSitesTest do
           %{"site_id" => nil},
           %{"site_id" => "bad"},
           %{"site_id" => "https://owner.invalid"},
-          %{"site_id" => foreign.id}
+          %{"site_id" => foreign.id},
+          %{"site_id" => owned.id}
         ] do
       request = %{
         "method" => "tools/call",
@@ -106,10 +116,8 @@ defmodule FrontmanServerWeb.MCPSitesTest do
                "Call list_sites and pass an accessible site's id as site_id. " <>
                  "If no sites are listed, connect a WordPress site first."
 
-      assert returned.assigns.mcp_request == :original
+      assert returned.assigns.mcp_catalog == :original
     end
-
-    Repo.delete!(owned)
 
     for id <- [foreign.id, "bad", owned.id] do
       assert {:error, :connection_failed} = WordPress.catalog(Scope.for_user(owner), id, 1_000)
@@ -198,21 +206,22 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
   @tag :wordpress_runtime
   @tag skip: System.get_env("FRONTMAN_WP_RUNTIME_URL") == nil
-  test "SDK discovers the connection after the first concurrent batch" do
+  test "SDK lists all sites but calls only the selected site" do
     url = System.fetch_env!("FRONTMAN_WP_RUNTIME_URL")
     password = File.read!(System.fetch_env!("FRONTMAN_WP_RUNTIME_PASSWORD"))
     user = AccountsFixtures.user_fixture()
 
-    for _ <- 1..33 do
-      %Connection{user_id: user.id}
-      |> Connection.changeset(%{
-        catalog_url: url,
-        call_url: url,
-        username: "admin",
-        password: password
-      })
-      |> Repo.insert!()
-    end
+    connections =
+      for _ <- 1..33 do
+        %Connection{user_id: user.id}
+        |> Connection.changeset(%{
+          catalog_url: url,
+          call_url: String.replace_suffix(url, "/tools", "/tools/call"),
+          username: "admin",
+          password: password
+        })
+        |> Repo.insert!()
+      end
 
     frame = %Frame{context: %Context{auth: %{sub: user.id}}}
 
@@ -223,19 +232,95 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     assert {:ok, %{"tools" => catalog}} = WordPress.catalog(Scope.for_user(user), site_id, 5_000)
     expected = catalog |> Enum.map(& &1["name"]) |> MapSet.new()
     actual = tools |> Enum.map(& &1.name) |> MapSet.new() |> MapSet.delete("list_sites")
-    assert MapSet.difference(expected, actual) == MapSet.new()
-    assert MapSet.difference(actual, expected) == MapSet.new()
+    assert actual == expected
 
     if System.get_env("FRONTMAN_WP_EXPECT_WOO") == "1" do
       assert MapSet.member?(expected, "wc_create_product")
     end
 
-    tool = Enum.find(tools, &(&1.name == "wp_read_post"))
+    request = %{
+      "method" => "tools/call",
+      "params" => %{"name" => "wp_read_post", "arguments" => %{"site_id" => site_id, "id" => 1}}
+    }
 
-    assert {:ok, _} =
-             tool.validate_input.(%{
-               "site_id" => site_id
-             })
+    assert {:reply, %{"content" => [%{"text" => before}], "isError" => false}, _} =
+             Server.handle_request(request, frame)
+
+    assert %{"id" => 1} = Jason.decode!(before)
+    offline = Enum.find(connections, &(&1.id != site_id))
+
+    body = %{
+      "jsonrpc" => "2.0",
+      "id" => Ecto.UUID.generate(),
+      "method" => "tools/list",
+      "params" => %{
+        "_meta" => %{
+          "io.modelcontextprotocol/protocolVersion" => "2026-07-28",
+          "io.modelcontextprotocol/clientCapabilities" => %{},
+          "io.modelcontextprotocol/clientInfo" => %{"name" => "test", "version" => "1"}
+        }
+      }
+    }
+
+    invalid_url = String.replace(url, "/frontman/v1/tools", "/wp/v2/types")
+    handler = {__MODULE__, body["id"]}
+
+    :ok =
+      :telemetry.attach(
+        handler,
+        [:anubis_mcp, :server, :request],
+        &__MODULE__.record_request/4,
+        {self(), body["id"]}
+      )
+
+    on_exit(fn -> :telemetry.detach(handler) end)
+
+    for catalog_url <- [invalid_url, "https://offline.invalid/tools"] do
+      offline |> Connection.changeset(%{catalog_url: catalog_url}) |> Repo.update!()
+
+      if catalog_url == invalid_url do
+        assert {:ok, catalog} = WordPress.catalog(Scope.for_user(user), offline.id, 5_000)
+        refute Map.has_key?(catalog, "tools")
+      end
+
+      conn = sdk_conn(body)
+      context = %{auth: %{sub: user.id}, assigns: %{}, req_headers: conn.req_headers}
+
+      response =
+        StatelessBinding.call(conn, "2026-07-28", context, AnubisPlug.init(server: Server))
+
+      assert %{"error" => %{"code" => -32_000, "message" => "WordPress catalog unavailable"}} =
+               Jason.decode!(response.resp_body)
+
+      refute Map.has_key?(Jason.decode!(response.resp_body), "result")
+    end
+
+    record_requests()
+
+    assert {:reply, %{"content" => [%{"text" => ^before}], "isError" => false}, _} =
+             Server.handle_request(request, frame)
+
+    invalid = put_in(request, ["params", "name"], "wp_update_post")
+    invalid = put_in(invalid, ["params", "arguments", "content"], 123)
+    assert {:error, _, _} = Server.handle_request(invalid, frame)
+
+    assert {:reply, %{"content" => [%{"text" => ^before}], "isError" => false}, _} =
+             Server.handle_request(request, frame)
+
+    host = URI.parse(url).host
+    for _ <- 1..6, do: assert_received({:outbound, ^host})
+    refute_received {:outbound, _}
+
+    Connection
+    |> Repo.get!(offline.id)
+    |> Connection.changeset(%{catalog_url: url})
+    |> Repo.update!()
+
+    assert {:reply, %{"tools" => recovered}, _} =
+             Server.handle_request(%{"method" => "tools/list"}, frame)
+
+    assert recovered |> Enum.map(& &1.name) |> MapSet.new() |> MapSet.delete("list_sites") ==
+             expected
   end
 
   @tag :wordpress_client
@@ -296,7 +381,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     assert {:ok, %{"tools" => [_ | _]}} = WordPress.catalog(Scope.for_user(user), id, 5_000)
   end
 
-  test "catalog union preserves provenance and rejects conflicts" do
+  test "catalog union augments inputs and rejects conflicts" do
     schema = %{"type" => "object", "properties" => %{"id" => %{"type" => "integer"}}}
     site = Ecto.UUID.generate()
     first = %{"name" => "tool", "inputSchema" => schema}
@@ -315,8 +400,6 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
     assert {:ok, %{"site_id" => ^site, "id" => 1}} =
              tool.validate_input.(%{"site_id" => site, "id" => 1})
-
-    assert {:error, _} = tool.validate_input.(%{"site_id" => Ecto.UUID.generate()})
 
     assert Server.catalog_tools([{other, unsupported}], []) == []
     assert Server.catalog_tools([{other, Map.put(first, "outputSchema", nil)}], []) == []
@@ -352,12 +435,17 @@ defmodule FrontmanServerWeb.MCPSitesTest do
   end
 
   defp sdk_conn(body) do
-    Plug.Test.conn(:post, "/mcp", Jason.encode!(body))
-    |> Plug.Conn.put_req_header("content-type", "application/json")
-    |> Plug.Conn.put_req_header("accept", "application/json")
-    |> Plug.Conn.put_req_header("mcp-protocol-version", "2026-07-28")
-    |> Plug.Conn.put_req_header("mcp-method", body["method"])
-    |> Plug.Conn.put_req_header("mcp-name", body["params"]["name"])
+    conn =
+      Plug.Test.conn(:post, "/mcp", Jason.encode!(body))
+      |> Plug.Conn.put_req_header("content-type", "application/json")
+      |> Plug.Conn.put_req_header("accept", "application/json")
+      |> Plug.Conn.put_req_header("mcp-protocol-version", "2026-07-28")
+      |> Plug.Conn.put_req_header("mcp-method", body["method"])
+
+    case body["params"]["name"] do
+      nil -> conn
+      name -> Plug.Conn.put_req_header(conn, "mcp-name", name)
+    end
   end
 
   defp insert_site(user, host) do

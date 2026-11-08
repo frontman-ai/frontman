@@ -49,6 +49,12 @@ jobs:
           fi
           echo "Found $COUNT pending changeset(s)"
 
+      - name: Detect OpenAI package changes before version bumps
+        id: openai
+        run: |
+          NEEDED=$(bash scripts/openai-wordpress-release-needed.sh)
+          echo "needed=$NEEDED" >> "$GITHUB_OUTPUT"
+
       - name: Determine bump level from changesets
         id: bump
         run: |
@@ -142,6 +148,7 @@ jobs:
         run: bash ./scripts/sync-wordpress-plugin-release.sh "${{ steps.version.outputs.version }}"
 
       - name: Sync directory package release metadata
+        if: steps.openai.outputs.needed == 'true'
         run: make -C plugins/openai-wordpress sync-release NODE=node VERSION="${{ steps.version.outputs.version }}"
 
       - name: Create release branch and PR

@@ -25,6 +25,7 @@ if ( in_array( $runtime_case, [ 'polylang-setup', 'polylang-cleanup', 'polylang-
 }
 try {
 	require '/var/www/html/wp-load.php';
+	frontman_runtime_inventory( '' === $runtime_case ? 'baseline' : $runtime_case );
 	$schema = [ 'type' => 'array', 'items' => [ 'type' => 'integer' ], 'minItems' => 1 ];
 	frontman_runtime_same( true, rest_validate_value_from_schema( [ 1 ], $schema, 'items' ), 'WordPress schema must accept a valid value.' );
 	$invalid = rest_validate_value_from_schema( [], $schema, 'items' );
