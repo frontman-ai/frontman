@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 $slug = 'assigned-layout';
 $part = 'assigned-header';
 $call( 'wp_create_template', [
@@ -27,6 +29,25 @@ foreach ( [
 }
 $plain = $call( 'wp_create_post', $page );
 frontman_runtime_same( 'default', $plain['after']['template'], 'Omitted creation template uses the default' );
+
+try {
+	foreach ( [ 123, true, 1.5, 0, false ] as $stored_template ) {
+		update_post_meta( $plain['id'], '_wp_page_template', $stored_template );
+		$metadata = get_post_meta( $plain['id'] );
+		$metadata['_wp_page_template'] = [ $stored_template ];
+		wp_cache_set( $plain['id'], $metadata, 'post_meta' );
+		frontman_runtime_same( $stored_template, get_post_meta( $plain['id'], '_wp_page_template', true ), 'Native metadata cache retains the scalar fixture type' );
+		$result = Frontman_Tools::instance()->call( 'wp_read_post', [ 'id' => $plain['id'] ] );
+		frontman_runtime_same( false, $result['isError'], 'Cached scalar template metadata remains readable in strict mode' );
+		$read = json_decode( $result['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
+		$expected = $stored_template ? (string) $stored_template : 'default';
+		frontman_runtime_same( $expected, $read['template'], 'Cached scalar template metadata preserves string output' );
+		wp_cache_delete( $plain['id'], 'post_meta' );
+		frontman_runtime_same( $expected, $call( 'wp_read_post', [ 'id' => $plain['id'] ] )['template'], 'Fresh database reads preserve the same template output' );
+	}
+} finally {
+	delete_post_meta( $plain['id'], '_wp_page_template' );
+}
 
 foreach ( [ [ null, 'template' ], [ 'missing-layout', 'not available' ], [ $part, 'not available' ] ] as [ $invalid, $reason ] ) {
 	$reject( 'wp_create_post', $page + [ 'template' => $invalid ], $reason );

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 if ( ! defined( 'ABSPATH' ) ) {
 	throw new RuntimeException( 'WordPress must be loaded before the runtime test.' );
 }

@@ -1,5 +1,8 @@
 <?php
 /** Read-only access to Angie's stored snippet files through its REST API. */
+
+declare(strict_types=1);
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }

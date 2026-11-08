@@ -1,5 +1,8 @@
 <?php
 /** WebFactory 301 Redirects 1.05 storage adapter. */
+
+declare(strict_types=1);
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }

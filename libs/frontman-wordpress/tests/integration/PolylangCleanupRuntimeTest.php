@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 $baseline = get_option( '_frontman_runtime_polylang_baseline' );
 if ( is_array( $baseline ) ) {
 	foreach ( [ 'de', 'fr', 'en' ] as $slug ) {
