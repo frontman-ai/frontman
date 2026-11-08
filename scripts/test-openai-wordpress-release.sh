@@ -49,7 +49,6 @@ for path in \
   plugins/openai-wordpress/release.mts \
   plugins/openai-wordpress/Makefile \
   scripts/openai-wordpress-release-needed.sh; do
-  # Whitespace is a real file change, without invalidating JSON or shell syntax.
   printf '\n' >> "$path"
   commit "change $path"
   expect true "$path triggers a candidate"
@@ -59,7 +58,6 @@ for path in \
   expect false "released input change does not trigger again"
 done
 
-# A release PR starts unchanged, then main gets a package change before merge.
 base_branch=$(git branch --show-current)
 git checkout -qb release-test
 printf 'Release notes\n' > CHANGELOG.md
@@ -75,7 +73,6 @@ expect true "merged release retry still includes the candidate"
 commit "next release"
 expect false "next release does not repeat the candidate"
 
-# Version and notes synchronization is deliberately later than change detection.
 printf '\n' >> plugins/openai-wordpress/plugin.json
 expect false "uncommitted release metadata does not affect detection"
 git checkout -- plugins/openai-wordpress/plugin.json

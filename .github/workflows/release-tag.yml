@@ -66,7 +66,6 @@ jobs:
               echo "::error::Tag $TAG points to a different commit"
               exit 1
             }
-            # A failed upload can leave a draft. Resume it without moving the tag.
             RELEASES=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate)
             DRAFT=$(echo "$RELEASES" | jq -r --arg tag "$TAG" '.[] | select(.tag_name == $tag) | .draft')
             if [ "$DRAFT" = false ]; then

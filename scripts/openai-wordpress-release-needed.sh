@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Compare the release commit, not the earlier release PR branch.
-# Start at its first parent to exclude the current tag on upload retries.
 if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
   echo "OpenAI change detection requires full Git history." >&2
   exit 1
