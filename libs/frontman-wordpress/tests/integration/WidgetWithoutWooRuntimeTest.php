@@ -1,5 +1,8 @@
 <?php
 /** Real WordPress without WooCommerce; run in a separate request before activation. */
+
+declare(strict_types=1);
+
 require '/var/www/html/wp-load.php';
 if ( function_exists( 'is_cart' ) || function_exists( 'is_checkout' ) ) {
 	throw new RuntimeException( 'This test requires WooCommerce to be inactive.' );

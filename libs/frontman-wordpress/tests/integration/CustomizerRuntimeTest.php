@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 $previous_theme = get_stylesheet();
 $original_options = get_option( 'astra-settings', false );
 $original_mods = get_option( 'theme_mods_astra', false );

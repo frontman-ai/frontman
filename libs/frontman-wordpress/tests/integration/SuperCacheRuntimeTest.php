@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 require_once ABSPATH . 'wp-admin/includes/plugin.php';
 frontman_runtime_assert( ! is_multisite(), 'WP Super Cache regression requires a single-site installation.' );
 frontman_runtime_same( '3.0.3', get_plugin_data( WP_PLUGIN_DIR . '/wp-super-cache/wp-cache.php', false, false )['Version'], 'Installed WP Super Cache must match the tested package.' );

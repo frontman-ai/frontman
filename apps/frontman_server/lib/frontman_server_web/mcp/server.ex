@@ -3,6 +3,7 @@ defmodule FrontmanServerWeb.MCP.Server do
 
   @server_name Mix.Project.config()[:app] |> Atom.to_string()
   @server_version Mix.Project.config()[:version]
+  @security_schemes [%{"type" => "oauth2", "scopes" => []}]
   @input_keywords ~w(type description title default enum const minimum maximum minLength
                      maxLength minItems maxItems pattern format multipleOf exclusiveMinimum
                      exclusiveMaximum minProperties maxProperties)
@@ -38,7 +39,7 @@ defmodule FrontmanServerWeb.MCP.Server do
         :error -> Map.delete(returned.assigns, :mcp_catalog)
       end
 
-    {status, result, %{returned | assigns: assigns}}
+    {status, tool_list_result(method, status, result), %{returned | assigns: assigns}}
   end
 
   def handle_request(request, frame), do: Handlers.handle(request, __MODULE__, frame)
@@ -77,6 +78,12 @@ defmodule FrontmanServerWeb.MCP.Server do
         description:
           "List connected WordPress sites for a requested WordPress task. If none are connected, guide the user through setup.",
         input_schema: %{"type" => "object", "properties" => %{}},
+        annotations: %{
+          "readOnlyHint" => true,
+          "destructiveHint" => false,
+          "openWorldHint" => false,
+          "idempotentHint" => true
+        },
         validate_input: fn args -> {:ok, args} end
       }
       | tools
@@ -129,6 +136,25 @@ defmodule FrontmanServerWeb.MCP.Server do
     end
   end
 
+  defp tool_list_result("tools/list", :reply, result) do
+    tools =
+      result
+      |> Map.fetch!("tools")
+      |> JSON.encode!()
+      |> JSON.decode!()
+      |> Enum.map(fn tool ->
+        tool
+        |> Map.put("securitySchemes", @security_schemes)
+        |> Map.update("_meta", %{"securitySchemes" => @security_schemes}, fn meta ->
+          Map.put(meta, "securitySchemes", @security_schemes)
+        end)
+      end)
+
+    Map.put(result, "tools", tools)
+  end
+
+  defp tool_list_result(_method, _status, result), do: result
+
   defp tool_response(%{"resultType" => "complete", "content" => content} = result) do
     with true <- Schema.bounded?(result),
          :ok <- Schema.validate_call_tool_result(result) do
@@ -174,21 +200,8 @@ defmodule FrontmanServerWeb.MCP.Server do
   defp remote_tools(scope, connections) do
     deadline = System.monotonic_time(:millisecond) + 6_000
 
-    connections
-    |> Task.async_stream(
-      fn connection ->
-        remaining = deadline - System.monotonic_time(:millisecond)
-
-        result =
-          if remaining > 0, do: WordPress.catalog(scope, connection.id, remaining), else: :error
-
-        {connection.id, result}
-      end,
-      max_concurrency: 32,
-      ordered: false,
-      timeout: 6_000,
-      on_timeout: :kill_task
-    )
+    scope
+    |> WordPress.stream_catalogs(Enum.map(connections, & &1.id), deadline)
     |> Enum.reduce_while({:ok, []}, fn
       {:ok, {id, {:ok, %{"tools" => tools} = catalog}}}, {:ok, entries} ->
         with true <- Map.get(catalog, "resultType", "complete") == "complete",

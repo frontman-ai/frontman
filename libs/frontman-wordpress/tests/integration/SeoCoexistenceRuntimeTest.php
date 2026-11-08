@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 require_once ABSPATH . 'wp-admin/includes/plugin.php';
 frontman_runtime_assert( defined( 'SURERANK_VERSION' ) && '1.10.2' === SURERANK_VERSION, 'Real pinned SureRank must be loaded.' );
 frontman_runtime_assert( defined( 'WPSEO_VERSION' ) && is_plugin_active( 'wordpress-seo/wp-seo.php' ), 'Real Yoast must coexist.' );

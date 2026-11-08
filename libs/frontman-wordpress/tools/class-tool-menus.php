@@ -29,7 +29,8 @@ class Frontman_Tool_Menus {
 				'additionalProperties' => false,
 				'properties'           => new \stdClass(),
 			],
-			[ $this, 'list_menus' ]
+			[ $this, 'list_menus' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -40,7 +41,8 @@ class Frontman_Tool_Menus {
 				'additionalProperties' => false,
 				'properties'           => new \stdClass(),
 			],
-			[ $this, 'list_menu_locations' ]
+			[ $this, 'list_menu_locations' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -57,7 +59,8 @@ class Frontman_Tool_Menus {
 				],
 				'required' => [ 'id' ],
 			],
-			[ $this, 'read_menu' ]
+			[ $this, 'read_menu' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -74,7 +77,8 @@ class Frontman_Tool_Menus {
 				],
 				'required' => [ 'name' ],
 			],
-			[ $this, 'create_menu' ]
+			[ $this, 'create_menu' ],
+			new Frontman_Tool_Annotations( false, false, false, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -95,7 +99,8 @@ class Frontman_Tool_Menus {
 				],
 				'required' => [ 'id', 'confirm' ],
 			],
-			[ $this, 'delete_menu' ]
+			[ $this, 'delete_menu' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -116,7 +121,8 @@ class Frontman_Tool_Menus {
 				],
 				'required' => [ 'menu_id', 'location' ],
 			],
-			[ $this, 'assign_menu_location' ]
+			[ $this, 'assign_menu_location' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -153,7 +159,8 @@ class Frontman_Tool_Menus {
 				],
 				'required' => [ 'menu_id' ],
 			],
-			[ $this, 'create_menu_item' ]
+			[ $this, 'create_menu_item' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -182,7 +189,8 @@ class Frontman_Tool_Menus {
 				],
 				'required' => [ 'menu_item_id' ],
 			],
-			[ $this, 'update_menu_item' ]
+			[ $this, 'update_menu_item' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -203,14 +211,16 @@ class Frontman_Tool_Menus {
 				],
 				'required' => [ 'menu_item_id', 'confirm' ],
 			],
-			[ $this, 'delete_menu_item' ]
+			[ $this, 'delete_menu_item' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_list_navigation_menus',
 			'Lists saved wp_navigation posts. Does not discover navigation built directly in templates or template parts.',
 			[ 'type' => 'object', 'additionalProperties' => false, 'properties' => new \stdClass() ],
-			[ $this, 'list_navigation_menus' ]
+			[ $this, 'list_navigation_menus' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -222,7 +232,8 @@ class Frontman_Tool_Menus {
 				'properties' => [ 'id' => [ 'type' => 'integer', 'description' => 'The wp_navigation post ID.' ] ],
 				'required' => [ 'id' ],
 			],
-			[ $this, 'read_navigation_menu' ]
+			[ $this, 'read_navigation_menu' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$navigation_write_properties = [
@@ -238,7 +249,8 @@ class Frontman_Tool_Menus {
 				'properties' => $navigation_write_properties,
 				'required' => [ 'title', 'content' ],
 			],
-			[ $this, 'create_navigation_menu' ]
+			[ $this, 'create_navigation_menu' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -250,7 +262,8 @@ class Frontman_Tool_Menus {
 				'properties' => array_merge( [ 'id' => [ 'type' => 'integer', 'description' => 'The wp_navigation post ID.' ] ], $navigation_write_properties ),
 				'required' => [ 'id' ],
 			],
-			[ $this, 'update_navigation_menu' ]
+			[ $this, 'update_navigation_menu' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -265,7 +278,8 @@ class Frontman_Tool_Menus {
 				],
 				'required' => [ 'id', 'confirm' ],
 			],
-			[ $this, 'delete_navigation_menu' ]
+			[ $this, 'delete_navigation_menu' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 	}
 

@@ -9,6 +9,8 @@
  * @package Frontman
  */
 
+declare(strict_types=1);
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -33,7 +35,8 @@ class Frontman_Tool_Templates {
 					],
 				],
 			],
-			[ $this, 'get_site_info' ]
+			[ $this, 'get_site_info' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -51,7 +54,8 @@ class Frontman_Tool_Templates {
 					],
 				],
 			],
-			[ $this, 'list_templates' ]
+			[ $this, 'list_templates' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -71,7 +75,8 @@ class Frontman_Tool_Templates {
 				],
 				'required' => [ 'slug' ],
 			],
-			[ $this, 'read_template' ]
+			[ $this, 'read_template' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -89,7 +94,8 @@ class Frontman_Tool_Templates {
 				],
 				'required' => [ 'slug', 'type', 'title', 'content' ],
 			],
-			[ $this, 'create_template' ]
+			[ $this, 'create_template' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -111,7 +117,8 @@ class Frontman_Tool_Templates {
 				],
 				'required' => [ 'slug', 'content' ],
 			],
-			[ $this, 'update_template' ]
+			[ $this, 'update_template' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 	}
 

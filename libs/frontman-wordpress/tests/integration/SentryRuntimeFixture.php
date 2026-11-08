@@ -21,6 +21,7 @@ add_action( 'init', static function (): void {
 				throw new Frontman_Tool_Error( 'Expected tool failure.' );
 			}
 			throw new RuntimeException( 'Unexpected tool failure.' );
-		}
+		},
+		new Frontman_Tool_Annotations( false, true, true, false )
 	) );
 }, 20 );

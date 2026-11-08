@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/ToolAnnotationExpectations.php';
+
 function frontman_runtime_inventory( string $checkpoint ): void {
 	require_once ABSPATH . 'wp-admin/includes/plugin.php';
 	$names = array_column( Frontman_Tools::instance()->all_definitions(), 'name' );
@@ -27,6 +29,20 @@ function frontman_runtime_assert( bool $condition, string $message ): void {
 
 function frontman_runtime_same( $expected, $actual, string $message ): void {
 	frontman_runtime_assert( $expected === $actual, $message . "\nExpected: " . wp_json_encode( $expected ) . "\nActual: " . wp_json_encode( $actual ) );
+}
+
+/** Review oracle tuples: read-only, destructive, open-world, idempotent. */
+function frontman_runtime_assert_annotations( Frontman_Tools $tools, array $expected ): void {
+	$definitions = array_column( json_decode( wp_json_encode( $tools->all_definitions() ), true, 512, JSON_THROW_ON_ERROR ), null, 'name' );
+	$names = array_keys( $definitions );
+	$reviewed = array_keys( $expected );
+	sort( $names );
+	sort( $reviewed );
+	frontman_runtime_same( $reviewed, $names, 'Every actual registration requires a reviewed classification.' );
+	foreach ( $expected as $name => $tuple ) {
+		$hints = array_combine( [ 'readOnlyHint', 'destructiveHint', 'openWorldHint', 'idempotentHint' ], $tuple );
+		frontman_runtime_same( $hints, $definitions[ $name ]['annotations'] ?? null, 'Reviewed annotations survive JSON serialization: ' . $name );
+	}
 }
 
 function frontman_runtime_call( Frontman_Tools $tools, string $name, array $input ): array {
@@ -102,6 +118,8 @@ function frontman_runtime_tool( string $cookie, ?string $nonce, array $request, 
 
 function frontman_runtime_isolated_cases(): array {
 	return [
+		'integration-annotations' => [ 'file' => 'IntegrationToolAnnotationsRuntimeCases.php', 'root_alias' => false ],
+		'woocommerce-annotations' => [ 'file' => 'WooCommerceAnnotationsRuntimeCases.php', 'root_alias' => false ],
 		'installation-paths' => [ 'file' => 'InstallationPathsRuntimeTest.php', 'root_alias' => true ],
 		'seo-coexistence' => [ 'file' => 'SeoCoexistenceRuntimeTest.php', 'root_alias' => false ],
 		'surerank' => [ 'file' => 'SureRankRuntimeTest.php', 'root_alias' => false ],

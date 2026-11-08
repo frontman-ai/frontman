@@ -6,18 +6,21 @@ require_once __DIR__ . '/../includes/class-frontman-tools.php';
 $tools = new Frontman_Tools();
 $original = new Frontman_Tool_Definition(
 	'wp_list_redirects', 'Original provider', [],
-	static function( array $input ): array { return [ 'provider' => 'original' ]; }
+	static function( array $input ): array { return [ 'provider' => 'original' ]; },
+	new Frontman_Tool_Annotations( true, false, false, true )
 );
 $other = new Frontman_Tool_Definition(
 	'wp_301_redirects_list', 'Another provider', [],
 	static function( array $input ): array { return [ 'provider' => 'other' ]; },
+	new Frontman_Tool_Annotations( true, false, false, true ),
 	'read'
 );
 $tools->add( $original );
 $tools->add( $other );
 foreach ( [ $original, new Frontman_Tool_Definition(
 	$original->name, 'Replacement provider', [],
-	static function( array $input ): array { return []; }
+	static function( array $input ): array { return []; },
+	new Frontman_Tool_Annotations( true, false, false, true )
 ) ] as $duplicate ) {
 	try {
 		$tools->add( $duplicate );

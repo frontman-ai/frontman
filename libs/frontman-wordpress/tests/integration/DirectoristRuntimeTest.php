@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 frontman_runtime_assert( defined( 'ATBDP_VERSION' ) && '8.10.6' === ATBDP_VERSION, 'Real pinned Directorist must be loaded.' );
 wp_set_current_user( get_user_by( 'login', 'admin' )->ID );
 $tools = Frontman_Tools::instance();

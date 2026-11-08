@@ -13,11 +13,12 @@ across all configurations.
 The successful inventory run used:
 
 ```sh
-YOAST_VERSION=28.4 make test-wordpress-runtime
+FRONTMAN_REQUIRE_WP_SDK=1 YOAST_VERSION=28.4 make test-wordpress-runtime
 ```
 
 Environment: WordPress 7.0.2, PHP 8.4.27, Frontman 5.7.0.
-This run used the PHP suite without the optional hosted SDK checks.
+This run included the PHP suite, hosted SDK checks, and browser connection checks.
+The SDK checks require Mix, PostgreSQL, and `pg_isready` on `PATH`.
 
 The existing runtime cases emit `FRONTMAN_INVENTORY` JSON records. Each record
 contains the checkpoint, WordPress/PHP versions, active plugin versions, and
@@ -26,12 +27,14 @@ sorted names from the actual singleton registry.
 The source comparison includes literal constructor names, Redirection array
 keys, WooCommerce helper arguments, and its nine generated metadata operations.
 All 202 names occurred in the runtime union. No production names were missing.
-The only extra name was `wp_test_diagnostics`, registered by
-`SentryRuntimeFixture.php`, not production code.
+The runtime union also contained seven fixture-only names:
+`wp_test_diagnostics` and six `wp_test_annotations_*` tools.
+The fixtures register these names in `SentryRuntimeFixture.php` and
+`ToolAnnotationsRuntimeFixture.php`, not in production code.
 
 ## Observed configurations
 
-Counts below exclude that fixture-only tool. Every configuration includes
+Counts below exclude the fixture-only tools. Every configuration includes
 Elementor 3.18.3, Frontman 5.7.0, and Max Mega Menu 3.10.7.
 
 | Checkpoint | Additional active integrations | Production names |
@@ -54,12 +57,18 @@ Polylang and cache tools were already registered in the baseline.
 Yoast exposed both SEO tools; SureRank exposed only the reader.
 The SEO coexistence configuration exposed neither.
 
-## Hosted verification remains separate
+## Hosted verification
 
-The SDK-enabled runtime run passed the discovery, invalid-catalog, outage,
-selected-site execution, and recovery scenario before WooCommerce activation.
-The later WooCommerce SDK run failed with a database sandbox connection error
-after discovery cancellation. It did not establish hosted parity for every
-configuration above.
+The SDK-enabled runtime run passed before and after WooCommerce activation.
+Both configurations exercised complete discovery across 33 connections,
+descriptor metadata, invalid catalogs, outages, selected-site calls, and recovery.
+The browser checks also passed for connection approval and access changes.
+
+Catalog workers now perform HTTP requests only. The caller loads owned connection
+records before it starts the workers. Early cancellation cannot interrupt a
+worker's database checkout and disconnect the sandbox transaction.
+
+The hosted checks cover the baseline and WooCommerce configurations.
+They do not establish hosted parity for every integration in the table.
 
 No generated catalog is used in production. These records are test evidence.

@@ -5,6 +5,8 @@
  * @package Frontman
  */
 
+declare(strict_types=1);
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -29,7 +31,7 @@ class Frontman_Tool_Users {
 				'required' => [ 'search', 'match_by' ],
 			],
 			[ $this, 'find_users' ],
-			'read'
+			new Frontman_Tool_Annotations( true, false, false, true ), 'read'
 		) );
 	}
 

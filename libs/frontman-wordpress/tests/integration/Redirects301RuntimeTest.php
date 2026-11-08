@@ -1,5 +1,8 @@
 <?php
 /** Contract against the pinned official WebFactory 301 Redirects 1.05 package. */
+
+declare(strict_types=1);
+
 require '/var/www/html/wp-load.php';
 require_once __DIR__ . '/RuntimeTestSupport.php';
 require_once ABSPATH . 'wp-admin/includes/plugin.php';

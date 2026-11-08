@@ -10,6 +10,8 @@
  * @package Frontman
  */
 
+declare(strict_types=1);
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -34,7 +36,8 @@ class Frontman_Tool_Widgets {
 				],
 				'required' => [ 'widget_id', 'visibility' ],
 			],
-			[ $this, 'set_widget_visibility' ]
+			[ $this, 'set_widget_visibility' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_list_widget_areas',
@@ -44,7 +47,8 @@ class Frontman_Tool_Widgets {
 				'additionalProperties' => false,
 				'properties'           => new \stdClass(),
 			],
-			[ $this, 'list_widget_areas' ]
+			[ $this, 'list_widget_areas' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -61,7 +65,8 @@ class Frontman_Tool_Widgets {
 				],
 				'required' => [ 'widget_id' ],
 			],
-			[ $this, 'read_widget' ]
+			[ $this, 'read_widget' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -78,7 +83,8 @@ class Frontman_Tool_Widgets {
 				],
 				'required' => [ 'sidebar_id', 'widget_base', 'settings' ],
 			],
-			[ $this, 'create_widget' ]
+			[ $this, 'create_widget' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -103,7 +109,8 @@ class Frontman_Tool_Widgets {
 				],
 				'required' => [ 'sidebar_id', 'widget_id', 'settings' ],
 			],
-			[ $this, 'update_widget' ]
+			[ $this, 'update_widget' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -119,7 +126,8 @@ class Frontman_Tool_Widgets {
 				],
 				'required' => [ 'widget_id', 'to_sidebar_id' ],
 			],
-			[ $this, 'move_widget' ]
+			[ $this, 'move_widget' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -134,7 +142,8 @@ class Frontman_Tool_Widgets {
 				],
 				'required' => [ 'widget_id', 'confirm' ],
 			],
-			[ $this, 'delete_widget' ]
+			[ $this, 'delete_widget' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 	}
 
@@ -435,7 +444,7 @@ class Frontman_Tool_Widgets {
 		$snapshot_source = null !== $from_sidebar_id && 'wp_inactive_widgets' !== $from_sidebar_id;
 		$before = [
 			'widget'       => $widget,
-			'from_sidebar' => $snapshot_source ? $this->sidebar_snapshot( $from_sidebar_id ) : null,
+			'from_sidebar' => $snapshot_source ? $this->sidebar_snapshot( (string) $from_sidebar_id ) : null,
 			'to_sidebar'   => $this->sidebar_snapshot( $to_sidebar_id ),
 		];
 
@@ -460,7 +469,7 @@ class Frontman_Tool_Widgets {
 			'before' => $before,
 			'after'  => [
 				'widget'       => $this->read_widget( [ 'widget_id' => $widget_id ] ),
-				'from_sidebar' => $snapshot_source ? $this->sidebar_snapshot( $from_sidebar_id ) : null,
+				'from_sidebar' => $snapshot_source ? $this->sidebar_snapshot( (string) $from_sidebar_id ) : null,
 				'to_sidebar'   => $this->sidebar_snapshot( $to_sidebar_id ),
 			],
 		];
@@ -486,7 +495,7 @@ class Frontman_Tool_Widgets {
 		$sidebar_id = $map[ $widget_id ]['sidebar_id'];
 		$before = [
 			'widget'  => $this->read_widget( [ 'widget_id' => $widget_id ] ),
-			'sidebar' => $this->sidebar_snapshot( $sidebar_id ),
+			'sidebar' => $this->sidebar_snapshot( (string) $sidebar_id ),
 		];
 
 		$sidebars_widgets = get_option( 'sidebars_widgets', [] );
@@ -499,7 +508,7 @@ class Frontman_Tool_Widgets {
 			'deleted'   => true,
 			'widget_id' => $widget_id,
 			'before'    => $before,
-			'after'     => $this->sidebar_snapshot( $sidebar_id ),
+			'after'     => $this->sidebar_snapshot( (string) $sidebar_id ),
 		];
 	}
 }
