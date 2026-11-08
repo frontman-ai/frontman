@@ -10,6 +10,10 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: release-tag
+  cancel-in-progress: false
+
 jobs:
   create-release:
     name: Tag & GitHub Release
@@ -53,11 +57,23 @@ jobs:
       - name: Check if tag already exists
         if: steps.verify.outputs.is_release == 'true'
         id: tag-check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ steps.extract.outputs.tag }}"
           if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Tag $TAG already exists — skipping"
+            [ "$(git rev-parse "$TAG^{commit}")" = "$(git rev-parse HEAD)" ] || {
+              echo "::error::Tag $TAG points to a different commit"
+              exit 1
+            }
+            RELEASES=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate)
+            DRAFT=$(echo "$RELEASES" | jq -r --arg tag "$TAG" '.[] | select(.tag_name == $tag) | .draft')
+            if [ "$DRAFT" = false ]; then
+              echo "exists=true" >> "$GITHUB_OUTPUT"
+              echo "Release $TAG is already published — skipping"
+            else
+              echo "exists=false" >> "$GITHUB_OUTPUT"
+            fi
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
@@ -75,10 +91,25 @@ jobs:
         if: steps.verify.outputs.is_release == 'true' && steps.tag-check.outputs.exists == 'false'
         run: make package-wordpress-plugin VERSION="${{ steps.extract.outputs.version }}"
 
+      - name: Package changed OpenAI candidate
+        if: steps.verify.outputs.is_release == 'true' && steps.tag-check.outputs.exists == 'false'
+        id: openai
+        env:
+          VERSION: ${{ steps.extract.outputs.version }}
+        run: |
+          NEEDED=$(bash scripts/openai-wordpress-release-needed.sh)
+          if [ "$NEEDED" = true ]; then
+            make -C plugins/openai-wordpress sync-release NODE=node VERSION="$VERSION"
+            make -C plugins/openai-wordpress check test NODE=node
+            make package-openai-wordpress NODE=node VERSION="$VERSION"
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create tag and GitHub Release
         if: steps.verify.outputs.is_release == 'true' && steps.tag-check.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_NEEDED: ${{ steps.openai.outputs.needed }}
         run: |
           TAG="${{ steps.extract.outputs.tag }}"
           VERSION="${{ steps.extract.outputs.version }}"
@@ -86,11 +117,34 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git tag -a "$TAG" -m "Release ${VERSION}"
-          git push origin "$TAG"
+          if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+            GIT_EDITOR=true git tag -a "$TAG" -m "Release ${VERSION}"
+            git push origin "$TAG"
+          fi
 
-          gh release create "$TAG" \
-            --title "v${VERSION}" \
-            --notes-file /tmp/release-notes.md \
-            "dist/frontman-wordpress-v${VERSION}.zip" \
-            "dist/frontman-wordpress-org-v${VERSION}.tar.gz"
+          ASSETS=("dist/frontman-wordpress-v${VERSION}.zip" "dist/frontman-wordpress-org-v${VERSION}.tar.gz")
+          if [ "$OPENAI_NEEDED" = true ]; then
+            ASSETS+=("plugins/openai-wordpress/frontman-openai-wordpress-v${VERSION}.zip")
+          fi
+          RELEASES=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate)
+          DRAFT=$(echo "$RELEASES" | jq -r --arg tag "$TAG" '.[] | select(.tag_name == $tag) | .draft')
+          if [ "$DRAFT" = true ]; then
+            gh release upload "$TAG" "${ASSETS[@]}" --clobber
+          elif [ -z "$DRAFT" ]; then
+            gh release create "$TAG" \
+              --draft \
+              --verify-tag \
+              --title "v${VERSION}" \
+              --notes-file /tmp/release-notes.md \
+              "${ASSETS[@]}"
+          else
+            echo "::error::Release $TAG is already published"
+            exit 1
+          fi
+          gh release edit "$TAG" --draft=false
+          if [ "$OPENAI_NEEDED" = true ]; then
+            {
+              echo "OpenAI candidate: frontman-openai-wordpress-v${VERSION}.zip"
+              echo "OpenAI upload, review submission, and publication remain manual."
+              echo "[Manual release instructions](https://github.com/${GITHUB_REPOSITORY}/blob/$(git rev-parse HEAD)/plugins/openai-wordpress/README.md#manual-openai-release)"
+            } >> "$GITHUB_STEP_SUMMARY"

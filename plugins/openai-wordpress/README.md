@@ -89,7 +89,7 @@ Do not select **Submit for review**.
 ### 1. Get the correct ZIP
 
 1. Complete the normal Frontman release: run `make release`, then review and merge its release PR.
-2. Wait for **Release Tag** and **OpenAI WordPress Release** to succeed in GitHub Actions.
+2. Wait for **Release Tag** to succeed in GitHub Actions.
 3. Open the matching version in [GitHub Releases](https://github.com/frontman-ai/frontman/releases).
 4. Download **`frontman-openai-wordpress-vX.Y.Z.zip`** from that release.
 5. Record the release tag and commit before you continue.
@@ -99,9 +99,11 @@ The directory ZIP contains `plugin.json`, `mcp.json`, and `assets/icon.svg`.
 Those files install the WordPress plugin, not the OpenAI listing.
 The directory manifest version and release notes come from the tagged release.
 
-If the candidate asset is missing, inspect **OpenAI WordPress Release** first.
-After correcting the failure, run that workflow again with the same release tag.
-Tags from before this workflow was introduced do not contain the required tooling.
+Releases without package input changes do not include a new candidate.
+Use the most recent release that includes the OpenAI ZIP.
+If an expected candidate is missing, inspect **Release Tag**.
+After correcting the failure, rerun the failed job to complete the draft release.
+Published releases are immutable. A retry cannot add assets to them.
 
 For a draft-only diagnostic before a tagged release, use `make package-draft`
 from this directory. Its unversioned filename identifies it as a diagnostic
@@ -194,32 +196,34 @@ A GitHub release does not prove that OpenAI accepted new tools.
 ## Release integration
 
 `make release` remains the release entry point. Its workflow computes the
-release version and changelog, then runs `sync-release VERSION=X.Y.Z`.
-That command updates the manifest version and release notes in the release PR.
-No second version or changelog process is needed.
+release version and changelog from changesets.
+Release Tag compares the merged release commit with the preceding release tag.
+The inputs are the two manifests, icon, packaging scripts, package Makefile,
+and change-detection script. Documentation and hosted MCP changes alone do not
+require a new submission ZIP.
 
-After Release Tag succeeds, the independent OpenAI WordPress Release
-workflow builds from the tagged commit. It checks the tag, published release,
-manifest version, and changelog before attaching
-`frontman-openai-wordpress-vX.Y.Z.zip` to the GitHub Release.
+When these inputs change, Release Tag generates the manifest version and release
+notes in its build checkout with `sync-release VERSION=X.Y.Z`, then builds the ZIP.
+These generated fields come from the tagged changelog, not the source manifest.
+No generated metadata is committed to the release PR.
+It uploads all assets to a draft GitHub Release, then publishes the release.
 The ZIP is a candidate, not an approved OpenAI publication.
-This workflow uses `workflow_run` because releases created with `GITHUB_TOKEN`
-do not start ordinary `release` workflows.
 
-Directory failures do not block the separate WordPress.org publisher.
-The workflow reports failures in GitHub Actions. A retry replaces the same
-versioned asset instead of adding duplicates.
+A required candidate build failure blocks release publication.
+A retry can complete an unfinished draft without moving the tag.
+The OpenAI WordPress Release workflow runs pull-request checks only.
 Root `make publish` continues to publish npm packages only.
 
 To rebuild a candidate from an existing release checkout:
 
 ```sh
+make -C plugins/openai-wordpress sync-release VERSION=X.Y.Z
 make package-openai-wordpress VERSION=X.Y.Z
 ```
 
-To retry the GitHub attachment, run OpenAI WordPress Release with the existing
-release tag. Older tags without this tooling cannot build a directory artifact.
-Neither command creates a release or changes production services.
+Use the version and checkout from a release that includes an OpenAI candidate.
+These commands update the local manifest and build the ZIP.
+They do not create a release, change production services, or attach assets to an immutable release.
 
 OpenAI upload, submission, review tracking, and publication are manual.
 No workflow performs those actions or generates their attestations.

@@ -1,4 +1,4 @@
-.PHONY: check check-upstream test package package-draft sync-release release-artifact
+.PHONY: check check-upstream test test-release package package-draft sync-release release-artifact
 
 NODE ?= mise exec node -- node
 
@@ -8,8 +8,11 @@ check:
 check-upstream:
 	$(NODE) validate.mts --strict-upstream
 
-test:
+test: test-release
 	$(NODE) --test test_validate.mts
+
+test-release:
+	bash ../../scripts/test-openai-wordpress-release.sh
 
 package:
 	$(NODE) validate.mts --package

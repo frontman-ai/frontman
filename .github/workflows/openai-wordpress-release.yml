@@ -1,16 +1,6 @@
 name: OpenAI WordPress Release
 
 on:
-  workflow_run:
-    workflows: [Release Tag]
-    branches: [main]
-    types: [completed]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: Existing release tag to package, for example v5.7.0
-        required: true
-        type: string
   pull_request:
     paths:
       - 'plugins/openai-wordpress/**'
@@ -18,7 +8,9 @@ on:
       - 'package.json'
       - 'yarn.lock'
       - 'Makefile'
+      - 'scripts/*openai-wordpress*'
       - '.github/workflows/release-pr.yml'
+      - '.github/workflows/release-tag.yml'
       - '.github/workflows/openai-wordpress-release.yml'
 
 permissions:
@@ -26,7 +18,6 @@ permissions:
 
 jobs:
   test:
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
@@ -39,88 +30,3 @@ jobs:
           node-version: '24.4.1'
       - run: corepack enable && corepack install && yarn install --immutable
       - run: make -C plugins/openai-wordpress check test NODE=node
-
-  resolve-release:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_repository.full_name == github.repository)
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      version: ${{ steps.release.outputs.version }}
-      tag: ${{ steps.release.outputs.tag }}
-      sha: ${{ steps.release.outputs.sha }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || format('refs/tags/{0}', inputs.tag) }}
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: '24.4.1'
-      - name: Verify published release and source
-        id: release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          EVENT_NAME: ${{ github.event_name }}
-          INPUT_TAG: ${{ inputs.tag }}
-        run: |
-          set -euo pipefail
-          if [ "$EVENT_NAME" = workflow_run ]; then
-            SUBJECT=$(git log -1 --format=%s)
-            if ! [[ "$SUBJECT" =~ ^chore:\ release\ v[0-9] || "$SUBJECT" =~ ^Merge\ pull\ request.*release/v[0-9] ]]; then
-              echo "Not a release commit; no directory artifact needed." >> "$GITHUB_STEP_SUMMARY"
-              exit 0
-            fi
-          fi
-          VERSION=$(node -p 'require("./plugins/openai-wordpress/plugin.json").version')
-          [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
-          TAG="v$VERSION"
-          [ "$EVENT_NAME" != workflow_dispatch ] || [ "$INPUT_TAG" = "$TAG" ]
-          [ "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$TAG^{commit}")" ]
-          gh release view "$TAG" --json isDraft,isPrerelease --jq '(.isDraft == false) and (.isPrerelease == false)' | grep -qx true
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-  attach-candidate:
-    needs: resolve-release
-    if: needs.resolve-release.outputs.tag != ''
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: write
-    concurrency:
-      group: openai-wordpress-${{ needs.resolve-release.outputs.tag }}
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ needs.resolve-release.outputs.sha }}
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: '24.4.1'
-      - name: Install dependencies
-        run: corepack enable && corepack install && yarn install --immutable
-      - name: Validate and build from tagged source
-        env:
-          VERSION: ${{ needs.resolve-release.outputs.version }}
-        run: |
-          make -C plugins/openai-wordpress check test NODE=node
-          make package-openai-wordpress NODE=node VERSION="$VERSION"
-      - name: Attach candidate to GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ needs.resolve-release.outputs.version }}
-          TAG: ${{ needs.resolve-release.outputs.tag }}
-        run: |
-          gh release upload "$TAG" "plugins/openai-wordpress/frontman-openai-wordpress-v${VERSION}.zip" --clobber
-          {
-            echo "## Directory candidate: $TAG"
-            echo "Built from $(git rev-parse HEAD); attached to the GitHub Release."
-            echo "Download frontman-openai-wordpress-v${VERSION}.zip, not the WordPress installation ZIP."
-            echo "OpenAI upload, review submission, and publication are manual."
-            echo "[Manual release instructions](https://github.com/${GITHUB_REPOSITORY}/blob/$(git rev-parse HEAD)/plugins/openai-wordpress/README.md#manual-openai-release)"
-          } >> "$GITHUB_STEP_SUMMARY"
