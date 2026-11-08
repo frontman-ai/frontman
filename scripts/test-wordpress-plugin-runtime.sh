@@ -153,7 +153,10 @@ for _ in $(seq 1 60); do
   sleep 2
 done
 
-"$RUNTIME" exec "$WORDPRESS" php -r '$db = @new mysqli(getenv("WORDPRESS_DB_HOST"), getenv("WORDPRESS_DB_USER"), getenv("WORDPRESS_DB_PASSWORD"), getenv("WORDPRESS_DB_NAME")); if ($db->connect_errno) { throw new RuntimeException("Database did not become ready."); }'
+if ! "$RUNTIME" exec "$WORDPRESS" php -r '$db = @new mysqli(getenv("WORDPRESS_DB_HOST"), getenv("WORDPRESS_DB_USER"), getenv("WORDPRESS_DB_PASSWORD"), getenv("WORDPRESS_DB_NAME")); if ($db->connect_errno) { throw new RuntimeException("Database did not become ready."); }'; then
+  "$RUNTIME" logs "$DATABASE" >&2 || true
+  exit 1
+fi
 "$RUNTIME" exec "$WORDPRESS" php -r '$config = file_get_contents("/var/www/html/wp-config-sample.php"); $config = str_replace(["<?php", "database_name_here", "username_here", "password_here", "localhost"], ["<?php\ndefine(\"WP_ENVIRONMENT_TYPE\", \"local\");", getenv("WORDPRESS_DB_NAME"), getenv("WORDPRESS_DB_USER"), getenv("WORDPRESS_DB_PASSWORD"), getenv("WORDPRESS_DB_HOST")], $config); file_put_contents("/var/www/html/wp-config.php", $config);'
 "$RUNTIME" cp "$BUILD_DIR/megamenu/megamenu" "$WORDPRESS:/var/www/html/wp-content/plugins/megamenu"
 "$RUNTIME" cp "$BUILD_DIR/elementor/elementor" "$WORDPRESS:/var/www/html/wp-content/plugins/elementor"
@@ -232,6 +235,7 @@ download_zip "https://downloads.wordpress.org/plugin/woocommerce.${WOOCOMMERCE_V
 "$RUNTIME" cp "$BUILD_DIR/woocommerce/woocommerce" "$WORDPRESS:/var/www/html/wp-content/plugins/woocommerce"
 "$RUNTIME" exec "$WORDPRESS" php -r 'require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/plugin.php"; $result = activate_plugin("woocommerce/woocommerce.php"); if (is_wp_error($result)) { throw new RuntimeException($result->get_error_message()); }'
 printf 'Testing WooCommerce %s on WordPress %s\n' "$WOOCOMMERCE_VERSION" "$WORDPRESS_VERSION"
+"$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/RunWordPressRuntimeTest.php woocommerce-annotations
 "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/RunWordPressRuntimeTest.php woocommerce-meta
 if [[ ${#PUBLISH[@]} -gt 0 && "$FIXTURE" != astra ]]; then
   "$RUNTIME" exec "$WORDPRESS" php -r 'require "/var/www/html/wp-load.php"; update_option("frontman_mcp_enabled", true);'
@@ -276,6 +280,7 @@ test_redirects_and_angie() {
   download_zip 'https://downloads.wordpress.org/plugin/301-redirects.1.05.zip' 301-redirects '3423c49888af0d73e458fd9d5c1439ba7ca00d9da7ccb1b6c8ed0ac423011c8d' 301-redirects
   "$RUNTIME" cp "$BUILD_DIR/301-redirects/301-redirects" "$WORDPRESS:/var/www/html/wp-content/plugins/301-redirects"
   "$RUNTIME" exec "$WORDPRESS" php /tmp/Redirects301RuntimeTest.php --setup
+  "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/RunWordPressRuntimeTest.php integration-annotations
   "$RUNTIME" exec "$WORDPRESS" php /tmp/Redirects301RuntimeTest.php
 
   case "$WORDPRESS_VERSION" in
@@ -284,6 +289,7 @@ test_redirects_and_angie() {
   download_zip 'https://downloads.wordpress.org/plugin/redirection.5.10.0.zip' redirection '966ac6267cd6a99f2d79ec05db1dee2e0aa0cddb6060b1c32cde2ffde739e333' redirection
   "$RUNTIME" cp "$BUILD_DIR/redirection/redirection" "$WORDPRESS:/var/www/html/wp-content/plugins/redirection"
   "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/RedirectionRuntimeTest.php --setup
+  "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/RunWordPressRuntimeTest.php integration-annotations
   run_checked_test "OK (Redirection 5.10.0, WordPress ${WORDPRESS_VERSION}, PHP " \
     "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/RedirectionRuntimeTest.php
   "$RUNTIME" exec "$WORDPRESS" php /tmp/Redirects301RuntimeTest.php --coexist
@@ -300,6 +306,7 @@ test_redirects_and_angie() {
     "$RUNTIME" exec "$WORDPRESS" rm -rf /var/www/html/wp-content/plugins/angie
     "$RUNTIME" cp "$BUILD_DIR/angie-${ANGIE_VERSION}/angie" "$WORDPRESS:/var/www/html/wp-content/plugins/angie"
     "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/AngieRuntimeTest.php --setup
+    "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/RunWordPressRuntimeTest.php integration-annotations
     "$RUNTIME" exec -e EXPECTED_ANGIE_VERSION="$ANGIE_VERSION" "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/AngieRuntimeTest.php
   done
 }
