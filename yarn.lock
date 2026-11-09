@@ -11098,7 +11098,7 @@ __metadata:
     marked: "npm:^18.1.0"
     preact: "npm:^10.29.8"
     prettier: "npm:^3.9.9"
-    prettier-plugin-astro: "npm:^1.1.0"
+    prettier-plugin-astro: "npm:^1.1.1"
     prettier-plugin-tailwindcss: "npm:^0.8.1"
     satori: "npm:^0.35.0"
     sharp: "npm:^0.35.5"
@@ -12951,16 +12951,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"prettier-plugin-astro@npm:^1.1.0":
-  version: 1.1.0
-  resolution: "prettier-plugin-astro@npm:1.1.0"
+"prettier-plugin-astro@npm:^1.1.1":
+  version: 1.1.1
+  resolution: "prettier-plugin-astro@npm:1.1.1"
   dependencies:
     "@astrojs/compiler-rs": "npm:^0.4.0"
     "@prettier/parse-srcset": "npm:^3.1.0"
     sass-formatter: "npm:^0.8.0"
   peerDependencies:
     prettier: ^3.5.3
-  checksum: 10c0/092f90684be190372e59ad901cdd69c1c60a931d9ff168907c53b0975a286575b879decbce5bcb68c5b01a7e56f3fe12c5c46c19dcb7127c9950420c205be5b6
+  checksum: 10c0/bb696c40af2664a6d99c6d086924b95a33805affa3332451f075dc8a09012bf746a59de19ba493bc1dd8d7ec0f7edd5a4cec6e0ec76a993d2a1017e6a4fd67c5
   languageName: node
   linkType: hard
 
