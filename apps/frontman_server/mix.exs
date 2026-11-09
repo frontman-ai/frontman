@@ -100,7 +100,7 @@ defmodule FrontmanServer.MixProject do
       {:bandit, "~> 1.5"},
       {:zoi, "~> 0.14"},
       {:dotenvy, "~> 1.1"},
-      {:sentry, "~> 13.0"},
+      {:sentry, "~> 14.0"},
       {:workos, "~> 3.0"},
       {:paper_tiger, "~> 1.0", only: [:test]},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
