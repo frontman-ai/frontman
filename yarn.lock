@@ -2308,7 +2308,7 @@ __metadata:
     chrome-launcher: "npm:^1.2.2"
     dom-element-to-component-source: "npm:@frontman-ai/dom-element-to-component-source@0.5.0"
     lighthouse: "npm:^13.5.0"
-    magic-string: "npm:^1.4.2"
+    magic-string: "npm:^1.4.3"
     rehype-parse: "npm:^9.0.1"
     rehype-stringify: "npm:^10.0.1"
     rescript: "catalog:"
@@ -10996,15 +10996,6 @@ __metadata:
   dependencies:
     "@jridgewell/sourcemap-codec": "npm:^1.5.5"
   checksum: 10c0/541ecb30ec96e4d9b76ca65aed00124592dca26739aeee86e01d7fbce227b3fce43c9d2f0b9495dc9077c30794c967b1e091445614e2e45722ea4c128be60a93
-  languageName: node
-  linkType: hard
-
-"magic-string@npm:^1.4.2":
-  version: 1.4.2
-  resolution: "magic-string@npm:1.4.2"
-  dependencies:
-    "@jridgewell/sourcemap-codec": "npm:^1.6.0"
-  checksum: 10c0/d3e222c202f99ec4861e7316f473f9b1cfe335ebdf38d4f67335f842f3fe248f01ee00fd3e1a8206bcbe9855e0c41515d7c210300d8fcf6eefbb982d79e423c6
   languageName: node
   linkType: hard
 
