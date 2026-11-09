@@ -217,7 +217,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
   @tag skip: System.get_env("FRONTMAN_WP_RUNTIME_URL") == nil
   test "HTTP discovery preserves the full WordPress catalog beyond the first concurrent batch" do
     user = AccountsFixtures.user_fixture()
-    connect_wordpress_runtime(user)
+    connect_wordpress_runtime(user, 33)
 
     site_id = user |> Scope.for_user() |> WordPress.list_sites() |> List.last() |> Map.fetch!(:id)
     assert {:ok, %{"tools" => catalog}} = WordPress.catalog(Scope.for_user(user), site_id, 5_000)
@@ -272,7 +272,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
   @tag skip: System.get_env("FRONTMAN_WP_RUNTIME_URL") == nil
   test "HTTP discovery fails completely during outages while selected-site calls keep working" do
     user = AccountsFixtures.user_fixture()
-    [selected, offline | _] = connect_wordpress_runtime(user)
+    [selected, offline] = connect_wordpress_runtime(user, 2)
     url = selected.catalog_url
     invalid_url = String.replace(url, "/frontman/v1/tools", "/wp/v2/types")
     params = %{"name" => "wp_read_post", "arguments" => %{"site_id" => selected.id, "id" => 1}}
@@ -561,11 +561,11 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     assert tool["_meta"]["securitySchemes"] == tool["securitySchemes"]
   end
 
-  defp connect_wordpress_runtime(user) do
+  defp connect_wordpress_runtime(user, count) when count > 0 do
     url = System.fetch_env!("FRONTMAN_WP_RUNTIME_URL")
     password = File.read!(System.fetch_env!("FRONTMAN_WP_RUNTIME_PASSWORD"))
 
-    for _ <- 1..33 do
+    for _ <- 1..count do
       %Connection{user_id: user.id}
       |> Connection.changeset(%{
         catalog_url: url,
