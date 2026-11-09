@@ -1,5 +1,57 @@
-<p>Continue connecting your account. This does not grant access to a WordPress site.</p>
-<.form for={to_form(%{})} action={~p"/auth/mcp/workos/pending"} method="post" id="connect-handoff">
-  <input type="hidden" name="ref" value={@ref} />
-  <button type="submit">Continue</button>
-</.form>
+<Layouts.app flash={@flash} current_scope={@current_scope}>
+  <section aria-labelledby="connect-heading" class="mx-auto max-w-lg space-y-6">
+    <div class="space-y-3 text-center">
+      <h1
+        id="connect-heading"
+        class="text-balance font-headings text-3xl font-bold tracking-tight text-base-content sm:text-4xl"
+      >
+        Use Frontman with your AI assistant
+      </h1>
+      <p class="text-sm leading-6 text-base-content/70">
+        Connect your Frontman account so you can ask your assistant to help with your website.
+      </p>
+    </div>
+
+    <div class="card card-border bg-base-200 text-base-content shadow-xl">
+      <div class="card-body gap-6 sm:p-8">
+        <div class="space-y-2">
+          <p class="text-sm text-base-content/60">Your Frontman account</p>
+          <p id="connect-account" class="break-words font-semibold">
+            {@current_scope.user.email}
+          </p>
+        </div>
+
+        <.form
+          for={to_form(%{})}
+          action={~p"/auth/mcp/workos/pending"}
+          method="post"
+          id="connect-handoff"
+          aria-describedby="connect-permissions"
+          class="space-y-4"
+        >
+          <input type="hidden" name="ref" value={@ref} />
+          <button
+            type="submit"
+            id="connect-continue"
+            class="btn btn-primary btn-lg btn-block focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+          >
+            Continue setup <.icon name="hero-arrow-right" class="size-4" />
+          </button>
+          <p id="connect-permissions" class="text-center text-sm leading-6 text-base-content/60">
+            This step does not give access to your website. You approve website access separately.
+          </p>
+        </.form>
+      </div>
+    </div>
+
+    <div class="text-center">
+      <.link
+        href={~p"/"}
+        id="connect-back"
+        class="link link-hover rounded-sm text-sm text-base-content/60 transition-colors hover:text-base-content focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+      >
+        Back to Frontman
+      </.link>
+    </div>
+  </section>
+</Layouts.app>
