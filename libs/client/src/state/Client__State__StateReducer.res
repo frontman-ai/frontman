@@ -36,6 +36,7 @@ type promptInput = {
 }
 
 type rec action =
+  | SetComposerSuggestion(option<string>)
   | InitializeConnection(Connection.config)
   | WordPressAuthenticationRequired(option<string>)
   | ReloadAfterWordPressLogin
@@ -292,6 +293,7 @@ let setAllApiKeySources = (state: state, source) => {
 }
 
 let defaultState: state = {
+  composerSuggestion: None,
   tasks: Dict.make(),
   currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
   connection: None,
@@ -339,6 +341,7 @@ let defaultState: state = {
 }
 
 module Selectors = {
+  let composerSuggestion = (state: state) => state.composerSuggestion
   let wordPressLoginRecovery = (state: state) => state.wordPressLoginRecovery
   let wordPressConnectionStatus = (state: state) => state.wordPressConnectionStatus
   let wordPressCredentialWarning = (state: state) => state.wordPressCredentialWarning
@@ -2611,6 +2614,7 @@ let rec next = (state: state, action) => {
     | None => state->StateReducer.update
     }
 
+  | SetComposerSuggestion(composerSuggestion) => {...state, composerSuggestion}->StateReducer.update
   | SetSettingsModalTab({tab}) => {...state, settingsModalTab: tab}->StateReducer.update
   | RequestBilling(request) =>
     switch (Selectors.apiBaseUrl(state), request, state.billingFlow) {

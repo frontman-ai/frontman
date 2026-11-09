@@ -494,6 +494,7 @@ let make = (
   ~onPreviewImage: string => unit,
   ~onFileSizeError: string => unit,
 ) => {
+  let suggestion = Client__State.useSelector(Client__State.Selectors.composerSuggestion)
   let submittingRef = React.useRef(false)
   let editorRef: React.ref<Null.t<TiptapCore.editor>> = React.useRef(Null.null)
   let fileInputRef: React.ref<Nullable.t<Dom.element>> = React.useRef(Nullable.null)
@@ -757,6 +758,22 @@ let make = (
     )
     None
   }, (editor, disabled, isEnrichingAnnotations))
+
+  React.useEffect2(() => {
+    switch (editor->Null.toOption, suggestion) {
+    | (Some(editor), Some(text)) =>
+      let state: TiptapCore.editorState = editor->TiptapCore.state
+      let position = state.doc->TiptapCore.nodeSize - 3
+      let text = editor->TiptapCore.isEmpty ? text : " " ++ text
+      editor->TiptapCore.chain->TiptapCore.focus
+      ->TiptapCore.insertContentAtPos(position, TiptapCore.Content.text(text))
+      ->TiptapCore.setTextSelection(position + text->String.length)
+      ->TiptapCore.run->ignore
+      Client__State.Actions.setComposerSuggestion(None)
+    | _ => ()
+    }
+    None
+  }, (editor, suggestion))
 
   React.useImperativeHandleOnEveryRender(Nullable.make(commandsRef), () =>
     Nullable.make({

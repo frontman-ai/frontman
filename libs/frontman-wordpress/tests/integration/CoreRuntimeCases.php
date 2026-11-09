@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require '/tmp/WordPressRuntimeTest.php';
+require '/tmp/WelcomeRuntimeTest.php';
 require '/tmp/CustomCssRuntimeTest.php';
 require '/tmp/ElementorSnapshotRuntimeTest.php';
 require '/tmp/PostAuthorsRuntimeTest.php';

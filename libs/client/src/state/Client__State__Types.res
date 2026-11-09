@@ -251,6 +251,7 @@ type wordPressConnectionStatus =
   | WordPressConnectionFailed(string)
 
 type state = {
+  composerSuggestion: option<string>,
   tasks: Dict.t<Task.t>,
   currentTask: Task.currentTask,
   connection: option<Client__ConnectionReducer.state>,

@@ -1,5 +1,9 @@
 # @frontman-ai/frontman-wordpress
 
+## Unreleased
+
+- Add a dismissible activation welcome notice and a permanent Open Frontman plugin action.
+
 ## 5.7.1
 
 ### Patch Changes
@@ -99,6 +103,7 @@
 
 ## Unreleased
 
+- Simplify WordPress onboarding and let users review starter suggestions before sending.
 - Add default-off MCP post reads with native WordPress Application Password authentication and administrator permission checks.
 
 ## 5.5.0

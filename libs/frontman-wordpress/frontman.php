@@ -59,6 +59,8 @@ require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-settings.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-router.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-ui.php';
 
+register_activation_hook( FRONTMAN_PLUGIN_FILE, [ 'Frontman_UI', 'activate' ] );
+
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-posts.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-users.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-blocks.php';

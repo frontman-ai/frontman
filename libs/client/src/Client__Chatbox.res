@@ -106,13 +106,6 @@ let retryTurnHandler = (~hasActiveACPSession, ~taskId, ~retryErrorId) =>
   | _ => None
   }
 
-let selectGetStartedTask = (~providerSetupRequired, ~onConfigureProvider, ~onSelect, text) => {
-  switch providerSetupRequired {
-  | true => onConfigureProvider()
-  | false => onSelect(text)
-  }
-}
-
 module ExecutePlanAction = {
   @react.component
   let make = (~pendingPlanHandoff, ~selectedModelValue, ~onExecute) => {
@@ -148,9 +141,6 @@ let make = (~onConfigureProvider: unit => unit) => {
   let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
   let selectedModelValue = Client__State.useSelector(Client__State.Selectors.selectedModelValue)
   let billingStatus = Client__State.useSelector(Client__State.Selectors.billingStatus)
-  let providerSetupRequired = Client__State.useSelector(
-    Client__State.Selectors.providerSetupRequired,
-  )
   let webPreviewIsSelecting = Client__State.useSelector(
     Client__State.Selectors.webPreviewIsSelecting,
   )
@@ -381,15 +371,10 @@ let make = (~onConfigureProvider: unit => unit) => {
         {switch (hasActiveACPSession, isNewTask, totalItems) {
         | (true, true, 0) =>
           <Client__GetStartedTasks
+            isWordpress={Client__RuntimeConfig.read().framework == Wordpress}
             recentTasks
             onResume={taskId => Client__State.Actions.switchTask(~taskId)}
-            onSelect={text =>
-              selectGetStartedTask(
-                ~providerSetupRequired,
-                ~onConfigureProvider,
-                ~onSelect=text => handleSubmit(~text, ~inputItems=[])->ignore,
-                text,
-              )}
+            onSelect={text => Client__State.Actions.setComposerSuggestion(Some(text))}
           />
         | _ => React.null
         }}

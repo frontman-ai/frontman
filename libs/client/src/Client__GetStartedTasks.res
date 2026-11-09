@@ -1,12 +1,18 @@
 /**
  * Client__GetStartedTasks - Starter prompts shown in an empty conversation.
  *
- * Clicking a task sends it as a user message immediately.
+ * Clicking a task adds it to the composer for review.
  */
 let tasks = [
   "Change the page background to a dark theme",
   "Make the main heading bigger and bolder",
   "Add a dark mode toggle to the navigation bar",
+]
+
+let wordpressTasks = [
+  "Make this heading a little larger",
+  "Change the text of this button",
+  "Add a short paragraph to this page",
 ]
 
 type recentTask = {
@@ -16,6 +22,7 @@ type recentTask = {
 
 @react.component
 let make = (
+  ~isWordpress: bool,
   ~onSelect: string => unit,
   ~recentTasks: array<recentTask>,
   ~onResume: string => unit,
@@ -30,8 +37,11 @@ let make = (
     >
       {React.string("What would you like to accomplish today?")}
     </h2>
+    {isWordpress ? <p className="text-sm text-zinc-400 max-w-[360px] w-full">
+        {React.string("Open a page, select an element in the preview, and describe a small change.")}
+      </p> : React.null}
     <div className="flex flex-col gap-2 w-full max-w-[360px]">
-      {tasks
+      {(isWordpress ? wordpressTasks : tasks)
       ->Array.map(task =>
         <button
           type_="button"
