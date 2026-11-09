@@ -70,8 +70,7 @@ defmodule FrontmanServerWeb.Router do
 
     delete("/users/log-out", UserSessionController, :delete)
     get("/users/log-out", UserSessionController, :confirm_logout)
-    get("/users/popup-complete", EmbeddedClientAuthController, :show)
-    post("/users/popup-complete", EmbeddedClientAuthController, :approve)
+    get("/users/popup-complete", UserSessionController, :popup_complete)
   end
 
   scope "/health", FrontmanServerWeb do
@@ -87,7 +86,7 @@ defmodule FrontmanServerWeb.Router do
     get("/callback", OAuthController, :callback)
     get("/verify-email", OAuthController, :verify_email_form)
     post("/verify-email", OAuthController, :verify_email)
-    get("/:provider", OAuthController, :request)
+    post("/:provider", OAuthController, :request)
   end
 
   scope "/auth", FrontmanServerWeb do

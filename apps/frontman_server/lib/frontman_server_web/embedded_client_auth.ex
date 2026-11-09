@@ -6,42 +6,36 @@
 
 defmodule FrontmanServerWeb.EmbeddedClientAuth do
   @moduledoc """
-  Shared session contract for embedded client authorization requests.
+  Reads the embedded request displayed by, and submitted with, the login form.
   """
 
   import Plug.Conn
 
   alias FrontmanServerWeb.EmbeddedClientOrigin
 
-  @pending_session_key :embedded_client_auth_request
+  def init(opts), do: opts
 
-  def pending_session_key, do: @pending_session_key
-
-  def put_pending_request(
-        conn,
-        %{"embedded_state" => state, "embedded_origin" => origin}
-      )
-      when is_binary(state) and byte_size(state) > 0 and is_binary(origin) do
-    case EmbeddedClientOrigin.normalize(origin) do
-      {:ok, normalized_origin} ->
-        conn =
-          put_session(conn, @pending_session_key, %{
-            "state" => state,
-            "origin" => normalized_origin
-          })
-
-        {:ok, conn}
+  def call(conn, _opts) do
+    case request(conn.params) do
+      {:ok, request} ->
+        assign(conn, :embedded_request, request)
 
       {:error, :invalid_origin} ->
-        conn =
-          conn
-          |> put_resp_content_type("text/plain")
-          |> send_resp(:bad_request, "Invalid embedded origin")
-          |> halt()
-
-        {:error, conn}
+        conn
+        |> put_resp_content_type("text/plain")
+        |> send_resp(:bad_request, "Invalid embedded origin")
+        |> halt()
     end
   end
 
-  def put_pending_request(conn, _params), do: {:ok, conn}
+  defp request(%{"embedded_state" => state, "embedded_origin" => origin})
+       when is_binary(state) and byte_size(state) in 1..512 do
+    with {:ok, origin} <- EmbeddedClientOrigin.normalize(origin) do
+      {:ok, %{"origin" => origin, "state" => state}}
+    end
+  end
+
+  defp request(%{"embedded_origin" => _}), do: {:error, :invalid_origin}
+  defp request(%{"embedded_state" => _}), do: {:error, :invalid_origin}
+  defp request(_params), do: {:ok, nil}
 end

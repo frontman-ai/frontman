@@ -5,6 +5,9 @@
         Welcome back
       </h1>
       <p class="text-sm text-base-content/50">{@user.email}</p>
+      <p :if={@embedded_request}>
+        Continue to let <strong>{@embedded_request["origin"]}</strong> use your Frontman account.
+      </p>
     </div>
 
     <.form
@@ -15,6 +18,7 @@
       phx-mounted={JS.focus_first()}
       class="space-y-3"
     >
+      <.embedded_request request={@embedded_request} />
       <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
       <button
         type="submit"
@@ -37,6 +41,7 @@
       phx-mounted={JS.focus_first()}
       class="space-y-3"
     >
+      <.embedded_request request={@embedded_request} />
       <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
       <%= if @current_scope do %>
         <button type="submit" class="btn btn-secondary btn-lg btn-block">

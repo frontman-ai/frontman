@@ -12,6 +12,8 @@ defmodule FrontmanServerWeb.UserSessionController do
   alias FrontmanServerWeb.EmbeddedClientAuth
   alias FrontmanServerWeb.UserAuth
 
+  plug(EmbeddedClientAuth when action in [:new, :create, :confirm])
+
   def new(conn, params) do
     email = get_in(conn.assigns, [:current_scope, Access.key(:user), Access.key(:email)])
     form = Phoenix.Component.to_form(%{"email" => email}, as: "user")
@@ -21,9 +23,15 @@ defmodule FrontmanServerWeb.UserSessionController do
       |> maybe_put_user_return_to(params["return_to"])
       |> maybe_put_signup_framework(params["framework"])
 
-    case EmbeddedClientAuth.put_pending_request(conn, params) do
-      {:ok, conn} -> render(conn, :new, form: form)
-      {:error, conn} -> conn
+    render(conn, :new, form: form)
+  end
+
+  def create(conn, %{"_action" => "connect"} = params) do
+    user_id = params["user_id"]
+
+    case {conn.assigns.current_scope, conn.assigns.embedded_request} do
+      {%{user: %{id: ^user_id} = user}, %{"origin" => _}} -> UserAuth.log_in_user(conn, user)
+      _ -> send_resp(conn, :unauthorized, "Sign in to connect this site")
     end
   end
 
@@ -65,7 +73,9 @@ defmodule FrontmanServerWeb.UserSessionController do
     if user = Accounts.get_user_by_email(email) do
       Accounts.deliver_login_instructions(
         user,
-        &url(~p"/users/log-in/#{&1}")
+        &url(
+          ~p"/users/log-in/#{&1}?#{Map.take(conn.params, ["embedded_origin", "embedded_state"])}"
+        )
       )
     end
 
@@ -100,6 +110,10 @@ defmodule FrontmanServerWeb.UserSessionController do
   """
   def confirm_logout(conn, params) do
     render(conn, :confirm_logout, return_to: params["return_to"])
+  end
+
+  def popup_complete(conn, _params) do
+    conn |> put_resp_header("cache-control", "no-store") |> render(:popup_missing)
   end
 
   def delete(conn, params) do

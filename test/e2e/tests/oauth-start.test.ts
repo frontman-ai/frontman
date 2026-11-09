@@ -38,7 +38,7 @@ describe("OAuth start E2E", () => {
         response.status() === 302,
     );
 
-    await page.getByRole("link", { name: label }).click();
+    await page.getByRole("button", { name: label }).click();
     const response = await responsePromise;
     const location = response.headers()["location"];
 

@@ -58,7 +58,7 @@ export async function authorizeEmbeddedClient(
     await page.goto(loginUrl.toString());
   }
 
-  await page.locator('button[type="submit"]', { hasText: "Allow and continue" }).click();
+  await page.locator('#embedded-connect-form button[type="submit"]').click();
   await page.locator("#embedded-client-auth-completion").waitFor({
     state: "attached",
     timeout: 30_000,
