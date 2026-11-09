@@ -122,7 +122,6 @@ defmodule FrontmanServer.MixProject do
        ref: "a3b15e29b3067644bfd580246c87f7af7a90b3b8",
        only: :test,
        override: true},
-      # Bypass 2.x requires Ranch 1.x's keyword-list and pre-opened socket APIs.
       {:ranch, "~> 1.8", only: :test, override: true},
       {:mox, "~> 1.2", only: :test}
     ]
