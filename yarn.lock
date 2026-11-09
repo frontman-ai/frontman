@@ -2361,7 +2361,7 @@ __metadata:
     "@types/react": "npm:^19.3.0"
     "@types/react-dom": "npm:^19.3.0"
     "@vitest/browser-playwright": "catalog:"
-    "@zumer/snapdom": "npm:^2.24.18"
+    "@zumer/snapdom": "npm:^3.3.3"
     babel-plugin-react-compiler: "npm:^1.0.0"
     border-beam: "npm:^1.4.1"
     diff: "npm:^9.0.0"
@@ -6908,10 +6908,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@zumer/snapdom@npm:^2.24.18":
-  version: 2.24.18
-  resolution: "@zumer/snapdom@npm:2.24.18"
-  checksum: 10c0/27f9b83bf0fb272849799ab73ad898ce1d42b319bb11145aa989f61ef5fbd43670a1b3442aaa094664cd570ccc6f3ca862efa5b2689b37cf998428be44d4c4c7
+"@zumer/snapdom@npm:^3.3.3":
+  version: 3.3.3
+  resolution: "@zumer/snapdom@npm:3.3.3"
+  checksum: 10c0/258028577270ded03980d1160bd2771d3035d492931129c7c6120174b94aa1141c4813c72522c5d7fc5b06ae36aa9b114ef9f4399e88f0239313be9b1474a3f1
   languageName: node
   linkType: hard
 
