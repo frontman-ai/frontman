@@ -100,7 +100,7 @@ defmodule FrontmanServer.MixProject do
       {:bandit, "~> 1.5"},
       {:zoi, "~> 0.14"},
       {:dotenvy, "~> 1.1"},
-      {:sentry, "~> 13.0"},
+      {:sentry, "~> 14.0"},
       {:workos, "~> 3.0"},
       {:paper_tiger, "~> 1.0", only: [:test]},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
@@ -122,7 +122,7 @@ defmodule FrontmanServer.MixProject do
        ref: "a3b15e29b3067644bfd580246c87f7af7a90b3b8",
        only: :test,
        override: true},
-      {:ranch, "~> 1.8", only: :test, override: true},
+      {:ranch, "~> 2.3", only: :test, override: true},
       {:mox, "~> 1.2", only: :test}
     ]
   end
