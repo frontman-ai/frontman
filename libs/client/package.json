@@ -61,7 +61,7 @@
 		"draft-js": "0.11.7",
 		"immutable": "5.1.9",
 		"lucide-react": "^1.48.0",
-		"playwright": "^1.63.0",
+		"playwright": "^1.64.0",
 		"react": "^19.3.0",
 		"react-dom": "^19.3.0",
 		"rescript": "catalog:",
