@@ -59,7 +59,7 @@ function frontman_runtime_saved_id( string $message ): int {
 	return (int) $match[1];
 }
 
-function frontman_runtime_http( string $method, string $path, string $cookie = '', ?string $nonce = null, ?string $body = null, string $test = '', string $authorization = '', ?string $cookie_name = null, bool $tls = false ): array {
+function frontman_runtime_http( string $method, string $path, string $cookie = '', ?string $nonce = null, ?string $body = null, string $test = '', string $authorization = '', ?string $cookie_name = null, bool $tls = false, string $content_type = 'application/json' ): array {
 	$headers = [ 'Host: frontman-runtime.example.test' ];
 	$headers[] = '' === $authorization ? '' : 'Authorization: Basic ' . base64_encode( $authorization );
 	$headers[] = '' === $test ? '' : 'X-Frontman-Seo-Test: ' . $test;
@@ -74,7 +74,7 @@ function frontman_runtime_http( string $method, string $path, string $cookie = '
 		false,
 		stream_context_create( [ 'http' => [
 			'content' => $body ?? '',
-			'header' => implode( "\r\n", array_filter( $headers ) ) . "\r\nContent-Type: application/json\r\n",
+			'header' => implode( "\r\n", array_filter( $headers ) ) . "\r\nContent-Type: " . $content_type . "\r\n",
 			'ignore_errors' => true, 'follow_location' => 0,
 			'method' => $method,
 		], 'ssl' => [ 'cafile' => '/tmp/ca.crt' ] ] )

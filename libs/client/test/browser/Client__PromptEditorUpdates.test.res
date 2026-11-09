@@ -30,7 +30,6 @@ testAsync(
       root->ReactDOM.Client.Root.render(
         <React.StrictMode>
           <Client__GetStartedTasks
-            isWordpress=true
             recentTasks=[] onResume={_ => ()}
             onSelect={text => Client__State.Actions.setComposerSuggestion(Some(text))}
           />

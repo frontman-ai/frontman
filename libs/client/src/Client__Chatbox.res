@@ -371,7 +371,6 @@ let make = (~onConfigureProvider: unit => unit) => {
         {switch (hasActiveACPSession, isNewTask, totalItems) {
         | (true, true, 0) =>
           <Client__GetStartedTasks
-            isWordpress={Client__RuntimeConfig.read().framework == Wordpress}
             recentTasks
             onResume={taskId => Client__State.Actions.switchTask(~taskId)}
             onSelect={text => Client__State.Actions.setComposerSuggestion(Some(text))}

@@ -4,12 +4,6 @@
  * Clicking a task adds it to the composer for review.
  */
 let tasks = [
-  "Change the page background to a dark theme",
-  "Make the main heading bigger and bolder",
-  "Add a dark mode toggle to the navigation bar",
-]
-
-let wordpressTasks = [
   "Make this heading a little larger",
   "Change the text of this button",
   "Add a short paragraph to this page",
@@ -22,7 +16,6 @@ type recentTask = {
 
 @react.component
 let make = (
-  ~isWordpress: bool,
   ~onSelect: string => unit,
   ~recentTasks: array<recentTask>,
   ~onResume: string => unit,
@@ -37,11 +30,11 @@ let make = (
     >
       {React.string("What would you like to accomplish today?")}
     </h2>
-    {isWordpress ? <p className="text-sm text-zinc-400 max-w-[360px] w-full">
-        {React.string("Open a page, select an element in the preview, and describe a small change.")}
-      </p> : React.null}
+    <p className="text-sm text-zinc-400 max-w-[360px] w-full">
+      {React.string("Open a page, select an element in the preview, and describe a small change.")}
+    </p>
     <div className="flex flex-col gap-2 w-full max-w-[360px]">
-      {(isWordpress ? wordpressTasks : tasks)
+      {tasks
       ->Array.map(task =>
         <button
           type_="button"
