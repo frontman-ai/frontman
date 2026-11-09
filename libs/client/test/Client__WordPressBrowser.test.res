@@ -220,7 +220,7 @@ testAsync(
       | _ => failwith("Invalid private WordPress approval response")
       }
       t->expect(WebAPI.URL.make(~url=credential.catalog_url).origin)->Expect.toBe(origin)
-      let linked = page->locator("text=This site is linked to your Frontman account.")
+      let linked = page->locator("button:text-is('Disable MCP')")
       await linked->waitFor
       await page->reload
       await settings()
@@ -228,9 +228,9 @@ testAsync(
       for index in 0 to 2 {
         let enabled = index != 1
         if index > 0 {
-          await page->locator("label:has-text('MCP access for this site') input")->click
+          await page->locator(enabled ? "button:text-is('Enable MCP')" : "button:text-is('Disable MCP')")->click
         }
-        await page->locator(enabled ? "text=MCP enabled" : "text=MCP disabled")->waitFor
+        await page->locator(enabled ? "button:text-is('Disable MCP')" : "button:text-is('Enable MCP')")->waitFor
         let response = await WebAPI.Fetch.fetch(
           credential.catalog_url,
           ~init={
@@ -249,7 +249,7 @@ testAsync(
       }
       await page->context->clearCookies
       let denied = page->waitForResponse("**/frontman/mcp/disable")
-      await page->locator("label:has-text('MCP access for this site') input")->click
+      await page->locator("button:text-is('Disable MCP')")->click
       t->expect((await denied)->responseStatus)->Expect.toBe(401)
       let login = page->locator("a:has-text('Log in to WordPress (new tab)')")
       await login->waitFor
