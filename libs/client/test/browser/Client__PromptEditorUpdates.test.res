@@ -31,7 +31,10 @@ testAsync(
         <React.StrictMode>
           <Client__GetStartedTasks
             recentTasks=[] onResume={_ => ()}
-            onSelect={text => Client__State.Actions.setComposerSuggestion(Some(text))}
+            onSelect={text =>
+              commandsRef.current->Nullable.toOption->Option.forEach(
+                (commands: Client__PromptEditor.commands) => commands.insertText(text),
+              )}
           />
           <Client__PromptEditor
             disabled

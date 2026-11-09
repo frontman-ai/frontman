@@ -37,6 +37,7 @@ type commands = {
   submit: unit => unit,
   attach: unit => unit,
   dropFiles: array<browserFile> => unit,
+  insertText: string => unit,
 }
 
 @react.component

@@ -118,6 +118,7 @@ module ExecutePlanAction = {
 
 @react.component
 let make = (~onConfigureProvider: unit => unit) => {
+  let commandsRef: React.ref<Nullable.t<Client__PromptEditor.commands>> = React.useRef(Nullable.null)
   let connectionState = Client__State.useSelector(Client__State.Selectors.getConnectionStatus)
   let sessionError = Client__State.useSelector(Client__State.Selectors.getSessionError)
 
@@ -373,7 +374,10 @@ let make = (~onConfigureProvider: unit => unit) => {
           <Client__GetStartedTasks
             recentTasks
             onResume={taskId => Client__State.Actions.switchTask(~taskId)}
-            onSelect={text => Client__State.Actions.setComposerSuggestion(Some(text))}
+            onSelect={text =>
+              commandsRef.current->Nullable.toOption->Option.forEach(commands =>
+                commands.insertText(text)
+              )}
           />
         | _ => React.null
         }}
@@ -474,6 +478,7 @@ let make = (~onConfigureProvider: unit => unit) => {
         </fieldset>
       | (_, _, false) =>
         <PromptInput
+          commandsRef
           onSubmit={handleSubmit}
           disabled={isSubmitting}
           onCancel={Client__State.Actions.cancelTurn}

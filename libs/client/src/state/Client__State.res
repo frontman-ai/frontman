@@ -7,7 +7,6 @@ module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
 
 module Actions = {
-  let setComposerSuggestion = text => Client__State__Store.dispatch(SetComposerSuggestion(text))
 
   let wordPressAuthenticationRequired = loginUrl =>
     Client__State__Store.dispatch(WordPressAuthenticationRequired(loginUrl))
