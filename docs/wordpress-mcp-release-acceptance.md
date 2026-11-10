@@ -160,3 +160,23 @@ Cross-site metadata conflict resolution remains deferred.
 Consent copy, connection lifecycle, new scopes, and authentication rewrites remain separate work.
 Refund coverage uses real disposable order/refund records with `api_refund=false`.
 It does not prove external gateway behavior and never sends live funds.
+
+## Maintenance change status: 2026-11-10
+
+The source replaces the generic WooCommerce maintenance pair with individual confirmation-gated tools.
+The runtime matrix includes a pinned WooCommerce 11.2.2 row.
+The earlier WordPress runtime pass was a baseline before this change.
+It does not establish that the changed code works.
+
+The changed-code runtime attempt did not reach the tests. The Docker VM is full.
+On November 10, `make test-wordpress-runtime` exceeded the 200-second command limit.
+MariaDB failed to create its undo tablespace with error 28.
+The container filesystem reported 100% usage and 3 MB available.
+Only the containers, network, and image from that attempt were deleted.
+The SDK-required baseline reached both hosted phases but lacked Playwright headless shell revision 1248.
+The full SDK browser acceptance remains incomplete.
+
+The parent ran PHP lint on three changed files, `bash -n`, `make check-source-comments`, and `git diff --check`.
+Those checks passed, including 30 source-comment scanner tests and the repository scan.
+The early version guards also rejected incompatible WordPress, PHP, and unknown override values.
+No deployment or OpenAI rescan occurred for this change.
