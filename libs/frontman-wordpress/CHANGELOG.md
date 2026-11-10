@@ -1,5 +1,19 @@
 # @frontman-ai/frontman-wordpress
 
+## 5.9.0
+
+### Minor Changes
+
+- [#2169](https://github.com/frontman-ai/frontman/pull/2169) [`d326d4b`](https://github.com/frontman-ai/frontman/commit/d326d4b0816739fdb38b7a87044930afdd59762a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add Yoast Free SEO tools for taxonomy terms and custom post type archives. Preserve unrelated SEO settings, refresh native indexables, and report observed save results.
+
+### Patch Changes
+
+- [#2175](https://github.com/frontman-ai/frontman/pull/2175) [`ccdaf9e`](https://github.com/frontman-ai/frontman/commit/ccdaf9e240f9c6def9a3b33f9a1de9ed2157d9b5) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Replace the generic WooCommerce maintenance executor with individually described, confirmation-gated tools.
+
+- [#2165](https://github.com/frontman-ai/frontman/pull/2165) [`594238b`](https://github.com/frontman-ai/frontman/commit/594238bf45082b7e0d3fdcf34ba655e495222975) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add a dismissible WordPress activation notice and an Open Frontman plugin action. Simplify provider setup and add starter prompts to the composer for review before submission.
+
+- [#2170](https://github.com/frontman-ai/frontman/pull/2170) [`328cdf7`](https://github.com/frontman-ai/frontman/commit/328cdf7bf344ec162440430850ecaf986107882c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Document taxonomy and CPT archive SEO tools, permissions, reset behavior, and indexable readback. Keep SEO target selection and verification guidance in tool descriptions rather than the system prompt.
+
 ## Unreleased
 
 - Add a dismissible activation welcome notice and a permanent Open Frontman plugin action.
