@@ -74,12 +74,12 @@ try {
 	frontman_runtime_same( [ $terms['category'], $term['term_id'] ], [ $category['term_id'], $topic['term_id'] ], 'Identical slugs resolve within their taxonomy.' );
 	frontman_runtime_same( $unchanged, $protected(), 'Updates preserve other terms, all unrelated Yoast settings, and same-ID/CPT posts.' );
 
-	foreach ( [
+	foreach ( array_filter( [
 		[ 'term', 'deny-term-save', 'failed' ],
 		[ 'post_type_archive', 'partial-archive-save', 'partial' ],
 		[ 'term', 'silent-archive-refresh', 'partial' ],
 		[ 'post_type_archive', 'silent-archive-refresh', 'partial' ],
-	] as [ $kind, $fault, $status ] ) {
+	], static fn( $case ) => 'silent-archive-refresh' !== $case[1] || method_exists( YoastSEO()->helpers->indexable, 'should_index_indexable' ) ) as [ $kind, $fault, $status ] ) {
 		$target = $targets[$kind];
 		$read = $call( "wp_read_{$kind}_seo", $target );
 		$before = array_intersect_key( $read, array_flip( [ 'title', 'description' ] ) );
