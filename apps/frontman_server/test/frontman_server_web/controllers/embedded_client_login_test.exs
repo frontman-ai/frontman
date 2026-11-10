@@ -123,10 +123,18 @@ defmodule FrontmanServerWeb.EmbeddedClientLoginTest do
     assert redirected_to(conn) == ~p"/users/log-in"
     assert get_session(conn, :oauth_signin_state) == second
 
-    conn = get(conn, ~p"/auth/callback?#{%{"state" => second_state, "error" => "access_denied"}}")
-    assert redirected_to(conn) == ~p"/users/log-in"
-    assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Sign in was cancelled."
-    refute get_session(conn, :oauth_signin_state)
+    for error <- ["access_denied", "server_error"] do
+      failed = get(conn, ~p"/auth/callback?#{%{"state" => second_state, "error" => error}}")
+      retry_url = redirected_to(failed)
+
+      assert URI.decode_query(URI.parse(retry_url).query) == %{
+               "embedded_origin" => "https://second.example",
+               "embedded_state" => "second"
+             }
+
+      assert html_response(get(failed, retry_url), 200) =~ "https://second.example"
+      refute get_session(failed, :oauth_signin_state)
+    end
   end
 
   test "OAuth initiation rejects missing CSRF tokens", %{conn: conn} do

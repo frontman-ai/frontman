@@ -52,11 +52,8 @@ export async function authorizeEmbeddedClient(
   loginUrl.searchParams.set("embedded_state", state);
   loginUrl.searchParams.set("embedded_origin", opts.origin);
 
-  await login(page, { returnTo: loginUrl.toString() });
-
-  if (!page.url().includes("/users/popup-complete")) {
-    await page.goto(loginUrl.toString());
-  }
+  await login(page);
+  await page.goto(loginUrl.toString());
 
   await page.locator('#embedded-connect-form button[type="submit"]').click();
   await page.locator("#embedded-client-auth-completion").waitFor({

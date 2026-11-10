@@ -64,16 +64,24 @@ defmodule FrontmanServerWeb.OAuthController do
     end
   end
 
-  defp complete_sign_in(conn, %{"error" => "access_denied"}) do
-    conn
-    |> put_flash(:error, "Sign in was cancelled.")
-    |> redirect(to: ~p"/users/log-in")
-  end
+  defp complete_sign_in(conn, params) do
+    message =
+      if params["error"] == "access_denied",
+        do: "Sign in was cancelled.",
+        else: "Authentication failed. Please try again."
 
-  defp complete_sign_in(conn, _params) do
+    query =
+      case conn.assigns[:embedded_request] do
+        %{"origin" => origin, "state" => state} ->
+          [embedded_origin: origin, embedded_state: state]
+
+        nil ->
+          []
+      end
+
     conn
-    |> put_flash(:error, "Authentication failed. Please try again.")
-    |> redirect(to: ~p"/users/log-in")
+    |> put_flash(:error, message)
+    |> redirect(to: ~p"/users/log-in?#{query}")
   end
 
   def verify_email_form(conn, _params) do
