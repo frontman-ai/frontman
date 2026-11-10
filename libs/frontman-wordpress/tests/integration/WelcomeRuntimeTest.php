@@ -11,26 +11,22 @@ $welcome_permalink = get_option( 'permalink_structure' );
 $welcome_marker = get_option( 'frontman_welcome_activated' );
 $welcome_dismissed = get_user_option( 'frontman_welcome_dismissed', $welcome_admin->ID );
 $welcome_active_plugins = get_option( 'active_plugins' );
-$welcome_transient = get_option( '_transient_elementor_activation_redirect' );
-$welcome_transient_timeout = get_option( '_transient_timeout_elementor_activation_redirect' );
 $welcome_session = static function( int $user_id ): array {
 	$token = WP_Session_Tokens::get_instance( $user_id )->create( time() + HOUR_IN_SECONDS );
-	$auth = wp_generate_auth_cookie( $user_id, time() + HOUR_IN_SECONDS, 'auth', $token );
+	$auth = wp_generate_auth_cookie( $user_id, time() + HOUR_IN_SECONDS, 'auth', $token ) . '; ' . LOGGED_IN_COOKIE . '=' . wp_generate_auth_cookie( $user_id, time() + HOUR_IN_SECONDS, 'logged_in', $token );
 	return [ $auth, $token ];
 };
 $welcome_request = static function( string $cookie, array $fields ): array {
 	return frontman_runtime_http( 'POST', '/wp-admin/admin-post.php', $cookie, null, http_build_query( $fields ), '', '', AUTH_COOKIE, false, 'application/x-www-form-urlencoded' );
 };
 try {
-	// Elementor's activation redirect runs before admin-post handlers on the first admin request.
-	delete_transient( 'elementor_activation_redirect' );
 	delete_option( 'frontman_welcome_activated' );
 	delete_user_option( $welcome_admin->ID, 'frontman_welcome_dismissed' );
 	[ $admin_cookie, $admin_token ] = $welcome_session( $welcome_admin->ID );
 	[ $subscriber_cookie, $subscriber_token ] = $welcome_session( $welcome_subscriber->ID );
 	$welcome_page = static function( string $cookie ): string {
 		$response = frontman_runtime_http( 'GET', '/wp-admin/profile.php', $cookie, null, null, '', '', AUTH_COOKIE );
-		frontman_runtime_same( 200, $response['status'], 'Admin page must load.' );
+		frontman_runtime_same( 200, $response['status'], 'Admin page must load: ' . implode( ' | ', $response['headers'] ) );
 		return $response['body'];
 	};
 	wp_set_current_user( $welcome_admin->ID );
@@ -53,7 +49,8 @@ try {
 	$subscriber_response = $welcome_request( $subscriber_cookie, $fields );
 	frontman_runtime_same( 403, $subscriber_response['status'], 'Subscribers cannot dismiss the welcome: ' . implode( ' | ', $subscriber_response['headers'] ) );
 	$fields['_wpnonce'] = 'invalid';
-	frontman_runtime_same( 403, $welcome_request( $admin_cookie, $fields )['status'], 'Invalid nonces cannot dismiss the welcome.' );
+	$invalid_response = $welcome_request( $admin_cookie, $fields );
+	frontman_runtime_same( 403, $invalid_response['status'], 'Invalid nonces cannot dismiss the welcome: ' . implode( ' | ', $invalid_response['headers'] ) );
 	unset( $fields['_wpnonce'] );
 	frontman_runtime_same( 403, $welcome_request( $admin_cookie, $fields )['status'], 'Missing nonces cannot dismiss the welcome.' );
 	wp_cache_delete( $welcome_admin->ID, 'user_meta' );
@@ -88,12 +85,5 @@ try {
 	}
 	update_option( 'permalink_structure', $welcome_permalink );
 	update_option( 'active_plugins', $welcome_active_plugins );
-	foreach ( [ '_transient_elementor_activation_redirect' => $welcome_transient, '_transient_timeout_elementor_activation_redirect' => $welcome_transient_timeout ] as $option => $value ) {
-		if ( false === $value ) {
-			delete_option( $option );
-		} else {
-			update_option( $option, $value );
-		}
-	}
 	wp_set_current_user( $welcome_previous_user );
 }

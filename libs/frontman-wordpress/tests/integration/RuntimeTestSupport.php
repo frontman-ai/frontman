@@ -74,7 +74,7 @@ function frontman_runtime_http( string $method, string $path, string $cookie = '
 		false,
 		stream_context_create( [ 'http' => [
 			'content' => $body ?? '',
-			'header' => implode( "\r\n", array_filter( $headers ) ) . "\r\nContent-Type: " . $content_type . "\r\n",
+			'header' => implode( "\r\n", array_filter( $headers ) ) . ( null === $body ? '' : "\r\nContent-Type: " . $content_type ) . "\r\n",
 			'ignore_errors' => true, 'follow_location' => 0,
 			'method' => $method,
 		], 'ssl' => [ 'cafile' => '/tmp/ca.crt' ] ] )
