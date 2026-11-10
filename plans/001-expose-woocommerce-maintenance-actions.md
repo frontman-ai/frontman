@@ -54,29 +54,17 @@ The implementation does not claim complete coverage of every conditional native 
 
 ## Scope
 
-Production changes belong in `libs/frontman-wordpress/tools/class-tool-woocommerce.php`.
-Runtime cases and the independent annotation oracle belong in the existing integration suite.
-The root Makefile retires the old WooCommerce test runner.
-The shared runtime script and compatibility workflow cover WooCommerce 11.2.2.
-The inventory and release acceptance documents retain dated evidence.
-The WordPress changeset records the public tool-name change.
-
-No live maintenance action, deployment, publication, or OpenAI submission follows from this plan.
-The reviewer-login and package-validator changes belong to PR #2167.
-PR #2175 also contains the synthetic WordPress provisioning scripts.
-Those scripts are not part of the maintenance executor.
+PR #2175 contains maintenance tools, shared runtime tests, synthetic site provisioning, and discovery telemetry.
+PR #2167 contains the reviewer-login and package-validator changes.
+No production maintenance action or OpenAI submission follows from this plan.
 
 ## Test migration
 
 The deleted `WooCommerceToolsTest.php` contained 501 lines of substitute dependencies and assertions.
 Its meaningful contracts must remain covered by the shared real-runtime suite:
 
-- Complete tool inventory and valid serialized object and array schemas.
-- Product filters, pagination, and exact forwarding of raw request data.
-- Native REST persistence parity, rather than assumptions about upstream sanitization.
-- GET-before-PUT updates, string gateway IDs, and product-review filtering.
-- Missing, false, and wrong-typed confirmation with unchanged persisted state.
-- Metadata upsert, deletion, and native readback.
+- Inventory, schemas, filters, pagination, raw forwarding, and native persistence parity.
+- Read-before-write, gateway IDs, review filtering, confirmation, metadata changes, and native readback.
 
 Maintenance cases must cover fixed descriptors, confirmation, extra-argument rejection, and capability denial.
 They must also cover disabled actions, discovery without effects, and explicit extension metadata.

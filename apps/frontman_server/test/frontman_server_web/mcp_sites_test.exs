@@ -352,6 +352,8 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
     assert %{"id" => 1} = Jason.decode!(before)
 
+    assert_received {:wordpress_event, :call, %{status_code: 200}, %{outcome: :ok}}
+
     for {catalog_url, category} <- [
           {invalid_url, :schema},
           {"https://offline.invalid/tools", :transport}
@@ -567,6 +569,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
           [:finch, :request, :stop],
           [:anubis_mcp, :server, :request],
           [:frontman_server, :wordpress, :catalog, :stop],
+          [:frontman_server, :wordpress, :call, :stop],
           [:frontman_server, :wordpress, :discovery, :stop]
         ],
         &__MODULE__.record_request/4,

@@ -21,7 +21,8 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
   @table :frontman_console_timing
 
   def setup_wordpress do
-    events = for kind <- [:catalog, :discovery], do: [:frontman_server, :wordpress, kind, :stop]
+    events =
+      for kind <- [:catalog, :call, :discovery], do: [:frontman_server, :wordpress, kind, :stop]
 
     case :telemetry.attach_many(
            "frontman_console_wordpress",
@@ -40,7 +41,7 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
         metadata,
         _config
       )
-      when kind in [:catalog, :discovery] do
+      when kind in [:catalog, :call, :discovery] do
     outcomes = ~w(ok invalid_json oversized_result non_200 timeout transport task_exit
                   incomplete paginated bounds deadline_expired schema request_failed)a
     outcome = if metadata[:outcome] in outcomes, do: metadata[:outcome], else: :unknown
@@ -50,7 +51,7 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
       if kind == :discovery do
         " validated=#{safe_count(measurements[:validated])} total=#{safe_count(measurements[:total])}"
       else
-        ""
+        " status_code=#{safe_count(measurements[:status_code])}"
       end
 
     previous = Logger.metadata()
