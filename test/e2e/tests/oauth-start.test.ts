@@ -50,6 +50,9 @@ describe("OAuth start E2E", () => {
   it("completes email authorization from the original popup after sign-in in another tab", async () => {
     const emailContext = await browser.newContext({ ignoreHTTPSErrors: true });
     try {
+      const assets = await emailContext.request.get(`${PHOENIX_ORIGIN}/assets/js/app.js`);
+      expect(assets.ok()).toBe(true);
+      expect(assets.headers()["content-type"]).toContain("javascript");
       const client = await emailContext.newPage();
       await client.goto("http://localhost:5173/");
       await client.addScriptTag({
@@ -104,6 +107,7 @@ describe("OAuth start E2E", () => {
       expect(await popup.opener()).toBe(client);
       expect(new URL(popup.url()).searchParams.get("embedded_state")).toBe(state);
       await popup.locator('#embedded-connect-form button[type="submit"]').click();
+      await popup.locator("#embedded-client-auth-completion").waitFor({ state: "attached" });
       await client.waitForFunction(
         () => document.getElementById("start-email-authorization")?.getAttribute("title") === "complete",
         undefined,

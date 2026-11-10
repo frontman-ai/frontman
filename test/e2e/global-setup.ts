@@ -107,6 +107,13 @@ export async function setup() {
     stdio: "inherit",
   });
 
+  console.log("  [e2e] Building Phoenix browser assets…");
+  execSync("make assets-build", {
+    cwd: SERVER_DIR,
+    env: E2E_ENV,
+    stdio: "inherit",
+  });
+
   console.log("  [e2e] Starting Phoenix server on port", PHOENIX_PORT, "…");
   phoenixProc = spawn("mix", ["phx.server"], {
     cwd: SERVER_DIR,
