@@ -5,7 +5,7 @@ module Reducer = Client__State__StateReducer
 let resetStore = () => {
   StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
     Client__State__Store.store,
-    Reducer.defaultState,
+    Client__State__Initialization.defaultState,
   )
 }
 
@@ -26,8 +26,8 @@ let errorUpdate = (
 
 let errorEffects = category =>
   Reducer.next(
-    Reducer.defaultState,
-    AcpSessionUpdateReceived({taskId: "task", update: errorUpdate(category)}),
+    Client__State__Initialization.defaultState,
+    AcpSessionUpdateReceived({taskId: "task", update: errorUpdate(category), errorDisplayId: Some("error-1")}),
   )->Pair.second
 
 describe("ACP billing update handling", () => {
@@ -40,11 +40,12 @@ describe("ACP billing update handling", () => {
         let task =
           Client__State__Types.Task.makeNew(
             ~previewUrl="http://localhost:3000",
-          )->Client__State__Types.Task.newToLoaded(~id="task", ~title="Task")
+            ~clientId="task",
+          )->Client__State__Types.Task.newToLoaded(~id="task", ~title="Task", ~timestamp=0.0)
         StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
           Client__State__Store.store,
           {
-            ...Reducer.defaultState,
+            ...Client__State__Initialization.defaultState,
             tasks: Dict.fromArray([("task", task)]),
             currentTask: Client__State__Types.Task.Selected("task"),
           },
@@ -53,12 +54,13 @@ describe("ACP billing update handling", () => {
           AcpSessionUpdateReceived({
             taskId: "task",
             update: errorUpdate(Some("billing"), ~meta=JSON.parseOrThrow(meta)),
+            errorDisplayId: Some(retryErrorId->Option.getOr("local-error")),
           }),
         )
         let state = StateStore.getState(Client__State__Store.store)
-        let turnError = Reducer.Selectors.turnError(state)->Option.getOrThrow
+        let turnError = Client__State__Selectors.turnError(state)->Option.getOrThrow
         t->expect(turnError.retryErrorId)->Expect.toEqual(retryErrorId)
-        switch Reducer.Selectors.messages(state)->Array.get(0) {
+        switch Client__State__Selectors.messages(state)->Array.get(0) {
         | Some(Client__State__Types.Message.Error(error)) =>
           t
           ->expect(Client__State__Types.Message.ErrorMessage.retryErrorId(error))
@@ -72,7 +74,7 @@ describe("ACP billing update handling", () => {
   test("provider billing errors open Providers, not Frontman Billing", t => {
     let opensProviders = switch errorEffects(Some("billing")) {
     | [
-        Reducer.FlushSessionActions([
+        Client__State__Protocol.FlushSessionActions([
           SetSettingsModalTab({tab: Some(Providers)}),
           TaskAction({action: AgentError(_)}),
         ]),
@@ -90,7 +92,7 @@ describe("ACP billing update handling", () => {
     )
     t
     ->expect(
-      Reducer.ConnectionEffects.billingRequestErrorMessage(error, Client__State__Store.dispatch),
+      Client__State__ConnectionEffects.billingRequestErrorMessage(error, Client__State__Store.dispatch),
     )
     ->Expect.toBe("Alternate billing copy")
     let state = StateStore.getState(Client__State__Store.store)
@@ -99,7 +101,7 @@ describe("ACP billing update handling", () => {
 
   test("does not open settings for non-billing error category", t => {
     let onlyTaskError = switch errorEffects(Some("rate_limit")) {
-    | [Reducer.FlushSessionActions([TaskAction({action: AgentError(_)})])] => true
+    | [Client__State__Protocol.FlushSessionActions([TaskAction({action: AgentError(_)})])] => true
     | _ => false
     }
     t->expect(onlyTaskError)->Expect.toBe(true)

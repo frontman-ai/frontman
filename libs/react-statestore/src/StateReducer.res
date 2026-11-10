@@ -20,8 +20,9 @@ module type Interface = {
   type effect
   let name: string
   let next: (state, action) => (state, array<effect>)
-  let handleEffect: (effect, state, action => unit) => unit
 }
+
+type effectHandler<'state, 'action, 'effect> = ('effect, 'state, 'action => unit) => unit
 
 @@live
 let update = (~sideEffect=?, ~sideEffects=?, state) =>
@@ -35,9 +36,10 @@ let update = (~sideEffect=?, ~sideEffects=?, state) =>
 let useReducer:
   type state action effect. (
     module(Interface with type state = state and type action = action and type effect = effect),
+    ~handleEffect: effectHandler<state, action, effect>,
     state,
   ) => (state, action => unit) =
-  (module(Reducer), initialState) => {
+  (module(Reducer), ~handleEffect, initialState) => {
     let reducer = ((state, effects), action) => {
       let (newState, newEffects) = Reducer.next(state, action)
       let effects = ref(Array.concat(effects.contents, newEffects))
@@ -45,6 +47,6 @@ let useReducer:
     }
 
     let ((state, effects), dispatch) = React.useReducer(reducer, (initialState, ref([])))
-    useUnsafeCleanupEffects(effects, Reducer.handleEffect, dispatch, state)
+    useUnsafeCleanupEffects(effects, handleEffect, dispatch, state)
     (state, dispatch)
   }

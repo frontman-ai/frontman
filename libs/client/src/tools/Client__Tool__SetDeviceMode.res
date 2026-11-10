@@ -70,8 +70,8 @@ let makeOutput = (
   ~presets: option<array<string>>,
 ): output => {
   let state = StateStore.getState(Client__State__Store.store)
-  let deviceMode = Client__State__StateReducer.Selectors.deviceMode(state)
-  let orientation = Client__State__StateReducer.Selectors.deviceOrientation(state)
+  let deviceMode = Client__State__Selectors.deviceMode(state)
+  let orientation = Client__State__Selectors.deviceOrientation(state)
   let effectiveDims = Client__DeviceMode.getEffectiveDimensions(deviceMode, orientation)
 
   {

@@ -349,9 +349,10 @@ describe("conversation file changes", () => {
 
   test("publishes a new snapshot only when the turn becomes idle", t => {
     let task =
-      Task.makeNew(~previewUrl="http://localhost:3000")->Task.newToLoaded(
+      Task.makeNew(~previewUrl="http://localhost:3000", ~clientId="task-1")->Task.newToLoaded(
         ~id="task-1",
         ~title="Diff test",
+        ~timestamp=0.0,
       )
     let (running, _) = TaskReducer.next(task, ExecutionStateRunning([]))
     let change = envelope(~oldText=Some("old"), ~currentText=Some("new"))

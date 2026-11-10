@@ -15,7 +15,7 @@ let renderSetup = (~isWordpress) =>
   )
 
 testAsync("WordPress shortcut opens General rather than Providers", async t => {
-  force(Reducer.defaultState)
+  force(Initialization.defaultState)
   renderSetup(~isWordpress=true)
   await page->getByRole("button", {name: "Connect an AI assistant"})->click
   await waitFor(() =>
@@ -26,7 +26,7 @@ testAsync("WordPress shortcut opens General rather than Providers", async t => {
 })
 
 testAsync("other frameworks retain only provider setup", async t => {
-  force(Reducer.defaultState)
+  force(Initialization.defaultState)
   renderSetup(~isWordpress=false)
   await waitFor(() =>
     t->expect(query("[data-slot='dialog-content']")->Option.isSome)->Expect.toBe(true)

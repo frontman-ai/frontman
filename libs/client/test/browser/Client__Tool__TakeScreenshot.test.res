@@ -42,7 +42,7 @@ let checkVisibleMarker = async (t, ~style, ~scrollY) => {
   await Promise.make((resolve, _) => win->Window.requestAnimationFrame(_ => resolve())->ignore)
 
   let task =
-    Task.makeNew(~previewUrl="about:blank")->Client__Task__Reducer.Lens.setPreviewFrame(
+    Task.makeNew(~previewUrl="about:blank", ~clientId="screenshot")->Client__Task__Reducer.Lens.setPreviewFrame(
       ~contentDocument=Some(doc),
       ~contentWindow=Some({window: win}),
     )

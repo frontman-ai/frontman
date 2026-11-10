@@ -1,6 +1,21 @@
 open Vitest
 
-module Reducer = Client__State__StateReducer
+// Compose real owners for this integration test; this is not the public reducer interface.
+module Reducer = {
+  include Client__State__Protocol
+  let next = Client__State__StateReducer.next
+  let defaultState = Client__State__Initialization.defaultState
+  module Selectors = Client__State__Selectors
+  module Lens = Client__State__TaskUpdates.Lens
+  let addUserMessageToState = Client__State__TaskUpdates.addUserMessageToState
+  let buildPrompt = Client__State__Prompt.buildPrompt
+  let updateInfoForVersions = Client__State__UpdateInfo.updateInfoForVersions
+  let handleEffect = Client__State__Effects.handleEffect
+  let encodeCustomProviderSaveRequest = Client__State__ProviderCodec.encodeCustomProviderSaveRequest
+  let customProviderSaveTarget = Client__State__ProviderCodec.customProviderSaveTarget
+  let customProviderDeleteUrl = Client__State__ProviderCodec.customProviderDeleteUrl
+  let decodeCustomProviderMutationError = Client__State__ProviderCodec.decodeCustomProviderMutationError
+}
 module StateTypes = Client__State__Types
 module TaskReducer = Client__Task__Reducer
 module Task = Client__State__Types.Task
@@ -53,8 +68,8 @@ module TestHelpers = {
     ~messages=[],
     ~isAgentRunning=false,
   ) =>
-    Task.makeNew(~previewUrl)
-    ->Task.newToLoaded(~id, ~title)
+    Task.makeNew(~previewUrl, ~clientId=id)
+    ->Task.newToLoaded(~id, ~title, ~timestamp=0.0)
     ->Task.updateLoadedData(data => {...data, messages, isAgentRunning})
 
   let makeStateWithTasks = (~tasks, ~currentTask) => {
@@ -513,7 +528,7 @@ let withPlanHandoffContext = (state: Client__State__Types.state): Client__State_
 describe("Client State Reducer - Plan Handoff", () => {
   test("execute atomically consumes the handoff and sends through the executor", t => {
     let state = TestHelpers.makeStateWithTask(~messages=[plannerPlan])->withPlanHandoffContext
-    let action = Reducer.ExecutePendingPlan({id: testUserMessageId})
+    let action = Reducer.ExecutePendingPlan({id: testUserMessageId, timestamp: 0.0})
     let (executing, effects) = Reducer.next(state, action)
 
     t->expect(executing.selectedAgentId)->Expect.toEqual(Some(executor.id))
@@ -556,7 +571,7 @@ describe("Client State Reducer - Plan Handoff", () => {
       lost,
     ]->Array.forEach(
       state => {
-        let (nextState, effects) = Reducer.next(state, ExecutePendingPlan({id: testUserMessageId}))
+        let (nextState, effects) = Reducer.next(state, ExecutePendingPlan({id: testUserMessageId, timestamp: 0.0}))
         t->expect(nextState)->Expect.toEqual(state)
         t->expect(effects)->Expect.toEqual([])
         t
@@ -578,7 +593,7 @@ describe("Client State Reducer - Plan Handoff", () => {
     }
     let (nextState, effects) = Reducer.next(
       state,
-      Reducer.ExecutePendingPlan({id: testUserMessageId}),
+      Reducer.ExecutePendingPlan({id: testUserMessageId, timestamp: 0.0}),
     )
 
     t->expect(nextState)->Expect.toEqual(state)
@@ -593,13 +608,14 @@ describe("Client State Reducer - Plan Handoff", () => {
       {
         id: testUserMessageId,
         content: [UserContentPart.text("Revise step one")],
+        timestamp: 0.0,
         annotations: [],
         agentId: planner.id,
         onComplete: _ => (),
       },
     )
 
-    let (_, executeEffects) = Reducer.next(submitting, ExecutePendingPlan({id: testUserMessageId}))
+    let (_, executeEffects) = Reducer.next(submitting, ExecutePendingPlan({id: testUserMessageId, timestamp: 0.0}))
     t->expect(executeEffects)->Expect.toEqual([])
   })
 
@@ -690,6 +706,7 @@ describe("Client State Reducer", () => {
       {
         id: testUserMessageId,
         content: [UserContentPart.text("Hello")],
+        timestamp: 0.0,
         annotations: [],
         agentId: "executor-id",
         onComplete: _ => (),
@@ -718,6 +735,7 @@ describe("Client State Reducer", () => {
       {
         id: testUserMessageId,
         content: [UserContentPart.text("Hi")],
+        timestamp: 0.0,
         annotations: [],
         agentId: "executor-id",
         onComplete: _ => (),
@@ -1172,6 +1190,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
       {
         id: testUserMessageId,
         content: [UserContentPart.text("First message")],
+        timestamp: 0.0,
         annotations: [],
         agentId: "executor-id",
         onComplete: _ => (),
@@ -1186,6 +1205,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
       {
         id: secondTestUserMessageId,
         content: [UserContentPart.text("Second message")],
+        timestamp: 0.0,
         annotations: [],
         agentId: "executor-id",
         onComplete: _ => (),
@@ -1208,6 +1228,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
       {
         id: testUserMessageId,
         content: [UserContentPart.text("First message")],
+        timestamp: 0.0,
         annotations: [],
         agentId: "executor-id",
         onComplete: _ => (),
@@ -1286,7 +1307,7 @@ describe("Client State Reducer - Task Management Actions", () => {
     let previewUrl = "http://localhost:3000/products/42?tab=details"
     let state = TestHelpers.makeStateWithTask(~previewUrl)
 
-    let (nextState, _effects) = Reducer.next(state, ClearCurrentTask)
+    let (nextState, _effects) = Reducer.next(state, ClearCurrentTask({replacementClientId: "replacement"}))
 
     t->expect(Reducer.Selectors.previewUrl(nextState))->Expect.toBe(previewUrl)
     switch nextState.currentTask {
@@ -1329,7 +1350,7 @@ describe("Client State Reducer - Task Management Actions", () => {
         },
     )
 
-    store->StateStore.dispatch(DeleteTask({taskId: "task-1"}))
+    store->StateStore.dispatch(DeleteTask({taskId: "task-1", replacementClientId: "replacement"}))
     let state = store->StateStore.getState
 
     t->expect(TestHelpers.getTaskCount(state))->Expect.toBe(0)
@@ -1358,7 +1379,7 @@ describe("Client State Reducer - Task Management Actions", () => {
 
     let state = TestHelpers.makeStateWithTasks(~tasks, ~currentTask=Task.Selected("task-1"))
 
-    let (stateAfterDelete, _) = Reducer.next(state, DeleteTask({taskId: "task-1"}))
+    let (stateAfterDelete, _) = Reducer.next(state, DeleteTask({taskId: "task-1", replacementClientId: "replacement"}))
     t->expect(TestHelpers.getTaskCount(stateAfterDelete))->Expect.toBe(0)
     switch stateAfterDelete.currentTask {
     | Task.New(_) => ()
@@ -1371,6 +1392,7 @@ describe("Client State Reducer - Task Management Actions", () => {
       {
         id: secondTestUserMessageId,
         content: [UserContentPart.text("Hello after delete")],
+        timestamp: 0.0,
         annotations: [],
         agentId: "executor-id",
         onComplete: _ => (),
@@ -1409,6 +1431,7 @@ describe("Client State Reducer - Task Management Actions", () => {
       {
         id: testUserMessageId,
         content: [UserContentPart.Text({text: "Message in task 1"})],
+        timestamp: 0.0,
         annotations: [],
         agentId: "executor-id",
         onComplete: _ => (),
@@ -1421,6 +1444,7 @@ describe("Client State Reducer - Task Management Actions", () => {
       {
         id: secondTestUserMessageId,
         content: [UserContentPart.Text({text: "Second message"})],
+        timestamp: 0.0,
         annotations: [],
         agentId: "executor-id",
         onComplete: _ => (),
@@ -1759,7 +1783,7 @@ describe("Client State Reducer - UpdateTaskTitle safety", () => {
   test("UpdateTaskTitle on deleted task does not throw", t => {
     let state = TestHelpers.makeStateWithTask(~taskId="task-1", ~messages=[])
 
-    let (stateAfterDelete, _) = Reducer.next(state, DeleteTask({taskId: "task-1"}))
+    let (stateAfterDelete, _) = Reducer.next(state, DeleteTask({taskId: "task-1", replacementClientId: "replacement"}))
     t->expect(TestHelpers.getTaskCount(stateAfterDelete))->Expect.toBe(0)
 
     let (nextState, _) = Reducer.next(
@@ -1825,6 +1849,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       {
         id: testUserMessageId,
         content: [UserContentPart.text("Fix this")],
+        timestamp: 0.0,
         annotations: _sampleAnnotations,
         agentId: "executor-id",
         onComplete: _ => (),
@@ -1864,6 +1889,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       {
         id: testUserMessageId,
         content: [],
+        timestamp: 0.0,
         annotations: _sampleAnnotations,
         agentId: "executor-id",
         onComplete: _ => (),
@@ -1898,6 +1924,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       {
         id: testUserMessageId,
         content: [UserContentPart.text("Hello")],
+        timestamp: 0.0,
         annotations: [],
         agentId: "executor-id",
         onComplete: _ => (),
@@ -1923,10 +1950,10 @@ describe("Client State Reducer - Annotations on Messages", () => {
     setRuntime(JSON.parseOrThrow(`{"framework":"nextjs"}`))
     let annotation = {
       ...Client__Annotation__Types.make(
+        ~id="ann-1",
         ~element=WebAPI.DomGlobal.document->WebAPI.Document.createElement("button"),
         ~tagName="button",
       ),
-      id: "ann-1",
       enrichmentStatus: Enriched,
     }
     let state = {
@@ -1942,6 +1969,8 @@ describe("Client State Reducer - Annotations on Messages", () => {
         let (nextState, effects) = Reducer.next(
           state,
           AddUserMessage({
+            id: testUserMessageId,
+            timestamp: 0.0,
             content: [UserContentPart.text("Fix this")],
             annotationId,
             onComplete: _ => (),
@@ -1973,6 +2002,8 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let (nextState, effects) = Reducer.next(
       state,
       Reducer.AddUserMessage({
+        id: testUserMessageId,
+        timestamp: 0.0,
         content: [UserContentPart.text("Fix this")],
         annotationId: None,
         onComplete: value => result := Some(value),
@@ -2031,7 +2062,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       )
       let submit = content =>
         store->StateStore.dispatch(
-          AddUserMessage({content, annotationId: None, onComplete: value => result := Some(value)}),
+          AddUserMessage({id: UserMessageId.make(), timestamp: 0.0, content, annotationId: None, onComplete: value => result := Some(value)}),
         )
       let text = [UserContentPart.text("draft")]
       submit(text)
@@ -2042,7 +2073,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
         taskId => {
           let (deleted, deletionEffects) = Reducer.next(
             creating,
-            Reducer.DeleteTask({taskId: taskId}),
+            Reducer.DeleteTask({taskId: taskId, replacementClientId: "replacement"}),
           )
           t
           ->expect(Reducer.Selectors.isSubmitting(deleted))
@@ -2071,10 +2102,10 @@ describe("Client State Reducer - Annotations on Messages", () => {
       t->expect(store->StateStore.getState->Reducer.Selectors.isNewTask)->Expect.toBe(true)
       configOptions := None
       store->StateStore.dispatch(SetSelectedModelValue({value: "test:model"}))
-      store->StateStore.dispatch(ClearCurrentTask)
+      store->StateStore.dispatch(ClearCurrentTask({replacementClientId: "replacement-1"}))
       submit(text)
       let staleCompletion = completion.contents->Option.getOrThrow
-      store->StateStore.dispatch(ClearCurrentTask)
+      store->StateStore.dispatch(ClearCurrentTask({replacementClientId: "replacement-2"}))
       t->expect(result.contents->Option.getOrThrow->Result.isError)->Expect.toBe(true)
       submit([
         UserContentPart.Image({
@@ -2101,7 +2132,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       ->expect(store->StateStore.getState->Reducer.Selectors.queuedUserMessages->Array.length)
       ->Expect.toBe(2)
       t->expect(created.contents)->Expect.toBe(3)
-      store->StateStore.dispatch(ClearCurrentTask)
+      store->StateStore.dispatch(ClearCurrentTask({replacementClientId: "replacement-3"}))
       submit(text)
       configOptions := Some(TestHelpers.modelConfigOptions(~models=["replacement:model"]))
       let unsubscribe = subscribe(
@@ -2110,7 +2141,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
           let state = store->StateStore.getState
           switch Reducer.Selectors.getSession(state) {
           | Some(_) if state.selectedModelValue == Some("replacement:model") =>
-            store->StateStore.dispatch(ClearCurrentTask)
+            store->StateStore.dispatch(ClearCurrentTask({replacementClientId: "replacement-4"}))
           | _ => ()
           }
         },
@@ -2187,6 +2218,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       {
         id: messageId,
         content: [UserContentPart.text("Fix this")],
+        timestamp: 0.0,
         annotations: [],
         agentId: "planner-id",
         onComplete: _ => (),
