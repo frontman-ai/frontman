@@ -174,9 +174,16 @@ MariaDB failed to create its undo tablespace with error 28.
 The container filesystem reported 100% usage and 3 MB available.
 Only the containers, network, and image from that attempt were deleted.
 The SDK-required baseline reached both hosted phases but lacked Playwright headless shell revision 1248.
-The full SDK browser acceptance remains incomplete.
+That local baseline did not complete browser acceptance.
 
 The parent ran PHP lint on three changed files, `bash -n`, `make check-source-comments`, and `git diff --check`.
 Those checks passed, including 30 source-comment scanner tests and the repository scan.
 The early version guards also rejected incompatible WordPress, PHP, and unknown override values.
 No deployment or OpenAI rescan occurred for this change.
+
+The changed-code [compatibility run](https://github.com/frontman-ai/frontman/actions/runs/42855697332) passed all eight jobs at `694860a5`.
+Seven rows passed the real WooCommerce catalog, CRUD, publication, refund, and maintenance cases.
+Six rows used WooCommerce 10.4.3, and one used WooCommerce 11.2.2.
+Both SDK-required rows passed their hosted phases and embedded browser acceptance.
+The oldest WordPress row passed without WooCommerce.
+These results do not establish production OAuth, external payment execution, or OpenAI acceptance.

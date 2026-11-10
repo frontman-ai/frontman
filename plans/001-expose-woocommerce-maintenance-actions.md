@@ -2,7 +2,8 @@
 
 ## Status
 
-Implementation is present in PR #2175. Runtime acceptance remains incomplete.
+Implementation is present in PR #2175. Compatibility CI passed at `694860a5`.
+External OpenAI acceptance remains incomplete.
 Priority: P1. Risk: medium. Estimated effort: one to several days.
 The original planning baseline was `c59888e1` on November 10, 2026.
 The implementation branch starts at `3bb83e1a`.
@@ -120,7 +121,12 @@ The local core-tool target failed an unchanged public-root assertion on this Mac
 
 Seven CI configurations reached the new WooCommerce cases and failed the raw-description persistence assertion.
 The revised test observes exact forwarding and compares persistence against a direct native REST call.
-The new CI result must establish that comparison and all later cases.
+The revised test and all later cases passed in seven WooCommerce-enabled configurations.
+The complete [compatibility run](https://github.com/frontman-ai/frontman/actions/runs/42855697332) passed all eight jobs at `694860a5`.
+Six rows used WooCommerce 10.4.3, and one used WooCommerce 11.2.2.
+The oldest WordPress row passed without WooCommerce.
+Both SDK-required rows passed their hosted phases and embedded browser acceptance.
+This CI evidence does not change the failed local Docker and public-root results.
 No production maintenance action or OpenAI rescan occurred.
 
 ## Release gate

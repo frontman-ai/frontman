@@ -4,7 +4,7 @@ This index records plans, not authorization to implement or deploy.
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 | --- | --- | --- | --- | --- | --- |
-| [001](001-expose-woocommerce-maintenance-actions.md) | Expose WooCommerce maintenance actions individually | P1 | M–L | None | BLOCKED — implementation and test migration are present; changed-code runtime acceptance awaits Docker capacity |
+| [001](001-expose-woocommerce-maintenance-actions.md) | Expose WooCommerce maintenance actions individually | P1 | M–L | None | CI VERIFIED — eight compatibility jobs passed at `694860a5`; external OpenAI acceptance remains pending |
 
 ## Decisions
 
