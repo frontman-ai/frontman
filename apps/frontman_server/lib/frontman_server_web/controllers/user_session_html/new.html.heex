@@ -107,6 +107,24 @@
             </.form>
           </div>
 
+          <div :if={!@current_scope || !@embedded_request}>
+            <div class="divider text-xs text-base-content/40">Email sign-in</div>
+            <.form for={@form} action={~p"/users/log-in"} id="email-link-form" class="space-y-3">
+              <.embedded_request request={@embedded_request} />
+              <.input
+                field={@form[:email]}
+                type="email"
+                label="Email"
+                autocomplete="email"
+                required
+                class="input input-lg w-full"
+              />
+              <button type="submit" class="btn btn-neutral btn-lg btn-block">
+                Send sign-in link
+              </button>
+            </.form>
+          </div>
+
           <%= if Application.get_env(:frontman_server, :dev_routes) do %>
             <div class="divider text-xs text-base-content/40">Password login</div>
 

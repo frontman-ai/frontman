@@ -337,6 +337,17 @@ defmodule FrontmanServerWeb.UserAuth do
   def redirect_if_user_is_authenticated(%{params: %{"embedded_origin" => _}} = conn, _opts),
     do: conn
 
+  def redirect_if_user_is_authenticated(
+        %{request_path: "/users/log-in" <> _, assigns: %{current_scope: %{user: user}}} = conn,
+        _opts
+      ) do
+    if Accounts.sudo_mode?(user, -10) do
+      conn |> redirect_to_return_path(conn.params["return_to"]) |> halt()
+    else
+      conn
+    end
+  end
+
   def redirect_if_user_is_authenticated(conn, _opts) do
     if conn.assigns.current_scope do
       conn

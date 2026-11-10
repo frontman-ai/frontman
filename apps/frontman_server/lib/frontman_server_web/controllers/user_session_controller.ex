@@ -7,6 +7,8 @@
 defmodule FrontmanServerWeb.UserSessionController do
   use FrontmanServerWeb, :controller
 
+  require Logger
+
   alias FrontmanServer.Accounts
   alias FrontmanServer.Frameworks
   alias FrontmanServerWeb.EmbeddedClientAuth
@@ -71,20 +73,32 @@ defmodule FrontmanServerWeb.UserSessionController do
 
   def create(conn, %{"user" => %{"email" => email}}) do
     if user = Accounts.get_user_by_email(email) do
-      Accounts.deliver_login_instructions(
-        user,
-        &url(
-          ~p"/users/log-in/#{&1}?#{Map.take(conn.params, ["embedded_origin", "embedded_state"])}"
-        )
-      )
+      case Accounts.deliver_login_instructions(
+             user,
+             &url(
+               ~p"/users/log-in/#{&1}?#{Map.take(conn.params, ["embedded_origin", "embedded_state"])}"
+             )
+           ) do
+        {:ok, _email} -> :ok
+        {:error, _reason} -> Logger.error("Login email delivery failed")
+      end
     end
 
     info =
-      "If your email is in our system, you will receive instructions for logging in shortly."
+      "If your email is in our system, check your inbox for sign-in instructions. If no email arrives, try again later."
+
+    redirect_path =
+      case conn.assigns.embedded_request do
+        %{"origin" => origin, "state" => state} ->
+          ~p"/users/log-in?#{%{embedded_origin: origin, embedded_state: state}}"
+
+        nil ->
+          ~p"/users/log-in"
+      end
 
     conn
     |> put_flash(:info, info)
-    |> redirect(to: ~p"/users/log-in")
+    |> redirect(to: redirect_path)
   end
 
   def confirm(conn, %{"token" => token}) do
