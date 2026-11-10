@@ -50,14 +50,11 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
           error = List.last(stored.errors)["error"]
           assert error =~ %{500 => "500", timeout: "timeout", exception: "RuntimeError"}[failure]
 
-          if attempt < 5 do
-            assert result.failure == 1
-            assert stored.state == "retryable"
-            assert [] == Sentry.Test.pop_sentry_reports()
-          else
-            assert result.discard == 1
-            assert stored.state == "discarded"
-          end
+          expected = if attempt < 5, do: {:failure, "retryable"}, else: {:discard, "discarded"}
+          {outcome, state} = expected
+          assert Map.fetch!(result, outcome) == 1
+          assert stored.state == state
+          if attempt < 5, do: assert([] == Sentry.Test.pop_sentry_reports())
         end
 
         assert [event] = Sentry.Test.pop_sentry_reports()
@@ -99,17 +96,17 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
       end)
 
       Req.Test.expect(:resend, fn conn ->
-        assert conn.method == "POST"
+        assert conn.method == "PATCH"
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         payload = Jason.decode!(body)
-        assert payload["email"] == user.email
         assert Map.has_key?(payload, "first_name")
-        assert payload["segments"] == [%{"id" => "5786d8bb-df16-413c-a06d-64d1a579cc2f"}]
         assert payload["properties"] == %{"frontman_activation_state" => "activated"}
         refute Map.has_key?(payload, "unsubscribed")
         refute Map.has_key?(payload, "topics")
         Req.Test.json(conn, %{"id" => "abc-123"})
       end)
+
+      Req.Test.expect(:resend, &Req.Test.json(&1, %{"id" => "abc-123"}))
 
       policy = [enabled: true, cutoff: now]
       assert :ok = ResendContacts.sync_contact(scope, :activation, policy)
@@ -126,6 +123,10 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
         Plug.Conn.send_resp(conn, 404, "")
       end)
 
+      Req.Test.expect(:resend, &Req.Test.transport_error(&1, :timeout))
+      assert {:error, _} = perform_job(SyncResendContact, %{user_id: user.id, activation: true})
+      Req.Test.expect(:resend, &Plug.Conn.send_resp(&1, 404, ""))
+
       Req.Test.expect(:resend, fn conn ->
         assert conn.method == "POST"
         {:ok, body, conn} = Plug.Conn.read_body(conn)
@@ -141,16 +142,25 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
 
     test "syncs contact details without subscription preferences, including repeated calls" do
       user = Accounts.user_fixture(%{name: "Steve Wozniak"})
+      path = "/contacts/#{URI.encode_www_form(user.email)}"
 
-      Req.Test.expect(:resend, 2, fn conn ->
+      Req.Test.expect(:resend, 4, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         payload = Jason.decode!(body)
 
-        assert payload["email"] == user.email
         assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer re_test_key"]
-        assert payload["first_name"] == "Steve"
-        refute Map.has_key?(payload, "unsubscribed")
-        assert payload["segments"] == [%{"id" => "5786d8bb-df16-413c-a06d-64d1a579cc2f"}]
+
+        case conn.method do
+          "PATCH" ->
+            assert conn.request_path == path
+            assert payload == %{"first_name" => "Steve", "properties" => %{}}
+
+          "POST" ->
+            assert conn.request_path ==
+                     path <> "/segments/5786d8bb-df16-413c-a06d-64d1a579cc2f"
+
+            assert payload == %{}
+        end
 
         Req.Test.json(conn, %{"object" => "contact", "id" => "abc-123"})
       end)

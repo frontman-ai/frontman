@@ -16,6 +16,7 @@ defmodule FrontmanServer.Accounts do
   alias FrontmanServer.Repo
 
   alias FrontmanServer.Accounts.{Scope, User, UserNotifier, UserToken, WorkOS}
+  alias FrontmanServer.Workers.SyncResendContact
 
   defdelegate complete_oauth2(scope, external_auth_id), to: WorkOS
 
@@ -33,7 +34,7 @@ defmodule FrontmanServer.Accounts do
     |> Map.fetch!(:id)
   end
 
-  @doc "Records the first accepted prompt; returns true only when the stored milestone changes."
+  @doc "Records first product use in the legacy first_message_at column; returns whether it changed."
   def record_first_message(%Scope{} = scope) do
     {count, nil} =
       scope
@@ -42,6 +43,19 @@ defmodule FrontmanServer.Accounts do
       |> Repo.update_all(set: [first_message_at: DateTime.utc_now(:second)])
 
     count == 1
+  end
+
+  @doc "Records first product use and atomically enqueues the activation campaign exit."
+  def record_activation(%Scope{} = scope) do
+    Repo.transact(fn ->
+      if record_first_message(scope) do
+        %{user_id: scope_user_id(scope), activation: true}
+        |> SyncResendContact.new()
+        |> Oban.insert!()
+      end
+
+      {:ok, :ok}
+    end)
   end
 
   @doc """

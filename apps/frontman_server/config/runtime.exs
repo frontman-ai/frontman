@@ -98,6 +98,11 @@ if config_env() == :prod do
 
   config :frontman_server, FrontmanServer.Workers.SyncResendContact, enabled: true
 
+  config :frontman_server, FrontmanServer.Workers.EnterActivationCampaign,
+    enabled: true,
+    cutoff: ~U[2026-11-10 15:00:00Z],
+    max_entry_lag_seconds: 3600
+
   config :frontman_server, FrontmanServer.Workers.NotifyDiscordNewUser,
     enabled: true,
     webhook_url: discord_new_users_webhook_url

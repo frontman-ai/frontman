@@ -35,7 +35,7 @@ defmodule FrontmanServer.ResendContacts do
 
   defp enter(user, cutoff, lag, clock) do
     with true <- eligible?(user, cutoff, lag, clock.()),
-         :ok <- update_properties(user, %{frontman_activation_state: "inactive"}),
+         :ok <- reconcile_contact(user, %{frontman_activation_state: "inactive"}, false),
          true <- eligible?(Accounts.get_user(user.id), cutoff, lag, clock.()) do
       send_activation_entry(user)
     else
@@ -48,12 +48,12 @@ defmodule FrontmanServer.ResendContacts do
   defp sync(%User{first_message_at: nil}, :activation, _projection), do: :discard
 
   defp sync(%User{first_message_at: %DateTime{}} = user, :activation, true),
-    do: update_properties(user, %{frontman_activation_state: "activated"})
+    do: reconcile_contact(user, %{frontman_activation_state: "activated"}, false)
 
   defp sync(%User{first_message_at: %DateTime{}} = user, :signup, true),
-    do: create_contact(user, %{properties: %{frontman_activation_state: "activated"}})
+    do: reconcile_contact(user, %{frontman_activation_state: "activated"}, true)
 
-  defp sync(%User{} = user, :signup, _projection), do: create_contact(user)
+  defp sync(%User{} = user, :signup, _projection), do: reconcile_contact(user, %{}, true)
 
   defp with_contact_sync(user_id, callback) when is_binary(user_id) do
     Repo.transact(
@@ -81,33 +81,27 @@ defmodule FrontmanServer.ResendContacts do
 
   defp eligible?(_user, _cutoff, _lag, _now), do: false
 
-  defp create_contact(%User{} = user, properties \\ %{}) do
-    mailer = mailer()
+  defp reconcile_contact(%User{} = user, properties, signup) do
+    url = mailer()[:contacts_url] <> "/" <> URI.encode_www_form(user.email)
+    details = %{first_name: first_name(user.name), properties: properties}
+    patch = if signup, do: details, else: %{properties: properties}
 
-    request(
-      :post,
-      mailer[:contacts_url],
-      %{
-        email: user.email,
-        first_name: first_name(user.name),
-        segments: [%{id: mailer[:segment_id]}]
-      }
-      |> Map.merge(properties)
-    )
-    |> contact_result()
-  end
-
-  defp update_properties(%User{} = user, properties) do
-    case request(:patch, mailer()[:contacts_url] <> "/" <> URI.encode_www_form(user.email), %{
-           properties: properties
-         }) do
+    case request(:patch, url, patch) do
       {:ok, %Req.Response{status: 404}} ->
-        create_contact(user, %{properties: properties})
+        details
+        |> Map.merge(%{email: user.email, segments: [%{id: mailer()[:segment_id]}]})
+        |> then(&request(:post, mailer()[:contacts_url], &1))
+        |> contact_result()
 
       response ->
-        contact_result(response)
+        sync_segment(contact_result(response), url, signup)
     end
   end
+
+  defp sync_segment(:ok, url, true),
+    do: request(:post, url <> "/segments/" <> mailer()[:segment_id], %{}) |> contact_result()
+
+  defp sync_segment(result, _url, _signup), do: result
 
   defp send_activation_entry(%User{} = user) do
     case request(:post, "https://api.resend.com/events/send", %{
