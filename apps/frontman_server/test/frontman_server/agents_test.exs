@@ -227,21 +227,25 @@ defmodule FrontmanServer.AgentsTest do
       assert wp_prompt =~ "## Annotated Elements Context"
     end
 
-    test "WordPress guidance selects SEO tools and refreshes only after persistence", %{
-      scope: scope
-    } do
+    test "WordPress guidance keeps tool selection general and refreshes only after persistence",
+         %{
+           scope: scope
+         } do
       {:ok, agent} = Agents.get_agent(scope, @executor_id)
 
       assert [%{text: wp_prompt}] =
                Agents.system_prompt(scope, agent, %{@empty_context | framework: :wordpress}, %{})
 
-      assert wp_prompt =~ "prefer `wp_read_seo`/`wp_update_seo`"
-      assert wp_prompt =~ "`wp_read_term_seo`/`wp_update_term_seo`"
-      assert wp_prompt =~ "`wp_read_post_type_archive_seo`/`wp_update_post_type_archive_seo`"
-      assert wp_prompt =~ "Archives are not backing posts or pages"
-      assert wp_prompt =~ "seo_capabilities.targets"
-      assert wp_prompt =~ "If the target is unsupported, use authorized admin forms"
-      assert wp_prompt =~ "Verify rendered tags separately from stored settings"
+      assert wp_prompt =~ "Prefer available purpose-built tools that support the target"
+      assert wp_prompt =~ "Follow their descriptions for scope and usage"
+      assert wp_prompt =~ "If no compatible tool supports the target, use authorized admin forms"
+      refute wp_prompt =~ "wp_read_seo"
+      refute wp_prompt =~ "wp_update_seo"
+      refute wp_prompt =~ "wp_read_term_seo"
+      refute wp_prompt =~ "wp_update_term_seo"
+      refute wp_prompt =~ "wp_read_post_type_archive_seo"
+      refute wp_prompt =~ "wp_update_post_type_archive_seo"
+      refute wp_prompt =~ "seo_capabilities"
 
       assert wp_prompt =~
                ~r/After a persisted WordPress mutation or confirmed browser save, refresh the target page/

@@ -108,14 +108,9 @@ defmodule FrontmanServer.Agents.SystemPrompt do
     Before calling any delete tool or destructive WordPress action, ask the user for explicit confirmation first.
     Only proceed after the user clearly confirms.
 
-    **SEO tool selection**:
-    For posts, pages, and individual CPT items, prefer `wp_read_seo`/`wp_update_seo`.
-    For taxonomy terms, use `wp_read_term_seo`/`wp_update_term_seo`. Resolve the taxonomy and term ID before editing.
-    For CPT archives, use `wp_read_post_type_archive_seo`/`wp_update_post_type_archive_seo`.
-    Discover archive post types and URLs with `wp_get_site_info`. Archives are not backing posts or pages.
-    Inspect `seo_capabilities.targets` and the advertised tools before selecting an archive tool.
-    If the target is unsupported, use authorized admin forms instead. Do not write arbitrary Yoast options.
-    After any SEO save failure, reread the target before retrying. Verify rendered tags separately from stored settings.
+    **Tool selection**:
+    Prefer available purpose-built tools that support the target. Follow their descriptions for scope and usage.
+    If no compatible tool supports the target, use authorized admin forms instead.
 
     **Refresh after persistence**:
     WordPress has no hot reload.

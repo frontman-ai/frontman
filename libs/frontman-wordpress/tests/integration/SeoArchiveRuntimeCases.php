@@ -3,6 +3,22 @@
 declare(strict_types=1);
 
 global $wpdb;
+$catalog = json_decode( frontman_runtime_http( 'GET', '/index.php/frontman/tools', $cookie )['body'], true, 512, JSON_THROW_ON_ERROR );
+$descriptions = array_column( $catalog['tools'], 'description', 'name' );
+foreach ( [
+	'wp_get_site_info' => [ 'seo_capabilities.targets', 'advertised tools', 'authorized admin forms', 'do not write arbitrary Yoast options' ],
+	'wp_read_seo' => [ 'individual CPT item, not taxonomy terms or CPT archives', 'wp_read_term_seo', 'wp_read_post_type_archive_seo', 'verify rendered tags separately' ],
+	'wp_update_seo' => [ 'individual CPT item, not taxonomy terms or CPT archives', 'wp_update_term_seo', 'wp_update_post_type_archive_seo', 'Reread with wp_read_seo after any failure', 'verify rendered tags separately' ],
+	'wp_read_term_seo' => [ 'public editable taxonomy term, not a post or CPT archive', 'exactly one of term_id or slug', 'Verify rendered tags separately' ],
+	'wp_update_term_seo' => [ 'public editable taxonomy term, not a post or CPT archive', 'Resolve taxonomy and term_id with wp_read_term_seo', 'restore inheritance', 'Reread after any failure', 'Verify rendered tags separately' ],
+	'wp_read_post_type_archive_seo' => [ 'not individual CPT items or taxonomy terms', 'Discover post types and archive URLs with wp_get_site_info', 'not backing posts or pages', 'Verify rendered tags separately' ],
+	'wp_update_post_type_archive_seo' => [ 'not individual CPT items or taxonomy terms', 'Discover post types and archive URLs with wp_get_site_info', 'nonempty title templates', 'Reread after any failure', 'Verify rendered tags separately' ],
+] as $name => $guidance ) {
+	frontman_runtime_assert( isset( $descriptions[$name] ), "$name is advertised in the tool catalog." );
+	foreach ( $guidance as $instruction ) {
+		frontman_runtime_assert( false !== strpos( $descriptions[$name], $instruction ), "$name description must explain: $instruction" );
+	}
+}
 $originals = [ 'wpseo_titles' => get_option( 'wpseo_titles' ), 'wpseo_taxonomy_meta' => get_option( 'wpseo_taxonomy_meta' ) ];
 $terms = [];
 $created_posts = [];
