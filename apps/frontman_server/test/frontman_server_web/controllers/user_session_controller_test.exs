@@ -255,7 +255,7 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       refute Accounts.get_user_by_email("unknown@example.com")
     end
 
-    test "email link preserves embedded authorization through confirmation", %{
+    test "email sign-in completes embedded authorization only from the original window", %{
       conn: conn,
       user: user
     } do
@@ -266,19 +266,38 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
         |> get(~p"/users/log-in?#{params}")
         |> post(~p"/users/log-in", Map.put(params, "user", %{"email" => user.email}))
 
+      popup = get(conn, redirected_to(conn))
+      document = popup |> html_response(200) |> LazyHTML.from_document()
+
+      [continue_path] =
+        LazyHTML.attribute(LazyHTML.query(document, "#embedded-email-continue"), "href")
+
+      assert popup.resp_body =~ "return to this window"
+
       assert_receive {:email, %{subject: "Log in instructions"} = email}
       [url] = Regex.run(~r{https?://\S+/users/log-in/\S+}, email.text_body)
       uri = URI.parse(url)
       token = uri.path |> String.split("/") |> List.last()
-      query = URI.decode_query(uri.query)
-      assert query == params
+      refute uri.query
 
-      conn = get(conn, uri.path <> "?" <> uri.query)
-      assert html_response(conn, 200) =~ ~s(name="embedded_state" value="state-123")
+      email_tab = get(conn, uri.path)
+      refute html_response(email_tab, 200) =~ ~s(name="embedded_state")
+      email_tab = post(email_tab, ~p"/users/log-in", %{"user" => %{"token" => token}})
+      assert get_session(email_tab, :user_token)
+      refute FrontmanServer.Repo.get_by(Accounts.UserToken, context: "embedded_client")
 
-      conn = post(conn, ~p"/users/log-in", Map.put(query, "user", %{"token" => token}))
-      assert html_response(conn, 200) =~ ~s(data-origin="https://customer.example")
-      assert get_session(conn, :user_token)
+      popup = get(email_tab, continue_path)
+      assert html_response(popup, 200) =~ "embedded-connect-form"
+
+      popup =
+        post(
+          popup,
+          ~p"/users/log-in",
+          Map.merge(params, %{"_action" => "connect", "user_id" => user.id})
+        )
+
+      assert html_response(popup, 200) =~ ~s(data-origin="https://customer.example")
+      assert popup.resp_body =~ ~s(data-state="state-123")
     end
 
     test "retrying an unknown email preserves the embedded request", %{conn: conn, user: user} do
@@ -308,13 +327,12 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       [url] = Regex.run(~r{https?://\S+/users/log-in/\S+}, email.text_body)
       uri = URI.parse(url)
       token = uri.path |> String.split("/") |> List.last()
-      query = URI.decode_query(uri.query)
-      assert query == params
-      conn = get(conn, uri.path <> "?" <> uri.query)
-      assert html_response(conn, 200) =~ ~s(name="embedded_state" value="state-123")
-      conn = post(conn, ~p"/users/log-in", Map.put(query, "user", %{"token" => token}))
-      assert html_response(conn, 200) =~ ~s(data-origin="https://customer.example")
+      refute uri.query
+      conn = get(conn, uri.path)
+      refute html_response(conn, 200) =~ ~s(name="embedded_state")
+      conn = post(conn, ~p"/users/log-in", %{"user" => %{"token" => token}})
       assert get_session(conn, :user_token)
+      refute FrontmanServer.Repo.get_by(Accounts.UserToken, context: "embedded_client")
     end
 
     test "unconfirmed account email link preserves the MCP return path", %{

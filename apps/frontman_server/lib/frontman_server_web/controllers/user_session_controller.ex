@@ -75,9 +75,7 @@ defmodule FrontmanServerWeb.UserSessionController do
     if user = Accounts.get_user_by_email(email) do
       case Accounts.deliver_login_instructions(
              user,
-             &url(
-               ~p"/users/log-in/#{&1}?#{Map.take(conn.params, ["embedded_origin", "embedded_state"])}"
-             )
+             &url(~p"/users/log-in/#{&1}")
            ) do
         {:ok, _email} -> :ok
         {:error, _reason} -> Logger.error("Login email delivery failed")
