@@ -337,6 +337,14 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     params = %{"name" => "wp_read_post", "arguments" => %{"site_id" => selected.id, "id" => 1}}
 
     assert %{"result" => %{"tools" => tools}} = sdk_request(user, "tools/list")
+
+    assert_received {:wordpress_event, :catalog, %{duration_ms: _}, %{outcome: :ok}}
+
+    assert_received {:wordpress_event, :discovery,
+                     %{duration_ms: elapsed, validated: 2, total: 2}, %{outcome: :ok}}
+
+    assert is_integer(elapsed) and elapsed >= 0
+
     expected = MapSet.new(tools, & &1["name"])
 
     assert %{"result" => %{"content" => [%{"text" => before}], "isError" => false}} =
@@ -344,18 +352,16 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
     assert %{"id" => 1} = Jason.decode!(before)
 
-    for catalog_url <- [invalid_url, "https://offline.invalid/tools"] do
+    for {catalog_url, category} <- [
+          {invalid_url, :schema},
+          {"https://offline.invalid/tools", :transport}
+        ] do
       offline
       |> Repo.reload!()
       |> Connection.changeset(%{catalog_url: catalog_url})
       |> Repo.update!()
 
-      response = sdk_request(user, "tools/list")
-
-      assert %{"error" => %{"code" => -32_000, "message" => "WordPress catalog unavailable"}} =
-               response
-
-      refute Map.has_key?(response, "result")
+      assert_discovery_failure(user, category)
 
       assert %{"result" => %{"content" => [%{"text" => ^before}], "isError" => false}} =
                sdk_request(user, "tools/call", params, ["GET", "POST"])
@@ -523,6 +529,16 @@ defmodule FrontmanServerWeb.MCPSitesTest do
       when is_binary(id),
       do: Process.put(:"$callers", [test])
 
+  def record_request(
+        [:frontman_server, :wordpress, kind, :stop],
+        measurements,
+        metadata,
+        {test, _}
+      ) do
+    if test in [self() | Process.get(:"$callers", [])],
+      do: send(test, {:wordpress_event, kind, measurements, metadata})
+  end
+
   def record_request([:finch, :request, :start], _, %{request: request}, {test, id}) do
     if test in [self() | Process.get(:"$callers", [])],
       do: send(test, {:outbound, id, request.method, request.host})
@@ -549,7 +565,9 @@ defmodule FrontmanServerWeb.MCPSitesTest do
         [
           [:finch, :request, :start],
           [:finch, :request, :stop],
-          [:anubis_mcp, :server, :request]
+          [:anubis_mcp, :server, :request],
+          [:frontman_server, :wordpress, :catalog, :stop],
+          [:frontman_server, :wordpress, :discovery, :stop]
         ],
         &__MODULE__.record_request/4,
         {self(), id}
@@ -618,6 +636,16 @@ defmodule FrontmanServerWeb.MCPSitesTest do
   defp assert_oauth(tool) do
     assert tool["securitySchemes"] == [%{"type" => "oauth2", "scopes" => []}]
     assert tool["_meta"]["securitySchemes"] == tool["securitySchemes"]
+  end
+
+  defp assert_discovery_failure(user, category) do
+    response = sdk_request(user, "tools/list")
+
+    assert %{"error" => %{"code" => -32_000, "message" => "WordPress catalog unavailable"}} =
+             response
+
+    refute Map.has_key?(response, "result")
+    assert_received {:wordpress_event, _, %{duration_ms: _}, %{outcome: ^category}}
   end
 
   defp assert_inactive(user) do

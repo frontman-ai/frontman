@@ -30,6 +30,8 @@ defmodule FrontmanServer.Application do
 
   @impl true
   def start(_type, _args) do
+    ConsoleHandler.setup_wordpress()
+
     if Application.get_env(:frontman_server, :env) == :dev do
       ConsoleHandler.setup()
     end

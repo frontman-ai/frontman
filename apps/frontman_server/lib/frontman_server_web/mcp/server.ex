@@ -202,36 +202,83 @@ defmodule FrontmanServerWeb.MCP.Server do
   defp discovery_connections(_, _), do: []
 
   defp remote_tools(scope, connections) do
-    deadline = System.monotonic_time(:millisecond) + 6_000
+    started = System.monotonic_time(:millisecond)
+    deadline = started + 6_000
 
-    scope
-    |> WordPress.stream_catalogs(Enum.map(connections, & &1.id), deadline)
-    |> Enum.reduce_while({:ok, []}, fn
-      {:ok, {id, {:ok, %{"tools" => tools} = catalog}}}, {:ok, entries} ->
-        with true <- Map.get(catalog, "resultType", "complete") == "complete",
-             true <- Map.get(catalog, "nextCursor") in [nil, ""],
-             true <- Schema.bounded?(catalog),
-             true <- System.monotonic_time(:millisecond) < deadline,
-             :ok <-
-               Schema.validate_tools_list_envelope(
-                 Map.merge(
-                   %{
-                     "resultType" => "complete",
-                     "ttlMs" => 0,
-                     "cacheScope" => "private"
-                   },
-                   catalog
-                 )
-               ) do
-          {:cont, {:ok, Enum.map(tools, &{id, &1}) ++ entries}}
-        else
-          _ -> {:halt, {:error, Error.execution("WordPress catalog unavailable")}}
-        end
+    result =
+      scope
+      |> WordPress.stream_catalogs(Enum.map(connections, & &1.id), deadline)
+      |> Enum.reduce_while({:ok, [], 0}, fn
+        {:ok, {id, {:ok, %{"tools" => tools} = catalog}}}, {:ok, entries, validated} ->
+          with :ok <-
+                 check_catalog(
+                   Map.get(catalog, "resultType", "complete") == "complete",
+                   :incomplete
+                 ),
+               :ok <- check_catalog(Map.get(catalog, "nextCursor") in [nil, ""], :paginated),
+               :ok <- check_catalog(Schema.bounded?(catalog), :bounds),
+               :ok <-
+                 check_catalog(System.monotonic_time(:millisecond) < deadline, :deadline_expired),
+               :ok <-
+                 Schema.validate_tools_list_envelope(
+                   Map.merge(
+                     %{
+                       "resultType" => "complete",
+                       "ttlMs" => 0,
+                       "cacheScope" => "private"
+                     },
+                     catalog
+                   )
+                 ) do
+            {:cont, {:ok, Enum.map(tools, &{id, &1}) ++ entries, validated + 1}}
+          else
+            {:diagnostic, category} -> {:halt, {:error, category, validated}}
+            _ -> {:halt, {:error, :schema, validated}}
+          end
 
-      _, _ ->
-        {:halt, {:error, Error.execution("WordPress catalog unavailable")}}
-    end)
+        {:ok, {_id, {:ok, _}}}, {:ok, _, validated} ->
+          {:halt, {:error, :schema, validated}}
+
+        {:exit, :timeout}, {:ok, _, validated} ->
+          {:halt, {:error, :timeout, validated}}
+
+        {:exit, _}, {:ok, _, validated} ->
+          {:halt, {:error, :task_exit, validated}}
+
+        _, {:ok, _, validated} ->
+          category =
+            if System.monotonic_time(:millisecond) >= deadline,
+              do: :deadline_expired,
+              else: :request_failed
+
+          {:halt, {:error, category, validated}}
+      end)
+
+    case result do
+      {:ok, entries, validated} ->
+        discovery_event(:ok, started, validated, length(connections))
+        {:ok, entries}
+
+      {:error, category, validated} ->
+        discovery_event(category, started, validated, length(connections))
+        {:error, Error.execution("WordPress catalog unavailable")}
+    end
   end
+
+  defp discovery_event(outcome, started, validated, total) do
+    :telemetry.execute(
+      [:frontman_server, :wordpress, :discovery, :stop],
+      %{
+        duration_ms: max(System.monotonic_time(:millisecond) - started, 0),
+        validated: validated,
+        total: total
+      },
+      %{outcome: outcome}
+    )
+  end
+
+  defp check_catalog(true, _category), do: :ok
+  defp check_catalog(false, category), do: {:diagnostic, category}
 
   def catalog_tools(entries, reserved) do
     entries

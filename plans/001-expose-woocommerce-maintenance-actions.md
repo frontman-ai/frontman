@@ -4,7 +4,6 @@
 
 Implementation is present in PR #2175. Compatibility CI passed at `694860a5`.
 External OpenAI acceptance remains incomplete.
-Priority: P1. Risk: medium. Estimated effort: one to several days.
 The original planning baseline was `c59888e1` on November 10, 2026.
 The implementation branch starts at `3bb83e1a`.
 

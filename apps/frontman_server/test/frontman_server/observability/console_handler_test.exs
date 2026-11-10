@@ -21,6 +21,32 @@ defmodule FrontmanServer.Observability.ConsoleHandlerTest do
     :ok
   end
 
+  test "WordPress events use the default handler without leaking metadata" do
+    assert :ok = ConsoleHandler.setup_wordpress()
+
+    Logger.reset_metadata(
+      user_id: "private-user",
+      reason: "private-reason",
+      arbitrary: "private-extra"
+    )
+
+    logs =
+      capture_log([metadata: :all, format: "$metadata$message\n"], fn ->
+        :telemetry.execute(
+          [:frontman_server, :wordpress, :discovery, :stop],
+          %{duration_ms: 12, validated: 1, total: 2, body: "private-body"},
+          %{outcome: :schema, url: "private-url"}
+        )
+      end)
+
+    assert Logger.metadata()[:arbitrary] == "private-extra"
+    assert length(Regex.scan(~r/WordPress discovery diagnostic category=schema/, logs)) == 1
+    assert logs =~ "elapsed_ms=12 validated=1 total=2"
+
+    for secret <- ~w(private-user private-reason private-extra private-body private-url),
+        do: refute(logs =~ secret)
+  end
+
   for kind <- [:run, :llm, :tool], outcome <- [:stop, :exception] do
     test "#{kind} spans isolate overlapping executions on #{outcome}" do
       kind = unquote(kind)
