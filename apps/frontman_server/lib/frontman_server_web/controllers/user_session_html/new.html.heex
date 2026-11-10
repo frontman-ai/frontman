@@ -107,6 +107,44 @@
             </.form>
           </div>
 
+          <div :if={!@current_scope || !@embedded_request}>
+            <div class="mb-4 border-t border-base-content/10 pt-4 text-center text-xs text-base-content/50">
+              Email sign-in
+            </div>
+            <.form for={@form} action={~p"/users/log-in"} id="email-link-form" class="space-y-3">
+              <.embedded_request request={@embedded_request} />
+              <.input
+                field={@form[:email]}
+                type="email"
+                label="Email"
+                autocomplete="email"
+                required
+                class="w-full rounded-lg border border-base-content/20 bg-base-100 px-4 py-3 text-base text-base-content outline-none transition focus:border-base-content/60 focus:ring-2 focus:ring-base-content/20"
+              />
+              <button
+                type="submit"
+                class="w-full rounded-lg bg-base-content px-4 py-3 font-semibold text-base-100 transition hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                Send sign-in link
+              </button>
+            </.form>
+            <div :if={@embedded_request} class="mt-4 space-y-2 text-sm text-base-content/70">
+              <p>
+                Open the email link in this same browser. After signing in, return to this window
+                and continue to connect your site.
+              </p>
+              <a
+                id="embedded-email-continue"
+                href={
+                  ~p"/users/log-in?#{%{embedded_origin: @embedded_request["origin"], embedded_state: @embedded_request["state"]}}"
+                }
+                class="inline-block font-semibold underline underline-offset-4 hover:text-base-content"
+              >
+                I have signed in — continue
+              </a>
+            </div>
+          </div>
+
           <%= if Application.get_env(:frontman_server, :dev_routes) do %>
             <div class="divider text-xs text-base-content/40">Password login</div>
 

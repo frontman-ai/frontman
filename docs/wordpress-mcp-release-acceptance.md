@@ -2,9 +2,11 @@
 
 ## Release status
 
-Release acceptance is incomplete. Local checks do not replace staging OAuth acceptance.
+Release acceptance is incomplete. The user reports that staging was tested.
+The available record does not identify the tested candidate or the results.
+Local checks do not replace evidence for the staging OAuth acceptance.
 
-The PR candidate uses upstream `7445bd82` plus the WordPress annotation and hosted OAuth changes.
+The candidate in the historical local record uses upstream `7445bd82` plus the WordPress annotation and hosted OAuth changes.
 It preserves the upstream post-editing restrictions, onboarding behavior, async tests, and browser fixtures.
 The supported WooCommerce catalog contains 111 tools after upstream deleted three redundant metadata-create aliases.
 No tool was hidden to simplify ChatGPT submission.
@@ -19,7 +21,8 @@ No tool was hidden to simplify ChatGPT submission.
 | Required WordPress/hosted SDK integration | Passed on the latest base: WordPress 7.0.2 / PHP 8.4.27, before and after WooCommerce activation |
 | Real embedded-client browser fixture | Passed on the latest base |
 | Full compatibility matrix | Historical pass at `efa3d336`: seven configurations and 13 hosted discovery/dispatch phases |
-| Real ChatGPT/WorkOS staging connection | Pending |
+| Staging test | User-confirmed; candidate, scope, and results are not documented |
+| Real ChatGPT/WorkOS staging connection | Result and tested deployment unknown |
 | External payment-provider sandbox | Not exercised |
 
 The skipped default server cases require the WordPress runtime and browser environment.
@@ -132,7 +135,27 @@ The adapter uses its encoder after pagination and adds both OAuth declarations.
 Native tool structs remain unchanged for dispatch.
 Existing authorization remains authoritative.
 
+## Staging evidence
+
+The user says that the staging test already happened. This record does not independently verify it.
+The statement does not identify the tested candidate or establish that every acceptance step passed.
+The following non-secret evidence is still needed:
+
+- Candidate commit, package checksum, hosted deployment, and staging MCP URL.
+- Test date and sanitized results for the staging acceptance steps below.
+- Results for each of the five positive and three negative cases in the [review manifest](../plugins/openai-wordpress/plugin.json).
+- Desktop and mobile test results, including the client used for each.
+- A reviewer-accessible HTTPS recording URL and the workflows it covers.
+- OpenAI portal validation result, date, and sanitized error details if validation failed.
+
+Do not put credentials, tokens, or private tool output in this document.
+The recording URL is being requested separately.
+Until the evidence links the test to the release candidate and establishes the required results, release acceptance remains incomplete.
+The [package guide](../plugins/openai-wordpress/README.md) also lists the schema conflict, production OAuth, policy, and submission requirements.
+
 ## Staging acceptance procedure
+
+Use this procedure to assess the existing staging evidence. A missing result does not mean that the test did not happen.
 
 1. Record the candidate commit, package checksum, hosted deployment, and staging MCP URL.
 2. Deploy only after explicit deployment authorization.

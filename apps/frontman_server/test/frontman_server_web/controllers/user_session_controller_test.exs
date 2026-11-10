@@ -15,6 +15,9 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       assert response =~ "Sign in to Frontman"
       assert response =~ "Login with GitHub"
       assert response =~ "Login with Google"
+      assert response =~ ~s(id="email-link-form")
+      assert response =~ "Send sign-in link"
+      refute response =~ ~s(type="password")
     end
 
     test "stores canonical signup framework in session", %{conn: conn} do
@@ -121,6 +124,7 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       response = html_response(conn, 200)
       assert response =~ "embedded-connect-form"
       assert response =~ "https://customer.example"
+      refute response =~ ~s(id="email-link-form")
       refute FrontmanServer.Repo.get_by(Accounts.UserToken, context: "embedded_client")
     end
 
@@ -238,6 +242,135 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
   end
 
   describe "POST /users/log-in - magic link" do
+    test "unknown accounts receive the same response without creating an account", %{
+      conn: conn,
+      user: user
+    } do
+      known = post(conn, ~p"/users/log-in", %{"user" => %{"email" => user.email}})
+      unknown = post(conn, ~p"/users/log-in", %{"user" => %{"email" => "unknown@example.com"}})
+
+      assert Phoenix.Flash.get(known.assigns.flash, :info) ==
+               Phoenix.Flash.get(unknown.assigns.flash, :info)
+
+      refute Accounts.get_user_by_email("unknown@example.com")
+    end
+
+    test "email sign-in completes embedded authorization only from the original window", %{
+      conn: conn,
+      user: user
+    } do
+      params = %{"embedded_origin" => "https://customer.example", "embedded_state" => "state-123"}
+
+      conn =
+        conn
+        |> get(~p"/users/log-in?#{params}")
+        |> post(~p"/users/log-in", Map.put(params, "user", %{"email" => user.email}))
+
+      popup = get(conn, redirected_to(conn))
+      document = popup |> html_response(200) |> LazyHTML.from_document()
+
+      [continue_path] =
+        LazyHTML.attribute(LazyHTML.query(document, "#embedded-email-continue"), "href")
+
+      assert popup.resp_body =~ "return to this window"
+
+      assert_receive {:email, %{subject: "Log in instructions"} = email}
+      [url] = Regex.run(~r{https?://\S+/users/log-in/\S+}, email.text_body)
+      uri = URI.parse(url)
+      token = uri.path |> String.split("/") |> List.last()
+      refute uri.query
+
+      email_tab = get(conn, uri.path)
+      refute html_response(email_tab, 200) =~ ~s(name="embedded_state")
+      email_tab = post(email_tab, ~p"/users/log-in", %{"user" => %{"token" => token}})
+      assert get_session(email_tab, :user_token)
+      refute FrontmanServer.Repo.get_by(Accounts.UserToken, context: "embedded_client")
+
+      popup = get(email_tab, continue_path)
+      assert html_response(popup, 200) =~ "embedded-connect-form"
+
+      popup =
+        post(
+          popup,
+          ~p"/users/log-in",
+          Map.merge(params, %{"_action" => "connect", "user_id" => user.id})
+        )
+
+      assert html_response(popup, 200) =~ ~s(data-origin="https://customer.example")
+      assert popup.resp_body =~ ~s(data-state="state-123")
+    end
+
+    test "retrying an unknown email preserves the embedded request", %{conn: conn, user: user} do
+      params = %{"embedded_origin" => "https://customer.example", "embedded_state" => "state-123"}
+
+      conn =
+        post(
+          conn,
+          ~p"/users/log-in",
+          Map.put(params, "user", %{"email" => "unknown@example.com"})
+        )
+
+      conn = get(conn, redirected_to(conn))
+      document = conn |> html_response(200) |> LazyHTML.from_document()
+      form = LazyHTML.query(document, "#email-link-form")
+      [origin] = LazyHTML.attribute(LazyHTML.query(form, "input[name=embedded_origin]"), "value")
+      [state] = LazyHTML.attribute(LazyHTML.query(form, "input[name=embedded_state]"), "value")
+
+      conn =
+        post(conn, ~p"/users/log-in", %{
+          "embedded_origin" => origin,
+          "embedded_state" => state,
+          "user" => %{"email" => user.email}
+        })
+
+      assert_receive {:email, %{subject: "Log in instructions"} = email}
+      [url] = Regex.run(~r{https?://\S+/users/log-in/\S+}, email.text_body)
+      uri = URI.parse(url)
+      token = uri.path |> String.split("/") |> List.last()
+      refute uri.query
+      conn = get(conn, uri.path)
+      refute html_response(conn, 200) =~ ~s(name="embedded_state")
+      conn = post(conn, ~p"/users/log-in", %{"user" => %{"token" => token}})
+      assert get_session(conn, :user_token)
+      refute FrontmanServer.Repo.get_by(Accounts.UserToken, context: "embedded_client")
+    end
+
+    test "unconfirmed account email link preserves the MCP return path", %{
+      conn: conn,
+      unconfirmed_user: user
+    } do
+      conn =
+        conn
+        |> get("/auth/mcp/workos?external_auth_id=unverified-request")
+
+      pending = get_session(conn, :connect_handoff)
+      assert pending["external_auth_id"] == "unverified-request"
+      assert pending["user_id"] == nil
+      assert redirected_to(conn) == ~p"/users/log-in"
+
+      conn = post(conn, ~p"/users/log-in", %{"user" => %{"email" => user.email}})
+
+      assert_receive {:email,
+                      %{subject: "Confirmation instructions", to: [{_, email_address}]} = email}
+                     when email_address == user.email
+
+      [url] = Regex.run(~r{https?://\S+/users/log-in/\S+}, email.text_body)
+      uri = URI.parse(url)
+      token = uri.path |> String.split("/") |> List.last()
+      conn = get(conn, uri.path)
+      assert html_response(conn, 200) =~ "Confirm and stay logged in"
+
+      conn =
+        post(conn, ~p"/users/log-in", %{"user" => %{"token" => token}, "_action" => "confirmed"})
+
+      assert redirected_to(conn) == "/auth/mcp/workos/pending?ref=#{pending["ref"]}"
+      assert get_session(conn, :connect_handoff)["user_id"] == user.id
+      assert Accounts.get_user!(user.id).confirmed_at
+
+      assert conn |> get(redirected_to(conn)) |> html_response(200) =~
+               "This step does not give access"
+    end
+
     test "sends magic link email when user exists", %{conn: conn, user: user} do
       conn =
         post(conn, ~p"/users/log-in", %{
