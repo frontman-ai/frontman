@@ -7,8 +7,22 @@ RUNTIME="${CONTAINER_RUNTIME:-docker}"
 WORDPRESS_VERSION="${WORDPRESS_VERSION:-7.0.2}"
 PHP_VERSION="${PHP_VERSION:-8.4}"
 YOAST_VERSION="${YOAST_VERSION:-}"
+WOOCOMMERCE_OVERRIDE="${WOOCOMMERCE_OVERRIDE:-}"
 FIXTURE="${WORDPRESS_FIXTURE:-}"
 FIXTURE_PORT="${WORDPRESS_FIXTURE_PORT:-8887}"
+case "$WOOCOMMERCE_OVERRIDE" in
+  "") ;;
+  11.2.2)
+    if [[ ! "$WORDPRESS_VERSION" =~ ^([0-9]+)\.([0-9]+)(\.[0-9]+)?$ ]] || (( 10#${BASH_REMATCH[1]} < 7 )); then
+      printf 'WooCommerce 11.2.2 requires WordPress 7.0+.\n' >&2; exit 1
+    fi
+    if [[ ! "$PHP_VERSION" =~ ^([0-9]+)\.([0-9]+)(\.[0-9]+)?$ ]] ||
+      (( 10#${BASH_REMATCH[1]} < 7 || (10#${BASH_REMATCH[1]} == 7 && 10#${BASH_REMATCH[2]} < 4) )); then
+      printf 'WooCommerce 11.2.2 requires PHP 7.4+.\n' >&2; exit 1
+    fi
+    ;;
+  *) printf 'Unsupported WooCommerce runtime test override: %s\n' "$WOOCOMMERCE_OVERRIDE" >&2; exit 1 ;;
+esac
 case "$FIXTURE" in
   ""|astra) ;;
   *) printf 'Unknown WORDPRESS_FIXTURE: %s\n' "$FIXTURE" >&2; exit 1 ;;
@@ -219,6 +233,10 @@ run_checked_test "OK (WordPress ${WORDPRESS_VERSION}, PHP " "$RUNTIME" exec \
 
 "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/WidgetWithoutWooRuntimeTest.php
 WOOCOMMERCE_VERSION=""
+if [[ "$WOOCOMMERCE_OVERRIDE" == 11.2.2 ]]; then
+  WOOCOMMERCE_VERSION="11.2.2"
+  WOOCOMMERCE_SHA256="a4746183efd951de5837396aad119f7cf508f06cb699ccb590a01cada4c44932"
+else
 case "$WORDPRESS_VERSION" in
 6.[0-6].*) printf 'Skipping WooCommerce: requires WordPress 6.7+.\n' ;;
 6.7.*)
@@ -230,6 +248,7 @@ case "$WORDPRESS_VERSION" in
   WOOCOMMERCE_SHA256="3b1bbe109a0ab653863a6c8b4ccbdf75c519fd5ebf51151c54b8ca37b325f242"
   ;;
 esac
+fi
 if [[ -n "${WOOCOMMERCE_VERSION:-}" ]]; then
 download_zip "https://downloads.wordpress.org/plugin/woocommerce.${WOOCOMMERCE_VERSION}.zip" woocommerce "$WOOCOMMERCE_SHA256" woocommerce
 "$RUNTIME" cp "$BUILD_DIR/woocommerce/woocommerce" "$WORDPRESS:/var/www/html/wp-content/plugins/woocommerce"
@@ -246,7 +265,7 @@ fi
 if [[ "$WOOCOMMERCE_VERSION" == "10.4.3" ]]; then
 "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/WooCommerceCatalogRuntimeTest.php
 else
-printf 'Skipping catalog runtime tests: WooCommerce 10.4.3 requires WordPress 6.8+.\n'
+printf 'Skipping catalog runtime tests: this fixture targets WooCommerce 10.4.3.\n'
 fi
 if [[ "$FIXTURE" == astra ]]; then
   download_zip 'https://downloads.wordpress.org/theme/astra.4.12.3.zip' astra '18b0b13f23b7ea793235b3ef8e9c62a032cff81646fca562aed2db2a83945a12' astra

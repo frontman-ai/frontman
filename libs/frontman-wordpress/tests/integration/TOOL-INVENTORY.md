@@ -72,3 +72,16 @@ The hosted checks cover the baseline and WooCommerce configurations.
 They do not establish hosted parity for every integration in the table.
 
 No generated catalog is used in production. These records are test evidence.
+
+## Source change: 2026-11-10
+
+The 202-name union and 111 WooCommerce names above are historical results.
+They do not describe a fresh runtime inventory of the maintenance change.
+The source now retains 109 existing WooCommerce tools and adds individually reviewed native maintenance actions.
+Their availability depends on the native catalog. No new total is claimed.
+
+An extension can add a `frontman` array to its native action entry.
+The array requires a nonempty plain-text `description` and a `Frontman_Tool_Annotations` value in `annotations`.
+Unknown callbacks without this metadata are not exposed.
+Callbacks that require parameters, hidden request data, a nonce, or an admin workflow need an explicit adapter.
+The COGS toggle, inbox notification deletion, and parameterized attributes regeneration are not supported by the common adapter.

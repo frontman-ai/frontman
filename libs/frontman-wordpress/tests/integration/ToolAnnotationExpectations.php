@@ -50,7 +50,7 @@ function frontman_runtime_woocommerce_annotations(): array {
 		'get_tax_classes', 'get_tax_rates', 'get_tax_rate', 'get_coupons', 'get_coupon',
 		'get_payment_gateways', 'get_payment_gateway', 'get_sales_report', 'get_products_report', 'get_orders_report',
 		'get_categories_report', 'get_customers_report', 'get_stock_report', 'get_coupons_report', 'get_taxes_report',
-		'get_settings', 'get_setting_options', 'get_system_status_tools',
+		'get_settings', 'get_setting_options',
 		'get_data', 'get_continents', 'get_countries', 'get_currencies', 'get_current_currency', 'get_catalog_display',
 	] as $method ) { $expected[ 'wc_' . $method ] = $read; }
 	foreach ( [
@@ -66,7 +66,7 @@ function frontman_runtime_woocommerce_annotations(): array {
 		'create_shipping_zone_method', 'update_shipping_zone_method', 'delete_shipping_zone_method', 'update_shipping_zone_locations',
 		'delete_tax_class', 'create_tax_rate', 'update_tax_rate', 'delete_tax_rate',
 		'create_coupon', 'update_coupon', 'delete_coupon', 'update_payment_gateway', 'update_setting_option',
-		'run_system_status_tool', 'update_catalog_display',
+		'update_catalog_display',
 	] as $method ) { $expected[ 'wc_' . $method ] = $write; }
 	foreach ( [ 'create_product_tag', 'create_product_attribute', 'create_attribute_term' ] as $method ) {
 		$expected[ 'wc_' . $method ] = [ false, false, true, false ];
@@ -79,6 +79,31 @@ function frontman_runtime_woocommerce_annotations(): array {
 			$expected[ 'wc_' . $operation . '_' . $entity . '_meta' ] = $write;
 		}
 	}
-	frontman_runtime_same( 111, count( $expected ), 'Review oracle covers all endpoint, native and generated WooCommerce tools.' );
+	frontman_runtime_same( 109, count( $expected ), 'Review oracle covers all non-maintenance WooCommerce tools.' );
+	$maintenance = [
+		'clear_transients' => [ false, true, false, false ],
+		'clear_expired_transients' => [ false, true, false, false ],
+		'delete_orphaned_variations' => [ false, true, false, false ],
+		'clear_expired_download_permissions' => [ false, true, false, false ],
+		'regenerate_product_lookup_tables' => [ false, true, false, false ],
+		'repair_coupons_lookup_table' => [ false, true, false, false ],
+		'recount_terms' => [ false, true, false, false ],
+		'reset_roles' => [ false, true, false, false ],
+		'clear_sessions' => [ false, true, false, false ],
+		'clear_template_cache' => [ false, true, false, false ],
+		'clear_system_status_theme_info_cache' => [ false, true, false, false ],
+		'install_pages' => [ false, true, true, false ],
+		'delete_taxes' => [ false, true, false, false ],
+		'regenerate_thumbnails' => [ false, true, false, false ],
+		'db_update_routine' => [ false, true, false, false ],
+		'recreate_order_address_fts_index' => [ false, true, false, false ],
+		'verify_db_tables' => [ false, true, false, false ],
+	];
+	$native = ( new WC_REST_System_Status_Tools_Controller() )->get_tools();
+	foreach ( $maintenance as $id => $hints ) {
+		if ( isset( $native[ $id ] ) ) {
+			$expected[ 'wc_maint_' . $id ] = $hints;
+		}
+	}
 	return $expected;
 }
