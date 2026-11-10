@@ -209,35 +209,14 @@ defmodule FrontmanServerWeb.MCP.Server do
       scope
       |> WordPress.stream_catalogs(Enum.map(connections, & &1.id), deadline)
       |> Enum.reduce_while({:ok, [], 0}, fn
-        {:ok, {id, {:ok, %{"tools" => tools} = catalog}}}, {:ok, entries, validated} ->
-          with :ok <-
-                 check_catalog(
-                   Map.get(catalog, "resultType", "complete") == "complete",
-                   :incomplete
-                 ),
-               :ok <- check_catalog(Map.get(catalog, "nextCursor") in [nil, ""], :paginated),
-               :ok <- check_catalog(Schema.bounded?(catalog), :bounds),
-               :ok <-
-                 check_catalog(System.monotonic_time(:millisecond) < deadline, :deadline_expired),
-               :ok <-
-                 Schema.validate_tools_list_envelope(
-                   Map.merge(
-                     %{
-                       "resultType" => "complete",
-                       "ttlMs" => 0,
-                       "cacheScope" => "private"
-                     },
-                     catalog
-                   )
-                 ) do
-            {:cont, {:ok, Enum.map(tools, &{id, &1}) ++ entries, validated + 1}}
-          else
-            {:diagnostic, category} -> {:halt, {:error, category, validated}}
-            _ -> {:halt, {:error, :schema, validated}}
-          end
+        {:ok, {id, {:ok, catalog}}}, {:ok, entries, validated} ->
+          case validated_tools(catalog, deadline) do
+            {:ok, tools} ->
+              {:cont, {:ok, Enum.map(tools, &{id, &1}) ++ entries, validated + 1}}
 
-        {:ok, {_id, {:ok, _}}}, {:ok, _, validated} ->
-          {:halt, {:error, :schema, validated}}
+            {:error, reason} ->
+              {:halt, {:error, reason, validated}}
+          end
 
         {:exit, :timeout}, {:ok, _, validated} ->
           {:halt, {:error, :timeout, validated}}
@@ -265,6 +244,21 @@ defmodule FrontmanServerWeb.MCP.Server do
     end
   end
 
+  defp validated_tools(%{"tools" => tools} = catalog, deadline) do
+    defaults = %{"resultType" => "complete", "ttlMs" => 0, "cacheScope" => "private"}
+
+    cond do
+      Map.get(catalog, "resultType", "complete") != "complete" -> {:error, :incomplete}
+      Map.get(catalog, "nextCursor") not in [nil, ""] -> {:error, :paginated}
+      not Schema.bounded?(catalog) -> {:error, :bounds}
+      System.monotonic_time(:millisecond) >= deadline -> {:error, :deadline_expired}
+      Schema.validate_tools_list_envelope(Map.merge(defaults, catalog)) == :ok -> {:ok, tools}
+      true -> {:error, :schema}
+    end
+  end
+
+  defp validated_tools(_, _deadline), do: {:error, :schema}
+
   defp discovery_event(outcome, started, validated, total) do
     :telemetry.execute(
       [:frontman_server, :wordpress, :discovery, :stop],
@@ -277,26 +271,24 @@ defmodule FrontmanServerWeb.MCP.Server do
     )
   end
 
-  defp check_catalog(true, _category), do: :ok
-  defp check_catalog(false, category), do: {:diagnostic, category}
-
   def catalog_tools(entries, reserved) do
     entries
     |> Enum.group_by(fn {_, tool} -> tool["name"] end)
     |> Enum.flat_map(fn {name, entries} ->
-      entries = Enum.sort_by(entries, &elem(&1, 0))
+      {_, tool} = Enum.min_by(entries, &elem(&1, 0))
 
-      schemas =
-        Enum.map(entries, fn {_, tool} -> Map.take(tool, ["inputSchema", "outputSchema"]) end)
+      compatible =
+        Enum.all?(entries, fn
+          {_, %{"outputSchema" => _}} -> false
+          {_, candidate} -> candidate["inputSchema"] === tool["inputSchema"]
+        end)
 
-      {_, tool} = hd(entries)
-
-      if name not in reserved and length(Enum.uniq(schemas)) == 1 and
-           Enum.all?(schemas, &(not Map.has_key?(&1, "outputSchema"))) and
-           supported_input?(tool["inputSchema"]) do
+      with false <- name in reserved,
+           true <- compatible,
+           true <- supported_input?(tool["inputSchema"]) do
         [remote_tool(tool)]
       else
-        []
+        _ -> []
       end
     end)
   end
