@@ -11,6 +11,7 @@ $storage = static function () use ( $wpdb ): array {
 	foreach ( [ 'wpseo_titles', 'wpseo_taxonomy_meta' ] as $name ) {
 		$values[$name] = maybe_unserialize( $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $name ) ) );
 		frontman_runtime_assert( is_array( $values[$name] ), "Read persisted $name." );
+		ksort( $values[$name] );
 	}
 	return $values;
 };
@@ -49,12 +50,10 @@ try {
 	};
 	$unchanged = $protected();
 	$targets = [ 'term' => $term, 'post_type_archive' => [ 'post_type' => 'frontman_seo_item' ] ];
-	$identities = [];
 
 	foreach ( $targets as $kind => $target ) {
 		$read = $call( "wp_read_{$kind}_seo", $target );
 		$initial = array_intersect_key( $read, array_flip( [ 'title', 'description' ] ) );
-		$identities[$kind] = array_diff_key( $read, $initial );
 		$default_tags = $tags( $read['url'] );
 		frontman_runtime_same( 200, $default_tags['status'], "$kind archive is public." );
 		$patch = [ 'title' => 'SEO %%sitename%%', 'description' => 'Café “quoted” \\ path' ];
@@ -89,7 +88,7 @@ try {
 		$warm = $tags( $read['url'] );
 		$message = $call( "wp_update_{$kind}_seo", $target + $patch, true, $fault );
 		$state = json_decode( substr( $message, strpos( $message, '{' ) ), true, 512, JSON_THROW_ON_ERROR );
-		frontman_runtime_same( $identities[$kind] + [ 'status' => $status, 'before' => $before, 'expectedAfter' => $patch, 'actualAfter' => $actual ], $state, "$fault reports exact save state." );
+		frontman_runtime_same( $target + [ 'url' => $read['url'], 'provider' => 'yoast', 'status' => $status, 'before' => $before, 'expectedAfter' => $patch, 'actualAfter' => $actual ], $state, "$fault reports exact save state." );
 		$readback = $call( "wp_read_{$kind}_seo", $target );
 		frontman_runtime_same( $actual, array_intersect_key( $readback, $patch ), "$fault agrees with a fresh request." );
 		if ( 'silent-archive-refresh' === $fault ) {
