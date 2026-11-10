@@ -2,6 +2,9 @@
 
 ## Evidence
 
+These counts describe Frontman 5.7.0, before individual maintenance tools.
+Use fresh `FRONTMAN_INVENTORY` records for current counts.
+
 The runtime inventory matches all **202 production WordPress tool names** found
 in the source registrations. The union covers multiple configurations, not one
 installation with every integration active.
@@ -73,15 +76,8 @@ They do not establish hosted parity for every integration in the table.
 
 No generated catalog is used in production. These records are test evidence.
 
-## Source change: 2026-11-10
+## Maintenance extensions
 
-The 202-name union and 111 WooCommerce names above are historical results.
-They do not describe a fresh runtime inventory of the maintenance change.
-The source now retains 109 existing WooCommerce tools and adds individually reviewed native maintenance actions.
-Their availability depends on the native catalog. No new total is claimed.
-
-An extension can add a `frontman` array to its native action entry.
-The array requires a nonempty plain-text `description` and a `Frontman_Tool_Annotations` value in `annotations`.
-Unknown callbacks without this metadata are not exposed.
-Callbacks that require parameters, hidden request data, a nonce, or an admin workflow need an explicit adapter.
-The COGS toggle, inbox notification deletion, and parameterized attributes regeneration are not supported by the common adapter.
+Native actions need `frontman` metadata: a plain-text `description` and `annotations` of type `Frontman_Tool_Annotations`.
+Actions without this metadata or a reviewed core descriptor remain outside MCP.
+Actions with parameters or hidden request inputs need dedicated adapters.
