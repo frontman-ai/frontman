@@ -8,4 +8,13 @@ defmodule FrontmanServerWeb.UserSessionHTML do
   use FrontmanServerWeb, :html
 
   embed_templates "user_session_html/*"
+
+  attr :request, :map, default: nil
+
+  def embedded_request(assigns) do
+    ~H"""
+    <input :if={@request} type="hidden" name="embedded_origin" value={@request["origin"]} />
+    <input :if={@request} type="hidden" name="embedded_state" value={@request["state"]} />
+    """
+  end
 end

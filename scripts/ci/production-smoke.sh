@@ -2,69 +2,53 @@
 set -euo pipefail
 
 production_origin="${PRODUCTION_ORIGIN:-https://api.frontman.sh}"
-connect_timeout_seconds="${PRODUCTION_SMOKE_CONNECT_TIMEOUT_SECONDS:-5}"
-max_time_seconds="${PRODUCTION_SMOKE_MAX_TIME_SECONDS:-20}"
-
-curl_base_args=(
-  --connect-timeout "$connect_timeout_seconds"
-  --max-time "$max_time_seconds"
-  -fsS
+scratch="$(mktemp -d)"
+trap 'rm -rf "$scratch"' EXIT
+curl_args=(
+  --connect-timeout "${PRODUCTION_SMOKE_CONNECT_TIMEOUT_SECONDS:-5}"
+  --max-time "${PRODUCTION_SMOKE_MAX_TIME_SECONDS:-20}"
+  -fsS -b "$scratch/cookies" -c "$scratch/cookies"
 )
 
-check_page() {
-  local path="$1"
+for path in /health /health/ready; do
+  curl "${curl_args[@]}" "${production_origin}${path}" >/dev/null
+done
+curl "${curl_args[@]}" "${production_origin}/users/log-in" -o "$scratch/login.html"
+csrf_token="$(python3 - "$scratch/login.html" <<'PY'
+import sys
+from html.parser import HTMLParser
+from pathlib import Path
 
-  curl "${curl_base_args[@]}" "${production_origin}${path}" >/dev/null
-}
+class LoginForm(HTMLParser):
+    tokens = []
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == "input" and attrs.get("name") == "_csrf_token":
+            self.tokens.append(attrs.get("value"))
+
+form = LoginForm()
+form.feed(Path(sys.argv[1]).read_text())
+if not form.tokens or not form.tokens[0]:
+    sys.exit("Login page has no CSRF token")
+print(form.tokens[0])
+PY
+)"
 
 check_redirect() {
-  local path="$1"
-  local expected_provider="$2"
-  local headers
-  local status
-  local location
-
-  headers="$(mktemp)"
-
-  if ! status="$(
-    curl \
-      --connect-timeout "$connect_timeout_seconds" \
-      --max-time "$max_time_seconds" \
-      -sS \
-      -o /dev/null \
-      -D "$headers" \
-      -w '%{http_code}' \
-      "${production_origin}${path}"
-  )"; then
-    rm -f "$headers"
-    echo "Request failed for ${path}" >&2
+  local provider="$1" expected_provider="$2" response status location
+  response="$(curl "${curl_args[@]}" -o /dev/null -w '%{http_code} %{redirect_url}' \
+    --data-urlencode "_csrf_token=$csrf_token" "${production_origin}/auth/${provider}")"
+  status="${response%% *}"
+  location="${response#* }"
+  if [[ "$status" != "302" || "$location" != https://api.workos.com/user_management/authorize\?* ]]; then
+    echo "Expected /auth/${provider} to redirect to WorkOS, got: ${response}" >&2
     exit 1
   fi
-
-  location="$(
-    awk 'BEGIN{IGNORECASE=1} /^location:/ {sub(/\r$/, ""); print substr($0, 11)}' \
-      "$headers" | tail -1
-  )"
-  rm -f "$headers"
-
-  if [ "$status" != "302" ]; then
-    echo "Expected ${path} to return 302, got ${status}" >&2
-    exit 1
-  fi
-
-  if ! printf '%s' "$location" | grep -q 'https://api.workos.com/user_management/authorize'; then
-    echo "Expected ${path} to redirect to WorkOS, got: ${location}" >&2
-    exit 1
-  fi
-
-  if ! printf '%s' "$location" | grep -q "provider=${expected_provider}"; then
-    echo "Expected ${path} to include provider=${expected_provider}, got: ${location}" >&2
+  if [[ ! "$location" =~ [\?\&]provider=${expected_provider}(\&|$) ]]; then
+    echo "Expected /auth/${provider} to include provider=${expected_provider}, got: ${location}" >&2
     exit 1
   fi
 }
 
-check_page /health
-check_page /health/ready
-check_page /users/log-in
-check_redirect /auth/google GoogleOAuth
-check_redirect /auth/github GitHubOAuth
+check_redirect google GoogleOAuth
+check_redirect github GitHubOAuth

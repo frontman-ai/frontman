@@ -18,6 +18,7 @@
         </div>
 
         <.form for={%{}} action={~p"/auth/verify-email"} method="post" class="space-y-4">
+          <input type="hidden" name="state" value={@state} />
           <fieldset class="fieldset">
             <label for="code" class="label">Verification code</label>
             <input
