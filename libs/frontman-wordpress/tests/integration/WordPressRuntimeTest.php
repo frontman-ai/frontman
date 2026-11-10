@@ -692,7 +692,12 @@ foreach ( [
 				'provider' => 'yoast', 'read' => true, 'write' => false,
 				'supported_fields' => [ 'title', 'description', 'focus_keyphrase' ],
 				'read_unavailable_reason' => null, 'write_unavailable_reason' => $reason,
-			] === $read_only_info['seo_capabilities'] && $reason === $read_only_info['seo_unavailable_reason'], 'Yoast read-only capabilities disagree with registration.' );
+			] === array_diff_key( $read_only_info['seo_capabilities'], [ 'targets' => true ] ) && $reason === $read_only_info['seo_unavailable_reason'], 'Yoast read-only capabilities disagree with registration.' );
+			frontman_runtime_same(
+				[ 'term' => [ true, true ], 'post_type_archive' => [ true, true ] ],
+				array_map( static fn( $cap ) => [ $cap['read'], $cap['write'] ], $read_only_info['seo_capabilities']['targets'] ),
+				'Missing post sanitizers must not disable the independent archive APIs.'
+			);
 			wp_set_current_user( $admin->ID );
 			$readable = ( new Frontman_Tool_Seo() )->read_seo( [ 'id' => $post_id ] );
 			frontman_runtime_assert( 'yoast' === $readable['provider'], 'Missing write sanitizers must not block Yoast reads.' );
@@ -753,7 +758,8 @@ $wp_rewrite->set_permalink_structure( '' );
 $nonce = $slug_nonce;
 $catalog   = json_decode( frontman_runtime_http( 'GET', '/index.php/frontman/tools', $cookie )['body'], true, 512, JSON_THROW_ON_ERROR );
 $seo_names = array_values( array_filter( array_column( $catalog['tools'], 'name' ), static fn( string $name ): bool => false !== strpos( $name, 'seo' ) || false !== strpos( $name, 'yoast' ) ) );
-frontman_runtime_assert( [ 'wp_read_seo', 'wp_update_seo' ] === $seo_names, 'SEO catalog is not provider-neutral.' );
+sort( $seo_names );
+frontman_runtime_assert( [ 'wp_read_post_type_archive_seo', 'wp_read_seo', 'wp_read_term_seo', 'wp_update_post_type_archive_seo', 'wp_update_seo', 'wp_update_term_seo' ] === $seo_names, 'SEO catalog is not provider-neutral.' );
 $fixtures = [];
 foreach ( [ [ 'post', 'publish' ], [ 'page', 'publish' ], [ 'frontman_seo_item', 'publish' ], [ 'post', 'draft' ], [ 'post', 'private' ] ] as [ $type, $status ] ) {
 	$id = wp_insert_post( [ 'post_type' => $type, 'post_status' => $status, 'post_title' => "Runtime $type $status", 'post_content' => 'Unchanged body' ], true );

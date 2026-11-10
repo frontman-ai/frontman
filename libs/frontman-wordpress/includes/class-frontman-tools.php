@@ -189,7 +189,7 @@ class Frontman_Tools {
 			$input = json_decode( wp_json_encode( $input, JSON_PRESERVE_ZERO_FRACTION ), true );
 		}
 
-		if ( class_exists( 'Frontman_Tool_Seo' ) && in_array( $name, [ 'wp_read_seo', 'wp_update_seo' ], true ) ) {
+		if ( class_exists( 'Frontman_Tool_Seo' ) && in_array( $name, array_merge( [ 'wp_read_seo', 'wp_update_seo' ], Frontman_Tool_Seo::ARCHIVE_TOOLS ), true ) ) {
 			return Frontman_Tool_Seo::validate_input( $name, $input );
 		}
 		if ( class_exists( 'Frontman_Tool_WooCommerce' ) && in_array( $name, [ 'wc_get_catalog_display', 'wc_update_catalog_display' ], true ) ) {

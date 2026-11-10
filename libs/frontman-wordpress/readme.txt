@@ -100,6 +100,16 @@ Supported objects are posts, pages, and editable non-attachment custom post type
 
 The post ID must be a positive integer. An update must include a title, description, or focus_keyphrase. Omitted fields stay unchanged. Empty strings clear overrides and restore Yoast templates or defaults, not necessarily empty rendered tags.
 
+Yoast Free also supports `wp_read_term_seo`/`wp_update_term_seo` for public taxonomy terms and `wp_read_post_type_archive_seo`/`wp_update_post_type_archive_seo` for public CPT archives. SureRank does not support these archive tools.
+
+The term reader requires `taxonomy` and exactly one of `term_id` or `slug`. Updates require `taxonomy` and the resolved positive integer `term_id`. Archive tools require `post_type` from `wp_get_site_info`. CPT archives are generated routes, not backing pages.
+
+Archive updates accept only `title` and `description`, with at least one supplied. Omitted fields stay unchanged. Empty term values clear overrides. Empty CPT archive values restore Yoast defaults, including nonempty title templates. Results include the target URL and observed values, not computed tags.
+
+Archive reads and updates require administrator access. Terms also require term-edit permission. CPT archives require Yoast settings permission. `seo_capabilities.targets` reports separate term and CPT archive availability. Archive updates use native Yoast sanitizers and refresh indexables. After a failure, read the target again before retrying. External caches still require separate refresh.
+
+`indexable_refreshed` reports persisted indexable readback. It is false when Yoast disables indexable persistence, such as on staging. Stored settings can still save. Verify rendered tags separately.
+
 Results confirm stored overrides, not rendered HTML or search-engine indexing. Yoast expands variables on later requests. External full-page caches and CDNs have separate refresh behavior.
 
 Explicit social overrides stay unchanged and can differ from the SEO title or description. Persistence errors report observed state or mark readback as uncertain. A successful result for one page does not establish success for other pages.

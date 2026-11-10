@@ -33,6 +33,10 @@ declare(strict_types=1);
 	$seo = [];
 	if ( null === Frontman_Tool_Seo::read_unavailable_reason() ) { $seo['wp_read_seo'] = $read; }
 	if ( null === Frontman_Tool_Seo::unavailable_reason() ) { $seo['wp_update_seo'] = $write; }
+	foreach ( [ 'term', 'post_type_archive' ] as $target ) {
+		if ( null === Frontman_Tool_Seo::archive_unavailable_reason( $target ) ) { $seo[ 'wp_read_' . $target . '_seo' ] = $read; }
+		if ( null === Frontman_Tool_Seo::archive_unavailable_reason( $target, true ) ) { $seo[ 'wp_update_' . $target . '_seo' ] = $write; }
+	}
 	$providers[] = [ true, $seo ];
 	if ( Frontman_Plugin_Dependencies::is_available( 'elementor/elementor.php', '\Elementor\Plugin' ) ) {
 		$providers[] = [ true, [
