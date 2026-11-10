@@ -1,15 +1,20 @@
 defmodule FrontmanServerWeb.MCPSitesTest do
   use FrontmanServerWeb.ConnCase, async: true
+  use Oban.Testing, repo: FrontmanServer.Repo
 
   alias Anubis.Server.{Context, Frame}
   alias Anubis.Server.Handlers.Tools
   alias Anubis.Server.Transport.StreamableHTTP.Plug, as: AnubisPlug
   alias Anubis.Server.Transport.StreamableHTTP.StatelessBinding
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.BillingFixtures
   alias FrontmanServer.Repo
+  alias FrontmanServer.Tasks
   alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
+  alias FrontmanServer.Test.Fixtures.Tasks, as: TasksFixtures
   alias FrontmanServer.WordPress
   alias FrontmanServer.WordPress.Connection
+  alias FrontmanServer.Workers.SyncResendContact
   alias FrontmanServerWeb.MCP.Server
 
   test "SDK lists only the authenticated account's sites without credentials or endpoints" do
@@ -43,6 +48,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     refute text =~ "private.example"
     refute text =~ "secret"
     refute text =~ "/tools"
+    assert_inactive(owner)
   end
 
   test "empty accounts return no sites and missing subjects fail closed" do
@@ -97,6 +103,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
            }
 
     assert_oauth(tool)
+    assert_inactive(user)
   end
 
   test "parsed SDK calls reject absent, malformed and foreign selectors before discovery" do
@@ -156,6 +163,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
     refute_received {:outbound, _, _, "owner.invalid"}
     refute_received {:outbound, _, _, "foreign.invalid"}
+    assert_inactive(owner)
   end
 
   test "stateless SDK binding parses and dispatches a request with verified claims" do
@@ -179,6 +187,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     end
 
     refute_received {:outbound, _, _, "owned.example"}
+    assert_inactive(user)
   end
 
   test "input augmentation accepts literal reference names but rejects unsafe schema positions" do
@@ -260,12 +269,62 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     end
 
     Enum.each(tools, &assert_oauth/1)
+    assert_inactive(user)
 
     assert %{"result" => %{"content" => [_ | _], "isError" => false}} =
              sdk_request(user, "tools/call", %{
                "name" => "wp_get_site_info",
                "arguments" => %{"site_id" => site_id}
              })
+
+    assert %DateTime{} = first_use = Repo.reload!(user).first_message_at
+
+    assert [%{args: args}] =
+             all_enqueued(worker: SyncResendContact, args: %{user_id: user.id})
+
+    assert args == %{"activation" => true, "user_id" => user.id}
+
+    assert %{"result" => %{"isError" => false}} =
+             sdk_request(user, "tools/call", %{
+               "name" => "wp_get_site_info",
+               "arguments" => %{"site_id" => site_id}
+             })
+
+    assert Repo.reload!(user).first_message_at == first_use
+    assert [_] = all_enqueued(worker: SyncResendContact, args: %{user_id: user.id})
+
+    submit_prompt(user)
+    assert Repo.reload!(user).first_message_at == first_use
+    assert [%{args: ^args}] = all_enqueued(worker: SyncResendContact, args: %{user_id: user.id})
+  end
+
+  @tag :wordpress_runtime
+  @tag skip: System.get_env("FRONTMAN_WP_RUNTIME_URL") == nil
+  test "remote tool errors do not activate" do
+    user = AccountsFixtures.user_fixture()
+    [site] = connect_wordpress_runtime(user, 1)
+
+    assert %{"result" => %{"isError" => true}} =
+             sdk_request(user, "tools/call", %{
+               "name" => "wp_read_post",
+               "arguments" => %{"site_id" => site.id, "id" => 2_147_483_647}
+             })
+
+    assert_inactive(user)
+
+    submit_prompt(user)
+    assert %DateTime{} = first_use = Repo.reload!(user).first_message_at
+    assert [%{args: args}] = all_enqueued(worker: SyncResendContact, args: %{user_id: user.id})
+    assert args == %{"activation" => true, "user_id" => user.id}
+
+    assert %{"result" => %{"isError" => false}} =
+             sdk_request(user, "tools/call", %{
+               "name" => "wp_get_site_info",
+               "arguments" => %{"site_id" => site.id}
+             })
+
+    assert Repo.reload!(user).first_message_at == first_use
+    assert [%{args: ^args}] = all_enqueued(worker: SyncResendContact, args: %{user_id: user.id})
   end
 
   @tag :wordpress_runtime
@@ -559,6 +618,26 @@ defmodule FrontmanServerWeb.MCPSitesTest do
   defp assert_oauth(tool) do
     assert tool["securitySchemes"] == [%{"type" => "oauth2", "scopes" => []}]
     assert tool["_meta"]["securitySchemes"] == tool["securitySchemes"]
+  end
+
+  defp assert_inactive(user) do
+    assert is_nil(Repo.reload!(user).first_message_at)
+    assert all_enqueued(worker: SyncResendContact, args: %{user_id: user.id}) == []
+  end
+
+  defp submit_prompt(user) do
+    scope = Scope.for_user(user)
+    BillingFixtures.allow_access_for_scope_fixture(scope)
+    task = TasksFixtures.task_fixture(scope)
+
+    assert {:ok, _} =
+             Tasks.submit_user_message(scope, %{
+               task_id: task.id,
+               message_id: Ecto.UUID.generate(),
+               message: TasksFixtures.user_content("hello"),
+               model: "openrouter:openai/gpt-5.5",
+               agent_id: "test-frontman"
+             })
   end
 
   defp connect_wordpress_runtime(user, count) when count > 0 do

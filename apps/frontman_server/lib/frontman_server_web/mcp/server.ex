@@ -130,6 +130,10 @@ defmodule FrontmanServerWeb.MCP.Server do
     with {:ok, scope} <- scope(frame),
          {:ok, result} <- WordPress.call(scope, id, name, Map.delete(arguments, "site_id")),
          {:ok, response} <- tool_response(result) do
+      if response.isError == false do
+        {:ok, :ok} = Accounts.record_activation(scope)
+      end
+
       {:reply, response, frame}
     else
       _ -> {:error, Error.execution("WordPress tool unavailable"), frame}

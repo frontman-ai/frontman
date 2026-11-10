@@ -9,6 +9,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - The API server serves the public OpenAI Apps domain-verification challenge as plain text.
+- Production first-use campaign enrollment is configured for signups from 2026-11-10 15:00 UTC.
+
+### Fixed
+
+- Successful WordPress MCP tool use now exits the first-use campaign.
+- Contact synchronization preserves opt-outs when an existing contact is retried.
 
 ## [5.8.0] - 2026-11-08
 

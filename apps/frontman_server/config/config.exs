@@ -179,11 +179,6 @@ config :frontman_server, FrontmanServer.Workers.SyncResendContact, enabled: fals
 
 config :frontman_server, FrontmanServer.ResendContacts, req_options: []
 
-config :frontman_server, FrontmanServer.Workers.EnterActivationCampaign,
-  enabled: false,
-  cutoff: nil,
-  max_entry_lag_seconds: 3600
-
 config :frontman_server, FrontmanServer.Workers.NotifyDiscordNewUser,
   enabled: false,
   webhook_url: nil,
