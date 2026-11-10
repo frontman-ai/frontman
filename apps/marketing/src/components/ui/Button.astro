@@ -45,7 +45,8 @@ const dimensions = {
 	type === 'link' || link ? (
 		<a
 			href={link}
-			target={target ?? (link?.startsWith('http') ? '_blank' : '_self')}
+			target={target}
+			rel={target === '_blank' ? 'noopener noreferrer' : undefined}
 			class:list={[
 				'button',
 				{ ['button--' + `${size}`]: size },
@@ -60,6 +61,7 @@ const dimensions = {
 			{...dimensions}
 		>
 			<slot />
+			{target === '_blank' && <span class="button__new-tab"> (opens in a new tab)</span>}
 		</a>
 	) : (
 		<button
@@ -86,7 +88,19 @@ const dimensions = {
 	@reference "../../styles/global.css";
 	.button {
 		@apply inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap lg:whitespace-nowrap font-bold tracking-wide transition duration-300 disabled:cursor-not-allowed disabled:shadow-none;
+		font-family: var(--font-sans);
 		border-radius: 8px;
+	}
+	.button__new-tab {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
 	}
 	@media (max-width: 480px) {
 		.button {
@@ -125,30 +139,23 @@ const dimensions = {
 
 	.button--white {
 		@apply disabled:border-neutral-300 disabled:bg-neutral-300 [&.button--elevated]:shadow-neutral-500/30 [&.button--elevated]:hover:shadow-neutral-500/30 [&.button--elevated]:focus:shadow-neutral-500/30 [&.button--link]:bg-transparent [&.button--link]:text-white [&.button--outline]:border-white [&.button--outline]:bg-transparent [&.button--outline]:text-white;
-		font-family: "SF Pro Display", system-ui, helvetica, sans-serif;
+		font-family: var(--font-sans);
 		font-weight: 600;
 		font-size: 16px;
 		line-height: 22px;
 		letter-spacing: -0.01em;
 		color: #1a1130;
-		background: white;
+		background: var(--color-neutral-50);
 		border: none;
 		border-radius: 12px;
-		box-shadow:
-			0 0 0 1px rgba(255, 255, 255, 0.9),
-			0 1px 3px rgba(0, 0, 0, 0.08),
-			0 8px 30px rgba(0, 0, 0, 0.12);
-		transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+		box-shadow: 0 2px 8px rgb(35 18 61 / 0.16);
+		transition: background-color 200ms, color 200ms, box-shadow 200ms, transform 200ms;
 	}
 
 	.button--white:hover {
 		color: #0f0a1a;
-		background: white;
-		box-shadow:
-			0 0 0 1px rgba(255, 255, 255, 1),
-			0 2px 4px rgba(0, 0, 0, 0.06),
-			0 12px 40px rgba(0, 0, 0, 0.18),
-			0 0 60px rgba(255, 255, 255, 0.15);
+		background: var(--color-primary-50);
+		box-shadow: 0 4px 12px rgb(35 18 61 / 0.2);
 		transform: translateY(-1px);
 	}
 

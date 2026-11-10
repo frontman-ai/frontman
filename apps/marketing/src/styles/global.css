@@ -36,6 +36,13 @@
 	--color-neutral-900: #0f172a;
 	--color-neutral-950: #020617;
 
+	--color-surface-canvas: var(--color-neutral-950);
+	--color-surface-raised: var(--color-neutral-900);
+	--color-surface-border: var(--color-neutral-800);
+	--radius-panel: 1rem;
+	--container-marketing: 75rem;
+	--spacing-page-gutter: 1.5rem;
+
 	--color-accent-purple: #7C3AED;
 	--color-accent-cyan: #06B6D4;
 	--color-accent-amber: #D97706;
