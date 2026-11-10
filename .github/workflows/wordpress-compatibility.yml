@@ -47,7 +47,7 @@ permissions:
 
 jobs:
   wordpress-runtime:
-    name: WordPress ${{ matrix.wordpress }} / PHP ${{ matrix.php }} / Yoast ${{ matrix.yoast }}
+    name: WordPress ${{ matrix.wordpress }} / PHP ${{ matrix.php }} / Yoast ${{ matrix.yoast }} / WooCommerce ${{ matrix.woocommerce || 'auto' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -59,6 +59,9 @@ jobs:
             php: "7.4"
           - wordpress: "7.0.2"
             php: "8.4"
+          - wordpress: "7.0.2"
+            php: "8.4"
+            woocommerce: "11.2.2"
           - wordpress: "7.0.2"
             php: "7.4"
             yoast: "28.4"
@@ -104,6 +107,7 @@ jobs:
           WORDPRESS_VERSION: ${{ matrix.wordpress }}
           PHP_VERSION: ${{ matrix.php }}
           YOAST_VERSION: ${{ matrix.yoast }}
+          WOOCOMMERCE_OVERRIDE: ${{ matrix.woocommerce }}
           FRONTMAN_REQUIRE_WP_SDK: ${{ matrix.wordpress == '7.0.2' && matrix.php == '8.4' && !matrix.yoast && '1' || '0' }}
         run: make test-wordpress-runtime
 

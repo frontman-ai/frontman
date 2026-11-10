@@ -202,54 +202,93 @@ defmodule FrontmanServerWeb.MCP.Server do
   defp discovery_connections(_, _), do: []
 
   defp remote_tools(scope, connections) do
-    deadline = System.monotonic_time(:millisecond) + 6_000
+    started = System.monotonic_time(:millisecond)
+    deadline = started + 6_000
 
-    scope
-    |> WordPress.stream_catalogs(Enum.map(connections, & &1.id), deadline)
-    |> Enum.reduce_while({:ok, []}, fn
-      {:ok, {id, {:ok, %{"tools" => tools} = catalog}}}, {:ok, entries} ->
-        with true <- Map.get(catalog, "resultType", "complete") == "complete",
-             true <- Map.get(catalog, "nextCursor") in [nil, ""],
-             true <- Schema.bounded?(catalog),
-             true <- System.monotonic_time(:millisecond) < deadline,
-             :ok <-
-               Schema.validate_tools_list_envelope(
-                 Map.merge(
-                   %{
-                     "resultType" => "complete",
-                     "ttlMs" => 0,
-                     "cacheScope" => "private"
-                   },
-                   catalog
-                 )
-               ) do
-          {:cont, {:ok, Enum.map(tools, &{id, &1}) ++ entries}}
-        else
-          _ -> {:halt, {:error, Error.execution("WordPress catalog unavailable")}}
-        end
+    result =
+      scope
+      |> WordPress.stream_catalogs(Enum.map(connections, & &1.id), deadline)
+      |> Enum.reduce_while({:ok, [], 0}, fn
+        {:ok, {id, {:ok, catalog}}}, {:ok, entries, validated} ->
+          case validated_tools(catalog, deadline) do
+            {:ok, tools} ->
+              {:cont, {:ok, Enum.map(tools, &{id, &1}) ++ entries, validated + 1}}
 
-      _, _ ->
-        {:halt, {:error, Error.execution("WordPress catalog unavailable")}}
-    end)
+            {:error, reason} ->
+              {:halt, {:error, reason, validated}}
+          end
+
+        {:exit, :timeout}, {:ok, _, validated} ->
+          {:halt, {:error, :timeout, validated}}
+
+        {:exit, _}, {:ok, _, validated} ->
+          {:halt, {:error, :task_exit, validated}}
+
+        _, {:ok, _, validated} ->
+          category =
+            if System.monotonic_time(:millisecond) >= deadline,
+              do: :deadline_expired,
+              else: :request_failed
+
+          {:halt, {:error, category, validated}}
+      end)
+
+    case result do
+      {:ok, entries, validated} ->
+        discovery_event(:ok, started, validated, length(connections))
+        {:ok, entries}
+
+      {:error, category, validated} ->
+        discovery_event(category, started, validated, length(connections))
+        {:error, Error.execution("WordPress catalog unavailable")}
+    end
+  end
+
+  defp validated_tools(%{"tools" => tools} = catalog, deadline) do
+    defaults = %{"resultType" => "complete", "ttlMs" => 0, "cacheScope" => "private"}
+
+    cond do
+      Map.get(catalog, "resultType", "complete") != "complete" -> {:error, :incomplete}
+      Map.get(catalog, "nextCursor") not in [nil, ""] -> {:error, :paginated}
+      not Schema.bounded?(catalog) -> {:error, :bounds}
+      System.monotonic_time(:millisecond) >= deadline -> {:error, :deadline_expired}
+      Schema.validate_tools_list_envelope(Map.merge(defaults, catalog)) == :ok -> {:ok, tools}
+      true -> {:error, :schema}
+    end
+  end
+
+  defp validated_tools(_, _deadline), do: {:error, :schema}
+
+  defp discovery_event(outcome, started, validated, total) do
+    :telemetry.execute(
+      [:frontman_server, :wordpress, :discovery, :stop],
+      %{
+        duration_ms: max(System.monotonic_time(:millisecond) - started, 0),
+        validated: validated,
+        total: total
+      },
+      %{outcome: outcome}
+    )
   end
 
   def catalog_tools(entries, reserved) do
     entries
     |> Enum.group_by(fn {_, tool} -> tool["name"] end)
     |> Enum.flat_map(fn {name, entries} ->
-      entries = Enum.sort_by(entries, &elem(&1, 0))
+      {_, tool} = Enum.min_by(entries, &elem(&1, 0))
 
-      schemas =
-        Enum.map(entries, fn {_, tool} -> Map.take(tool, ["inputSchema", "outputSchema"]) end)
+      compatible =
+        Enum.all?(entries, fn
+          {_, %{"outputSchema" => _}} -> false
+          {_, candidate} -> candidate["inputSchema"] === tool["inputSchema"]
+        end)
 
-      {_, tool} = hd(entries)
-
-      if name not in reserved and length(Enum.uniq(schemas)) == 1 and
-           Enum.all?(schemas, &(not Map.has_key?(&1, "outputSchema"))) and
-           supported_input?(tool["inputSchema"]) do
+      with false <- name in reserved,
+           true <- compatible,
+           true <- supported_input?(tool["inputSchema"]) do
         [remote_tool(tool)]
       else
-        []
+        _ -> []
       end
     end)
   end

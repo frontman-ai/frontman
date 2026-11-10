@@ -119,8 +119,6 @@ class Frontman_Tool_WooCommerce {
 		'get_setting_options' => [ true, false, false, true ],
 		'update_setting_option' => [ false, true, true, false ],
 		'get_system_status' => [ false, false, true, false ],
-		'get_system_status_tools' => [ true, false, false, true ],
-		'run_system_status_tool' => [ false, true, true, false ],
 		'get_data' => [ true, false, false, true ],
 		'get_continents' => [ true, false, false, true ],
 		'get_countries' => [ true, false, false, true ],
@@ -414,8 +412,97 @@ class Frontman_Tool_WooCommerce {
 
 	private function register_system_status( Frontman_Tools $tools ): void {
 		$this->add_endpoint_tool( $tools, 'get_system_status', 'Collects WooCommerce system status, including external GET/POST connectivity diagnostics and cached results. This is not a read-only operation.', 'GET', '/system_status', $this->empty_schema() );
-		$this->add_endpoint_tool( $tools, 'get_system_status_tools', 'Retrieves WooCommerce system status tools.', 'GET', '/system_status/tools', $this->empty_schema() );
-		$this->add_endpoint_tool( $tools, 'run_system_status_tool', 'Runs one WooCommerce maintenance action. Depending on toolId, it can delete data, rebuild state, or queue work. Inspect the available action before approval and do not retry blindly.', 'PUT', '/system_status/tools/{toolId}', $this->object_schema( [ 'toolId' => $this->string_prop( 'The system status tool ID.' ) ], [ 'toolId' ] ), [ 'read_before_write' => '/system_status/tools' ] );
+		if ( did_action( 'wp_loaded' ) ) {
+			$this->register_maintenance_tools( $tools );
+		} else {
+			add_action( 'wp_loaded', function() use ( $tools ) {
+				$this->register_maintenance_tools( $tools );
+			} );
+		}
+	}
+
+	/**
+	 * Reviewed against WooCommerce 10.4.3's v2 system status controller.
+	 * Tuples are description, read-only, destructive, open-world, idempotent.
+	 * Background operations and callbacks are not safe to retry blindly.
+	 */
+	private const MAINTENANCE_DESCRIPTORS = [
+		'clear_transients' => [ 'Clear WooCommerce product, order, shipping and related transient caches.', false, true, false, false ],
+		'clear_expired_transients' => [ 'Delete expired WordPress transients across the site.', false, true, false, false ],
+		'delete_orphaned_variations' => [ 'Delete product variations whose parent no longer exists.', false, true, false, false ],
+		'clear_expired_download_permissions' => [ 'Delete expired or exhausted download permissions and their download logs.', false, true, false, false ],
+		'regenerate_product_lookup_tables' => [ 'Start or continue background regeneration of product lookup table data; completion is not immediate.', false, true, false, false ],
+		'repair_coupons_lookup_table' => [ 'Repair missing discount amounts in the coupons lookup table; this may take time.', false, true, false, false ],
+		'recount_terms' => [ 'Recalculate product term counts.', false, true, false, false ],
+		'reset_roles' => [ 'Reset WooCommerce roles and capabilities, replacing existing role configuration.', false, true, false, false ],
+		'clear_sessions' => [ 'Delete all customer sessions, including current and saved carts, and flush the object cache.', false, true, false, false ],
+		'clear_template_cache' => [ 'Clear the WooCommerce template cache.', false, true, false, false ],
+		'clear_system_status_theme_info_cache' => [ 'Clear the system status theme information cache.', false, true, false, false ],
+		'install_pages' => [ 'Create or reuse missing WooCommerce pages, update page assignments, and potentially restore and publish matching trashed pages.', false, true, true, false ],
+		'delete_taxes' => [ 'Permanently delete all WooCommerce tax rates and their locations.', false, true, false, false ],
+		'regenerate_thumbnails' => [ 'Schedule shop thumbnail regeneration in the background; scheduling does not mean completion.', false, true, false, false ],
+		'db_update_routine' => [ 'Trigger the WooCommerce database upgrade routine in the background; back up first and do not assume completion.', false, true, false, false ],
+		'recreate_order_address_fts_index' => [ 'Recreate or create the order address full-text search index.', false, true, false, false ],
+		'verify_db_tables' => [ 'Verify WooCommerce base database tables and attempt to recreate missing tables.', false, true, false, false ],
+	];
+
+	private function register_maintenance_tools( Frontman_Tools $tools ): void {
+		if ( ! class_exists( 'WC_REST_System_Status_Tools_Controller' ) ) {
+			return;
+		}
+
+		$native_tools = ( new \WC_REST_System_Status_Tools_Controller() )->get_tools();
+		if ( ! is_array( $native_tools ) ) {
+			throw new \LogicException( 'WooCommerce maintenance catalog must be an array.' );
+		}
+		foreach ( $native_tools as $id => $entry ) {
+			$has_metadata = is_array( $entry ) && array_key_exists( 'frontman', $entry );
+			if ( ! $has_metadata && ! isset( self::MAINTENANCE_DESCRIPTORS[ $id ] ) ) {
+				continue;
+			}
+			if ( ! is_string( $id ) || ! preg_match( '/\A[a-z0-9_-]+\z/', $id ) || strlen( 'wc_maint_' . $id ) > 64 ) {
+				throw new \LogicException( 'Invalid WooCommerce maintenance action ID: ' . (string) $id );
+			}
+
+			if ( $has_metadata ) {
+				$descriptor = $entry['frontman'];
+				if ( ! is_array( $descriptor ) || ! isset( $descriptor['description'], $descriptor['annotations'] )
+					|| ! is_string( $descriptor['description'] ) || '' === trim( $descriptor['description'] )
+					|| strip_tags( $descriptor['description'] ) !== $descriptor['description']
+					|| preg_match( '/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/', $descriptor['description'] )
+					|| ! ( $descriptor['annotations'] instanceof Frontman_Tool_Annotations ) ) {
+					throw new \LogicException( 'Invalid Frontman metadata for WooCommerce maintenance action: ' . $id );
+				}
+				$description = $descriptor['description'];
+				$annotations = $descriptor['annotations'];
+			} else {
+				[ $description, $read_only, $destructive, $open_world, $idempotent ] = self::MAINTENANCE_DESCRIPTORS[ $id ];
+				$annotations = new Frontman_Tool_Annotations( $read_only, $destructive, $open_world, $idempotent );
+			}
+			$tools->add( new Frontman_Tool_Definition(
+				'wc_maint_' . $id,
+				$description . ' Ask the user for confirmation before calling with confirm=true.',
+				$this->object_schema( [ 'confirm' => $this->boolean_prop( 'Must be true only after explicit user confirmation.' ) ], [ 'confirm' ] ),
+				function( array $input ) use ( $id ) {
+					if ( true !== ( $input['confirm'] ?? false ) ) {
+						throw new Frontman_Tool_Error( 'This WooCommerce maintenance action requires confirm=true after user approval.' );
+					}
+					$current = ( new \WC_REST_System_Status_Tools_Controller() )->get_tools();
+					if ( ! is_array( $current ) ) {
+						throw new \LogicException( 'WooCommerce maintenance catalog must be an array.' );
+					}
+					if ( empty( $current[ $id ] ) || ! empty( $current[ $id ]['disabled'] ) ) {
+						throw new Frontman_Tool_Error( 'This WooCommerce maintenance action is unavailable or disabled.' );
+					}
+					$result = $this->handle_endpoint_tool( 'PUT', '/system_status/tools/' . rawurlencode( $id ), [ 'confirm' => true ], $input );
+					if ( isset( $result['success'] ) && false === $result['success'] ) {
+						throw new Frontman_Tool_Error( (string) ( $result['message'] ?? 'WooCommerce maintenance action failed.' ) );
+					}
+					return $result;
+				},
+				$annotations, 'read-write', true, true
+			) );
+		}
 	}
 
 	private function register_data( Frontman_Tools $tools ): void {
@@ -728,7 +815,7 @@ class Frontman_Tool_WooCommerce {
 	}
 
 	private function is_integer_path_field( string $field ): bool {
-		return ! in_array( $field, [ 'gatewayId', 'id', 'toolId' ], true ) && substr( $field, -2 ) === 'Id';
+		return ! in_array( $field, [ 'gatewayId', 'id' ], true ) && substr( $field, -2 ) === 'Id';
 	}
 
 	private function require_string_field( array $input, string $field ): void {

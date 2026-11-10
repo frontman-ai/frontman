@@ -131,6 +131,7 @@ defmodule FrontmanServer.WordPress do
   end
 
   defp request(url, username, password, method, body, timeout \\ 15_000) do
+    started = System.monotonic_time(:millisecond)
     client = Req.new(Application.get_env(:frontman_server, __MODULE__, plugins: [PublicURL]))
 
     task =
@@ -153,9 +154,38 @@ defmodule FrontmanServer.WordPress do
         )
       end)
 
-    case Task.yield(task, timeout) || Task.shutdown(task, :brutal_kill) do
-      {:ok, {:ok, %{status: 200, body: response}}} -> Jason.decode(response)
-      _ -> {:error, :request_failed}
-    end
+    {result, outcome, status} =
+      request_result(Task.yield(task, timeout) || Task.shutdown(task, :brutal_kill))
+
+    request_event(method, outcome, status, started)
+    result
+  end
+
+  defp request_result({:ok, {:ok, %{status: 200, body: response}}}) do
+    result = Jason.decode(response)
+    outcome = if match?({:ok, _}, result), do: :ok, else: :invalid_json
+    {result, outcome, 200}
+  end
+
+  defp request_result({:ok, {:ok, %{status: status}}} = result),
+    do: {{:error, :request_failed}, request_failure(result), status}
+
+  defp request_result(result), do: {{:error, :request_failed}, request_failure(result), 0}
+
+  defp request_failure({:ok, {:ok, %{status: 0}}}), do: :oversized_result
+  defp request_failure({:ok, {:ok, %{status: _}}}), do: :non_200
+  defp request_failure({:ok, {:error, %Req.TransportError{reason: :timeout}}}), do: :timeout
+  defp request_failure({:ok, {:error, _}}), do: :transport
+  defp request_failure(nil), do: :timeout
+  defp request_failure(_), do: :task_exit
+
+  defp request_event(method, outcome, status, started) do
+    kind = if method == :get, do: :catalog, else: :call
+
+    :telemetry.execute(
+      [:frontman_server, :wordpress, kind, :stop],
+      %{duration_ms: max(System.monotonic_time(:millisecond) - started, 0), status_code: status},
+      %{outcome: outcome}
+    )
   end
 end

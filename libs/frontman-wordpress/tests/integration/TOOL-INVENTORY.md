@@ -2,6 +2,9 @@
 
 ## Evidence
 
+These counts describe Frontman 5.7.0, before individual maintenance tools.
+Use fresh `FRONTMAN_INVENTORY` records for current counts.
+
 The runtime inventory matches all **202 production WordPress tool names** found
 in the source registrations. The union covers multiple configurations, not one
 installation with every integration active.
@@ -72,3 +75,9 @@ The hosted checks cover the baseline and WooCommerce configurations.
 They do not establish hosted parity for every integration in the table.
 
 No generated catalog is used in production. These records are test evidence.
+
+## Maintenance extensions
+
+Native actions need `frontman` metadata: a plain-text `description` and `annotations` of type `Frontman_Tool_Annotations`.
+Actions without this metadata or a reviewed core descriptor remain outside MCP.
+Actions with parameters or hidden request inputs need dedicated adapters.
