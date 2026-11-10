@@ -36,7 +36,7 @@ class Frontman_Tool_Seo {
 		];
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_read_seo',
-			'Reads stored SEO title, description, and focus keyphrase for an editable post, not computed tags.',
+			'Reads stored SEO title, description, and focus keyphrase for an editable post, page, or individual CPT item, not taxonomy terms or CPT archives. For those targets, use wp_read_term_seo or wp_read_post_type_archive_seo when advertised. Stored overrides are not computed tags; verify rendered tags separately.',
 			$schema,
 			[ $this, 'read_seo' ],
 			new Frontman_Tool_Annotations( true, false, false, true ), 'read'
@@ -51,7 +51,7 @@ class Frontman_Tool_Seo {
 		];
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_update_seo',
-			'Updates SEO overrides or the focus keyphrase. Provide at least one of title, description, or focus_keyphrase. Omitted fields stay unchanged; empty strings restore provider defaults.',
+			'Updates SEO overrides or the focus keyphrase for an editable post, page, or individual CPT item, not taxonomy terms or CPT archives. For those targets, use wp_update_term_seo or wp_update_post_type_archive_seo when advertised. Provide at least one of title, description, or focus_keyphrase. Omitted fields stay unchanged; empty strings restore provider defaults. Reread with wp_read_seo after any failure before retrying. Stored overrides are not computed tags; verify rendered tags separately.',
 			$schema,
 			[ $this, 'update_seo' ],
 			new Frontman_Tool_Annotations( false, true, true, false ), 'read-write'
@@ -314,10 +314,16 @@ class Frontman_Tool_Seo {
 				$properties += [ 'title' => [ 'type' => 'string' ], 'description' => [ 'type' => 'string' ] ];
 			}
 			$description = $term
-				? 'Yoast Free term SEO overrides, not computed tags. Requires a public editable taxonomy. '
-				: 'Yoast Free CPT archive title and description templates, including defaults, not computed tags. ';
+				? 'Yoast Free SEO title and description overrides for a public editable taxonomy term, not a post or CPT archive. '
+				: 'Yoast Free CPT archive title and description templates, including defaults, not individual CPT items or taxonomy terms. Discover post types and archive URLs with wp_get_site_info. Archives are generated routes, not backing posts or pages. ';
+			$description .= 'Returns stored settings, not computed tags. Verify rendered tags separately. ';
+			if ( $term && $write ) {
+				$description .= 'Resolve taxonomy and term_id with wp_read_term_seo before editing. ';
+			}
 			$description .= $write
-				? 'Provide title or description. Omitted fields stay unchanged. Empty strings restore Yoast defaults. Reread after any failure; never retry automatically. Verify rendered tags separately.'
+				? 'Provide title or description. Omitted fields stay unchanged. '
+					. ( $term ? 'Empty strings clear term overrides and restore inheritance. ' : 'Empty strings restore Yoast defaults, including nonempty title templates. ' )
+					. 'Reread after any failure; never retry automatically.'
 				: ( $term ? 'Supply taxonomy and exactly one of term_id or slug. Empty overrides inherit taxonomy templates.' : 'Use the returned archive URL to inspect rendered tags.' );
 			$tools->add( new Frontman_Tool_Definition(
 				$name, $description, [ 'type' => 'object', 'additionalProperties' => false, 'properties' => $properties, 'required' => $required ],

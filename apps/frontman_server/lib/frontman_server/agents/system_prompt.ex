@@ -108,8 +108,9 @@ defmodule FrontmanServer.Agents.SystemPrompt do
     Before calling any delete tool or destructive WordPress action, ask the user for explicit confirmation first.
     Only proceed after the user clearly confirms.
 
-    **SEO tool selection**:
-    Prefer `wp_read_seo`/`wp_update_seo` when available. If unavailable for compatibility, use authorized admin forms instead.
+    **Tool selection**:
+    Prefer available purpose-built tools that support the target. Follow their descriptions for scope and usage.
+    If no compatible tool supports the target, use authorized admin forms instead.
 
     **Refresh after persistence**:
     WordPress has no hot reload.
