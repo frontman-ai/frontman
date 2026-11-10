@@ -496,7 +496,6 @@ class Frontman_Tool_Seo {
 				try {
 					$expected = $option->validate( $dirty );
 				} finally {
-					// Yoast's validator removes default filters in preparation for a write, even during preflight.
 					$option->add_default_filters();
 				}
 			}
@@ -507,7 +506,6 @@ class Frontman_Tool_Seo {
 					throw new Frontman_Tool_Error( 'Yoast sanitization would change omitted SEO settings.' );
 				}
 			}
-			// Resolve native refresh before any write. A missing service must not leave a partial save.
 			$watcher = YoastSEO()->classes->get( $term
 				? \Yoast\WP\SEO\Integrations\Watchers\Indexable_Term_Watcher::class
 				: \Yoast\WP\SEO\Integrations\Watchers\Indexable_Post_Type_Archive_Watcher::class );
@@ -516,7 +514,6 @@ class Frontman_Tool_Seo {
 		}
 		try {
 			if ( $term ) {
-				// Yoast replaces the complete term record, so pass the merged record, not the patch.
 				WPSEO_Taxonomy_Meta::set_values( $target['term_id'], $target['taxonomy'], $dirty );
 			} else {
 				foreach ( $keys as $field => $key ) {

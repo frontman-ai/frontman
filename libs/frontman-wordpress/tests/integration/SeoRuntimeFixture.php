@@ -7,7 +7,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 $frontman_seo_test = sanitize_key( wp_unslash( $_SERVER['HTTP_X_FRONTMAN_SEO_TEST'] ?? '' ) );
 add_filter( 'redirect_canonical', static fn( $redirect ) => 'render' === $frontman_seo_test ? false : $redirect );
-// Exercise persisted indexables in the local runtime, as Yoast does in production.
 add_filter( 'Yoast\WP\SEO\should_index_indexables', static fn() => 'no-archive-persistence' !== $frontman_seo_test );
 add_filter( 'wpseo_should_save_indexable', static fn( $save ) => 'silent-archive-refresh' === $frontman_seo_test ? false : $save );
 add_action( 'init', static function (): void {

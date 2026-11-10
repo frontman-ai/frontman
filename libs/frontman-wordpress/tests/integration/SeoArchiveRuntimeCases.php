@@ -25,9 +25,7 @@ try {
 		$terms[$taxonomy] = $term['term_id'];
 	}
 	$term = [ 'taxonomy' => 'frontman_seo_topic', 'term_id' => $terms['frontman_seo_topic'] ];
-	// Reuse an existing same-ID post, or create one at that free ID. Never search or replace posts.
-	$collision = get_post( $term['term_id'] );
-	if ( ! $collision ) {
+	if ( ! get_post( $term['term_id'] ) ) {
 		$id = wp_insert_post( [ 'import_id' => $term['term_id'], 'post_title' => 'Same-ID post' ], true );
 		frontman_runtime_same( $term['term_id'], $id, 'Create the post/term ID collision.' );
 		$created_posts[] = $id;
@@ -40,7 +38,6 @@ try {
 		'wpseo_canonical' => 'https://example.test/canonical', 'wpseo_opengraph-title' => 'Keep social title', 'wpseo_focuskw' => 'Keep focus',
 	] );
 	WPSEO_Taxonomy_Meta::set_values( $terms['category'], 'category', [ 'wpseo_title' => 'Other taxonomy' ] );
-	// Materialize native defaults before taking a preservation snapshot, not during the first tool save.
 	update_option( 'wpseo_titles', get_option( 'wpseo_titles' ) );
 	$protected = static function () use ( $storage, $term, $item, $wpdb ): array {
 		$values = $storage();
@@ -54,18 +51,17 @@ try {
 	$targets = [ 'term' => $term, 'post_type_archive' => [ 'post_type' => 'frontman_seo_item' ] ];
 	$identities = [];
 
-	// One lifecycle per storage path: persisted overrides, omission, repeat, public output, and reset.
 	foreach ( $targets as $kind => $target ) {
 		$read = $call( "wp_read_{$kind}_seo", $target );
 		$initial = array_intersect_key( $read, array_flip( [ 'title', 'description' ] ) );
 		$identities[$kind] = array_diff_key( $read, $initial );
-		$default_tags = $tags( $read['url'] ); // Warm the real persisted indexable before editing.
+		$default_tags = $tags( $read['url'] );
 		frontman_runtime_same( 200, $default_tags['status'], "$kind archive is public." );
 		$patch = [ 'title' => 'SEO %%sitename%%', 'description' => 'Café “quoted” \\ path' ];
 		$saved = $call( "wp_update_{$kind}_seo", $target + $patch );
 		frontman_runtime_same( $initial, $saved['before'], "$kind before snapshot." );
 		frontman_runtime_same( $patch, $saved['after'], "$kind persisted template and UTF-8 text." );
-		frontman_runtime_same( [ 'status' => 200, 'title' => 'SEO ' . get_bloginfo( 'name' ), 'description' => $patch['description'] ], $tags( $read['url'] ), "$kind replaces warmed public metadata." );
+		frontman_runtime_same( [ 'status' => 200, 'title' => 'SEO ' . get_bloginfo( 'name' ), 'description' => 'Café “quoted”  path' ], $tags( $read['url'] ), "$kind renders Yoast-normalized public metadata without changing stored bytes." );
 		$patch['description'] = 'Description only';
 		$saved = $call( "wp_update_{$kind}_seo", $target + [ 'description' => $patch['description'] ] );
 		frontman_runtime_same( $patch, $saved['after'], "$kind preserves the omitted nonempty title." );
@@ -79,7 +75,6 @@ try {
 	frontman_runtime_same( [ $terms['category'], $term['term_id'] ], [ $category['term_id'], $topic['term_id'] ], 'Identical slugs resolve within their taxonomy.' );
 	frontman_runtime_same( $unchanged, $protected(), 'Updates preserve other terms, all unrelated Yoast settings, and same-ID/CPT posts.' );
 
-	// Each fault has an independent expected persisted state, not just an error-message substring.
 	foreach ( [
 		[ 'term', 'deny-term-save', 'failed' ],
 		[ 'post_type_archive', 'partial-archive-save', 'partial' ],
@@ -122,7 +117,6 @@ try {
 		$message = $call( $name, $arguments, true, $fault );
 		frontman_runtime_assert( false !== strpos( $message, $reason ), "$name must reject for $reason, got: $message" );
 	}
-	// All required arguments are valid: repairing this malformed string would cause a real write.
 	$raw = '{"name":"wp_update_term_seo","arguments":{"taxonomy":"' . $term['taxonomy'] . '","term_id":' . $term['term_id'] . ',"description":"bad' . "\xC3\x28" . '"}}';
 	frontman_runtime_same( true, frontman_runtime_tool( $cookie, $nonce, [], $raw )['body']['isError'], 'Malformed UTF-8 is rejected without repair.' );
 	$actor = get_current_user_id();
