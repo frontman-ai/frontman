@@ -287,6 +287,7 @@ module SubmitButton = {
 let make = (
   ~onSubmit: (~text: string, ~inputItems: array<inputItem>) => promise<result<unit, string>>,
   ~onCancel: unit => unit,
+  ~commandsRef: React.ref<Nullable.t<Client__PromptEditor.commands>>,
   ~modelConfigOption: option<ACP.sessionConfigOption>,
   ~isModelsConfigLoading: bool,
   ~selectedModelValue: option<ACP.sessionConfigValueId>,
@@ -307,9 +308,6 @@ let make = (
 ) => {
   let (hasContent, setHasContent) = React.useState(() => false)
   let (hasComposerFocus, setHasComposerFocus) = React.useState(() => false)
-  let commandsRef: React.ref<Nullable.t<Client__PromptEditor.commands>> = React.useRef(
-    Nullable.null,
-  )
   let (previewSrc, setPreviewSrc) = React.useState((): option<string> => None)
   let (fileSizeError, setFileSizeError) = React.useState((): option<string> => None)
   let (showToolbarLabels, setShowToolbarLabels) = React.useState(() => true)

@@ -44,7 +44,7 @@ let make = (~loginUrl: string, ~onSignIn: unit => unit) => {
         </div>
         <Dialog.Title> {React.string("Welcome to Frontman!")} </Dialog.Title>
         <Dialog.Description>
-          {React.string("Sign in to Frontman to start setting up your coding assistant.")}
+          {React.string("Sign in to Frontman to start editing your website.")}
         </Dialog.Description>
       </Dialog.Header>
       <div className="space-y-4">

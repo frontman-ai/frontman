@@ -19,35 +19,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! function_exists( 'frontman_plugin_dir_path' ) ) {
-	/**
-	 * Resolve the plugin directory path.
-	 */
-	function frontman_plugin_dir_path( string $file ): string {
-		if ( function_exists( 'plugin_dir_path' ) ) {
-			return call_user_func( 'plugin_dir_path', $file );
-		}
-
-		return dirname( $file ) . '/';
-	}
-}
-
-if ( ! function_exists( 'frontman_plugin_dir_url' ) ) {
-	/**
-	 * Resolve the plugin directory URL.
-	 */
-	function frontman_plugin_dir_url( string $file ): string {
-		if ( function_exists( 'plugin_dir_url' ) ) {
-			return call_user_func( 'plugin_dir_url', $file );
-		}
-
-		return '';
-	}
-}
-
 define( 'FRONTMAN_VERSION', '5.8.0' );
-define( 'FRONTMAN_PLUGIN_DIR', frontman_plugin_dir_path( __FILE__ ) );
-define( 'FRONTMAN_PLUGIN_URL', frontman_plugin_dir_url( __FILE__ ) );
+define( 'FRONTMAN_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+define( 'FRONTMAN_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'FRONTMAN_PLUGIN_FILE', __FILE__ );
 
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-auth.php';
@@ -58,6 +32,8 @@ require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-sentry.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-settings.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-router.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-ui.php';
+
+register_activation_hook( FRONTMAN_PLUGIN_FILE, [ 'Frontman_UI', 'activate' ] );
 
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-posts.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-users.php';
@@ -153,6 +129,4 @@ function frontman_deactivate(): void {
 	delete_transient( 'frontman_file_tracker_' . (int) get_current_user_id() );
 }
 
-if ( function_exists( 'register_deactivation_hook' ) ) {
-	call_user_func( 'register_deactivation_hook', FRONTMAN_PLUGIN_FILE, 'frontman_deactivate' );
-}
+register_deactivation_hook( FRONTMAN_PLUGIN_FILE, 'frontman_deactivate' );

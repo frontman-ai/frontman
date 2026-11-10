@@ -2,6 +2,7 @@
 
 define( 'ABSPATH', '/private/wordpress/' );
 define( 'LOGGED_IN_COOKIE', 'wordpress_logged_in_test' );
+define( 'FRONTMAN_VERSION', 'test' );
 
 $GLOBALS['hooks'] = [];
 function add_action( $hook, $callback, $priority = 10, $accepted_args = 1 ): void {
@@ -79,13 +80,9 @@ function check( bool $condition, string $message ): void {
 	}
 }
 
-require_once dirname( __DIR__ ) . '/frontman.php';
-check( isset( $GLOBALS['hooks']['init'] ), 'Plugin bootstrap must still be scheduled on init.' );
-foreach ( [ 'malformed', 'expired', 'bad_username', 'bad_hash', 'bad_session_token' ] as $reason ) {
-	$observers = $GLOBALS['hooks'][ 'auth_cookie_' . $reason ] ?? [];
-	check( 1 === count( $observers ), 'Observers must exist before init or user resolution.' );
-	check( 0 === $observers[0][1], 'Native credentials must never reach observers.' );
-}
+require_once dirname( __DIR__ ) . '/includes/class-frontman-sentry.php';
+require_once dirname( __DIR__ ) . '/includes/class-frontman-auth.php';
+Frontman_Auth::register();
 
 $log = tempnam( sys_get_temp_dir(), 'frontman-auth-test-' );
 $previous_log = ini_set( 'error_log', $log );
@@ -209,4 +206,4 @@ try {
 	unlink( $log );
 }
 
-fwrite( STDOUT, "OK (early auth observers, opt-in, categories, deduplication, privacy, unchanged 401/403 and nonces)\n" );
+fwrite( STDOUT, "OK (auth observers, opt-in, categories, deduplication, privacy, unchanged 401/403 and nonces)\n" );

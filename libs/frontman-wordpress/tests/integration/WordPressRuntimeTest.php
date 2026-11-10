@@ -10,6 +10,29 @@ $expected_wordpress_version = getenv( 'EXPECTED_WORDPRESS_VERSION' );
 frontman_runtime_assert( false !== $expected_wordpress_version, 'Expected WordPress version was not provided.' );
 frontman_runtime_assert( $expected_wordpress_version === get_bloginfo( 'version' ), 'Runtime WordPress version does not match the requested version.' );
 frontman_runtime_assert( defined( 'FRONTMAN_VERSION' ), 'Frontman plugin was not activated.' );
+frontman_runtime_same( plugin_dir_path( FRONTMAN_PLUGIN_FILE ), FRONTMAN_PLUGIN_DIR, 'Plugin directory must use the native WordPress path.' );
+frontman_runtime_same( plugin_dir_url( FRONTMAN_PLUGIN_FILE ), FRONTMAN_PLUGIN_URL, 'Plugin URL must use the native WordPress URL.' );
+frontman_runtime_same( 10, has_action( 'deactivate_' . plugin_basename( FRONTMAN_PLUGIN_FILE ), 'frontman_deactivate' ), 'Deactivation callback must be registered.' );
+frontman_runtime_same( [ 0, 0, 10 ], array_slice( $GLOBALS['frontman_auth_load_state'] ?? [], 0, 3 ), 'Plugin load must precede init and user resolution and schedule bootstrap.' );
+foreach ( array_slice( $GLOBALS['frontman_auth_load_state'], 3 ) as $observers ) {
+	frontman_runtime_assert( 1 === count( $observers ) && 0 === reset( $observers )['accepted_args'], 'Each auth observer must exist at plugin load without accepting credentials.' );
+}
+frontman_runtime_same( 8, count( $GLOBALS['frontman_auth_load_state'] ), 'All five auth hooks must be captured at plugin load.' );
+foreach ( [ 'admin_menu' => 'add_admin_menu_link', 'admin_enqueue_scripts' => 'enqueue_admin_assets', 'wp_enqueue_scripts' => 'enqueue_preview_bridge' ] as $hook => $method ) {
+	$callbacks = array_filter( $GLOBALS['wp_filter'][ $hook ]->callbacks[10] ?? [], static fn( $entry ) => is_array( $entry['function'] ) && $entry['function'][0] instanceof Frontman_UI && $entry['function'][1] === $method );
+	frontman_runtime_assert( 1 === count( $callbacks ) && 1 === reset( $callbacks )['accepted_args'], $hook . ' must retain its named callback and default hook metadata.' );
+}
+frontman_runtime_same( 10, has_action( 'admin_init', [ Frontman_Settings::class, 'register_setting' ] ), 'Settings callback identity and priority must remain stable.' );
+frontman_runtime_same( 1, $GLOBALS['wp_filter']['admin_init']->callbacks[10]['Frontman_Settings::register_setting']['accepted_args'], 'Settings callback must retain default accepted arguments.' );
+$settings_menu = array_filter( $GLOBALS['wp_filter']['admin_menu']->callbacks[10], static function ( $entry ): bool {
+	$scope = $entry['function'] instanceof Closure ? ( new ReflectionFunction( $entry['function'] ) )->getClosureScopeClass() : null;
+	return $scope && 'Frontman_Settings' === $scope->getName();
+} );
+frontman_runtime_assert( 1 === count( $settings_menu ) && 1 === reset( $settings_menu )['accepted_args'], 'Settings menu must retain its default hook metadata.' );
+$ui = reset( $callbacks )['function'][0];
+$ui->add_admin_menu_link();
+$redirect = $GLOBALS['wp_filter']['load-toplevel_page_frontman']->callbacks[10] ?? [];
+frontman_runtime_assert( 1 === count( $redirect ) && 1 === reset( $redirect )['accepted_args'], 'Menu redirect must retain its default hook metadata.' );
 frontman_runtime_assert( null !== Frontman_Tools::instance()->get( 'wp_list_navigation_menus' ), 'Plugin bootstrap did not register navigation tools during init.' );
 frontman_runtime_assert( home_url( '/index.php/frontman' ) === Frontman_UI::url( '/frontman' ), 'Plain permalink URL skipped the front controller.' );
 $http_context = stream_context_create( [ 'http' => [ 'ignore_errors' => true ] ] );
