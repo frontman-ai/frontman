@@ -61,9 +61,27 @@ try {
 	frontman_runtime_assert( $products[0] !== $products[1], 'Identical creates produce additional products.' );
 	$id = $products[0];
 	$description = '<p>Path C:\\tmp\\shirt and regex /\\d+/</p>';
-	$raw = $call( 'wc_create_product', [ 'productData' => [ 'name' => 'Runtime raw', 'description' => $description, 'status' => 'draft' ] ] );
+	$forwarded = null;
+	$observe_raw = static function( $result, $server, $request ) use ( &$forwarded ) {
+		if ( 'POST' === $request->get_method() && '/wc/v3/products' === $request->get_route() ) {
+			$forwarded = $request->get_param( 'description' );
+		}
+		return $result;
+	};
+	add_filter( 'rest_pre_dispatch', $observe_raw, 10, 3 );
+	try {
+		$raw = $call( 'wc_create_product', [ 'productData' => [ 'name' => 'Runtime raw', 'description' => $description, 'status' => 'draft' ] ] );
+	} finally { remove_filter( 'rest_pre_dispatch', $observe_raw, 10 ); }
 	$products[] = $raw['id'];
-	frontman_runtime_same( $description, wc_get_product( $raw['id'] )->get_description(), 'Native product creation preserves HTML and backslashes.' );
+	frontman_runtime_same( $description, $forwarded, 'Product creation forwards HTML and backslashes to the native endpoint.' );
+	$native_request = new WP_REST_Request( 'POST', '/wc/v3/products' );
+	$native_request->set_header( 'Content-Type', 'application/json' );
+	$native_request->set_body( wp_json_encode( [ 'name' => 'Native raw', 'description' => $description, 'status' => 'draft' ] ) );
+	$native_response = rest_do_request( $native_request );
+	frontman_runtime_assert( ! is_wp_error( $native_response ) && $native_response->get_status() < 400, 'Direct native product creation succeeds.' );
+	$native_product = $native_response->get_data();
+	$products[] = $native_product['id'];
+	frontman_runtime_same( wc_get_product( $native_product['id'] )->get_description(), wc_get_product( $raw['id'] )->get_description(), 'Tool and direct native endpoint persist the same description.' );
 	$found = $call( 'wc_get_products', [ 'perPage' => 1, 'page' => 2, 'filters' => [ 'status' => 'draft', 'search' => 'Safety product', 'orderby' => 'id', 'order' => 'asc' ] ] );
 	frontman_runtime_same( [ $products[1] ], array_column( $found, 'id' ), 'Product filters and pagination select the second matching product.' );
 	$gateway = $call( 'wc_get_payment_gateway', [ 'gatewayId' => 'bacs' ] );
