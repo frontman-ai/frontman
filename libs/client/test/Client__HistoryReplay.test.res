@@ -113,7 +113,7 @@ describe("ACP message identity", () => {
       ->apply(ExecutionStateRunning([]))
       ->apply(LoadStarted({previewUrl: "http://localhost:3000"}))
     switch loading {
-    | Task.Loading({isAgentRunning: false, queuedUserMessages: []}) => ()
+    | Task.Loading({conversation: {isAgentRunning: false, queuedUserMessages: []}}) => ()
     | _ => failwith("Reload must clear server-owned execution and queue state")
     }
     let store = StateStore.make(
@@ -201,7 +201,10 @@ describe("ACP message identity", () => {
     Buffer.reset()
     let requests: array<Connection.action> = []
     let operations = []
-    let initial = {...Client__State__Initialization.defaultState, tasks: Dict.fromArray([("task-1", makeLoadingTask())])}
+    let initial = {
+      ...Client__State__Initialization.defaultState,
+      tasks: Dict.fromArray([("task-1", makeLoadingTask())]),
+    }
     let getTask = (state: App.state) => state.tasks->Dict.get("task-1")->Option.getOrThrow
     let rejected = App.next(initial, SwitchTask({taskId: "task-1"}))->Pair.first
     t->expect(getTask(rejected)->Task.isLoading)->Expect.toBe(false)
@@ -266,10 +269,22 @@ describe("ACP message identity", () => {
 
     let paused = makeLoadingTask()->apply(ExecutionStateRequiresAction)->apply(LoadComplete)
     t->expect(TaskReducer.Selectors.isAgentRunning(paused))->Expect.toEqual(Some(false))
-    let idle = makeLoadingTask()->apply(ExecutionStateRunning([]))->apply(ExecutionStateIdle)->apply(LoadComplete)
+    let idle =
+      makeLoadingTask()
+      ->apply(ExecutionStateRunning([]))
+      ->apply(ExecutionStateIdle)
+      ->apply(LoadComplete)
     t->expect(TaskReducer.Selectors.isAgentRunning(idle))->Expect.toEqual(Some(false))
-    let failed = makeLoadingTask()->apply(ExecutionStateRunning([]))->apply(AgentError({id: "local-error", retryErrorId: None, error: "Failed", category: #unknown}))
-    t->expect(TaskReducer.Selectors.isAgentRunning(failed->apply(LoadComplete)))->Expect.toEqual(Some(false))
+    let failed =
+      makeLoadingTask()
+      ->apply(ExecutionStateRunning([]))
+      ->apply(
+        AgentError({id: "local-error", retryErrorId: None, error: "Failed", category: #unknown}),
+      )
+    t
+    ->expect(TaskReducer.Selectors.isAgentRunning(failed->apply(LoadComplete)))
+    ->Expect.toEqual(Some(false))
+    t->expect(TaskReducer.Selectors.turnError(failed->apply(LoadComplete)))->Expect.toEqual(None)
     let retry = failed->apply(ExecutionStateRunning([]))->apply(LoadComplete)
     t->expect(TaskReducer.Selectors.isAgentRunning(retry))->Expect.toEqual(Some(true))
   })
@@ -332,7 +347,10 @@ describe("ACP message identity", () => {
   })
 
   test("message role and agent are immutable", t => {
-    let userTask = makeLoadingTask()->apply(user(~id="message-1", ~text="Hello"))->apply(ExecutionStateRunning(["message-1"]))
+    let userTask =
+      makeLoadingTask()
+      ->apply(user(~id="message-1", ~text="Hello"))
+      ->apply(ExecutionStateRunning(["message-1"]))
     let agentTask = makeLoadingTask()->apply(delta(~id="message-2", ~text="Hello"))
 
     Expect.toThrow(t->expect(() => userTask->apply(delta(~id="message-1", ~text="wrong role"))))

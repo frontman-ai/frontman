@@ -52,13 +52,15 @@ let upsertCustomProvider = (
   }
 }
 
-let selectModel = (state: state, value: option<string>): (state, array<effect>) =>
-  ({...state, selectedModelValue: value}, [PersistSelectedModel(value)])
+let selectModel = (state: state, value: option<string>): (state, array<effect>) => (
+  {...state, selectedModelValue: value},
+  [PersistSelectedModel(value)],
+)
 
-let applyCustomProvider = (
-  state: state,
-  provider: Client__State__Types.customProvider,
-): (state, array<effect>) => {
+let applyCustomProvider = (state: state, provider: Client__State__Types.customProvider): (
+  state,
+  array<effect>,
+) => {
   let state = {
     ...state,
     customProviders: Some(upsertCustomProvider(state.customProviders, provider)),
@@ -99,13 +101,10 @@ let startCustomProviderMutation = (state: state, request) => {
 let clearPendingQuestions = (state: state) => {
   let updatedTasks = state.tasks->Dict.copy
   updatedTasks->Dict.forEachWithKey((task, taskId) => {
-    switch task {
-    | Task.Loaded(data) =>
-      updatedTasks->Dict.set(taskId, Task.Loaded({...data, pendingQuestion: None}))
-    | Task.Loading(data) =>
-      updatedTasks->Dict.set(taskId, Task.Loading({...data, pendingQuestion: None}))
-    | Task.New(_) | Task.Unloaded(_) => ()
-    }
+    updatedTasks->Dict.set(
+      taskId,
+      Task.updateConversation(task, data => {...data, pendingQuestion: None}),
+    )
   })
   {...state, tasks: updatedTasks}
 }

@@ -67,9 +67,14 @@ module TestHelpers = {
     ~messages=[],
     ~isAgentRunning=false,
   ) =>
-    Task.makeNew(~previewUrl, ~clientId=id)
-    ->Task.newToLoaded(~id, ~title, ~timestamp=0.0)
-    ->Task.updateLoadedData(data => {...data, messages, isAgentRunning})
+    switch Task.makeNew(~previewUrl, ~clientId=id) {
+    | Task.New(draft) => Task.Loaded(Task.promoteDraft(draft, ~id, ~title, ~timestamp=0.0))
+    | _ => failwith("Expected a draft")
+    }->Task.updateConversation(data => {
+      ...data,
+      messages: Client__MessageStore.fromArray(messages),
+      isAgentRunning,
+    })
 
   let makeStateWithTasks = (~tasks, ~currentTask) => {
     ...Reducer.defaultState,
@@ -570,7 +575,10 @@ describe("Client State Reducer - Plan Handoff", () => {
       lost,
     ]->Array.forEach(
       state => {
-        let (nextState, effects) = Reducer.next(state, ExecutePendingPlan({id: testUserMessageId, timestamp: 0.0}))
+        let (nextState, effects) = Reducer.next(
+          state,
+          ExecutePendingPlan({id: testUserMessageId, timestamp: 0.0}),
+        )
         t->expect(nextState)->Expect.toEqual(state)
         t->expect(effects)->Expect.toEqual([])
         t
@@ -614,7 +622,10 @@ describe("Client State Reducer - Plan Handoff", () => {
       },
     )
 
-    let (_, executeEffects) = Reducer.next(submitting, ExecutePendingPlan({id: testUserMessageId, timestamp: 0.0}))
+    let (_, executeEffects) = Reducer.next(
+      submitting,
+      ExecutePendingPlan({id: testUserMessageId, timestamp: 0.0}),
+    )
     t->expect(executeEffects)->Expect.toEqual([])
   })
 
@@ -723,6 +734,26 @@ describe("Client State Reducer", () => {
       t->expect(agentId)->Expect.toBe("executor-id")
     | _ => JsExn.throw("Expected SendMessage effect")
     }
+    let invalid = Task.makeUnloaded(~id="invalid", ~title="Invalid", ~createdAt=0.0, ~updatedAt=0.0)
+    let invalidState = {...state, currentTask: Task.New(invalid)}
+    Expect.toThrow(
+      t->expect(
+        () =>
+          Reducer.addUserMessageToState(
+            invalidState,
+            ~sessionId="session-1",
+            {
+              id: testUserMessageId,
+              timestamp: 0.0,
+              content: [UserContentPart.text("Hello")],
+              annotations: [],
+              agentId: "executor-id",
+              onComplete: _ => (),
+            },
+          ),
+      ),
+    )
+    t->expect(invalidState.tasks === state.tasks)->Expect.toBe(true)
   })
 
   test("messages maintain order", t => {
@@ -1306,7 +1337,10 @@ describe("Client State Reducer - Task Management Actions", () => {
     let previewUrl = "http://localhost:3000/products/42?tab=details"
     let state = TestHelpers.makeStateWithTask(~previewUrl)
 
-    let (nextState, _effects) = Reducer.next(state, ClearCurrentTask({replacementClientId: "replacement"}))
+    let (nextState, _effects) = Reducer.next(
+      state,
+      ClearCurrentTask({replacementClientId: "replacement"}),
+    )
 
     t->expect(Reducer.Selectors.previewUrl(nextState))->Expect.toBe(previewUrl)
     switch nextState.currentTask {
@@ -1378,7 +1412,10 @@ describe("Client State Reducer - Task Management Actions", () => {
 
     let state = TestHelpers.makeStateWithTasks(~tasks, ~currentTask=Task.Selected("task-1"))
 
-    let (stateAfterDelete, _) = Reducer.next(state, DeleteTask({taskId: "task-1", replacementClientId: "replacement"}))
+    let (stateAfterDelete, _) = Reducer.next(
+      state,
+      DeleteTask({taskId: "task-1", replacementClientId: "replacement"}),
+    )
     t->expect(TestHelpers.getTaskCount(stateAfterDelete))->Expect.toBe(0)
     switch stateAfterDelete.currentTask {
     | Task.New(_) => ()
@@ -1782,7 +1819,10 @@ describe("Client State Reducer - UpdateTaskTitle safety", () => {
   test("UpdateTaskTitle on deleted task does not throw", t => {
     let state = TestHelpers.makeStateWithTask(~taskId="task-1", ~messages=[])
 
-    let (stateAfterDelete, _) = Reducer.next(state, DeleteTask({taskId: "task-1", replacementClientId: "replacement"}))
+    let (stateAfterDelete, _) = Reducer.next(
+      state,
+      DeleteTask({taskId: "task-1", replacementClientId: "replacement"}),
+    )
     t->expect(TestHelpers.getTaskCount(stateAfterDelete))->Expect.toBe(0)
 
     let (nextState, _) = Reducer.next(
@@ -2061,7 +2101,13 @@ describe("Client State Reducer - Annotations on Messages", () => {
       )
       let submit = content =>
         store->StateStore.dispatch(
-          AddUserMessage({id: UserMessageId.make(), timestamp: 0.0, content, annotationId: None, onComplete: value => result := Some(value)}),
+          AddUserMessage({
+            id: UserMessageId.make(),
+            timestamp: 0.0,
+            content,
+            annotationId: None,
+            onComplete: value => result := Some(value),
+          }),
         )
       let text = [UserContentPart.text("draft")]
       submit(text)
@@ -2072,7 +2118,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
         taskId => {
           let (deleted, deletionEffects) = Reducer.next(
             creating,
-            Reducer.DeleteTask({taskId: taskId, replacementClientId: "replacement"}),
+            Reducer.DeleteTask({taskId, replacementClientId: "replacement"}),
           )
           t
           ->expect(Reducer.Selectors.isSubmitting(deleted))
