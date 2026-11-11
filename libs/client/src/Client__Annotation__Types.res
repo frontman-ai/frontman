@@ -32,8 +32,8 @@ type t = {
   enrichmentStatus: enrichmentStatus,
 }
 
-let make = (~element: WebAPI.DomTypes.element, ~tagName: string): t => {
-  id: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
+let make = (~id: string, ~element: WebAPI.DomTypes.element, ~tagName: string): t => {
+  id,
   element,
   comment: None,
   selector: Ok(None),

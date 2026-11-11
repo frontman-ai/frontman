@@ -236,9 +236,9 @@ module Task = {
     | Loaded(data) => Loaded({...data, title: normalizeTitle(title)})
     }
 
-  let makeNew = (~previewUrl: string): t => {
+  let makeNew = (~previewUrl: string, ~clientId: string): t => {
     New({
-      clientId: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
+      clientId,
       previewFrame: {
         url: previewUrl,
         navigationKey: 0,
@@ -263,10 +263,9 @@ module Task = {
     })
   }
 
-  let newToLoaded = (task: t, ~id: string, ~title: string): t => {
+  let newToLoaded = (task: t, ~id: string, ~title: string, ~timestamp: float): t => {
     switch task {
     | New({clientId, previewFrame, annotationMode, annotations, activePopupAnnotationId}) =>
-      let timestamp = Date.now()
       Loaded({
         id,
         clientId: Some(clientId),

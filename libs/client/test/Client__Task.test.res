@@ -9,8 +9,8 @@ let testUserMessageId = UserMessageId.make()
 
 module TestHelpers = {
   let makeLoadedTask = () => {
-    Task.makeNew(~previewUrl="http://localhost:3000")
-    ->Task.newToLoaded(~id="test-task-1", ~title="Test Task")
+    Task.makeNew(~previewUrl="http://localhost:3000", ~clientId="test-task-1")
+    ->Task.newToLoaded(~id="test-task-1", ~title="Test Task", ~timestamp=0.0)
     ->Task.updateLoadedData(data => {...data, messages: []})
   }
 
@@ -124,6 +124,7 @@ describe("Task - Load State Machine", () => {
       TestHelpers.makeLoadedTask(),
       AddUserMessage({
         id: UserMessageId.make(),
+        timestamp: 0.0,
         content: [Image({
           id: Some("original-image"),
           image: "data:image/png;base64,YWJj",
@@ -135,9 +136,8 @@ describe("Task - Load State Machine", () => {
       }),
     )->Pair.first
   let resolveAttachment = task => {
-    module App = Client__State__StateReducer
-    App.Selectors.resolveImageRef(
-      {...App.defaultState, tasks: Dict.fromArray([("test-task-1", task)])},
+    Client__State__Selectors.resolveImageRef(
+      {...Client__State__Initialization.defaultState, tasks: Dict.fromArray([("test-task-1", task)])},
       ~taskId="test-task-1",
       ~uri=attachmentUri,
     )
@@ -188,6 +188,7 @@ describe("Task - Load State Machine", () => {
 
   test("failed reload retains saved view and attachments but suspends selection and popup", t => {
     let annotation = Client__Annotation__Types.make(
+      ~id="retained-annotation",
       ~element=WebAPI.DomGlobal.document->WebAPI.Document.createElement("button"),
       ~tagName="button",
     )
@@ -291,6 +292,7 @@ describe("Task - Agent Running State", () => {
       task,
       AddUserMessage({
         id: testUserMessageId,
+        timestamp: 0.0,
         content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
         annotations: [],
         agentId: "executor-id",
@@ -332,6 +334,7 @@ describe("Task - Agent Running State", () => {
       task,
       AddUserMessage({
         id: testUserMessageId,
+        timestamp: 0.0,
         content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
         annotations: [],
         agentId: "executor-id",
@@ -512,6 +515,7 @@ describe("Task - Error Handling", () => {
       task,
       AddUserMessage({
         id: testUserMessageId,
+        timestamp: 0.0,
         content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
         annotations: [],
         agentId: "executor-id",
@@ -538,6 +542,7 @@ describe("Task - Error Handling", () => {
       task,
       AddUserMessage({
         id: testUserMessageId,
+        timestamp: 0.0,
         content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
         annotations: [],
         agentId: "executor-id",
@@ -570,7 +575,7 @@ describe("Task - Error Handling", () => {
     )
     let (failed, effects) = TaskReducer.next(
       streaming,
-      AgentError({id: Some("agent-error-1"), error: "Quota exhausted", category: #quota}),
+      AgentError({id: "agent-error-1", retryErrorId: Some("agent-error-1"), error: "Quota exhausted", category: #quota}),
     )
 
     t
@@ -609,7 +614,8 @@ describe("Task - Error Handling", () => {
     let (task2, _) = TaskReducer.next(
       task,
       AgentError({
-        id: Some("agent-error-1"),
+        id: "agent-error-1",
+        retryErrorId: Some("agent-error-1"),
         error: "Some error",
         category: #unknown,
       }),
@@ -634,7 +640,8 @@ describe("Task - Error Handling", () => {
     let (task2, _) = TaskReducer.next(
       task,
       AgentError({
-        id: Some("agent-error-1"),
+        id: "agent-error-1",
+        retryErrorId: Some("agent-error-1"),
         error: "Previous error",
         category: #unknown,
       }),
@@ -654,6 +661,7 @@ describe("Task - Error Handling", () => {
       task2,
       AddUserMessage({
         id: testUserMessageId,
+        timestamp: 0.0,
         content: [Client__Task__Types.UserContentPart.Text({text: "New message"})],
         annotations: [],
         agentId: "executor-id",
@@ -737,6 +745,7 @@ describe("Task - CancelTurn", () => {
       cancelled,
       AddUserMessage({
         id: messageId,
+        timestamp: 0.0,
         content: [Client__Task__Types.UserContentPart.Text({text: "New question"})],
         annotations: [],
         agentId: "executor-id",
@@ -856,6 +865,7 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     let (task2, _) = TaskReducer.next(
       task1,
       ToggleAnnotation({
+        id: "ann-1",
         element: el1,
         tagName: "button",
       }),
@@ -863,6 +873,7 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     let (task3, _) = TaskReducer.next(
       task2,
       ToggleAnnotation({
+        id: "ann-2",
         element: el2,
         tagName: "div",
       }),
@@ -884,6 +895,7 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
       task,
       AddUserMessage({
         id: testUserMessageId,
+        timestamp: 0.0,
         content: [Client__Task__Types.UserContentPart.Text({text: "Fix this"})],
         annotations: _sampleMessageAnnotations,
         agentId: "executor-id",
@@ -1032,14 +1044,14 @@ describe("Task - Interactive wait contract", () => {
     let store = Client__State__Store.store
     let savedState = ref(None)
     let pendingQuestion = () =>
-      App.Selectors.currentTask(Store.getState(store))->TaskReducer.Selectors.pendingQuestion
+      Client__State__Selectors.currentTask(Store.getState(store))->TaskReducer.Selectors.pendingQuestion
     let ask = signal =>
       Tool.execute({questions: questions}, ~taskId="test-task-1", ~toolCallId="question-1", ~signal)
 
     beforeEach(() => {
       savedState := Some(Store.getState(store))
       Store.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(store, {
-        ...App.defaultState,
+        ...Client__State__Initialization.defaultState,
         tasks: Dict.fromArray([("test-task-1", TestHelpers.makeLoadedTask())]),
         currentTask: Task.Selected("test-task-1"),
         connection: Client__ConnectionTestHelpers.ready(~sessionId=Some("test-task-1")),
@@ -1071,11 +1083,11 @@ describe("Task - Interactive wait contract", () => {
         t->expect(unchanged)->Expect.toBe(initial)
         t->expect(rejected.contents)->Expect.toEqual(None)
         switch effects {
-        | [App.TaskEffect({effect: RejectQuestionToolEffect(_)})] => ()
+        | [Client__State__Protocol.TaskEffect({effect: RejectQuestionToolEffect(_)})] => ()
         | _ => failwith("Invalid registration must reject the waiting tool")
         }
         effects->Array.forEach(effect =>
-          App.handleEffect(effect, unchanged, _ => failwith("Unexpected dispatch"))
+          Client__State__Effects.handleEffect(effect, unchanged, _ => failwith("Unexpected dispatch"))
         )
         t->expect(rejected.contents)->Expect.toEqual(Some("Question session is no longer active"))
       })
@@ -1094,7 +1106,7 @@ describe("Task - Interactive wait contract", () => {
       })
       let controller = WebAPI.AbortController.make()
       let pending = ask(controller.signal)
-      switch App.Selectors.currentTask(Store.getState(store)) {
+      switch Client__State__Selectors.currentTask(Store.getState(store)) {
       | Task.Loading({pendingQuestion: Some(_)}) => ()
       | _ => failwith("Question must register before session loading completes")
       }
@@ -1113,7 +1125,7 @@ describe("Task - Interactive wait contract", () => {
       Store.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(store, {
         ...Store.getState(store),
         tasks: Dict.make(),
-        currentTask: App.defaultState.currentTask,
+        currentTask: Client__State__Initialization.defaultState.currentTask,
       })
       let controller = WebAPI.AbortController.make()
       t->expect(await ask(controller.signal))->Expect.toEqual(
@@ -1149,7 +1161,7 @@ describe("Task - Interactive wait contract", () => {
       Store.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(store, {
         ...Store.getState(store),
         tasks: Dict.make(),
-        currentTask: App.defaultState.currentTask,
+        currentTask: Client__State__Initialization.defaultState.currentTask,
       })
       WebAPI.AbortController.abort(controller)
       t->expect(await pending)->Expect.toEqual(
@@ -1205,6 +1217,7 @@ describe("Task - Interactive wait contract", () => {
           answered,
           AddUserMessage({
             id: testUserMessageId,
+            timestamp: 0.0,
             content: [Client__Task__Types.UserContentPart.Text({text: "Next turn, not an answer"})],
             annotations: [],
             agentId: "executor-id",
@@ -1429,6 +1442,7 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
     let (task2, effects) = TaskReducer.next(
       task1,
       ToggleAnnotation({
+        id: "ann-1",
         element: el,
         tagName: "button",
       }),
@@ -1566,6 +1580,7 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
     let (task2, effects1) = TaskReducer.next(
       task1,
       ToggleAnnotation({
+        id: "ann-1",
         element: el1,
         tagName: "button",
       }),
@@ -1573,6 +1588,7 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
     let (task3, _effects2) = TaskReducer.next(
       task2,
       ToggleAnnotation({
+        id: "ann-2",
         element: el2,
         tagName: "div",
       }),

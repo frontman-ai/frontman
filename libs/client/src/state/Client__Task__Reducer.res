@@ -301,6 +301,12 @@ type annotationElement = {
   tagName: string,
 }
 
+type identifiedAnnotationElement = {
+  id: string,
+  element: WebAPI.DomTypes.element,
+  tagName: string,
+}
+
 type action =
   | TextDeltaReceived({messageId: string, text: string, agentId: string})
   | ToolInputReceived({id: string, input: JSON.t})
@@ -314,14 +320,15 @@ type action =
   | ToolCallReceived({toolCall: Message.toolCall})
   | AddUserMessage({
       id: Message.UserMessageId.t,
+      timestamp: float,
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
     })
   | SetAnnotationMode({mode: Annotation.annotationMode})
   | ToggleAnnotationMode
-  | ToggleAnnotation({element: WebAPI.DomTypes.element, tagName: string})
-  | AddAnnotation({element: WebAPI.DomTypes.element, tagName: string})
+  | ToggleAnnotation({id: string, element: WebAPI.DomTypes.element, tagName: string})
+  | AddAnnotation({id: string, element: WebAPI.DomTypes.element, tagName: string})
   | AnnotationDetailsResolved({
       id: string,
       selector: result<option<string>, string>,
@@ -334,7 +341,7 @@ type action =
       elementorContext: option<Client__ElementorDetection.t>,
       enrichmentStatus: Annotation.enrichmentStatus,
     })
-  | AddAnnotations({elements: array<annotationElement>})
+  | AddAnnotations({elements: array<identifiedAnnotationElement>})
   | RemoveAnnotation({id: string})
   | ClearAnnotations
   | UpdateAnnotationComment({id: string, comment: string})
@@ -353,7 +360,7 @@ type action =
   | ExecutionStateIdle
   | ExecutionStateRequiresAction
   | CancelTurn
-  | AgentError({id: option<string>, error: string, category: Client__ErrorCategory.t})
+  | AgentError({id: string, retryErrorId: option<string>, error: string, category: Client__ErrorCategory.t})
   | UserMessageSendFailed({id: Message.UserMessageId.t, error: string})
   | RetryingUpdate({retryStatus: Types.Task.retryStatus})
   | RetryTurn({retriedErrorId: string})
@@ -395,6 +402,7 @@ type effect =
   | ResolveQuestionToolEffect({resolveOk: JSON.t => unit, answerJson: JSON.t})
   | RejectQuestionToolEffect({resolveError: string => unit, message: string})
   | SyncBrowserUrl(string)
+  | LogTaskLoadFailed({error: string})
 
 type delegated =
   | NeedSessionCommand(ACP.sessionCommand)
@@ -482,9 +490,9 @@ let extractAttachmentsFromUserContent = (content: array<UserContentPart.t>): arr
         mediaType: mediaType->Option.getOrThrow,
         filename: name->Option.getOrThrow,
       })
-    | File({file}) =>
+    | File({id, file}) =>
       Some({
-        Message.id: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
+        Message.id: id,
         dataUrl: file,
         mediaType: "application/octet-stream",
         filename: "file",
@@ -640,7 +648,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     }
 
   | (Task.Unloaded(_), ToggleAnnotation(_)) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleAnnotation({element, tagName})) => {
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleAnnotation({id, element, tagName})) => {
       let existing = Annotation.findByElement(Task.getAnnotations(task), element)
       switch existing {
       | Some(ann) =>
@@ -649,7 +657,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         let updated = Lens.setActivePopupAnnotationId(updated, None)
         (updated, [])
       | None =>
-        let annotation = Annotation.make(~element, ~tagName)
+        let annotation = Annotation.make(~id, ~element, ~tagName)
         let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
         let effects = [
           FetchAnnotationDetails({
@@ -667,8 +675,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     }
 
   | (Task.Unloaded(_), AddAnnotation(_)) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddAnnotation({element, tagName})) => {
-      let annotation = Annotation.make(~element, ~tagName)
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddAnnotation({id, element, tagName})) => {
+      let annotation = Annotation.make(~id, ~element, ~tagName)
       let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
       let effects = [
         FetchAnnotationDetails({
@@ -749,7 +757,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddAnnotations({elements})) => {
       let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
       let newAnnotations =
-        elements->Array.map(el => Annotation.make(~element=el.element, ~tagName=el.tagName))
+        elements->Array.map(el => Annotation.make(~id=el.id, ~element=el.element, ~tagName=el.tagName))
       let effects = newAnnotations->Array.map(annotation => FetchAnnotationDetails({
         id: annotation.id,
         element: annotation.element,
@@ -932,7 +940,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
-  | (Task.Loaded(data), AddUserMessage({id, content, annotations, agentId})) =>
+  | (Task.Loaded(data), AddUserMessage({id, timestamp, content, annotations, agentId})) =>
     let attachments = extractAttachmentsFromUserContent(content)
     let messageId = Message.UserMessageId.toString(id)
     let pendingMessage = Message.User({
@@ -951,7 +959,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     (
       Task.Loaded({
         ...data,
-        updatedAt: Date.now(),
+        updatedAt: timestamp,
         turnError: None,
         retryStatus: None,
         imageAttachments: updatedImageAttachments,
@@ -1074,13 +1082,13 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }
     }
 
-  | (Task.Loading(data), AgentError({id, error, category})) =>
+  | (Task.Loading(data), AgentError({id, retryErrorId, error, category})) =>
     let task = Task.Loading({...data, isAgentRunning: false})
-    let errorMsg = Message.Error(Message.ErrorMessage.make(~id?, ~error, ~category))
+    let errorMsg = Message.Error(Message.ErrorMessage.make(~id, ~retryErrorId, ~error, ~category))
     (task->Lens.completeStreamingMessage->Lens.insertMessage(errorMsg), [])
 
-  | (Task.Loaded(_), AgentError({id, error, category})) =>
-    let errorMessage = Message.ErrorMessage.make(~id?, ~error, ~category)
+  | (Task.Loaded(_), AgentError({id, retryErrorId, error, category})) =>
+    let errorMessage = Message.ErrorMessage.make(~id, ~retryErrorId, ~error, ~category)
     let completed =
       task->Lens.completeStreamingMessage->Lens.insertMessage(Message.Error(errorMessage))
     switch completed {
@@ -1091,7 +1099,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
             id: Message.ErrorMessage.id(errorMessage),
             message: error,
             category,
-            retryErrorId: id,
+            retryErrorId,
           }),
           isAgentRunning: false,
           retryStatus: None,
@@ -1222,7 +1230,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }),
       LoadError({error}),
     ) =>
-    Log.error(~ctx={"error": error}, "Task load failed")
     (
       Task.Unloaded({
         id,
@@ -1235,7 +1242,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           imageAttachments,
         }),
       }),
-      [],
+      [LogTaskLoadFailed({error: error})],
     )
 
   | (_, QuestionDetached({resolveOk})) => (
@@ -1601,5 +1608,6 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
   | ResolveQuestionToolEffect({resolveOk, answerJson}) => resolveOk(answerJson)
   | RejectQuestionToolEffect({resolveError, message}) => resolveError(message)
   | SyncBrowserUrl(url) => delegate(NeedSyncBrowserUrl(url))
+  | LogTaskLoadFailed({error}) => Log.error(~ctx={"error": error}, "Task load failed")
   }
 }

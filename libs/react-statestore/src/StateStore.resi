@@ -6,6 +6,7 @@ let make: (
     and type action = 'action
     and type effect = 'effect
   ),
+  ~handleEffect: StateReducer.effectHandler<'state, 'action, 'effect>,
   'state,
 ) => t<'state, 'action, 'effect>
 @@live

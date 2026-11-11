@@ -65,7 +65,7 @@ beforeEachAsync(async () => {
       ~to=S.json,
     )
   RuntimeConfig.set(WebAPI.Window.current, Nullable.make(runtime))
-  Test.force({...Test.original, currentTask: Task.New(Task.makeNew(~previewUrl))})
+  Test.force({...Test.original, currentTask: Task.New(Task.makeNew(~previewUrl, ~clientId="preview"))})
   await Test.page->Test.viewport(1280, 900)
   Test.render(<Preview />)
   await waitReady()
@@ -189,7 +189,7 @@ testAsync("toolbar reload and address entry recover without restarting the clien
 testAsync(
   "retained task frames cannot update another task or reuse a replaced document",
   async t => {
-    let make = id => Task.makeNew(~previewUrl)->Task.newToLoaded(~id, ~title=id)
+    let make = id => Task.makeNew(~previewUrl, ~clientId=id)->Task.newToLoaded(~id, ~title=id, ~timestamp=0.0)
     let first = switch make("first") {
     | Task.Loaded(data) => Task.Loaded({...data, updatedAt: data.updatedAt -. 1000.0})
     | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => failwith("Expected a loaded task")

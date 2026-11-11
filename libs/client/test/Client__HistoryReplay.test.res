@@ -118,8 +118,9 @@ describe("ACP message identity", () => {
     }
     let store = StateStore.make(
       module(App),
+      ~handleEffect=Client__State__Effects.handleEffect,
       {
-        ...App.defaultState,
+        ...Client__State__Initialization.defaultState,
         tasks: Dict.fromArray([("task-1", loading)]),
         currentTask: Task.Selected("task-1"),
       },
@@ -134,6 +135,7 @@ describe("ACP message identity", () => {
         AcpSessionUpdateReceived({
           taskId: notification.params.sessionId,
           update: notification.params.update,
+          errorDisplayId: None,
         }),
       )
     }
@@ -199,7 +201,7 @@ describe("ACP message identity", () => {
     Buffer.reset()
     let requests: array<Connection.action> = []
     let operations = []
-    let initial = {...App.defaultState, tasks: Dict.fromArray([("task-1", makeLoadingTask())])}
+    let initial = {...Client__State__Initialization.defaultState, tasks: Dict.fromArray([("task-1", makeLoadingTask())])}
     let getTask = (state: App.state) => state.tasks->Dict.get("task-1")->Option.getOrThrow
     let rejected = App.next(initial, SwitchTask({taskId: "task-1"}))->Pair.first
     t->expect(getTask(rejected)->Task.isLoading)->Expect.toBe(false)
@@ -222,7 +224,7 @@ describe("ACP message identity", () => {
               result: Ok((Client__ConnectionTestHelpers.session(sessionId), None)),
             }),
           )
-        | _ => App.handleEffect(effect, state, dispatch)
+        | _ => Client__State__Effects.handleEffect(effect, state, dispatch)
         },
     )
     let switchTask = () => store->Store.dispatch(SwitchTask({taskId: "task-1"}))
@@ -233,7 +235,7 @@ describe("ACP message identity", () => {
     t->expect(store->Store.getState->getTask->Task.isLoading)->Expect.toBe(true)
     t->expect(requests->Array.length)->Expect.toBe(1)
     let dispatch = action => store->Store.dispatch(action)
-    App.getSessionTextBuffer(dispatch).add(
+    Client__State__SessionBuffer.getSessionTextBuffer(dispatch).add(
       ~taskId="task-1",
       ~messageId="assistant-1",
       ~text="History",
@@ -249,7 +251,7 @@ describe("ACP message identity", () => {
     }
     switchTask()
     t->expect(requests->Array.length)->Expect.toBe(1)
-    store->Store.dispatch(ClearCurrentTask)
+    store->Store.dispatch(ClearCurrentTask({replacementClientId: "replacement"}))
     switchTask()
     finish(1)
     t->expect(operations)->Expect.toEqual([#load("task-1"), #load("task-1")])
@@ -266,7 +268,7 @@ describe("ACP message identity", () => {
     t->expect(TaskReducer.Selectors.isAgentRunning(paused))->Expect.toEqual(Some(false))
     let idle = makeLoadingTask()->apply(ExecutionStateRunning([]))->apply(ExecutionStateIdle)->apply(LoadComplete)
     t->expect(TaskReducer.Selectors.isAgentRunning(idle))->Expect.toEqual(Some(false))
-    let failed = makeLoadingTask()->apply(ExecutionStateRunning([]))->apply(AgentError({id: None, error: "Failed", category: #unknown}))
+    let failed = makeLoadingTask()->apply(ExecutionStateRunning([]))->apply(AgentError({id: "local-error", retryErrorId: None, error: "Failed", category: #unknown}))
     t->expect(TaskReducer.Selectors.isAgentRunning(failed->apply(LoadComplete)))->Expect.toEqual(Some(false))
     let retry = failed->apply(ExecutionStateRunning([]))->apply(LoadComplete)
     t->expect(TaskReducer.Selectors.isAgentRunning(retry))->Expect.toEqual(Some(true))

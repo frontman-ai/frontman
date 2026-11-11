@@ -4,7 +4,7 @@ module Reducer = Client__State__StateReducer
 module Types = Client__State__Types
 
 let _makeState = (~openaiOAuthStatus: Types.openaiOAuthStatus): Types.state => {
-  ...Reducer.defaultState,
+  ...Client__State__Initialization.defaultState,
   openaiOAuthStatus,
   selectedModelValue: None,
 }
