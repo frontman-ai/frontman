@@ -19,3 +19,11 @@ test("packed package declares supported Astro and Node versions", async () => {
   assert.equal(packageJson.engines.node, ">=22.19.0")
   assert.equal(packageJson.peerDependencies.astro, "^5.0.0 || ^6.0.0 || ^7.0.0")
 })
+
+test("production output renders components without props markers", async () => {
+  const html = await readFile(new URL("../dist/props/index.html", import.meta.url), "utf8")
+
+  assert.match(html, /Hello\s+(?:<!--.*?-->)?async/s)
+  assert.match(html, /Hello\s+(?:<!--.*?-->)?slotted/s)
+  assert.ok(!html.includes("__frontman_props__"))
+})
