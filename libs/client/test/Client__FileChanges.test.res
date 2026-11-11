@@ -347,40 +347,54 @@ describe("conversation file changes", () => {
     }
   })
 
-  test("publishes a new snapshot only when the turn becomes idle", t => {
-    let task =
-      Task.makeNew(~previewUrl="http://localhost:3000", ~clientId="task-1")->Task.newToLoaded(
-        ~id="task-1",
-        ~title="Diff test",
-        ~timestamp=0.0,
-      )
-    let (running, _) = TaskReducer.next(task, ExecutionStateRunning([]))
-    let change = envelope(~oldText=Some("old"), ~currentText=Some("new"))
-    let call: Message.toolCall = {
-      id: "tool-1",
-      toolName: "edit_file",
-      state: Message.InputAvailable,
-      inputBuffer: "",
-      input: None,
-      result: None,
-      errorText: None,
-      parentAgentId: None,
-      spawningToolName: None,
-    }
-    let (withCall, _) = TaskReducer.next(running, ToolCallReceived({toolCall: call}))
-    let (withResult, _) = TaskReducer.next(
-      withCall,
-      ToolResultReceived({
-        id: "tool-1",
-        rawOutput: Some(rawOutput(change)),
-        content: None,
-        complete: true,
-      }),
-    )
+  [
+    TaskReducer.ExecutionStateIdle,
+    CancelTurn,
+    AgentError({
+      id: "error-1",
+      retryErrorId: Some("error-1"),
+      error: "Turn failed",
+      category: #unknown,
+    }),
+  ]->Array.forEach(action =>
+    test(
+      `publishes a new snapshot on ${TaskReducer.actionToString(action)}`,
+      t => {
+        let task = switch Task.makeNew(~previewUrl="http://localhost:3000", ~clientId="task-1") {
+        | Task.New(draft) =>
+          Task.Loaded(Task.promoteDraft(draft, ~id="task-1", ~title="Diff test", ~timestamp=0.0))
+        | _ => failwith("Expected a draft")
+        }
+        let (running, _) = TaskReducer.next(task, ExecutionStateRunning([]))
+        let change = envelope(~oldText=Some("old"), ~currentText=Some("new"))
+        let call: Message.toolCall = {
+          id: "tool-1",
+          toolName: "edit_file",
+          state: Message.InputAvailable,
+          inputBuffer: "",
+          input: None,
+          result: None,
+          errorText: None,
+          parentAgentId: None,
+          spawningToolName: None,
+        }
+        let (withCall, _) = TaskReducer.next(running, ToolCallReceived({toolCall: call}))
+        let (withResult, _) = TaskReducer.next(
+          withCall,
+          ToolResultReceived({
+            id: "tool-1",
+            rawOutput: Some(rawOutput(change)),
+            content: None,
+            complete: true,
+          }),
+        )
 
-    t->expect(Array.length(Task.getCompletedFileChanges(withResult).files))->Expect.toBe(0)
-    let (idle, _) = TaskReducer.next(withResult, ExecutionStateIdle)
-    t->expect(Array.length(Task.getCompletedFileChanges(idle).files))->Expect.toBe(1)
-    t->expect(Task.getCompletedFileChanges(idle).revision)->Expect.toBe(1)
-  })
+        t->expect(Array.length(Task.getCompletedFileChanges(withResult).files))->Expect.toBe(0)
+        let (completed, _) = TaskReducer.next(withResult, action)
+        t->expect(Task.isLoaded(completed))->Expect.toBe(true)
+        t->expect(Array.length(Task.getCompletedFileChanges(completed).files))->Expect.toBe(1)
+        t->expect(Task.getCompletedFileChanges(completed).revision)->Expect.toBe(1)
+      },
+    )
+  )
 })
