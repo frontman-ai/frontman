@@ -71,6 +71,9 @@ jobs:
       matrix:
         astro: ["5", "6", "7"]
         node: ["22.19.0", "24"]
+        include:
+          - {astro: "7.4.8", node: "24"}
+          - {astro: "7.4.10", node: "24"}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1

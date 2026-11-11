@@ -1,91 +1,7 @@
-import MagicString from "magic-string"
+import {readFile} from "node:fs/promises"
+import {createRequire} from "node:module"
 
-const RUNTIME_MODULES = [
-  "astro/dist/runtime/server/render/component",
-  "astro/runtime/server/render/component",
-]
-
-function findClosingBrace(code, openingBrace) {
-  let depth = 0
-  let quote = null
-  let lineComment = false
-  let blockComment = false
-
-  for (let index = openingBrace; index < code.length; index++) {
-    const char = code[index]
-    const next = code[index + 1]
-
-    if (lineComment) {
-      if (char === "\n") lineComment = false
-      continue
-    }
-    if (blockComment) {
-      if (char === "*" && next === "/") {
-        blockComment = false
-        index++
-      }
-      continue
-    }
-    if (quote) {
-      if (char === "\\") index++
-      else if (char === quote) quote = null
-      continue
-    }
-    if (char === "/" && next === "/") {
-      lineComment = true
-      index++
-      continue
-    }
-    if (char === "/" && next === "*") {
-      blockComment = true
-      index++
-      continue
-    }
-    if (char === '"' || char === "'" || char === "`") {
-      quote = char
-      continue
-    }
-    if (char === "{") depth++
-    if (char === "}" && --depth === 0) return index
-  }
-
-  return -1
-}
-
-function findRenderComponent(code) {
-  const declaration = /\b(export\s+)?function\s+renderComponent\s*\(([^)]*)\)\s*\{/g
-  const matches = [...code.matchAll(declaration)]
-  if (matches.length !== 1) return null
-
-  const match = matches[0]
-  const parameters = match[2].split(",").map(parameter => parameter.trim())
-  if (parameters.length !== 5) return null
-
-  const nameStart = match.index + match[0].indexOf("renderComponent")
-  const openingBrace = match.index + match[0].lastIndexOf("{")
-  const closingBrace = findClosingBrace(code, openingBrace)
-  if (closingBrace === -1) return null
-
-  return {nameStart, openingBrace, closingBrace, exportStart: match[1] ? match.index : null}
-}
-
-function hasMarkHTMLStringBinding(code) {
-  return (
-    /import\s*\{[^}]*\bmarkHTMLString\b[^}]*\}/s.test(code) ||
-    /\b(?:function|const|let|var)\s+markHTMLString\b/.test(code)
-  )
-}
-
-function recursiveCalls(code, start, end) {
-  const calls = []
-  const pattern = /\brenderComponent\s*(?=\()/g
-  pattern.lastIndex = start
-
-  for (let match = pattern.exec(code); match && match.index < end; match = pattern.exec(code)) {
-    calls.push({start: match.index, end: match.index + "renderComponent".length})
-  }
-  return calls
-}
+const PREFIX = "\0frontman:props:"
 
 const wrapperCode = `
 
@@ -165,16 +81,20 @@ function __frontman_safeSerialize(displayName, Component, props) {
 function __frontman_wrapInstance(renderInstance, displayName, Component, props) {
   if (!renderInstance || typeof renderInstance.render !== 'function') return renderInstance;
 
-  const serialized = __frontman_safeSerialize(displayName, Component, props);
-  if (!serialized) return renderInstance;
-  const encoded = Buffer.from(serialized, 'utf8').toString('base64');
+  const marker = __frontman_propsMarker(displayName, Component, props);
+  if (!marker) return renderInstance;
   const originalRender = renderInstance.render;
   return {
     render(destination) {
-      destination.write(markHTMLString('<!-- __frontman_props__:' + encoded + ' -->'));
+      destination.write(unescapeHTML(marker));
       return originalRender.call(renderInstance, destination);
     }
   };
+}
+
+function __frontman_propsMarker(displayName, Component, props) {
+  const serialized = __frontman_safeSerialize(displayName, Component, props);
+  return serialized ? '<!-- __frontman_props__:' + Buffer.from(serialized, 'utf8').toString('base64') + ' -->' : null;
 }
 
 function __frontman_renderAndWrap(result, displayName, Component, props, slots) {
@@ -195,55 +115,60 @@ function renderComponent(result, displayName, Component, props, slots) {
   }
   return __frontman_renderAndWrap(result, displayName, Component, props, slots);
 }
+
+async function renderComponentToString(result, displayName, Component, props, ...rest) {
+  const resolved = await Component;
+  const marker = __frontman_propsMarker(displayName, resolved, props);
+  const output = await __original_renderComponentToString(result, displayName, resolved, props, ...rest);
+  return marker ? marker + output : output;
+}
 `
 
 export function frontmanPropsInjectionPlugin() {
-  let warned = false
+  let root
+  let runtime
+  let htmlRuntimeId
 
-  function warn(id) {
-    if (warned) return
-    warned = true
-    console.warn(
-      "[Frontman] Unsupported Astro renderComponent runtime; component props capture disabled. " + id,
-    )
+  async function resolveRenderer(parse) {
+    const require = createRequire(`${root}/package.json`)
+    htmlRuntimeId = require.resolve("astro/runtime/server/index.js").replaceAll("\\", "/")
+    let id = require.resolve("astro/runtime/server/render/component.js")
+    const visited = new Set()
+    while (!visited.has(id)) {
+      visited.add(id)
+      const ast = parse(await readFile(id, "utf8"))
+      if (ast.body.length !== 1 || ast.body[0].type !== "ExportAllDeclaration") {
+        return id.replaceAll("\\", "/")
+      }
+      id = createRequire(id).resolve(ast.body[0].source.value)
+    }
+    throw new Error("[Frontman] Circular Astro renderer re-export")
   }
 
   return {
     name: "frontman:props-injection",
     enforce: "pre",
     apply: "serve",
-    transform(code, id, options) {
-      if (!options?.ssr || !RUNTIME_MODULES.some(moduleId => id.includes(moduleId))) return null
-
-      const renderComponent = findRenderComponent(code)
-      if (!renderComponent || !hasMarkHTMLStringBinding(code)) {
-        warn(id)
-        return null
-      }
-
-      const output = new MagicString(code)
-      output.overwrite(
-        renderComponent.nameStart,
-        renderComponent.nameStart + "renderComponent".length,
-        "__original_renderComponent",
-      )
-      for (const call of recursiveCalls(
-        code,
-        renderComponent.openingBrace + 1,
-        renderComponent.closingBrace,
-      )) {
-        output.overwrite(call.start, call.end, "__original_renderComponent")
-      }
-      output.append(wrapperCode)
-      if (renderComponent.exportStart !== null) {
-        output.remove(renderComponent.exportStart, renderComponent.exportStart + "export".length)
-        output.append("\nexport {renderComponent};\n")
-      }
-
-      return {
-        code: output.toString(),
-        map: output.generateMap({hires: true, source: id, includeContent: true}),
-      }
+    configResolved(config) {
+      root = config.root
+    },
+    async resolveId(source, importer, options) {
+      if (!options?.ssr || importer?.startsWith(PREFIX)) return null
+      runtime ??= resolveRenderer(code => this.parse(code))
+      const runtimeId = await runtime
+      const original = await this.resolve(source, importer, {...options, skipSelf: true})
+      return original?.id === runtimeId ? PREFIX + runtimeId : null
+    },
+    load(id) {
+      if (!id.startsWith(PREFIX)) return null
+      const original = JSON.stringify(id.slice(PREFIX.length))
+      return `
+export * from ${original};
+import {renderComponent as __original_renderComponent, renderComponentToString as __original_renderComponentToString} from ${original};
+import {unescapeHTML} from ${JSON.stringify(htmlRuntimeId)};
+${wrapperCode}
+export {renderComponent, renderComponentToString};
+`
     },
   }
 }
