@@ -1,6 +1,5 @@
 open Vitest
 
-// Compose real owners for this integration test; this is not the public reducer interface.
 module Reducer = {
   include Client__State__Protocol
   let next = Client__State__StateReducer.next
