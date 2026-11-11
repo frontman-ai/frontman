@@ -23,6 +23,43 @@ defmodule FrontmanServer.WordPress do
     request_site(scope, site_id, :get, nil, timeout)
   end
 
+  @doc """
+  Streams catalogs until an absolute monotonic deadline in milliseconds.
+
+  Loads owned connections before starting cancellable HTTP workers. Cancellation
+  must not interrupt a database checkout and disconnect its transaction.
+  Each batch contains at most one connection per origin, so discovery cannot
+  flood a shared WordPress server while independent origins remain concurrent.
+  """
+  def stream_catalogs(%Scope{} = scope, site_ids, deadline) do
+    connections =
+      scope
+      |> Scope.user_id()
+      |> Connection.owned_ids(site_ids)
+      |> Repo.all()
+      |> Map.new(&{&1.id, &1})
+
+    site_ids
+    |> Enum.group_by(fn id ->
+      case Map.fetch(connections, id) do
+        {:ok, connection} -> origin(connection.catalog_url)
+        :error -> {:missing, id}
+      end
+    end)
+    |> Map.values()
+    |> catalog_batches()
+    |> Stream.flat_map(fn batch ->
+      Task.async_stream(
+        batch,
+        &fetch_catalog(connections, &1, deadline),
+        max_concurrency: 32,
+        ordered: false,
+        timeout: max(deadline - System.monotonic_time(:millisecond), 1),
+        on_timeout: :kill_task
+      )
+    end)
+  end
+
   def call(%Scope{} = scope, site_id, name, arguments) do
     request_site(scope, site_id, :post, %{name: name, arguments: arguments}, 15_000)
   end
@@ -62,20 +99,50 @@ defmodule FrontmanServer.WordPress do
     scope |> Scope.user_id() |> Connection.owned_catalog(catalog_url) |> Repo.exists?()
   end
 
+  defp catalog_batches(groups) do
+    Stream.unfold(groups, fn
+      [] ->
+        nil
+
+      groups ->
+        {batch, remaining} = Enum.unzip(Enum.map(groups, fn [id | rest] -> {id, rest} end))
+        {batch, Enum.reject(remaining, &(&1 == []))}
+    end)
+  end
+
+  defp fetch_catalog(connections, id, deadline) do
+    remaining = deadline - System.monotonic_time(:millisecond)
+
+    result =
+      case Map.fetch(connections, id) do
+        {:ok, connection} when remaining > 0 ->
+          request_connection(connection, :get, nil, remaining)
+
+        _ ->
+          {:error, :connection_failed}
+      end
+
+    {id, result}
+  end
+
   defp request_site(scope, site_id, method, body, timeout) do
     with {:ok, site_id} <- Ecto.UUID.cast(site_id),
          %Connection{} = connection <-
            scope |> Scope.user_id() |> Connection.owned() |> Repo.get(site_id) do
-      url =
-        case method do
-          :get -> connection.catalog_url
-          :post -> connection.call_url
-        end
-
-      request(url, connection.username, connection.password, method, body, timeout)
+      request_connection(connection, method, body, timeout)
     else
       _ -> {:error, :connection_failed}
     end
+  end
+
+  defp request_connection(connection, method, body, timeout) do
+    url =
+      case method do
+        :get -> connection.catalog_url
+        :post -> connection.call_url
+      end
+
+    request(url, connection.username, connection.password, method, body, timeout)
   end
 
   defp origin(url) do
@@ -90,6 +157,7 @@ defmodule FrontmanServer.WordPress do
   end
 
   defp request(url, username, password, method, body, timeout \\ 15_000) do
+    started = System.monotonic_time(:millisecond)
     client = Req.new(Application.get_env(:frontman_server, __MODULE__, plugins: [PublicURL]))
 
     task =
@@ -112,9 +180,38 @@ defmodule FrontmanServer.WordPress do
         )
       end)
 
-    case Task.yield(task, timeout) || Task.shutdown(task, :brutal_kill) do
-      {:ok, {:ok, %{status: 200, body: response}}} -> Jason.decode(response)
-      _ -> {:error, :request_failed}
-    end
+    {result, outcome, status} =
+      request_result(Task.yield(task, timeout) || Task.shutdown(task, :brutal_kill))
+
+    request_event(method, outcome, status, started)
+    result
+  end
+
+  defp request_result({:ok, {:ok, %{status: 200, body: response}}}) do
+    result = Jason.decode(response)
+    outcome = if match?({:ok, _}, result), do: :ok, else: :invalid_json
+    {result, outcome, 200}
+  end
+
+  defp request_result({:ok, {:ok, %{status: status}}} = result),
+    do: {{:error, :request_failed}, request_failure(result), status}
+
+  defp request_result(result), do: {{:error, :request_failed}, request_failure(result), 0}
+
+  defp request_failure({:ok, {:ok, %{status: 0}}}), do: :oversized_result
+  defp request_failure({:ok, {:ok, %{status: _}}}), do: :non_200
+  defp request_failure({:ok, {:error, %Req.TransportError{reason: :timeout}}}), do: :timeout
+  defp request_failure({:ok, {:error, _}}), do: :transport
+  defp request_failure(nil), do: :timeout
+  defp request_failure(_), do: :task_exit
+
+  defp request_event(method, outcome, status, started) do
+    kind = if method == :get, do: :catalog, else: :call
+
+    :telemetry.execute(
+      [:frontman_server, :wordpress, kind, :stop],
+      %{duration_ms: max(System.monotonic_time(:millisecond) - started, 0), status_code: status},
+      %{outcome: outcome}
+    )
   end
 end

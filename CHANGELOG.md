@@ -3,6 +3,77 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+## [5.9.0] - 2026-11-10
+
+
+#### @frontman-ai/client
+
+
+### Patch Changes
+
+- [#2166](https://github.com/frontman-ai/frontman/pull/2166) [`f019399`](https://github.com/frontman-ai/frontman/commit/f01939984972363c61313eab65858ec83d9d984e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Combine site authorization with Frontman sign-in. Remove the separate approval screen while preserving origin-bound access and protection against requests from other tabs.
+
+- [#2167](https://github.com/frontman-ai/frontman/pull/2167) [`f462e40`](https://github.com/frontman-ai/frontman/commit/f462e40fe51a7a51b94ab146c5a82573a615ba98) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Allow existing accounts to request an email sign-in link from the login page.
+
+- [#2165](https://github.com/frontman-ai/frontman/pull/2165) [`594238b`](https://github.com/frontman-ai/frontman/commit/594238bf45082b7e0d3fdcf34ba655e495222975) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add a dismissible WordPress activation notice and an Open Frontman plugin action. Simplify provider setup and add starter prompts to the composer for review before submission.
+
+- [#2164](https://github.com/frontman-ai/frontman/pull/2164) [`050a2ae`](https://github.com/frontman-ai/frontman/commit/050a2aeed433955309e26ef57518a368b2e9d977) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Use shared buttons in a consistent action row for WordPress connection and plugin settings. Keep MCP access as an Enable MCP or Disable MCP button after connecting, with specific pending labels. Remove redundant status text and group credential details under Permissions and revocation while keeping setup permission warnings visible.
+
+#### @frontman-ai/frontman-wordpress
+
+
+### Minor Changes
+
+- [#2169](https://github.com/frontman-ai/frontman/pull/2169) [`d326d4b`](https://github.com/frontman-ai/frontman/commit/d326d4b0816739fdb38b7a87044930afdd59762a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add Yoast Free SEO tools for taxonomy terms and custom post type archives. Preserve unrelated SEO settings, refresh native indexables, and report observed save results.
+
+### Patch Changes
+
+- [#2175](https://github.com/frontman-ai/frontman/pull/2175) [`ccdaf9e`](https://github.com/frontman-ai/frontman/commit/ccdaf9e240f9c6def9a3b33f9a1de9ed2157d9b5) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Replace the generic WooCommerce maintenance executor with individually described, confirmation-gated tools.
+
+- [#2165](https://github.com/frontman-ai/frontman/pull/2165) [`594238b`](https://github.com/frontman-ai/frontman/commit/594238bf45082b7e0d3fdcf34ba655e495222975) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add a dismissible WordPress activation notice and an Open Frontman plugin action. Simplify provider setup and add starter prompts to the composer for review before submission.
+
+- [#2170](https://github.com/frontman-ai/frontman/pull/2170) [`328cdf7`](https://github.com/frontman-ai/frontman/commit/328cdf7bf344ec162440430850ecaf986107882c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Document taxonomy and CPT archive SEO tools, permissions, reset behavior, and indexable readback. Keep SEO target selection and verification guidance in tool descriptions rather than the system prompt.
+
+## [Unreleased]
+
+### Added
+
+- The API server serves the public OpenAI Apps domain-verification challenge as plain text.
+- Production first-use campaign enrollment is configured for signups from 2026-11-10 15:00 UTC.
+
+### Fixed
+
+- Successful WordPress MCP tool use now exits the first-use campaign.
+- Contact synchronization preserves opt-outs when an existing contact is retried.
+
+## [5.8.0] - 2026-11-08
+
+
+#### @frontman-ai/frontman-wordpress
+
+
+### Patch Changes
+
+- [#2145](https://github.com/frontman-ai/frontman/pull/2145) [`e620170`](https://github.com/frontman-ai/frontman/commit/e620170c5f623ff6b786c679802db49e363475d2) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Return an error instead of a partial MCP tool list when a connected WordPress site's catalog is unavailable or invalid. Load owned connections before parallel HTTP requests so discovery cancellation cannot interrupt a database checkout.
+
+- [#2145](https://github.com/frontman-ai/frontman/pull/2145) [`e620170`](https://github.com/frontman-ai/frontman/commit/e620170c5f623ff6b786c679802db49e363475d2) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Discover tools only on the selected WordPress site when executing MCP calls, so unrelated sites cannot block calls through conflicting schemas or outages.
+
+- [#2140](https://github.com/frontman-ai/frontman/pull/2140) [`6d49f60`](https://github.com/frontman-ai/frontman/commit/6d49f60c10a7bde0b5b15f0c878145abe83aacb6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Declare explicit safety and retry hints for every core WordPress tool. Classifications cover publication, persisted previews, destructive changes, public HTTP inspection, and repeated writes without changing tool inputs or execution.
+
+- [#2138](https://github.com/frontman-ai/frontman/pull/2138) [`b35a555`](https://github.com/frontman-ai/frontman/commit/b35a555b7b5c5d628828d61befb5f03a64da9b4c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Declare explicit safety and retry hints for non-commerce integrations, including conditional SEO tools, Elementor generation and public mutations, translation changes, and both redirect providers. Preserve existing catalogs and execution contracts.
+
+- [#2138](https://github.com/frontman-ai/frontman/pull/2138) [`b35a555`](https://github.com/frontman-ai/frontman/commit/b35a555b7b5c5d628828d61befb5f03a64da9b4c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Require explicit safety annotations when constructing WordPress tools. Remove the optional migration path and check the complete registered catalog against reviewed classifications and both authenticated discovery transports.
+
+- [#2145](https://github.com/frontman-ai/frontman/pull/2145) [`e620170`](https://github.com/frontman-ai/frontman/commit/e620170c5f623ff6b786c679802db49e363475d2) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Make runtime dependency checksum checks portable and record tool inventories across real WordPress integrations. Exercise hosted discovery, selected-site execution, outages, and recovery with and without WooCommerce.
+
+- [#2139](https://github.com/frontman-ai/frontman/pull/2139) [`02d9132`](https://github.com/frontman-ai/frontman/commit/02d91325153db1cbeeec37efcc24eff4a2473a59) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Enable strict PHP typing in the core WordPress tools and their runtime tests while preserving existing input validation and tool behavior.
+
+- [#2139](https://github.com/frontman-ai/frontman/pull/2139) [`02d9132`](https://github.com/frontman-ai/frontman/commit/02d91325153db1cbeeec37efcc24eff4a2473a59) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Enable strict PHP typing in the WordPress integration tools and their real-plugin runtime tests.
+
+- [#2140](https://github.com/frontman-ai/frontman/pull/2140) [`6d49f60`](https://github.com/frontman-ai/frontman/commit/6d49f60c10a7bde0b5b15f0c878145abe83aacb6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add a validated tool annotation value type and preserve explicit safety hints in WordPress catalogs. Existing tools remain available without inferred annotations during migration.
+
+- [#2140](https://github.com/frontman-ai/frontman/pull/2140) [`6d49f60`](https://github.com/frontman-ai/frontman/commit/6d49f60c10a7bde0b5b15f0c878145abe83aacb6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Declare reviewed safety and retry hints for the full WooCommerce catalog, including generated metadata upserts, public catalog changes, notifications, refunds, external diagnostics, and maintenance actions. Preserve existing inputs and execution.
+
 ## [5.7.0] - 2026-11-07
 
 

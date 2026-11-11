@@ -1,5 +1,11 @@
 # @frontman/frontman-server-assets
 
+## 0.2.4
+
+### Patch Changes
+
+- [#2141](https://github.com/frontman-ai/frontman/pull/2141) [`a51d944`](https://github.com/frontman-ai/frontman/commit/a51d9445fccda115dcc324038017da462b32e623) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Expose safety annotations for site discovery and explicit OAuth security declarations on every hosted MCP tool. Preserve WordPress annotations and tool metadata through the final discovery response.
+
 ## 0.2.3
 
 ### Patch Changes

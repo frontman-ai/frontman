@@ -21,7 +21,7 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
     assert redirected_to(conn) == "/auth/mcp/workos/pending?ref=#{pending["ref"]}"
 
     conn = conn |> recycle() |> get(redirected_to(conn))
-    assert html_response(conn, 200) =~ "does not grant access to a WordPress site"
+    assert html_response(conn, 200) =~ "This step does not give access to your website"
     refute conn.resp_body =~ "unverified-request"
     assert get_resp_header(conn, "referrer-policy") == ["no-referrer"]
 

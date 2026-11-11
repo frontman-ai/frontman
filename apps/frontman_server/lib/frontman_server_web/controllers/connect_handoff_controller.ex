@@ -27,7 +27,7 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
   def show(conn, %{"ref" => ref}) do
     case pending(conn, ref) do
       {:ok, _pending} ->
-        render(conn, :show, ref: ref)
+        render(conn, :show, ref: ref, page_title: "Use Frontman with your AI assistant")
 
       :error ->
         send_resp(conn, 400, "Invalid or expired request")

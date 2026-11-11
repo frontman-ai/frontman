@@ -13,8 +13,9 @@ places OAuth configuration at `mcpServers.<name>.extensions.com.openai.auth`.
 However, the published [Agent Plugins MCP schema](https://agent-plugins.org/schemas/1.0.0/mcp.schema.json)
 currently rejects that same `extensions` property (`additionalProperties: false`).
 The separate `make check-upstream` validates the complete files against those
-published schemas and exposes this conflict. Resolve it with OpenAI or a
-corrected official schema; do not remove OAuth to manufacture a ready ZIP.
+published schemas and exposes this conflict. The package retains the documented
+OpenAI format. OpenAI must accept that format in the portal before submission.
+Do not remove OAuth to manufacture a schema-compliant ZIP.
 
 1. Obtain a reviewer-accessible recording of the actual workflows. Add its
    HTTPS URL as `extensions.com.openai.review.demo_recording_url` in
@@ -54,11 +55,11 @@ documented length and count limits for display name, descriptions, default
 prompts and capabilities. `check-upstream`
 validates the unmodified manifests, including the extension, against those
 schemas. It is expected to fail until the upstream conflict is resolved.
-After completing the relevant checks and resolving that conflict with OpenAI,
+After completing the relevant checks,
 pass `REVIEW_CASES_VERIFIED=yes`, `OAUTH_VERIFIED=yes` and `POLICY_VERIFIED=yes`
-as environment variables to `make package`. Packaging also validates the
-unmodified manifests against the upstream schemas; an attestation cannot bypass
-that check.
+as environment variables to `make package`. Packaging uses the same portable-base
+and exact OAuth-extension checks as `make check`. It does not claim that the
+unmodified MCP manifest passes the upstream schema or that OpenAI accepts it.
 These are human attestations, not automated proof.
 Network access and the current upstream schemas are required. It cannot verify
 the recording, reviewer account, policy compliance, or actual test outcomes.
@@ -83,7 +84,8 @@ plugin is available in ChatGPT.
 
 Use the [OpenAI submission guide](https://developers.openai.com/plugins/deploy/submission)
 as the source for current portal labels.
-Until the blockers above are resolved, stop at draft upload and scan results.
+Until the portal accepts the package and the other blockers above are resolved,
+stop at draft upload and scan results.
 Do not select **Submit for review**.
 
 ### 1. Get the correct ZIP

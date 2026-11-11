@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
+import Ajv2020 from "ajv/dist/2020.js";
 
 const source = dirname(fileURLToPath(import.meta.url));
 const modules = resolve(source, "../../node_modules");
@@ -20,10 +21,14 @@ async function fixture(withDependencies = true) {
   return { root, dir };
 }
 
-function run(dir: string, ...args: string[]) {
+function runWithEnv(dir: string, extraEnv: Record<string, string>, ...args: string[]) {
   const env = { ...process.env };
   for (const key of ["REVIEW_CASES_VERIFIED", "OAUTH_VERIFIED", "POLICY_VERIFIED", "UPSTREAM_CONFLICT_RESOLVED"]) delete env[key];
-  return spawnSync(process.execPath, [join(dir, "validate.mts"), ...args], { encoding: "utf8", env });
+  return spawnSync(process.execPath, [join(dir, "validate.mts"), ...args], { encoding: "utf8", env: { ...env, ...extraEnv } });
+}
+
+function run(dir: string, ...args: string[]) {
+  return runWithEnv(dir, {}, ...args);
 }
 
 test("CLI validates the draft and rejects invalid manifests and missing evidence", async () => {
@@ -53,9 +58,16 @@ test("CLI validates the draft and rejects invalid manifests and missing evidence
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /demo_recording_url/);
     assert.match(result.stderr, /REVIEW_CASES_VERIFIED/);
+    const response = await fetch(mcp.$schema, { signal: AbortSignal.timeout(15000) });
+    assert.ok(response.ok, `Canonical MCP schema request failed: HTTP ${response.status}`);
+    const validate = new Ajv2020({ allErrors: true, strict: false }).compile(await response.json());
+    const upstreamAccepts = validate(mcp);
     const upstream = run(dir, "--strict-upstream");
-    for (const error of upstream.stderr.split("\n").filter(line => line.includes(": schema:"))) {
-      assert.ok(result.stderr.includes(error), error);
+    if (upstreamAccepts) {
+      assert.equal(upstream.status, 0, upstream.stderr);
+    } else {
+      assert.notEqual(upstream.status, 0);
+      assert.match(upstream.stderr, /mcp\.json: schema:/);
     }
     await assert.rejects(readFile(join(dir, "frontman-openai-wordpress.zip")), { code: "ENOENT" });
     result = run(dir, "--package-draft");
@@ -63,6 +75,27 @@ test("CLI validates the draft and rejects invalid manifests and missing evidence
     const listing = spawnSync("unzip", ["-Z1", join(dir, "frontman-openai-wordpress-draft.zip")], { encoding: "utf8" });
     assert.equal(listing.status, 0, listing.stderr);
     assert.deepEqual(listing.stdout.trim().split("\n").sort(), ["assets/icon.svg", "mcp.json", "plugin.json"]);
+    plugin.extensions["com.openai"].review.demo_recording_url = "https://example.com/test-recording";
+    await writeFile(pluginPath, JSON.stringify(plugin));
+    const attestations = {
+      REVIEW_CASES_VERIFIED: "yes",
+      OAUTH_VERIFIED: "yes",
+      POLICY_VERIFIED: "yes",
+    };
+    mcp.mcpServers.frontman.extensions["com.openai"].auth.unexpected = true;
+    await writeFile(mcpPath, JSON.stringify(mcp));
+    result = runWithEnv(dir, attestations, "--package");
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /OAuth settings/);
+    await assert.rejects(readFile(join(dir, "frontman-openai-wordpress.zip")), { code: "ENOENT" });
+    delete mcp.mcpServers.frontman.extensions["com.openai"].auth.unexpected;
+    await writeFile(mcpPath, JSON.stringify(mcp));
+    result = runWithEnv(dir, attestations, "--package");
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /unmodified MCP manifest was not checked/);
+    const embedded = spawnSync("unzip", ["-p", join(dir, "frontman-openai-wordpress.zip"), "mcp.json"], { encoding: "utf8" });
+    assert.equal(embedded.status, 0, embedded.stderr);
+    assert.deepEqual(JSON.parse(embedded.stdout), mcp);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

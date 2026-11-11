@@ -47,7 +47,7 @@ permissions:
 
 jobs:
   wordpress-runtime:
-    name: WordPress ${{ matrix.wordpress }} / PHP ${{ matrix.php }} / Yoast ${{ matrix.yoast }}
+    name: WordPress ${{ matrix.wordpress }} / PHP ${{ matrix.php }} / Yoast ${{ matrix.yoast }} / WooCommerce ${{ matrix.woocommerce || 'auto' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -59,6 +59,9 @@ jobs:
             php: "7.4"
           - wordpress: "7.0.2"
             php: "8.4"
+          - wordpress: "7.0.2"
+            php: "8.4"
+            woocommerce: "11.2.2"
           - wordpress: "7.0.2"
             php: "7.4"
             yoast: "28.4"
@@ -75,7 +78,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: '24.4.1'
 
@@ -84,7 +87,7 @@ jobs:
 
       - name: Set up SDK integration toolchain
         if: matrix.wordpress == '7.0.2' && matrix.php == '8.4' && !matrix.yoast
-        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca
         with:
           install: true
           cache: true
@@ -104,7 +107,9 @@ jobs:
           WORDPRESS_VERSION: ${{ matrix.wordpress }}
           PHP_VERSION: ${{ matrix.php }}
           YOAST_VERSION: ${{ matrix.yoast }}
+          WOOCOMMERCE_OVERRIDE: ${{ matrix.woocommerce }}
           FRONTMAN_REQUIRE_WP_SDK: ${{ matrix.wordpress == '7.0.2' && matrix.php == '8.4' && !matrix.yoast && '1' || '0' }}
+          FRONTMAN_WP_DIAGNOSTICS: "1"
         run: make test-wordpress-runtime
 
       - name: Run isolated PHP tests

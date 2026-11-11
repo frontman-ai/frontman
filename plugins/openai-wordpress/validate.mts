@@ -42,7 +42,7 @@ for (const [name, document] of [["plugin.json", plugin], ["mcp.json", mcp]] as c
   if (!response.ok) throw new Error(`${name}: schema request failed with HTTP ${response.status}`);
   const schema = await response.json();
   const checked = structuredClone(document);
-  if (name === "mcp.json" && !packaging && !process.argv.includes("--strict-upstream")) {
+  if (name === "mcp.json" && !process.argv.includes("--strict-upstream")) {
     for (const server of Object.values(checked.mcpServers ?? {}) as any[]) {
       if (server && typeof server === "object") delete server.extensions;
     }
@@ -108,6 +108,11 @@ if (packaging) {
 if (errors.length) {
   for (const error of errors) console.error(`ERROR: ${error}`);
   process.exit(1);
+}
+
+if (!process.argv.includes("--strict-upstream")) {
+  console.log("Portable base schema and exact OpenAI OAuth extension checks passed; the unmodified MCP manifest was not checked against the upstream schema.");
+  console.log("OpenAI portal acceptance is not established by these checks.");
 }
 
 if (packaging || draft) {

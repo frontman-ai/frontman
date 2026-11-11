@@ -106,13 +106,6 @@ let retryTurnHandler = (~hasActiveACPSession, ~taskId, ~retryErrorId) =>
   | _ => None
   }
 
-let selectGetStartedTask = (~providerSetupRequired, ~onConfigureProvider, ~onSelect, text) => {
-  switch providerSetupRequired {
-  | true => onConfigureProvider()
-  | false => onSelect(text)
-  }
-}
-
 module ExecutePlanAction = {
   @react.component
   let make = (~pendingPlanHandoff, ~selectedModelValue, ~onExecute) => {
@@ -125,6 +118,7 @@ module ExecutePlanAction = {
 
 @react.component
 let make = (~onConfigureProvider: unit => unit) => {
+  let commandsRef: React.ref<Nullable.t<Client__PromptEditor.commands>> = React.useRef(Nullable.null)
   let connectionState = Client__State.useSelector(Client__State.Selectors.getConnectionStatus)
   let sessionError = Client__State.useSelector(Client__State.Selectors.getSessionError)
 
@@ -148,9 +142,6 @@ let make = (~onConfigureProvider: unit => unit) => {
   let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
   let selectedModelValue = Client__State.useSelector(Client__State.Selectors.selectedModelValue)
   let billingStatus = Client__State.useSelector(Client__State.Selectors.billingStatus)
-  let providerSetupRequired = Client__State.useSelector(
-    Client__State.Selectors.providerSetupRequired,
-  )
   let webPreviewIsSelecting = Client__State.useSelector(
     Client__State.Selectors.webPreviewIsSelecting,
   )
@@ -384,11 +375,8 @@ let make = (~onConfigureProvider: unit => unit) => {
             recentTasks
             onResume={taskId => Client__State.Actions.switchTask(~taskId)}
             onSelect={text =>
-              selectGetStartedTask(
-                ~providerSetupRequired,
-                ~onConfigureProvider,
-                ~onSelect=text => handleSubmit(~text, ~inputItems=[])->ignore,
-                text,
+              commandsRef.current->Nullable.toOption->Option.forEach(commands =>
+                commands.insertText(text)
               )}
           />
         | _ => React.null
@@ -490,6 +478,7 @@ let make = (~onConfigureProvider: unit => unit) => {
         </fieldset>
       | (_, _, false) =>
         <PromptInput
+          commandsRef
           onSubmit={handleSubmit}
           disabled={isSubmitting}
           onCancel={Client__State.Actions.cancelTurn}

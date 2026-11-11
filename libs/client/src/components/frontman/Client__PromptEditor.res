@@ -480,6 +480,7 @@ type commands = {
   submit: unit => unit,
   attach: unit => unit,
   dropFiles: array<browserFile> => unit,
+  insertText: string => unit,
 }
 
 @react.component
@@ -778,6 +779,19 @@ let make = (
       dropFiles: files => {
         switch (editor->Null.toOption, isInputBlocked()) {
         | (Some(editor), false) => addFiles(editor, files)->ignore
+        | _ => ()
+        }
+      },
+      insertText: text => {
+        switch (editor->Null.toOption, isInputBlocked(), text == "") {
+        | (Some(editor), false, false) =>
+          let state: TiptapCore.editorState = editor->TiptapCore.state
+          let position = state.doc->TiptapCore.nodeSize - 3
+          let text = editor->TiptapCore.isEmpty ? text : " " ++ text
+          editor->TiptapCore.chain->TiptapCore.focus
+          ->TiptapCore.insertContentAtPos(position, TiptapCore.Content.text(text))
+          ->TiptapCore.setTextSelection(position + text->String.length)
+          ->TiptapCore.run->ignore
         | _ => ()
         }
       },

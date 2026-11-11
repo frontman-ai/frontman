@@ -34,6 +34,63 @@ class Frontman_UI {
 		add_action( 'admin_menu', [ $this, 'add_admin_menu_link' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_admin_assets' ] );
 		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_preview_bridge' ] );
+		add_action( 'admin_notices', [ $this, 'welcome_notice' ] );
+		add_action( 'admin_post_frontman_dismiss_welcome', [ $this, 'dismiss_welcome' ] );
+		add_filter( 'plugin_action_links_' . plugin_basename( FRONTMAN_PLUGIN_FILE ), [ $this, 'plugin_action_links' ] );
+		add_filter( 'network_admin_plugin_action_links_' . plugin_basename( FRONTMAN_PLUGIN_FILE ), [ $this, 'plugin_action_links' ] );
+	}
+
+	/**
+	 * Record first activation without resetting existing dismissals.
+	 * Network activation uses one network marker instead of iterating over sites.
+	 */
+	public static function activate( bool $network_wide = false ): void {
+		if ( is_multisite() && $network_wide ) {
+			add_site_option( 'frontman_welcome_activated', 1 );
+		} else {
+			add_option( 'frontman_welcome_activated', 1, '', false );
+		}
+	}
+
+	public function welcome_notice(): void {
+		$network_plugins = is_multisite() ? (array) get_site_option( 'active_sitewide_plugins', [] ) : [];
+		$network_active = isset( $network_plugins[ plugin_basename( FRONTMAN_PLUGIN_FILE ) ] );
+		if ( ! current_user_can( 'manage_options' )
+			|| get_user_option( 'frontman_welcome_dismissed' )
+			|| ( ! get_option( 'frontman_welcome_activated' ) && ! ( $network_active && get_site_option( 'frontman_welcome_activated' ) ) )
+		) {
+			return;
+		}
+		?>
+		<div class="notice notice-info">
+			<h2><?php esc_html_e( 'Frontman is active. Start here.', 'frontman-agentic-ai-editor' ); ?></h2>
+			<p><?php esc_html_e( 'Sign in to Frontman and connect an AI provider, then open a page in the live preview and describe your change. Provider charges may apply.', 'frontman-agentic-ai-editor' ); ?></p>
+			<p><?php esc_html_e( 'Frontman can change your live site. Make a current backup and use staging for higher-risk changes.', 'frontman-agentic-ai-editor' ); ?></p>
+			<p><a class="button button-primary" href="<?php echo esc_url( self::url( '/frontman' ) ); ?>"><?php esc_html_e( 'Open Frontman', 'frontman-agentic-ai-editor' ); ?></a></p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="frontman_dismiss_welcome">
+				<?php wp_nonce_field( 'frontman_dismiss_welcome' ); ?>
+				<p><button class="button" type="submit"><?php esc_html_e( 'Dismiss welcome', 'frontman-agentic-ai-editor' ); ?></button></p>
+			</form>
+		</div>
+		<?php
+	}
+
+	public function dismiss_welcome(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You cannot dismiss this notice.', 'frontman-agentic-ai-editor' ), '', [ 'response' => 403 ] );
+		}
+		check_admin_referer( 'frontman_dismiss_welcome' );
+		update_user_option( get_current_user_id(), 'frontman_welcome_dismissed', 1 );
+		wp_safe_redirect( admin_url( 'plugins.php' ) );
+		exit;
+	}
+
+	public function plugin_action_links( array $links ): array {
+		if ( current_user_can( 'manage_options' ) ) {
+			array_unshift( $links, '<a href="' . esc_url( self::url( '/frontman' ) ) . '">' . esc_html__( 'Open Frontman', 'frontman-agentic-ai-editor' ) . '</a>' );
+		}
+		return $links;
 	}
 
 	public function enqueue_preview_bridge(): void {
@@ -86,7 +143,7 @@ class Frontman_UI {
 			'frontman',
 			'__return_null',
 			$menu_icon_url,
-			81,
+			3,
 		);
 
 		add_action( 'load-toplevel_page_frontman', function (): void {

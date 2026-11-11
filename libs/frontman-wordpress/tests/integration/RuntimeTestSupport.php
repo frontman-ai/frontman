@@ -2,6 +2,25 @@
 
 require_once __DIR__ . '/ToolAnnotationExpectations.php';
 
+function frontman_runtime_inventory( string $checkpoint ): void {
+	require_once ABSPATH . 'wp-admin/includes/plugin.php';
+	$names = array_column( Frontman_Tools::instance()->all_definitions(), 'name' );
+	sort( $names );
+	$plugins = [];
+	foreach ( get_plugins() as $file => $plugin ) {
+		if ( is_plugin_active( $file ) ) {
+			$plugins[ $file ] = $plugin['Version'];
+		}
+	}
+	fwrite( STDOUT, 'FRONTMAN_INVENTORY ' . wp_json_encode( [
+		'checkpoint' => $checkpoint,
+		'wordpress' => get_bloginfo( 'version' ),
+		'php' => PHP_VERSION,
+		'plugins' => $plugins,
+		'names' => $names,
+	] ) . "\n" );
+}
+
 function frontman_runtime_assert( bool $condition, string $message ): void {
 	if ( ! $condition ) {
 		throw new RuntimeException( $message );
@@ -40,7 +59,7 @@ function frontman_runtime_saved_id( string $message ): int {
 	return (int) $match[1];
 }
 
-function frontman_runtime_http( string $method, string $path, string $cookie = '', ?string $nonce = null, ?string $body = null, string $test = '', string $authorization = '', ?string $cookie_name = null, bool $tls = false ): array {
+function frontman_runtime_http( string $method, string $path, string $cookie = '', ?string $nonce = null, ?string $body = null, string $test = '', string $authorization = '', ?string $cookie_name = null, bool $tls = false, string $content_type = 'application/json' ): array {
 	$headers = [ 'Host: frontman-runtime.example.test' ];
 	$headers[] = '' === $authorization ? '' : 'Authorization: Basic ' . base64_encode( $authorization );
 	$headers[] = '' === $test ? '' : 'X-Frontman-Seo-Test: ' . $test;
@@ -55,7 +74,7 @@ function frontman_runtime_http( string $method, string $path, string $cookie = '
 		false,
 		stream_context_create( [ 'http' => [
 			'content' => $body ?? '',
-			'header' => implode( "\r\n", array_filter( $headers ) ) . "\r\nContent-Type: application/json\r\n",
+			'header' => implode( "\r\n", array_filter( $headers ) ) . ( null === $body ? '' : "\r\nContent-Type: " . $content_type ) . "\r\n",
 			'ignore_errors' => true, 'follow_location' => 0,
 			'method' => $method,
 		], 'ssl' => [ 'cafile' => '/tmp/ca.crt' ] ] )

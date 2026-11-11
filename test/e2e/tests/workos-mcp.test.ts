@@ -265,17 +265,6 @@ describe("WorkOS MCP OAuth", () => {
         (Number.isInteger(claims.nbf) && claims.nbf <= Math.floor(Date.now() / 1000));
       expect(nbfValid).toBe(true);
 
-      phase = "local WordPress connection setup";
-      const siteId = fixture(`
-        alias FrontmanServer.{Accounts, Repo}
-        alias FrontmanServer.WordPress.Connection
-        {:ok, _} = FrontmanServer.Vault.start_link()
-        user = Accounts.get_user_by_email(System.fetch_env!("E2E_MCP_EMAIL"))
-        connection = %Connection{user_id: user.id} |> Connection.changeset(%{
-          catalog_url: "https://owned.example/tools", call_url: "https://owned.example/tools/call",
-          username: "private-user", password: "private-password"}) |> Repo.insert!()
-        IO.write(connection.id)
-      `, email, password);
       const mcp = async (method: string, token?: string, name?: string) => fetch(resource, {
         method: "POST",
         headers: {
@@ -318,6 +307,31 @@ describe("WorkOS MCP OAuth", () => {
       expect(catalog.result.tools).toEqual([expect.objectContaining({
         name: "list_sites", inputSchema: { type: "object", properties: {} },
       })]);
+
+      phase = "local WordPress connection setup";
+      const siteId = fixture(`
+        alias FrontmanServer.{Accounts, Repo}
+        alias FrontmanServer.WordPress.Connection
+        {:ok, _} = FrontmanServer.Vault.start_link()
+        user = Accounts.get_user_by_email(System.fetch_env!("E2E_MCP_EMAIL"))
+        connection = %Connection{user_id: user.id} |> Connection.changeset(%{
+          catalog_url: "https://owned.example/tools", call_url: "https://owned.example/tools/call",
+          username: "private-user", password: "private-password"}) |> Repo.insert!()
+        IO.write(connection.id)
+      `, email, password);
+
+      phase = "authenticated MCP unavailable catalog";
+      const unavailable = await mcp("tools/list", tokens.access_token);
+      expect(unavailable.status).toBe(200);
+      const unavailableCatalog = await unavailable.json();
+      expect(unavailableCatalog.jsonrpc).toBe("2.0");
+      expect(unavailableCatalog.id).toBe(1);
+      expect(unavailableCatalog.result).toBeUndefined();
+      expect(unavailableCatalog.error).toEqual({
+        code: -32000, message: "WordPress catalog unavailable",
+      });
+      expect(JSON.stringify(unavailableCatalog)).not.toMatch(/private-user|private-password|\/tools/);
+
       phase = "authenticated MCP site listing";
       for (const token of [undefined, "invalid-token"]) {
         const denied = await mcp("tools/call", token, "list_sites");

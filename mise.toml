@@ -15,6 +15,7 @@ mkcert="1.4.4"
 "npm:@biomejs/biome"="latest"
 "npm:typescript-language-server" = "latest"
 lefthook="latest"
+npm="12"
 
 [env]
 MIX_OS_DEPS_COMPILE_PARTITION_COUNT = "1"

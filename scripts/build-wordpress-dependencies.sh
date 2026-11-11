@@ -24,7 +24,7 @@ mkdir -p "$TOOLS" "$SOURCE"
 if [[ ! -f "$TOOLS/php-scoper.phar" ]]; then
   curl -fL --retry 3 https://github.com/humbug/php-scoper/releases/download/0.18.17/php-scoper.phar -o "$TOOLS/php-scoper.phar"
 fi
-printf '%s  %s\n' "$SCOPER_SHA256" "$TOOLS/php-scoper.phar" | sha256sum --check --status
+printf '%s  %s\n' "$SCOPER_SHA256" "$TOOLS/php-scoper.phar" | shasum -a 256 --check --status
 cp "$PLUGIN/composer.json" "$PLUGIN/composer.lock" "$SOURCE/"
 rm -rf "$SCOPED"
 

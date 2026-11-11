@@ -4,7 +4,7 @@ Tags: ai editor, website editor, elementor, woocommerce, ai
 Requires at least: 6.0
 Tested up to: 7.0.2
 Requires PHP: 7.4
-Stable tag: 5.7.0
+Stable tag: 5.9.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -99,6 +99,16 @@ Both providers require WordPress 6.9 or later. Yoast reads require its initializ
 Supported objects are posts, pages, and editable non-attachment custom post types with an admin interface, including authorized drafts and private content. Revisions, autosaves, attachments, and internal WordPress object types are not supported.
 
 The post ID must be a positive integer. An update must include a title, description, or focus_keyphrase. Omitted fields stay unchanged. Empty strings clear overrides and restore Yoast templates or defaults, not necessarily empty rendered tags.
+
+Yoast Free also supports `wp_read_term_seo`/`wp_update_term_seo` for public taxonomy terms and `wp_read_post_type_archive_seo`/`wp_update_post_type_archive_seo` for public CPT archives. SureRank does not support these archive tools.
+
+The term reader requires `taxonomy` and exactly one of `term_id` or `slug`. Updates require `taxonomy` and the resolved positive integer `term_id`. Archive tools require `post_type` from `wp_get_site_info`. CPT archives are generated routes, not backing pages.
+
+Archive updates accept only `title` and `description`, with at least one supplied. Omitted fields stay unchanged. Empty term values clear overrides. Empty CPT archive values restore Yoast defaults, including nonempty title templates. Results include the target URL and observed values, not computed tags.
+
+Archive reads and updates require administrator access. Terms also require term-edit permission. CPT archives require Yoast settings permission. `seo_capabilities.targets` reports separate term and CPT archive availability. Archive updates use native Yoast sanitizers and refresh indexables. After a failure, read the target again before retrying. External caches still require separate refresh.
+
+`indexable_refreshed` reports persisted indexable readback. It is false when Yoast disables indexable persistence, such as on staging. Stored settings can still save. Verify rendered tags separately.
 
 Results confirm stored overrides, not rendered HTML or search-engine indexing. Yoast expands variables on later requests. External full-page caches and CDNs have separate refresh behavior.
 
@@ -224,6 +234,14 @@ Loading the Frontman UI requests hosted client assets. Your site content is not 
 4. Review the updated title in the refreshed page preview.
 
 == Changelog ==
+
+= 5.9.0 =
+* Sync the Frontman plugin release with Frontman v5.9.0
+* See the GitHub release notes for the full cross-product changelog
+
+= 5.8.0 =
+* Sync the Frontman plugin release with Frontman v5.8.0
+* See the GitHub release notes for the full cross-product changelog
 
 = 5.7.0 =
 * Sync the Frontman plugin release with Frontman v5.7.0

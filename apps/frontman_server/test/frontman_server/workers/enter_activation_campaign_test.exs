@@ -24,9 +24,7 @@ defmodule FrontmanServer.Workers.EnterActivationCampaignTest do
       {:ok, body, conn} = Plug.Conn.read_body(conn)
 
       assert Jason.decode!(body) == %{
-               "properties" => %{
-                 "frontman_activation_state" => "inactive"
-               }
+               "properties" => %{"frontman_activation_state" => "inactive"}
              }
 
       Req.Test.json(conn, %{"id" => "contact"})
@@ -72,14 +70,8 @@ defmodule FrontmanServer.Workers.EnterActivationCampaignTest do
       assert [event] = Sentry.Test.pop_sentry_reports()
       assert event.extra.user_id == user.id
 
-      expected_category =
-        case failure do
-          status when is_integer(status) -> "http_error"
-          :timeout -> "transport_uncertain"
-          :exception -> "exception"
-        end
-
-      assert event.extra.failure_category == expected_category
+      categories = %{500 => "http_error", timeout: "transport_uncertain", exception: "exception"}
+      assert event.extra.failure_category == categories[failure]
       refute inspect(event) =~ user.email
       refute inspect(event) =~ "private-token"
     end

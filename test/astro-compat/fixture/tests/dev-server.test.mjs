@@ -10,6 +10,7 @@ const trailingSlash = process.env.ASTRO_TRAILING_SLASH || "ignore"
 const require = createRequire(import.meta.url)
 const astroPackagePath = require.resolve("astro/package.json")
 const astroPackage = require(astroPackagePath)
+const supportsJsx = Number(astroPackage.version.split(".")[0]) >= 7
 const astroBin = resolve(dirname(astroPackagePath), astroPackage.bin.astro)
 
 async function waitForServer(process, output) {
@@ -51,16 +52,78 @@ test("packed integration works in Astro dev server", {timeout: 120_000}, async t
   assert.match(pageHtml, /data-(?:frontman|astro)-source-file=/)
   assert.match(pageHtml, /src\/components\/Greeting\.astro/)
   const propsMarker = pageHtml.match(/__frontman_props__:([A-Za-z0-9+/=]+)/)
-  assert.ok(propsMarker)
+  assert.ok(propsMarker, output.value)
   const propsPayload = JSON.parse(Buffer.from(propsMarker[1], "base64").toString("utf8"))
   assert.match(propsPayload.moduleId, /\/src\/components\/Greeting\.astro$/)
   assert.deepEqual(propsPayload.props, {name: "Astro"})
+
+  const propsPath = trailingSlash === "never" ? "/props" : "/props/"
+  const propsResponse = await fetch(`${origin}${propsPath}`)
+  const propsHtml = await propsResponse.text()
+  assert.equal(propsResponse.status, 200)
+  const payloads = [...propsHtml.matchAll(/__frontman_props__:([A-Za-z0-9+/=]+)/g)]
+    .map(marker => JSON.parse(Buffer.from(marker[1], "base64").toString("utf8")))
+  const greetingPayloads = payloads.filter(payload => payload.moduleId?.endsWith("/src/components/Greeting.astro"))
+  const propsByName = Object.fromEntries(greetingPayloads.map(payload => [payload.props.name, payload.props]))
+  assert.equal(greetingPayloads.length, supportsJsx ? 11 : 10, JSON.stringify(payloads.map(payload => payload.props.name)))
+  assert.equal(Object.keys(propsByName).length, greetingPayloads.length)
+  const names = ["nested", "slotted", "async", "fragment", "café 😀", ...(supportsJsx ? ["jsx-slotted"] : [])]
+  for (const name of names) {
+    assert.deepEqual(propsByName[name], {name})
+    assert.match(propsHtml, new RegExp(`Hello\\s+(?:<!--.*?-->)?${name}`, "s"))
+  }
+  const layoutPayloads = payloads.filter(payload => payload.moduleId?.endsWith("/src/components/PropsLayout.astro"))
+  assert.equal(layoutPayloads.length, 1)
+  assert.deepEqual(layoutPayloads[0].props, {label: "layout"})
+  assert.equal(payloads.filter(payload => payload.displayName === "Fragment").length, 1)
+  const asyncPayloads = payloads.filter(payload => payload.moduleId?.endsWith("/src/components/AsyncGreeting.astro"))
+  assert.equal(asyncPayloads.length, 1)
+  assert.deepEqual(asyncPayloads[0].props, {name: "awaited"})
+  assert.match(propsHtml, /Before async.*Hello\s+(?:<!--.*?-->)?awaited.*After async/s)
+
+  const bounded = propsByName.bounded
+  assert.equal(bounded.apiKey, "[REDACTED]")
+  assert.equal(bounded.privateKey, "[REDACTED]")
+  assert.equal(bounded.credentials, "[REDACTED]")
+  assert.equal(bounded.author, "Ada")
+  assert.deepEqual(bounded.profile, {name: "Ada", authorization: "[REDACTED]"})
+  assert.equal(bounded.items.length, 51)
+  assert.equal(bounded.items[50], "[Truncated 30 items]")
+  assert.equal(bounded.deep.one.two.three, "[Max depth]")
+  assert.equal(Buffer.byteLength(bounded.long), 4096)
+  assert.match(bounded.long, /^x+\[Truncated\]$/)
+  assert.equal(bounded.custom, "[Object]")
+  assert.ok(!("class" in bounded))
+  assert.ok(!("class:list" in bounded))
+  assert.deepEqual(propsByName.references, {
+    name: "references",
+    primary: {name: "Ada"},
+    secondary: {name: "Ada"},
+    circular: {self: "[Circular]"},
+  })
+  assert.deepEqual(propsByName["secret-getter"].value, {name: "Astro", privateKey: "[REDACTED]"})
+  assert.equal(propsByName.overflow.value.value49, 49)
+  assert.equal(propsByName.overflow.value.__truncated__, 1)
+  assert.ok(!("overflow" in propsByName.overflow.value))
+  assert.ok(!propsByName.unsafe)
+  assert.match(propsHtml, /Hello\s+(?:<!--.*?-->)?unsafe/s)
+  assert.match(propsHtml, /Hello\s+(?:<!--.*?-->)?oversized/s)
+  assert.equal(greetingPayloads.filter(payload => payload.props.__truncated__).length, 1)
+  assert.deepEqual(greetingPayloads.find(payload => payload.props.__truncated__).props, {__truncated__: true})
+  for (const secret of ["never expose this", "private material", "login material", "Bearer secret"]) {
+    assert.ok(!JSON.stringify(payloads).includes(secret))
+  }
 
   const markdownPath = trailingSlash === "never" ? "/docs" : "/docs/"
   const markdownResponse = await fetch(`${origin}${markdownPath}`)
   const markdownHtml = await markdownResponse.text()
   assert.equal(markdownResponse.status, 200)
   assert.match(markdownHtml, /<template data-frontman-content-file="src\/pages\/docs\.md"><\/template>/)
+  const markdownPayloads = [...markdownHtml.matchAll(/__frontman_props__:([A-Za-z0-9+/=]+)/g)]
+    .map(marker => JSON.parse(Buffer.from(marker[1], "base64").toString("utf8")))
+    .filter(payload => payload.moduleId?.endsWith("/src/components/MarkdownLayout.astro"))
+  assert.equal(markdownPayloads.length, 1)
+  assert.equal(markdownPayloads[0].props.frontmatter.title, "Compatibility fixture")
 
   const frontmanPath = trailingSlash === "always" ? "/frontman" : "/frontman/"
   const toolPath = trailingSlash === "always" ? "/frontman/tools/call" : "/frontman/tools/call/"

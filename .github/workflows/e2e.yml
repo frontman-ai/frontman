@@ -70,7 +70,7 @@ jobs:
           clean: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: "24.4.1"
 
@@ -138,7 +138,7 @@ jobs:
         run: chmod -R +x ~/.local/share/mise/bin/ 2>/dev/null || true
 
       - name: Install E2E runtime tools via mise
-        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca
         with:
           install: true
           install_args: erlang elixir mkcert
@@ -148,7 +148,7 @@ jobs:
         run: make setup-elixir-tools
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: "24.4.1"
 

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require '/tmp/WordPressRuntimeTest.php';
+require '/tmp/WelcomeRuntimeTest.php';
 require '/tmp/CustomCssRuntimeTest.php';
 require '/tmp/ElementorSnapshotRuntimeTest.php';
 require '/tmp/PostAuthorsRuntimeTest.php';
@@ -94,6 +95,9 @@ foreach ( [ 'PostContentRuntimeTest.php', 'TemplateCreationRuntimeTest.php', 'Pa
 	( static function() use ( $file, $call, $reject, $actor, $cookie ): void { require '/tmp/' . $file; } )();
 }
 ( static function() use ( $call, $actor, $cookie, $nonce ): void { require '/tmp/CustomizerRuntimeTest.php'; } )();
+if ( defined( 'WPSEO_VERSION' ) && version_compare( get_bloginfo( 'version' ), '6.9', '>=' ) ) {
+	( static function() use ( $call, $cookie, $nonce ): void { require '/tmp/SeoArchiveRuntimeCases.php'; } )();
+}
 
 require_once ABSPATH . 'wp-admin/includes/template.php';
 do_action( 'admin_init' );
