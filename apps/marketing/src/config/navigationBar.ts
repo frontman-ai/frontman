@@ -50,6 +50,7 @@ export const navigationBarData: NavData = {
 			name: 'Product',
 			submenu: [
 				{ name: 'WordPress features', link: '/features/' },
+				{ name: 'WordPress in ChatGPT', link: '/chatgpt/' },
 				{ name: 'How it works', link: '/how-it-works/' },
 				{ name: 'Customer story', link: '/blog/autonomyai-wordpress-redesign-case-study/' }
 			]
