@@ -143,7 +143,7 @@ class Frontman_UI {
 			'frontman',
 			'__return_null',
 			$menu_icon_url,
-			81,
+			3,
 		);
 
 		add_action( 'load-toplevel_page_frontman', function (): void {
