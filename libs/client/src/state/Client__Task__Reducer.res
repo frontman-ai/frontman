@@ -470,7 +470,7 @@ module Ready = {
     live: {
       ...data.live,
       completedFileChanges: Client__FileChanges.refresh(
-        Task.getLiveCompletedFileChanges(data.live),
+        data.live.completedFileChanges,
         MessageStore.toArray(data.conversation.messages),
       ),
     },
@@ -1125,7 +1125,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         conversation: Conversation.assignMessagesToTurn(
           {...data.conversation, isAgentRunning: true},
           ~messageIds,
-          // A live claim can arrive before its messages are replayed.
           ~onUnknown=_ => (),
         ),
       }),

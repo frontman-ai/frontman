@@ -197,15 +197,9 @@ module Task = {
     | Unloaded({retained: None}) => Dict.make()
     }
 
-  let getLiveCompletedFileChanges = (live: liveData): Client__FileChanges.snapshot =>
-    live
-    ->FrontmanBindings.Bindings__Object.completedFileChanges
-    ->Nullable.toOption
-    ->Option.getOr(Client__FileChanges.empty)
-
   let getCompletedFileChanges = (task: t): Client__FileChanges.snapshot =>
     switch task {
-    | Loaded({live}) => getLiveCompletedFileChanges(live)
+    | Loaded({live}) => live.completedFileChanges
     | New(_) | Unloaded(_) | Loading(_) => Client__FileChanges.empty
     }
 
