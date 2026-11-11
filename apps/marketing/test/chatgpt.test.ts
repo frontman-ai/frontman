@@ -7,7 +7,6 @@ const { JSDOM } = createRequire(import.meta.url)('jsdom') as {
 	JSDOM: new (html: string) => { window: { document: Document } }
 }
 
-// Exercise Astro's production output, including the shared layout and navigation.
 const documentFor = (path: string) =>
 	new JSDOM(readFileSync(resolve('dist', path, 'index.html'), 'utf8')).window.document
 
