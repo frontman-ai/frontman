@@ -16,10 +16,10 @@ module TestSetup = {
   ): StateReducer.state => {
     let tasks = Dict.make()
     taskIds->Array.forEach(id => {
-      let task =
-        Task.makeNew(~previewUrl="http://localhost:3000")
-        ->Task.newToLoaded(~id, ~title=`Task ${id}`)
-        ->Task.updateLoadedData(data => {...data, isAgentRunning})
+      let task = switch Task.makeNew(~previewUrl="http://localhost:3000") {
+      | Task.New(draft) => Task.Loaded(Task.promoteDraft(draft, ~id, ~title=`Task ${id}`))
+      | _ => failwith("Expected a draft")
+      }->Task.updateConversation(data => {...data, isAgentRunning})
       tasks->Dict.set(id, task)
     })
 

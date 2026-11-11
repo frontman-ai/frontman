@@ -189,7 +189,10 @@ testAsync("toolbar reload and address entry recover without restarting the clien
 testAsync(
   "retained task frames cannot update another task or reuse a replaced document",
   async t => {
-    let make = id => Task.makeNew(~previewUrl)->Task.newToLoaded(~id, ~title=id)
+    let make = id => switch Task.makeNew(~previewUrl) {
+    | Task.New(draft) => Task.Loaded(Task.promoteDraft(draft, ~id, ~title=id))
+    | _ => failwith("Expected a draft")
+    }
     let first = switch make("first") {
     | Task.Loaded(data) => Task.Loaded({...data, updatedAt: data.updatedAt -. 1000.0})
     | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => failwith("Expected a loaded task")

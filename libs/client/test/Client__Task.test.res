@@ -9,9 +9,10 @@ let testUserMessageId = UserMessageId.make()
 
 module TestHelpers = {
   let makeLoadedTask = () => {
-    Task.makeNew(~previewUrl="http://localhost:3000")
-    ->Task.newToLoaded(~id="test-task-1", ~title="Test Task")
-    ->Task.updateLoadedData(data => {...data, messages: []})
+    switch Task.makeNew(~previewUrl="http://localhost:3000") {
+    | Task.New(draft) => Task.Loaded(Task.promoteDraft(draft, ~id="test-task-1", ~title="Test Task"))
+    | _ => failwith("Expected a draft")
+    }
   }
 
   let makeUnloadedTask = () => {
@@ -142,6 +143,18 @@ describe("Task - Load State Machine", () => {
       ~uri=attachmentUri,
     )
   }
+
+  test("draft promotion preserves view and identity with fresh conversation state", t => {
+    let draft = switch Task.makeNew(~previewUrl="http://localhost:3000/draft") {
+    | Task.New(draft) => draft
+    | _ => failwith("Expected a draft")
+    }
+    let ready = Task.promoteDraft(draft, ~id="created-session", ~title="Created")
+    t->expect(ready.view === draft.view)->Expect.toBe(true)
+    t->expect((ready.id, ready.clientId))->Expect.toEqual(("created-session", Some(draft.clientId)))
+    t->expect(ready.conversation)->Expect.toEqual(Task.makeConversation())
+    t->expect(ready.live)->Expect.toEqual(Task.makeLiveData())
+  })
 
   test("LoadStarted and LoadComplete transition Unloaded through Loading to Loaded", t => {
     let task = TestHelpers.makeUnloadedTask()
@@ -414,6 +427,30 @@ describe("Task - Agent Running State", () => {
     let (confirmed, noEffects) = TaskReducer.next(updated, MessageUnqueued({messageId: "queued-1"}))
     t->expect(TestHelpers.getQueuedUserMessages(confirmed)->Array.length)->Expect.toBe(1)
     t->expect(noEffects->Array.length)->Expect.toBe(0)
+  })
+
+  [
+    ("claim", id => TaskReducer.ExecutionStateRunning([id])),
+    ("unqueue", id => TaskReducer.MessageUnqueued({messageId: id})),
+  ]->Array.forEach(((name, complete)) => {
+    test(`${name} clears only the matching optimistic submission`, t => {
+      let first = UserMessageId.make()
+      let second = UserMessageId.make()
+      let submit = (task, id) => TaskReducer.next(task, AddUserMessage({
+        id,
+        content: [Message.UserContentPart.Text({text: "Pending"})],
+        annotations: [],
+        agentId: "executor-id",
+      }))->Pair.first
+      let pending = TestHelpers.makeLoadedTask()->submit(first)->submit(second)
+      let (completed, _) = TaskReducer.next(pending, complete(UserMessageId.toString(first)))
+      let (unchanged, _) = TaskReducer.next(completed, UserMessageSendFailed({id: first, error: "Late"}))
+      t->expect(unchanged === completed)->Expect.toBe(true)
+      let (failed, _) = TaskReducer.next(completed, UserMessageSendFailed({id: second, error: "Not sent"}))
+      t->expect(TestHelpers.getQueuedUserMessages(failed))->Expect.toEqual([])
+      t->expect(TaskReducer.Selectors.turnError(failed)->Option.map(error => error.id))
+      ->Expect.toEqual(Some(UserMessageId.toString(second)))
+    })
   })
 
   test("question submit leaves queued user messages queued", t => {
@@ -725,7 +762,7 @@ describe("Task - CancelTurn", () => {
     let task = TestHelpers.makeLoadedTask()
     let (unchanged, effects) = TaskReducer.next(task, CancelTurn)
 
-    t->expect(unchanged)->Expect.toEqual(task)
+    t->expect(unchanged === task)->Expect.toBe(true)
     t->expect(effects)->Expect.toEqual([])
   })
 
@@ -1095,7 +1132,7 @@ describe("Task - Interactive wait contract", () => {
       let controller = WebAPI.AbortController.make()
       let pending = ask(controller.signal)
       switch App.Selectors.currentTask(Store.getState(store)) {
-      | Task.Loading({pendingQuestion: Some(_)}) => ()
+      | Task.Loading({conversation: {pendingQuestion: Some(_)}}) => ()
       | _ => failwith("Question must register before session loading completes")
       }
       Store.dispatch(store, ConnectionAction(SessionResultReceived({
@@ -1270,6 +1307,18 @@ describe("Task - Interactive wait contract", () => {
         )
         t->expect(TaskReducer.Selectors.isAgentRunning(waiting))->Expect.toEqual(Some(false))
         let (cancelled, effects) = TaskReducer.next(waiting, action)
+        t->expect(rejections.contents)->Expect.toEqual([])
+        switch (action, effects) {
+        | (TaskReducer.CancelTurn, [
+            TaskReducer.SessionCommand(ACP.Cancel),
+            RejectQuestionToolEffect({message: "Cancelled by user"}),
+          ])
+        | (TaskReducer.QuestionCancelled, [
+            RejectQuestionToolEffect({message: "Cancelled by user"}),
+            TaskReducer.SessionCommand(ACP.Cancel),
+          ]) => ()
+        | _ => failwith("Cancellation effect order changed")
+        }
         runEffects(
           effects,
           ~delegate=command => commands := Array.concat(commands.contents, [command]),
@@ -1466,6 +1515,57 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
     enrichmentStatus,
   })
 
+  [
+    ("loading", TestHelpers.makeLoadingTask),
+    ("loaded", TestHelpers.makeLoadedTask),
+  ]->Array.forEach(((phase, makeTask)) => {
+    test(`local and non-message updates preserve the ${phase} message store`, t => {
+      let messageStore = task => switch task {
+      | Task.Loading({conversation}) | Task.Loaded({conversation}) => conversation.messages
+      | _ => failwith("Expected a conversation")
+      }
+      let annotation = Annotation.make(
+        ~element=WebAPI.DomGlobal.document->WebAPI.Document.createElement("button"),
+        ~tagName="button",
+      )
+      let (initial, _) = TaskReducer.next(makeTask(), TextDeltaReceived({
+        messageId: "unchanged", text: "Keep this transcript", agentId: "executor-id",
+      }))
+      let initial = initial->TaskReducer.Lens.setAnnotations([annotation])
+      let original = messageStore(initial)
+      let response = Promise.withResolvers()
+      let resolveOk = answer => response.resolve(Ok(answer))
+      let updated = [
+        TaskReducer.SetAnnotationMode({mode: Selecting}),
+        SetActivePopupAnnotationId({id: Some(annotation.id)}),
+        UpdateAnnotationComment({id: annotation.id, comment: "Keep"}),
+        _makeResolved(~id=annotation.id, ~selector=Ok(Some("button"))),
+        RemoveAnnotation({id: annotation.id}),
+        SetPreviewFrame({contentDocument: Some(WebAPI.DomGlobal.document), contentWindow: None}),
+        SetDeviceMode({deviceMode: Responsive}),
+        SetOrientation({orientation: Landscape}),
+        PreviewUrlObserved({url: "http://localhost:3000/observed"}),
+        NavigatePreview({url: "http://localhost:3000/next"}),
+        PlanReceived({entries: [{content: "Plan", priority: High, status: Pending}]}),
+        QuestionReceived({
+          questions: [{
+            question: "Continue?", header: "Next",
+            options: [{label: "Yes", description: "Continue"}], multiple: None,
+          }],
+          toolCallId: "question", resolveOk, resolveError: error => response.resolve(Error(error)),
+        }),
+        QuestionDetached({resolveOk: resolveOk}),
+        _makeResolved(~id=annotation.id, ~selector=Ok(Some("button.removed"))),
+      ]->Array.reduce(initial, (task, action) => {
+        let (updated, _) = TaskReducer.next(task, action)
+        t->expect(messageStore(updated) === original)->Expect.toBe(true)
+        t->expect(Task.getMessages(updated))->Expect.toEqual(Task.getMessages(initial))
+        updated
+      })
+      t->expect(Task.getAnnotations(updated))->Expect.toEqual([])
+    })
+  })
+
   test("ToggleAnnotation enriches async fields and clears enriching status", t => {
     let (task, effects) = _taskWithEnrichingAnnotation()
     let ann = _getAnnotation(task, 0)
@@ -1549,6 +1649,7 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
   test("AnnotationDetailsResolved on Unloaded task is silently discarded", t => {
     let task = TestHelpers.makeUnloadedTask()
     let (task2, effects) = TaskReducer.next(task, _makeResolved(~id="stale-ann-id"))
+    t->expect(task2 === task)->Expect.toBe(true)
     t->expect(effects)->Expect.toEqual([])
     t->expect(Task.getAnnotations(task2)->Array.length)->Expect.toBe(0)
   })

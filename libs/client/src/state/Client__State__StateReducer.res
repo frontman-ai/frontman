@@ -688,13 +688,15 @@ let addUserMessageToState = (
   let {id, content, annotations, agentId} = submission
   let handoff = Selectors.pendingPlanHandoff(state)->Option.isSome
   let (state, taskId) = switch state.currentTask {
-  | Task.New(task) =>
+  | Task.New(Task.New(draft)) =>
     let tasks = state.tasks->Dict.copy
     tasks->Dict.set(
       sessionId,
-      Task.newToLoaded(task, ~id=sessionId, ~title=TaskReducer.extractTextFromUserContent(content)),
+      Task.Loaded(Task.promoteDraft(draft, ~id=sessionId, ~title=TaskReducer.extractTextFromUserContent(content))),
     )
     ({...state, tasks, currentTask: Task.Selected(sessionId)}, sessionId)
+  | Task.New(Task.Unloaded(_) | Task.Loading(_) | Task.Loaded(_)) =>
+    failwith("[addUserMessageToState] New task selection must contain a draft")
   | Task.Selected(taskId) => (state, taskId)
   }
   let (state, effects) =
@@ -2145,13 +2147,10 @@ let startCustomProviderMutation = (state: state, request) => {
 let clearPendingQuestions = (state: state) => {
   let updatedTasks = state.tasks->Dict.copy
   updatedTasks->Dict.forEachWithKey((task, taskId) => {
-    switch task {
-    | Task.Loaded(data) =>
-      updatedTasks->Dict.set(taskId, Task.Loaded({...data, pendingQuestion: None}))
-    | Task.Loading(data) =>
-      updatedTasks->Dict.set(taskId, Task.Loading({...data, pendingQuestion: None}))
-    | Task.New(_) | Task.Unloaded(_) => ()
-    }
+    updatedTasks->Dict.set(
+      taskId,
+      Task.updateConversation(task, data => {...data, pendingQuestion: None}),
+    )
   })
   {...state, tasks: updatedTasks}
 }

@@ -37,10 +37,11 @@ describe("ACP billing update handling", () => {
       (`{"frontman.dev/agentErrorId":"error-1"}`, Some("error-1")),
     ]->Array.forEach(
       ((meta, retryErrorId)) => {
-        let task =
-          Client__State__Types.Task.makeNew(
-            ~previewUrl="http://localhost:3000",
-          )->Client__State__Types.Task.newToLoaded(~id="task", ~title="Task")
+        module Task = Client__State__Types.Task
+        let task = switch Task.makeNew(~previewUrl="http://localhost:3000") {
+        | Task.New(draft) => Task.Loaded(Task.promoteDraft(draft, ~id="task", ~title="Task"))
+        | _ => failwith("Expected a draft")
+        }
         StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
           Client__State__Store.store,
           {

@@ -35,65 +35,72 @@ module Task = {
     orientation: Client__DeviceMode.orientation,
   }
 
-  type retainedState = {
+  type localData = {
     previewFrame: previewFrame,
     annotations: array<Annotation.t>,
     imageAttachments: Dict.t<Client__Message.fileAttachmentData>,
   }
 
+  type interactiveView = {
+    data: localData,
+    annotationMode: Annotation.annotationMode,
+    activePopupAnnotationId: option<string>,
+  }
+
+  type draftTaskData = {
+    clientId: string,
+    view: interactiveView,
+  }
+
+  type unloadedTaskData = {
+    id: string,
+    title: string,
+    createdAt: float,
+    updatedAt: float,
+    retained: option<localData>,
+  }
+
+  type conversationData = {
+    messages: Client__MessageStore.t,
+    queuedUserMessages: array<Message.t>,
+    planEntries: array<ACPTypes.planEntry>,
+    isAgentRunning: bool,
+    pendingQuestion: option<Client__Question__Types.pendingQuestion>,
+  }
+
+  type replayTaskData = {
+    id: string,
+    title: string,
+    createdAt: float,
+    updatedAt: float,
+    view: interactiveView,
+    conversation: conversationData,
+  }
+
+  type liveData = {
+    lastTurnCancelled: bool,
+    pendingUserMessageIds: array<string>,
+    turnError: option<turnErrorInfo>,
+    retryStatus: option<retryStatus>,
+    completedFileChanges: Client__FileChanges.snapshot,
+  }
+
+  type readyTaskData = {
+    id: string,
+    clientId: option<string>,
+    title: string,
+    createdAt: float,
+    updatedAt: float,
+    view: interactiveView,
+    conversation: conversationData,
+    live: liveData,
+  }
+
   type t =
-    | New({
-        clientId: string,
-        previewFrame: previewFrame,
-        annotationMode: Annotation.annotationMode,
-        annotations: array<Annotation.t>,
-        activePopupAnnotationId: option<string>,
-      })
-    | Unloaded({
-        id: string,
-        title: string,
-        createdAt: float,
-        updatedAt: float,
-        retained: option<retainedState>,
-      })
-    | Loading({
-        id: string,
-        title: string,
-        createdAt: float,
-        updatedAt: float,
-        messages: Client__MessageStore.t,
-        previewFrame: previewFrame,
-        annotationMode: Annotation.annotationMode,
-        annotations: array<Annotation.t>,
-        activePopupAnnotationId: option<string>,
-        isAgentRunning: bool,
-        pendingQuestion: option<Client__Question__Types.pendingQuestion>,
-        imageAttachments: Dict.t<Client__Message.fileAttachmentData>,
-        queuedUserMessages: array<Message.t>,
-        planEntries: array<ACPTypes.planEntry>,
-      })
-    | Loaded({
-        id: string,
-        clientId: option<string>,
-        title: string,
-        createdAt: float,
-        updatedAt: float,
-        messages: Client__MessageStore.t,
-        previewFrame: previewFrame,
-        annotationMode: Annotation.annotationMode,
-        annotations: array<Annotation.t>,
-        activePopupAnnotationId: option<string>,
-        isAgentRunning: bool,
-        lastTurnCancelled: bool,
-        planEntries: array<ACPTypes.planEntry>,
-        queuedUserMessages: array<Message.t>,
-        pendingUserMessageIds: array<string>,
-        turnError: option<turnErrorInfo>,
-        retryStatus: option<retryStatus>,
-        imageAttachments: Dict.t<Client__Message.fileAttachmentData>,
-        pendingQuestion: option<Client__Question__Types.pendingQuestion>,
-        completedFileChanges: Client__FileChanges.snapshot,
-      })
+    | New(draftTaskData)
+    | Unloaded(unloadedTaskData)
+    | Loading(replayTaskData)
+    | Loaded(readyTaskData)
 
   type currentTask =
     | New(t)
@@ -137,12 +144,15 @@ module Task = {
   let getMessages = (task: t): array<Message.t> =>
     switch task {
     | New(_) | Unloaded(_) => []
-    | Loading({messages}) | Loaded({messages}) => Client__MessageStore.toArray(messages)
+    | Loading({conversation}) | Loaded({conversation}) =>
+      Client__MessageStore.toArray(conversation.messages)
     }
 
   let getPreviewFrame = (task: t, ~defaultUrl: string): previewFrame =>
     switch task {
-    | New({previewFrame}) => previewFrame
+    | New({view: {data: {previewFrame}}})
+    | Loading({view: {data: {previewFrame}}})
+    | Loaded({view: {data: {previewFrame}}})
     | Unloaded({retained: Some({previewFrame})}) => previewFrame
     | Unloaded({retained: None}) => {
         url: defaultUrl,
@@ -152,45 +162,50 @@ module Task = {
         deviceMode: Client__DeviceMode.defaultDeviceMode,
         orientation: Client__DeviceMode.defaultOrientation,
       }
-    | Loading({previewFrame}) | Loaded({previewFrame}) => previewFrame
     }
 
   let getAnnotationMode = (task: t): Annotation.annotationMode =>
     switch task {
-    | New({annotationMode}) => annotationMode
+    | New({view: {annotationMode}})
+    | Loading({view: {annotationMode}})
+    | Loaded({view: {annotationMode}}) => annotationMode
     | Unloaded(_) => Annotation.Off
-    | Loading({annotationMode}) | Loaded({annotationMode}) => annotationMode
     }
 
   let getAnnotations = (task: t): array<Annotation.t> =>
     switch task {
-    | New({annotations}) => annotations
+    | New({view: {data: {annotations}}})
+    | Loading({view: {data: {annotations}}})
+    | Loaded({view: {data: {annotations}}}) => annotations
     | Unloaded({retained}) => retained->Option.mapOr([], view => view.annotations)
-    | Loading({annotations}) | Loaded({annotations}) => annotations
     }
 
   let getActivePopupAnnotationId = (task: t): option<string> =>
     switch task {
-    | New({activePopupAnnotationId}) => activePopupAnnotationId
+    | New({view: {activePopupAnnotationId}})
+    | Loading({view: {activePopupAnnotationId}})
+    | Loaded({view: {activePopupAnnotationId}}) => activePopupAnnotationId
     | Unloaded(_) => None
-    | Loading({activePopupAnnotationId})
-    | Loaded({activePopupAnnotationId}) => activePopupAnnotationId
     }
 
   let getImageAttachments = (task: t): Dict.t<Client__Message.fileAttachmentData> =>
     switch task {
-    | Loaded({imageAttachments}) | Loading({imageAttachments}) => imageAttachments
+    | New({view: {data: {imageAttachments}}})
+    | Loaded({view: {data: {imageAttachments}}})
+    | Loading({view: {data: {imageAttachments}}})
     | Unloaded({retained: Some({imageAttachments})}) => imageAttachments
-    | New(_) | Unloaded({retained: None}) => Dict.make()
+    | Unloaded({retained: None}) => Dict.make()
     }
+
+  let getLiveCompletedFileChanges = (live: liveData): Client__FileChanges.snapshot =>
+    live
+    ->FrontmanBindings.Bindings__Object.completedFileChanges
+    ->Nullable.toOption
+    ->Option.getOr(Client__FileChanges.empty)
 
   let getCompletedFileChanges = (task: t): Client__FileChanges.snapshot =>
     switch task {
-    | Loaded(_) =>
-      task
-      ->FrontmanBindings.Bindings__Object.completedFileChanges
-      ->Nullable.toOption
-      ->Option.getOr(Client__FileChanges.empty)
+    | Loaded({live}) => getLiveCompletedFileChanges(live)
     | New(_) | Unloaded(_) | Loading(_) => Client__FileChanges.empty
     }
 
@@ -236,20 +251,50 @@ module Task = {
     | Loaded(data) => Loaded({...data, title: normalizeTitle(title)})
     }
 
+  let makeConversation = (): conversationData => {
+    messages: Client__MessageStore.make(),
+    queuedUserMessages: [],
+    planEntries: [],
+    isAgentRunning: false,
+    pendingQuestion: None,
+  }
+
+  let makeReplay = (~id, ~title, ~createdAt, ~updatedAt, ~view): replayTaskData => {
+    id,
+    title,
+    createdAt,
+    updatedAt,
+    view,
+    conversation: makeConversation(),
+  }
+
+  let makeLiveData = (~completedFileChanges=Client__FileChanges.empty): liveData => {
+    lastTurnCancelled: false,
+    pendingUserMessageIds: [],
+    turnError: None,
+    retryStatus: None,
+    completedFileChanges,
+  }
+
   let makeNew = (~previewUrl: string): t => {
     New({
       clientId: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
-      previewFrame: {
-        url: previewUrl,
-        navigationKey: 0,
-        contentDocument: None,
-        contentWindow: None,
-        deviceMode: Client__DeviceMode.defaultDeviceMode,
-        orientation: Client__DeviceMode.defaultOrientation,
+      view: {
+        data: {
+          previewFrame: {
+            url: previewUrl,
+            navigationKey: 0,
+            contentDocument: None,
+            contentWindow: None,
+            deviceMode: Client__DeviceMode.defaultDeviceMode,
+            orientation: Client__DeviceMode.defaultOrientation,
+          },
+          annotations: [],
+          imageAttachments: Dict.make(),
+        },
+        annotationMode: Annotation.Off,
+        activePopupAnnotationId: None,
       },
-      annotationMode: Annotation.Off,
-      annotations: [],
-      activePopupAnnotationId: None,
     })
   }
 
@@ -263,49 +308,18 @@ module Task = {
     })
   }
 
-  let newToLoaded = (task: t, ~id: string, ~title: string): t => {
-    switch task {
-    | New({clientId, previewFrame, annotationMode, annotations, activePopupAnnotationId}) =>
-      let timestamp = Date.now()
-      Loaded({
-        id,
-        clientId: Some(clientId),
-        title: normalizeTitle(title),
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        messages: Client__MessageStore.make(),
-        previewFrame,
-        annotationMode,
-        annotations,
-        activePopupAnnotationId,
-        isAgentRunning: false,
-        lastTurnCancelled: false,
-        planEntries: [],
-        queuedUserMessages: [],
-        pendingUserMessageIds: [],
-        turnError: None,
-        retryStatus: None,
-        imageAttachments: Dict.make(),
-        pendingQuestion: None,
-        completedFileChanges: Client__FileChanges.empty,
-      })
-    | Unloaded(_) | Loading(_) | Loaded(_) =>
-      failwith("[Task.newToLoaded] Can only transition from New state")
+  let promoteDraft = (draft: draftTaskData, ~id: string, ~title: string): readyTaskData => {
+    let timestamp = Date.now()
+    {
+      id,
+      clientId: Some(draft.clientId),
+      title: normalizeTitle(title),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      view: draft.view,
+      conversation: makeConversation(),
+      live: makeLiveData(),
     }
-  }
-
-  type loadedData = {
-    messages: array<Message.t>,
-    annotationMode: Annotation.annotationMode,
-    annotations: array<Annotation.t>,
-    activePopupAnnotationId: option<string>,
-    isAgentRunning: bool,
-    lastTurnCancelled: bool,
-    planEntries: array<ACPTypes.planEntry>,
-    queuedUserMessages: array<Message.t>,
-    pendingUserMessageIds: array<string>,
-    turnError: option<turnErrorInfo>,
-    pendingQuestion: option<Client__Question__Types.pendingQuestion>,
   }
 
   let makeWithId = (
@@ -319,161 +333,12 @@ module Task = {
     makeUnloaded(~id, ~title, ~createdAt, ~updatedAt)
   }
 
-  let updateLoadedData = (task: t, fn: loadedData => loadedData): t => {
+  let updateConversation = (task: t, fn: conversationData => conversationData): t =>
     switch task {
-    | Loaded({
-        id,
-        clientId,
-        title,
-        createdAt,
-        updatedAt,
-        messages,
-        previewFrame,
-        annotationMode,
-        annotations,
-        activePopupAnnotationId,
-        isAgentRunning,
-        lastTurnCancelled,
-        planEntries,
-        queuedUserMessages,
-        pendingUserMessageIds,
-        turnError,
-        retryStatus,
-        imageAttachments,
-        pendingQuestion,
-        completedFileChanges,
-      }) => {
-        let data = {
-          messages: Client__MessageStore.toArray(messages),
-          annotationMode,
-          annotations,
-          activePopupAnnotationId,
-          isAgentRunning,
-          lastTurnCancelled,
-          planEntries,
-          queuedUserMessages,
-          pendingUserMessageIds,
-          turnError,
-          pendingQuestion,
-        }
-        let updated = fn(data)
-        Loaded({
-          id,
-          clientId,
-          title,
-          createdAt,
-          updatedAt,
-          messages: Client__MessageStore.fromArray(updated.messages),
-          previewFrame,
-          annotationMode: updated.annotationMode,
-          annotations: updated.annotations,
-          activePopupAnnotationId: updated.activePopupAnnotationId,
-          isAgentRunning: updated.isAgentRunning,
-          lastTurnCancelled: updated.lastTurnCancelled,
-          planEntries: updated.planEntries,
-          queuedUserMessages: updated.queuedUserMessages,
-          pendingUserMessageIds: updated.pendingUserMessageIds,
-          turnError: updated.turnError,
-          retryStatus,
-          imageAttachments,
-          pendingQuestion: updated.pendingQuestion,
-          completedFileChanges,
-        })
-      }
-    | Loading({
-        id,
-        title,
-        createdAt,
-        updatedAt,
-        messages,
-        previewFrame,
-        annotationMode,
-        annotations,
-        activePopupAnnotationId,
-        isAgentRunning,
-        pendingQuestion,
-        imageAttachments,
-        queuedUserMessages,
-        planEntries,
-      }) => {
-        let data = {
-          messages: Client__MessageStore.toArray(messages),
-          annotationMode,
-          annotations,
-          activePopupAnnotationId,
-          isAgentRunning,
-          lastTurnCancelled: false,
-          planEntries,
-          queuedUserMessages,
-          pendingUserMessageIds: [],
-          turnError: None,
-          pendingQuestion,
-        }
-        let updated = fn(data)
-        Loading({
-          id,
-          title,
-          createdAt,
-          updatedAt,
-          messages: Client__MessageStore.fromArray(updated.messages),
-          previewFrame,
-          annotationMode: updated.annotationMode,
-          annotations: updated.annotations,
-          activePopupAnnotationId: updated.activePopupAnnotationId,
-          isAgentRunning: updated.isAgentRunning,
-          pendingQuestion: updated.pendingQuestion,
-          imageAttachments,
-          queuedUserMessages: updated.queuedUserMessages,
-          planEntries: updated.planEntries,
-        })
-      }
-    | New({clientId, previewFrame, annotationMode, annotations, activePopupAnnotationId}) => {
-        let data = {
-          messages: [],
-          annotationMode,
-          annotations,
-          activePopupAnnotationId,
-          isAgentRunning: false,
-          lastTurnCancelled: false,
-          planEntries: [],
-          queuedUserMessages: [],
-          pendingUserMessageIds: [],
-          turnError: None,
-          pendingQuestion: None,
-        }
-        let updated = fn(data)
-        New({
-          clientId,
-          previewFrame,
-          annotationMode: updated.annotationMode,
-          annotations: updated.annotations,
-          activePopupAnnotationId: updated.activePopupAnnotationId,
-        })
-      }
-    | Unloaded({retained: Some(view)} as data) =>
-      let updated = fn({
-        messages: [],
-        annotationMode: Annotation.Off,
-        annotations: view.annotations,
-        activePopupAnnotationId: None,
-        isAgentRunning: false,
-        lastTurnCancelled: false,
-        planEntries: [],
-        queuedUserMessages: [],
-        pendingUserMessageIds: [],
-        turnError: None,
-        pendingQuestion: None,
-      })
-      Unloaded({
-        ...data,
-        retained: Some({
-          ...view,
-          annotations: updated.annotations,
-        }),
-      })
-    | Unloaded({retained: None}) => task
+    | Loading(data) => Loading({...data, conversation: fn(data.conversation)})
+    | Loaded(data) => Loaded({...data, conversation: fn(data.conversation)})
+    | New(_) | Unloaded(_) => task
     }
-  }
 }
 
 let stripFileUriPrefix = (path: string): string => {
@@ -995,9 +860,9 @@ let currentPageToContentBlock = (
 let taskToPageContextBlocks = (task: Task.t, ~isAstro: bool): array<ContentBlock.t> => {
   switch task {
   | Task.Unloaded(_) => []
-  | Task.New({previewFrame})
-  | Task.Loading({previewFrame})
-  | Task.Loaded({previewFrame}) => [currentPageToContentBlock(previewFrame, ~isAstro)]
+  | Task.New({view: {data: {previewFrame}}})
+  | Task.Loading({view: {data: {previewFrame}}})
+  | Task.Loaded({view: {data: {previewFrame}}}) => [currentPageToContentBlock(previewFrame, ~isAstro)]
   }
 }
 

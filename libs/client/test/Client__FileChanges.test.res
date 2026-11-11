@@ -347,12 +347,15 @@ describe("conversation file changes", () => {
     }
   })
 
-  test("publishes a new snapshot only when the turn becomes idle", t => {
-    let task =
-      Task.makeNew(~previewUrl="http://localhost:3000")->Task.newToLoaded(
-        ~id="task-1",
-        ~title="Diff test",
-      )
+  [
+    TaskReducer.ExecutionStateIdle,
+    CancelTurn,
+    AgentError({id: Some("error-1"), error: "Turn failed", category: #unknown}),
+  ]->Array.forEach(action => test(`publishes a new snapshot on ${TaskReducer.actionToString(action)}`, t => {
+    let task = switch Task.makeNew(~previewUrl="http://localhost:3000") {
+    | Task.New(draft) => Task.Loaded(Task.promoteDraft(draft, ~id="task-1", ~title="Diff test"))
+    | _ => failwith("Expected a draft")
+    }
     let (running, _) = TaskReducer.next(task, ExecutionStateRunning([]))
     let change = envelope(~oldText=Some("old"), ~currentText=Some("new"))
     let call: Message.toolCall = {
@@ -378,8 +381,9 @@ describe("conversation file changes", () => {
     )
 
     t->expect(Array.length(Task.getCompletedFileChanges(withResult).files))->Expect.toBe(0)
-    let (idle, _) = TaskReducer.next(withResult, ExecutionStateIdle)
-    t->expect(Array.length(Task.getCompletedFileChanges(idle).files))->Expect.toBe(1)
-    t->expect(Task.getCompletedFileChanges(idle).revision)->Expect.toBe(1)
-  })
+    let (completed, _) = TaskReducer.next(withResult, action)
+    t->expect(Task.isLoaded(completed))->Expect.toBe(true)
+    t->expect(Array.length(Task.getCompletedFileChanges(completed).files))->Expect.toBe(1)
+    t->expect(Task.getCompletedFileChanges(completed).revision)->Expect.toBe(1)
+  }))
 })

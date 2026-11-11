@@ -113,7 +113,7 @@ describe("ACP message identity", () => {
       ->apply(ExecutionStateRunning([]))
       ->apply(LoadStarted({previewUrl: "http://localhost:3000"}))
     switch loading {
-    | Task.Loading({isAgentRunning: false, queuedUserMessages: []}) => ()
+    | Task.Loading({conversation: {isAgentRunning: false, queuedUserMessages: []}}) => ()
     | _ => failwith("Reload must clear server-owned execution and queue state")
     }
     let store = StateStore.make(
@@ -268,6 +268,7 @@ describe("ACP message identity", () => {
     t->expect(TaskReducer.Selectors.isAgentRunning(idle))->Expect.toEqual(Some(false))
     let failed = makeLoadingTask()->apply(ExecutionStateRunning([]))->apply(AgentError({id: None, error: "Failed", category: #unknown}))
     t->expect(TaskReducer.Selectors.isAgentRunning(failed->apply(LoadComplete)))->Expect.toEqual(Some(false))
+    t->expect(TaskReducer.Selectors.turnError(failed->apply(LoadComplete)))->Expect.toEqual(None)
     let retry = failed->apply(ExecutionStateRunning([]))->apply(LoadComplete)
     t->expect(TaskReducer.Selectors.isAgentRunning(retry))->Expect.toEqual(Some(true))
   })

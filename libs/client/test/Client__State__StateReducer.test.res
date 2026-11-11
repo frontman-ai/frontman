@@ -53,9 +53,15 @@ module TestHelpers = {
     ~messages=[],
     ~isAgentRunning=false,
   ) =>
-    Task.makeNew(~previewUrl)
-    ->Task.newToLoaded(~id, ~title)
-    ->Task.updateLoadedData(data => {...data, messages, isAgentRunning})
+    switch Task.makeNew(~previewUrl) {
+    | Task.New(draft) => Task.Loaded(Task.promoteDraft(draft, ~id, ~title))
+    | _ => failwith("Expected a draft")
+    }
+    ->Task.updateConversation(data => {
+      ...data,
+      messages: Client__MessageStore.fromArray(messages),
+      isAgentRunning,
+    })
 
   let makeStateWithTasks = (~tasks, ~currentTask) => {
     ...Reducer.defaultState,
@@ -707,6 +713,15 @@ describe("Client State Reducer", () => {
       t->expect(agentId)->Expect.toBe("executor-id")
     | _ => JsExn.throw("Expected SendMessage effect")
     }
+    let invalid = Task.makeUnloaded(~id="invalid", ~title="Invalid", ~createdAt=0.0, ~updatedAt=0.0)
+    let invalidState = {...state, currentTask: Task.New(invalid)}
+    Expect.toThrow(t->expect(() => Reducer.addUserMessageToState(
+      invalidState,
+      ~sessionId="session-1",
+      {id: testUserMessageId, content: [UserContentPart.text("Hello")], annotations: [],
+       agentId: "executor-id", onComplete: _ => ()},
+    )))
+    t->expect(invalidState.tasks === state.tasks)->Expect.toBe(true)
   })
 
   test("messages maintain order", t => {
