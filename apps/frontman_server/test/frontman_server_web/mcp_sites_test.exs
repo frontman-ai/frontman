@@ -224,7 +224,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
   @tag :wordpress_runtime
   @tag skip: System.get_env("FRONTMAN_WP_RUNTIME_URL") == nil
-  test "HTTP discovery preserves the full WordPress catalog beyond the first concurrent batch" do
+  test "HTTP discovery fetches all 33 catalogs without concurrent requests to one origin" do
     user = AccountsFixtures.user_fixture()
     connect_wordpress_runtime(user, 33)
 
@@ -556,10 +556,24 @@ defmodule FrontmanServerWeb.MCPSitesTest do
       do: send(test, {:completed, id, request.method, request.host})
   end
 
+  def record_request([:finch, phase, :stop], %{duration: duration}, metadata, {test, id})
+      when phase in [:queue, :connect, :send, :recv] do
+    if test in [self() | Process.get(:"$callers", [])] do
+      elapsed = System.convert_time_unit(duration, :native, :millisecond)
+      send(test, {:http_phase, id, phase, elapsed, Map.has_key?(metadata, :error)})
+    end
+  end
+
   def record_request(_, _, _, _), do: :ok
 
   defp record_requests(id \\ nil) do
     handler = {__MODULE__, make_ref()}
+
+    phases =
+      case System.get_env("FRONTMAN_WP_DIAGNOSTICS") do
+        "1" -> for phase <- [:queue, :connect, :send, :recv], do: [:finch, phase, :stop]
+        _ -> []
+      end
 
     :ok =
       :telemetry.attach_many(
@@ -571,7 +585,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
           [:frontman_server, :wordpress, :catalog, :stop],
           [:frontman_server, :wordpress, :call, :stop],
           [:frontman_server, :wordpress, :discovery, :stop]
-        ],
+        ] ++ phases,
         &__MODULE__.record_request/4,
         {self(), id}
       )
@@ -612,8 +626,34 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     context = %{auth: %{sub: user.id}, assigns: %{}, req_headers: conn.req_headers}
 
     try do
+      started = System.monotonic_time(:millisecond)
+
       response =
         StatelessBinding.call(conn, "2026-07-28", context, AnubisPlug.init(server: Server))
+
+      if System.get_env("FRONTMAN_WP_DIAGNOSTICS") == "1" do
+        phases =
+          body["id"]
+          |> collect_http_phases(512, [])
+          |> Enum.group_by(&elem(&1, 0))
+          |> Map.new(fn {phase, samples} ->
+            {phase,
+             %{
+               count: length(samples),
+               max_ms: samples |> Enum.map(&elem(&1, 1)) |> Enum.max(),
+               errors: Enum.count(samples, &elem(&1, 2))
+             }}
+          end)
+
+        IO.puts(
+          "WORDPRESS_HTTP_TIMINGS " <>
+            Jason.encode!(%{
+              method: method,
+              elapsed_ms: System.monotonic_time(:millisecond) - started,
+              phases: phases
+            })
+        )
+      end
 
       assert response.status == 200
 
@@ -623,7 +663,8 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
         for method <- expected_methods do
           assert_received {:outbound, ^id, ^method, ^host}
-          assert_received {:completed, ^id, ^method, ^host}
+          assert_received {event, ^id, ^method, ^host}
+          assert event == :completed
         end
 
         refute_received {:outbound, ^id, _, _}
@@ -633,6 +674,17 @@ defmodule FrontmanServerWeb.MCPSitesTest do
       Jason.decode!(response.resp_body)
     after
       :telemetry.detach(handler)
+    end
+  end
+
+  defp collect_http_phases(_id, 0, samples), do: samples
+
+  defp collect_http_phases(id, remaining, samples) do
+    receive do
+      {:http_phase, ^id, phase, elapsed, error} ->
+        collect_http_phases(id, remaining - 1, [{phase, elapsed, error} | samples])
+    after
+      0 -> samples
     end
   end
 

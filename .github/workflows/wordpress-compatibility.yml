@@ -109,6 +109,7 @@ jobs:
           YOAST_VERSION: ${{ matrix.yoast }}
           WOOCOMMERCE_OVERRIDE: ${{ matrix.woocommerce }}
           FRONTMAN_REQUIRE_WP_SDK: ${{ matrix.wordpress == '7.0.2' && matrix.php == '8.4' && !matrix.yoast && '1' || '0' }}
+          FRONTMAN_WP_DIAGNOSTICS: "1"
         run: make test-wordpress-runtime
 
       - name: Run isolated PHP tests

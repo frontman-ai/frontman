@@ -28,6 +28,8 @@ defmodule FrontmanServer.WordPress do
 
   Loads owned connections before starting cancellable HTTP workers. Cancellation
   must not interrupt a database checkout and disconnect its transaction.
+  Each batch contains at most one connection per origin, so discovery cannot
+  flood a shared WordPress server while independent origins remain concurrent.
   """
   def stream_catalogs(%Scope{} = scope, site_ids, deadline) do
     connections =
@@ -37,27 +39,25 @@ defmodule FrontmanServer.WordPress do
       |> Repo.all()
       |> Map.new(&{&1.id, &1})
 
-    Task.async_stream(
-      site_ids,
-      fn id ->
-        remaining = deadline - System.monotonic_time(:millisecond)
-
-        result =
-          case Map.fetch(connections, id) do
-            {:ok, connection} when remaining > 0 ->
-              request_connection(connection, :get, nil, remaining)
-
-            _ ->
-              {:error, :connection_failed}
-          end
-
-        {id, result}
-      end,
-      max_concurrency: 32,
-      ordered: false,
-      timeout: max(deadline - System.monotonic_time(:millisecond), 1),
-      on_timeout: :kill_task
-    )
+    site_ids
+    |> Enum.group_by(fn id ->
+      case Map.fetch(connections, id) do
+        {:ok, connection} -> origin(connection.catalog_url)
+        :error -> {:missing, id}
+      end
+    end)
+    |> Map.values()
+    |> catalog_batches()
+    |> Stream.flat_map(fn batch ->
+      Task.async_stream(
+        batch,
+        &fetch_catalog(connections, &1, deadline),
+        max_concurrency: 32,
+        ordered: false,
+        timeout: max(deadline - System.monotonic_time(:millisecond), 1),
+        on_timeout: :kill_task
+      )
+    end)
   end
 
   def call(%Scope{} = scope, site_id, name, arguments) do
@@ -97,6 +97,32 @@ defmodule FrontmanServer.WordPress do
 
   def connected?(%Scope{} = scope, catalog_url) when is_binary(catalog_url) do
     scope |> Scope.user_id() |> Connection.owned_catalog(catalog_url) |> Repo.exists?()
+  end
+
+  defp catalog_batches(groups) do
+    Stream.unfold(groups, fn
+      [] ->
+        nil
+
+      groups ->
+        {batch, remaining} = Enum.unzip(Enum.map(groups, fn [id | rest] -> {id, rest} end))
+        {batch, Enum.reject(remaining, &(&1 == []))}
+    end)
+  end
+
+  defp fetch_catalog(connections, id, deadline) do
+    remaining = deadline - System.monotonic_time(:millisecond)
+
+    result =
+      case Map.fetch(connections, id) do
+        {:ok, connection} when remaining > 0 ->
+          request_connection(connection, :get, nil, remaining)
+
+        _ ->
+          {:error, :connection_failed}
+      end
+
+    {id, result}
   end
 
   defp request_site(scope, site_id, method, body, timeout) do
