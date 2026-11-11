@@ -19,6 +19,7 @@ The marketing site for [frontman.sh](https://frontman.sh), built with Astro and 
 ```bash
 make install   # install dependencies
 make test      # run marketing tests
+make test-rendered # build and test production HTML without test doubles
 make dev       # start dev server at localhost:4321
 make build     # type-check and build for production
 make deploy    # build and deploy (requires 1Password CLI)
@@ -31,6 +32,7 @@ Run `make help` to see all available commands.
 | Route          | Description                                     |
 | -------------- | ----------------------------------------------- |
 | `/`            | WordPress setup, capabilities, safety, and FAQ |
+| `/chatgpt/`    | ChatGPT WordPress jobs, access requirements, and connection steps |
 | `/frameworks/` | Framework setup, developer packages, and features |
 | `/blog`        | Blog index and individual posts                 |
 | `/blog/tags/*` | Posts filtered by tag                           |

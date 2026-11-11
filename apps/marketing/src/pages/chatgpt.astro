@@ -1,0 +1,257 @@
+---
+import Layout from '../layouts/Layout.astro'
+import Button from '../components/ui/Button.astro'
+import gridNetBackground from '../assets/grid-net-background.svg'
+
+const connectionGuideUrl = 'https://api.frontman.sh/wordpress/connect'
+const pluginUrl = 'https://wordpress.org/plugins/frontman-agentic-ai-editor/'
+// Reuse the editor demonstration until a ChatGPT-specific recording is available.
+const demoVideoUrl = 'https://www.youtube-nocookie.com/embed/-4GD1GYwH8Y'
+
+const jobs = [
+	{
+		title: 'Give your homepage a sharper message.',
+		description: 'Turn a vague headline into something visitors understand. Find the right words with ChatGPT, then put them on your page.',
+		prompt: 'Give me three stronger headlines for my homepage.'
+	},
+	{
+		title: 'Get the next campaign out.',
+		description: 'New dates, fresh copy, a clearer call to action. Update the details without rebuilding the page.',
+		prompt: 'Change “Join the waitlist” to “Book a demo” on my launch page.'
+	},
+	{
+		title: 'Keep the site you already love.',
+		description: 'Work with your Elementor pages and Astra settings instead of starting over on another website builder.',
+		prompt: 'Show me what controls my homepage header, then help me make it more compact.'
+	}
+]
+
+const faqs = [
+	{
+		question: 'Do I need a Frontman subscription?',
+		answer: 'Yes. The ChatGPT connection is included with an active paid Frontman subscription. Editor trials and free uses do not include it.'
+	},
+	{
+		question: 'Do I need an OpenAI API key?',
+		answer: 'No. Use your ChatGPT account. You do not need a separate AI provider key for this connection.'
+	},
+	{
+		question: 'Does this work with my theme?',
+		answer: 'You can work with WordPress content, Elementor pages, and registered Astra settings. Available actions depend on your site’s themes, plugins, and permissions.'
+	},
+	{
+		question: 'What should I know about live edits?',
+		answer: 'Edits can change published pages immediately. Use staging for larger changes and keep a backup. Preview and recovery options vary by change.'
+	},
+	{
+		question: 'What if WordPress asks me to connect an AI provider?',
+		answer: 'That is for Frontman’s editor. Choose Connect AI provider to open Settings, then switch to General to connect your site. No key is needed for ChatGPT.'
+	}
+]
+
+const pageJsonLd = {
+	'@context': 'https://schema.org',
+	'@graph': [
+		{
+			'@type': 'WebPage',
+			name: 'Edit WordPress from ChatGPT',
+			url: 'https://frontman.sh/chatgpt/',
+			description: 'Bring your next website update to ChatGPT. Frontman helps you refresh copy, update pages, and work with your existing WordPress setup.'
+		},
+		{
+			'@type': 'FAQPage',
+			mainEntity: faqs.map(({ question, answer }) => ({
+				'@type': 'Question',
+				name: question,
+				acceptedAnswer: { '@type': 'Answer', text: answer }
+			}))
+		}
+	]
+}
+---
+
+<Layout
+	title="Edit WordPress from ChatGPT | Frontman"
+	description="Edit your existing WordPress site from ChatGPT. Refresh homepage copy, update campaign pages, and work with Elementor and Astra through Frontman."
+	ogImage="/blog/frontman-wordpress-plugin-released-cover.png"
+	ogImageWidth={1200}
+	ogImageHeight={450}
+	ogImageAlt="Frontman for WordPress"
+>
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(pageJsonLd)} />
+
+	<section class="chatgpt-hero">
+		<div class="hero-background" aria-hidden="true">
+			<img src={gridNetBackground.src} alt="" width="1440" height="900" fetchpriority="high" />
+		</div>
+		<div class="page-container hero-grid">
+			<div>
+				<h1><span>Update WordPress.</span><span>From ChatGPT.</span></h1>
+				<p class="lead">New headline. Fresh campaign copy. Updated pages. Tell ChatGPT what you want, and Frontman makes the WordPress changes.</p>
+				<div class="actions">
+					<Button link="#connect" size="lg" style="white">Connect your site</Button>
+					<a href="#jobs" class="copy-link">See examples</a>
+				</div>
+			</div>
+			<figure class="demo">
+				<div class="video-wrapper">
+					<iframe
+						src={demoVideoUrl}
+						title="Frontman WordPress editor demo"
+						width="960"
+						height="540"
+						loading="lazy"
+						allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+						referrerpolicy="strict-origin-when-cross-origin"
+						allowfullscreen
+					></iframe>
+				</div>
+				<figcaption>Frontman’s WordPress editor in action.</figcaption>
+			</figure>
+		</div>
+	</section>
+
+	<section id="jobs" class="page-section page-section--light" aria-labelledby="jobs-heading">
+		<div class="page-container">
+			<h2 id="jobs-heading">Your ideas. On your actual site.</h2>
+			<ul class="jobs">
+				{jobs.map(({ title, description, prompt }) => (
+					<li>
+						<div><h3>{title}</h3><p>{description}</p></div>
+						<blockquote><p>{prompt}</p><footer>Example prompt</footer></blockquote>
+					</li>
+				))}
+			</ul>
+		</div>
+	</section>
+
+	<section class="page-section" aria-labelledby="story-heading">
+		<div class="page-container story-grid">
+			<div>
+				<h2 id="story-heading">Keep WordPress. Skip the rebuild.</h2>
+				<p>Guy Leshno used Frontman’s WordPress editor to redesign AutonomyAI’s Elementor site, without prior WordPress experience.</p>
+				<a href="/blog/autonomyai-wordpress-redesign-case-study/" class="copy-link">Read Guy’s story</a>
+			</div>
+			<figure class="customer-quote">
+				<blockquote>“Without Frontman, I would never have been able to accomplish this task by myself.”</blockquote>
+				<figcaption>Guy Leshno<span>Marketing Lead, AutonomyAI</span></figcaption>
+			</figure>
+		</div>
+	</section>
+
+	<section id="connect" class="page-section" aria-labelledby="connect-heading">
+		<div class="page-container">
+			<h2 id="connect-heading">Bring your site into the conversation.</h2>
+			<ol class="setup-steps">
+				<li>
+					<h3>Add Frontman to WordPress</h3>
+					<p>From your WordPress admin, install the plugin and open Frontman. Sign in to Frontman and connect your site.</p>
+					<a href={connectionGuideUrl} class="copy-link">Setup guide</a>
+					<a href={pluginUrl} class="copy-link" data-ga-event="click_wordpress_plugin" data-ga-category="engagement" data-ga-label="chatgpt_setup" data-ga-placement="setup" data-ga-destination="wordpress_org">Get the plugin</a>
+				</li>
+				<li>
+					<h3>Connect it in ChatGPT</h3>
+					<p>Find <strong>Frontman for WordPress</strong> in ChatGPT’s directory. Sign in with the same Frontman account you used for your site.</p>
+					<a href="https://chatgpt.com/" class="copy-link" target="_blank" rel="noopener noreferrer">Open ChatGPT <span class="new-tab">(opens in a new tab)</span></a>
+				</li>
+				<li>
+					<h3>Make it yours</h3>
+					<p>Choose your site and ask for the change. Refine the details together, then open the page to see the result.</p>
+				</li>
+			</ol>
+		</div>
+	</section>
+
+	<section class="page-section page-section--light" aria-labelledby="faq-heading">
+		<div class="page-container narrow">
+			<h2 id="faq-heading">A few quick answers.</h2>
+			<div class="faqs">
+				{faqs.map(({ question, answer }) => (
+					<details><summary>{question}</summary><p>{answer}</p></details>
+				))}
+			</div>
+		</div>
+	</section>
+
+	<section class="closing">
+		<div class="page-container narrow">
+			<h2>Have a change in mind?</h2>
+			<p>Bring it to ChatGPT. Frontman helps you get it onto your WordPress site.</p>
+			<Button link="#connect" size="lg" style="white">Connect your site</Button>
+		</div>
+	</section>
+</Layout>
+
+<style>
+	@reference "../styles/global.css";
+
+	.page-container { @apply mx-auto max-w-marketing px-page-gutter; }
+	.narrow { max-width: 52rem; }
+	.chatgpt-hero, .closing {
+		position: relative;
+		background: var(--color-accent-purple);
+		color: var(--color-neutral-50);
+	}
+	.hero-background { position: absolute; inset: 0; opacity: 0.3; pointer-events: none; }
+	.hero-background img { width: 100%; height: 100%; object-fit: cover; }
+	.hero-grid { position: relative; display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr); gap: 3rem; align-items: center; padding-top: 6rem; padding-bottom: 3rem; }
+	h1 { font-size: clamp(2.75rem, 4.2vw, 3.75rem); line-height: 1.1; letter-spacing: -0.035em; text-wrap: balance; }
+	h1 span { display: block; }
+	h1 span + span { color: var(--color-primary-100); }
+	.lead { margin-top: 1.5rem; max-width: 44ch; font-size: 1.125rem; line-height: 1.7; }
+	.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 1.5rem; margin-top: 2rem; }
+	.demo { min-width: 0; }
+	.video-wrapper { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid rgb(255 255 255 / 0.25); border-radius: var(--radius-panel); background: var(--color-surface-raised); }
+	iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+	figcaption { margin-top: 0.75rem; color: var(--color-primary-100); font-size: 0.8125rem; line-height: 1.6; }
+	.page-section { --section-link: var(--color-primary-200); padding: 5rem 0 6rem; background: #09090b; color: var(--color-neutral-50); }
+	.page-section--light { --section-link: var(--color-primary-800); background: #fafafa; color: #09090b; }
+	.page-section h2, .page-section h3 { color: inherit; }
+	h2 { margin-bottom: 1.25rem; color: inherit; font-size: clamp(1.875rem, 3vw, 2.25rem); font-weight: 600; line-height: 1.15; letter-spacing: -0.03em; text-wrap: balance; }
+	h3 { margin-bottom: 0.5rem; color: inherit; font-size: 1.125rem; font-weight: 500; line-height: 1.4; }
+	.page-section p, .closing p { max-width: 65ch; font-size: 1.0625rem; line-height: 1.8; }
+	.page-section p { color: var(--color-neutral-300); }
+	.page-section--light p { color: var(--color-neutral-600); }
+	.copy-link { color: var(--section-link, white); text-decoration: underline; text-underline-offset: 4px; }
+	.copy-link:hover { text-decoration-thickness: 2px; }
+	.jobs, .setup-steps { margin: 2.5rem 0 0; padding: 0; list-style: none; }
+	.jobs li { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 4rem; padding: 1.75rem 0; border-top: 1px solid var(--color-neutral-300); }
+	.jobs h3 { font-size: 1.25rem; }
+	.jobs p { margin: 0; }
+	.jobs blockquote { padding-left: 1.5rem; border-left: 2px solid var(--color-primary-300); }
+	.jobs footer { margin-top: 0.75rem; font-size: 0.8125rem; color: var(--color-neutral-600); }
+	.setup-steps { counter-reset: setup; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2.5rem; }
+	.setup-steps li { counter-increment: setup; }
+	.setup-steps li::before { content: counter(setup, decimal-leading-zero); display: block; margin-bottom: 1rem; color: var(--color-primary-300); font-size: 0.875rem; }
+	.setup-steps p { font-size: 1rem; line-height: 1.75; }
+	.setup-steps a { display: block; margin-top: 0.75rem; font-size: 0.9375rem; }
+	.new-tab { font-size: 0.8125rem; }
+	#connect { border-top: 1px solid var(--color-surface-border); }
+	.story-grid { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 4rem; align-items: center; }
+	.customer-quote { padding-left: 2rem; border-left: 1px solid var(--color-surface-border); }
+	.customer-quote blockquote { font-family: var(--font-headings); font-size: clamp(1.5rem, 2.5vw, 1.75rem); line-height: 1.4; letter-spacing: -0.02em; }
+	.customer-quote figcaption { margin-top: 1.5rem; color: var(--color-neutral-50); font-size: 0.875rem; font-weight: 600; }
+	.customer-quote figcaption span { display: block; margin-top: 0.25rem; color: var(--color-neutral-400); font-weight: 400; }
+	.faqs { margin-top: 2rem; }
+	details { border-bottom: 1px solid var(--color-neutral-300); }
+	summary { padding: 1.25rem 0; cursor: pointer; font-weight: 500; }
+	details p { padding-bottom: 1.25rem; margin: 0; }
+	.closing { padding: 5rem 0 6rem; text-align: center; }
+	.closing p { margin: 0 auto 2rem; }
+	:global(.chatgpt-hero a:focus-visible), :global(.closing a:focus-visible) { outline: 3px solid white; outline-offset: 4px; }
+	.page-section a:focus-visible, summary:focus-visible { outline: 3px solid var(--section-link); outline-offset: 4px; }
+	#jobs, #connect { scroll-margin-top: 6rem; }
+	@media (max-width: 1023px) {
+		.hero-grid { grid-template-columns: 1fr; gap: 2rem; }
+		h1 { font-size: clamp(2.5rem, 6vw, 3.75rem); }
+	}
+	@media (max-width: 767px) {
+		.setup-steps, .jobs li, .story-grid { grid-template-columns: 1fr; gap: 1.5rem; }
+		.page-section, .closing { padding: 3.5rem 0 4rem; }
+		.hero-grid { padding-bottom: 2.5rem; }
+		.jobs li { gap: 1rem; }
+	}
+	@media (max-width: 639px) {
+		.actions :global(.button) { width: 100%; }
+	}
+</style>

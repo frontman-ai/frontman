@@ -502,8 +502,8 @@ jobs:
         run: yarn build:bundle
         working-directory: libs/frontman-astro
 
-      - name: Build marketing site (fails on broken links)
-        run: cd apps/marketing && yarn build
+      - name: Build marketing site and test production HTML
+        run: make -C apps/marketing test-rendered
 
 
 
