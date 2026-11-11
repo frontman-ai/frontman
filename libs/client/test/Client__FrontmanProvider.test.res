@@ -27,7 +27,11 @@ let errorUpdate = (
 let errorEffects = category =>
   Reducer.next(
     Client__State__Initialization.defaultState,
-    AcpSessionUpdateReceived({taskId: "task", update: errorUpdate(category), errorDisplayId: Some("error-1")}),
+    AcpSessionUpdateReceived({
+      taskId: "task",
+      update: errorUpdate(category),
+      errorDisplayId: Some("error-1"),
+    }),
   )->Pair.second
 
 describe("ACP billing update handling", () => {
@@ -37,11 +41,12 @@ describe("ACP billing update handling", () => {
       (`{"frontman.dev/agentErrorId":"error-1"}`, Some("error-1")),
     ]->Array.forEach(
       ((meta, retryErrorId)) => {
-        let task =
-          Client__State__Types.Task.makeNew(
-            ~previewUrl="http://localhost:3000",
-            ~clientId="task",
-          )->Client__State__Types.Task.newToLoaded(~id="task", ~title="Task", ~timestamp=0.0)
+        module Task = Client__State__Types.Task
+        let task = switch Task.makeNew(~previewUrl="http://localhost:3000", ~clientId="task") {
+        | Task.New(draft) =>
+          Task.Loaded(Task.promoteDraft(draft, ~id="task", ~title="Task", ~timestamp=0.0))
+        | _ => failwith("Expected a draft")
+        }
         StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
           Client__State__Store.store,
           {
@@ -92,7 +97,10 @@ describe("ACP billing update handling", () => {
     )
     t
     ->expect(
-      Client__State__ConnectionEffects.billingRequestErrorMessage(error, Client__State__Store.dispatch),
+      Client__State__ConnectionEffects.billingRequestErrorMessage(
+        error,
+        Client__State__Store.dispatch,
+      ),
     )
     ->Expect.toBe("Alternate billing copy")
     let state = StateStore.getState(Client__State__Store.store)

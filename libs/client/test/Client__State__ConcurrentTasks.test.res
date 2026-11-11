@@ -17,10 +17,11 @@ module TestSetup = {
   ): StateReducer.state => {
     let tasks = Dict.make()
     taskIds->Array.forEach(id => {
-      let task =
-        Task.makeNew(~previewUrl="http://localhost:3000", ~clientId=id)
-        ->Task.newToLoaded(~id, ~title=`Task ${id}`, ~timestamp=0.0)
-        ->Task.updateLoadedData(data => {...data, isAgentRunning})
+      let task = switch Task.makeNew(~previewUrl="http://localhost:3000", ~clientId=id) {
+      | Task.New(draft) =>
+        Task.Loaded(Task.promoteDraft(draft, ~id, ~title=`Task ${id}`, ~timestamp=0.0))
+      | _ => failwith("Expected a draft")
+      }->Task.updateConversation(data => {...data, isAgentRunning})
       tasks->Dict.set(id, task)
     })
 
@@ -216,8 +217,7 @@ describe("Concurrent Tasks Event Routing", () => {
     let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
 
     switch Client__Task__Reducer.Selectors.streamingMessage(taskA) {
-    | Some(Message.Streaming({textBuffer})) =>
-      t->expect(textBuffer)->Expect.toBe("Part 1. Part 2.")
+    | Some(Message.Streaming({textBuffer})) => t->expect(textBuffer)->Expect.toBe("Part 1. Part 2.")
     | _ => t->expect(false)->Expect.toBe(true)
     }
 

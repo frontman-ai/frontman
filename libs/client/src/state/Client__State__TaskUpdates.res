@@ -46,18 +46,22 @@ let addUserMessageToState = (
   let {id, timestamp, content, annotations, agentId} = submission
   let handoff = Selectors.pendingPlanHandoff(state)->Option.isSome
   let (state, taskId) = switch state.currentTask {
-  | Task.New(task) =>
+  | Task.New(Task.New(draft)) =>
     let tasks = state.tasks->Dict.copy
     tasks->Dict.set(
       sessionId,
-      Task.newToLoaded(
-        task,
-        ~id=sessionId,
-        ~title=TaskReducer.extractTextFromUserContent(content),
-        ~timestamp,
+      Task.Loaded(
+        Task.promoteDraft(
+          draft,
+          ~id=sessionId,
+          ~title=TaskReducer.extractTextFromUserContent(content),
+          ~timestamp,
+        ),
       ),
     )
     ({...state, tasks, currentTask: Task.Selected(sessionId)}, sessionId)
+  | Task.New(Task.Unloaded(_) | Task.Loading(_) | Task.Loaded(_)) =>
+    failwith("[addUserMessageToState] New task selection must contain a draft")
   | Task.Selected(taskId) => (state, taskId)
   }
   let (state, effects) =
