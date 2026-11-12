@@ -1,6 +1,8 @@
 defmodule FrontmanServerWeb.ConnectHandoffController do
   use FrontmanServerWeb, :controller
 
+  alias FrontmanServerWeb.{ConnectHandoff, UserAuth}
+
   def create(conn, %{"external_auth_id" => id})
       when is_binary(id) and byte_size(id) > 0 and byte_size(id) <= 512 do
     ref = Base.url_encode64(:crypto.strong_rand_bytes(24), padding: false)
@@ -27,7 +29,10 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
   def show(conn, %{"ref" => ref}) do
     case pending(conn, ref) do
       {:ok, _pending} ->
-        render(conn, :show, ref: ref, page_title: "Use Frontman with your AI assistant")
+        render(conn, :show,
+          form: Phoenix.Component.to_form(%{"ref" => ref}),
+          page_title: "Confirm your Frontman account"
+        )
 
       :error ->
         send_resp(conn, 400, "Invalid or expired request")
@@ -39,8 +44,7 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
   def complete(conn, %{"ref" => ref}) do
     case pending(conn, ref) do
       {:ok, pending} ->
-        conn = delete_session(conn, :connect_handoff)
-        complete_pending(conn, pending)
+        conn |> delete_session(:connect_handoff) |> complete_pending(pending)
 
       :error ->
         send_resp(conn, 400, "Invalid or expired request")
@@ -48,6 +52,22 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
   end
 
   def complete(conn, _params), do: send_resp(conn, 400, "Invalid request")
+
+  def switch_account(conn, %{"ref" => ref}) do
+    case pending(conn, ref) do
+      {:ok, pending} ->
+        conn
+        |> UserAuth.end_user_session()
+        |> put_session(:connect_handoff, Map.put(pending, "user_id", nil))
+        |> put_session(:user_return_to, ~p"/auth/mcp/workos/pending?#{%{ref: ref}}")
+        |> redirect(to: ~p"/users/log-in")
+
+      :error ->
+        send_resp(conn, 400, "Invalid or expired request")
+    end
+  end
+
+  def switch_account(conn, _params), do: send_resp(conn, 400, "Invalid request")
 
   defp complete_pending(conn, pending) do
     with {:ok, url} <-
@@ -63,12 +83,9 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
   end
 
   defp pending(conn, ref) do
-    case {conn.assigns.current_scope, get_session(conn, :connect_handoff)} do
-      {%{user: %{id: user_id}},
-       %{"user_id" => user_id, "ref" => ^ref, "started_at" => started_at} = pending}
-      when is_integer(started_at) ->
-        age = System.system_time(:second) - started_at
-        if age >= 0 and age <= 900, do: {:ok, pending}, else: :error
+    case ConnectHandoff.pending(conn) do
+      {:ok, %{"user_id" => user_id, "ref" => ^ref} = pending} when is_binary(user_id) ->
+        {:ok, pending}
 
       _ ->
         :error

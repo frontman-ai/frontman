@@ -11,10 +11,12 @@ defmodule FrontmanServerWeb.UserSessionController do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Frameworks
+  alias FrontmanServerWeb.ConnectHandoff
   alias FrontmanServerWeb.EmbeddedClientAuth
   alias FrontmanServerWeb.UserAuth
 
   plug(EmbeddedClientAuth when action in [:new, :create, :confirm])
+  plug(ConnectHandoff when action in [:new, :create, :confirm])
 
   def new(conn, params) do
     email = get_in(conn.assigns, [:current_scope, Access.key(:user), Access.key(:email)])
@@ -25,7 +27,14 @@ defmodule FrontmanServerWeb.UserSessionController do
       |> maybe_put_user_return_to(params["return_to"])
       |> maybe_put_signup_framework(params["framework"])
 
-    render(conn, :new, form: form)
+    render(conn, :new,
+      form: form,
+      page_title:
+        if(conn.assigns.assistant_connection,
+          do: "Edit your WordPress site, your way",
+          else: "Sign in to Frontman"
+        )
+    )
   end
 
   def create(conn, %{"_action" => "connect"} = params) do
