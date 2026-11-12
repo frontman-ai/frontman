@@ -43,7 +43,7 @@ defmodule FrontmanNotifier.TaskSummaries do
   JOIN users u ON u.id = t.user_id
   LEFT JOIN billing_customers c ON c.user_id = u.id
   LEFT JOIN billing_subscriptions s ON s.billing_customer_id = c.id
-  LEFT JOIN billing_run_allowances a ON a.user_id = u.id
+  LEFT JOIN tasks_run_allowances a ON a.user_id = u.id
   JOIN interactions i ON i.task_id = t.id
   WHERE t.inserted_at >= timezone('UTC', now()) - ($2::int * interval '1 hour')
   GROUP BY t.id, t.short_desc, t.framework, t.inserted_at, u.email, u.name,

@@ -1,10 +1,10 @@
-defmodule FrontmanServer.Billing.RunAllowance do
+defmodule FrontmanServer.Tasks.RunAllowance do
   @moduledoc "Lifetime free BYOK run usage preserved across subscriptions."
   use Ecto.Schema
   import Ecto.Query
 
   @primary_key {:user_id, :binary_id, autogenerate: false}
-  schema "billing_run_allowances" do
+  schema "tasks_run_allowances" do
     field :used, :integer
   end
 

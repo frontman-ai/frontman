@@ -6,56 +6,43 @@
 
 defmodule FrontmanServer.Billing do
   @moduledoc """
-  Billing context for Stripe Managed Payments subscriptions.
+  Public API for billing customers, subscriptions, checkout, and provider events.
   """
 
   use Boundary,
     deps: [FrontmanServer, FrontmanServer.Accounts],
-    exports: [Client, Customer, StripeEvent, Subscription, Webhooks]
+    exports: [Client, Customer, StripeEvent, Subscription]
 
-  alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Billing.{Customer, RunAllowance, Subscription}
+  alias FrontmanServer.Billing.{Customer, StripeEvent, Subscriptions}
   alias FrontmanServer.Repo
-
-  @pretrial_run_limit 5
 
   @type interval :: :monthly | :yearly
 
+  defdelegate get_current_subscription(scope), to: Subscriptions, as: :current
+
   @doc """
-  Starts provider checkout for the scoped user.
+  Returns `:none`, `{:allowed, status}`, or `{:inactive, status}` for subscription access.
   """
-  @spec start_checkout(Scope.t(), interval(), %{
-          success_url: String.t(),
-          cancel_url: String.t()
-        }) ::
-          {:ok, map()} | {:error, term()}
-  def start_checkout(%Scope{} = scope, interval, return_urls)
+  defdelegate subscription_access(scope), to: Subscriptions, as: :access
+
+  defdelegate trial_eligible?(scope), to: Subscriptions
+  defdelegate start_checkout(scope, interval, return_urls), to: Subscriptions
+  defdelegate upsert_subscription(scope, customer, attrs), to: Subscriptions
+
+  def start_checkout(%Scope{} = scope, interval, return_urls, trial_eligible: trial_eligible)
       when is_map(return_urls) do
-    case get_current_subscription(scope) do
-      %Subscription{status: status} when status in ["trialing", "active", "past_due"] ->
-        {:error, :subscription_already_active}
-
-      _subscription ->
-        user = Accounts.scope_user(scope)
-        customer = Customer |> Customer.for_user(user.id) |> Repo.one()
-
-        billing_client().start_checkout(user, customer, interval, return_urls,
-          trial_eligible: trial_eligible?(scope)
-        )
-    end
+    billing_client().start_checkout(Scope.user(scope), customer(scope), interval, return_urls,
+      trial_eligible: trial_eligible
+    )
   end
 
   @doc """
   Creates a Stripe Customer Portal URL for the scoped user's billing customer.
   """
-  @spec create_customer_portal_url(Scope.t(), String.t()) ::
-          {:ok, String.t()}
-          | {:error, :billing_customer_missing}
-          | {:error, {:customer_portal_url_failed, term()}}
   def create_customer_portal_url(%Scope{} = scope, return_url)
       when is_binary(return_url) do
-    case Customer |> Customer.for_user(Accounts.scope_user_id(scope)) |> Repo.one() do
+    case customer(scope) do
       %Customer{} = customer ->
         case billing_client().create_customer_portal_url(customer, return_url) do
           {:ok, url} when is_binary(url) ->
@@ -70,175 +57,47 @@ defmodule FrontmanServer.Billing do
     end
   end
 
-  @doc """
-  Returns whether checkout should include the configured trial period.
-  """
-  @spec trial_eligible?(Scope.t()) :: boolean()
-  def trial_eligible?(%Scope{} = scope) do
-    scope
-    |> trial_consumed_query()
+  def has_customer?(%Scope{} = scope) do
+    Customer
+    |> Customer.for_user(Scope.user_id(scope))
     |> Repo.exists?()
-    |> Kernel.not()
   end
 
-  @doc """
-  Returns the current billing status payload for UI consumers.
-  """
-  @spec status(Scope.t()) :: %{
-          status: String.t(),
-          can_start_turn: boolean(),
-          pretrial_runs_remaining: non_neg_integer() | nil,
-          has_billing_customer: boolean(),
-          trial_eligible: boolean(),
-          trial_days: pos_integer(),
-          interval: atom() | nil,
-          current_period_end: DateTime.t() | nil,
-          trial_end: DateTime.t() | nil,
-          cancel_at: DateTime.t() | nil,
-          canceled_at: DateTime.t() | nil
-        }
-  def status(%Scope{} = scope) do
-    subscription = get_current_subscription(scope)
-
-    scope
-    |> status_payload(subscription)
-    |> Map.merge(%{
-      trial_eligible: trial_eligible?(scope),
-      trial_days: Application.fetch_env!(:frontman_server, :stripe) |> Keyword.fetch!(:trial_days)
-    })
-  end
-
-  @doc """
-  Returns the PubSub topic for billing status updates for a user.
-  """
-  @spec status_topic(String.t()) :: String.t()
-  def status_topic(user_id) when is_binary(user_id), do: "billing_status:user:#{user_id}"
-
-  @doc """
-  Broadcasts that a user's billing status changed.
-  """
-  @spec broadcast_status_changed(String.t()) :: :ok | {:error, term()}
-  def broadcast_status_changed(user_id) when is_binary(user_id) do
-    Phoenix.PubSub.broadcast(
-      FrontmanServer.PubSub,
-      status_topic(user_id),
-      :billing_status_changed
+  def upsert_customer(%Scope{} = scope, stripe_customer_id) do
+    %Customer{user_id: Scope.user_id(scope)}
+    |> Customer.changeset(%{stripe_customer_id: stripe_customer_id})
+    |> Repo.insert(
+      on_conflict: [
+        set: [stripe_customer_id: stripe_customer_id, updated_at: DateTime.utc_now(:second)]
+      ],
+      conflict_target: :user_id,
+      returning: true
     )
   end
 
-  @doc """
-  Returns whether the user's subscription permits new runs, excluding the BYOK allowance.
-  """
-  @spec subscription_allows_runs?(Scope.t()) :: boolean()
-  def subscription_allows_runs?(%Scope{} = scope) do
-    scope
-    |> get_current_subscription()
-    |> Subscription.allow_access?()
-  end
+  def record_event(%{"id" => event_id, "type" => type} = event) do
+    %StripeEvent{}
+    |> StripeEvent.changeset(%{stripe_event_id: event_id, type: type, payload: event})
+    |> Repo.insert(mode: :savepoint)
+    |> case do
+      {:ok, _event} ->
+        {:ok, :inserted}
 
-  @doc "Advisory new-turn eligibility. authorize_new_turn/1 makes the authoritative billing decision."
-  def can_start_turn?(%Scope{} = scope) do
-    case subscription_allows_runs?(scope) do
-      true -> true
-      false -> remaining_runs(scope) > 0
+      {:error, changeset} ->
+        if unique_event?(changeset), do: {:ok, :duplicate}, else: {:error, changeset}
     end
   end
 
-  @doc "Authorizes a new turn, consuming allowance when needed. Call inside the turn-claim transaction."
-  @spec authorize_new_turn(Scope.t()) ::
-          {:ok, :subscription | :pretrial} | {:error, :billing_inactive}
-  def authorize_new_turn(%Scope{} = scope) do
-    case subscription_allows_runs?(scope) do
-      true -> {:ok, :subscription}
-      false -> consume_pretrial_run(scope)
-    end
+  defp unique_event?(%Ecto.Changeset{errors: errors}) do
+    errors
+    |> Keyword.get_values(:stripe_event_id)
+    |> Enum.any?(fn {_message, opts} -> opts[:constraint] == :unique end)
   end
 
-  @doc """
-  Returns the current billing subscription for the scoped user.
-  """
-  @spec get_current_subscription(Scope.t()) :: Subscription.t() | nil
-  def get_current_subscription(%Scope{} = scope) do
-    user_id = Accounts.scope_user_id(scope)
-
-    Subscription
-    |> Subscription.for_user(user_id)
-    |> Repo.one()
-  end
-
-  defp consume_pretrial_run(scope) do
-    case Repo.insert_all(RunAllowance, [%{user_id: Accounts.scope_user_id(scope), used: 1}],
-           conflict_target: :user_id,
-           on_conflict: RunAllowance.increment_below(@pretrial_run_limit)
-         ) do
-      {1, _} -> {:ok, :pretrial}
-      {0, _} -> {:error, :billing_inactive}
-    end
-  end
-
-  defp remaining_runs(scope) do
-    case Repo.get(RunAllowance, Accounts.scope_user_id(scope)) do
-      nil -> @pretrial_run_limit
-      %RunAllowance{used: used} -> @pretrial_run_limit - used
-    end
-  end
-
-  defp status_payload(scope, %Subscription{} = subscription) do
-    {can_start_turn, remaining} =
-      case Subscription.allow_access?(subscription) do
-        true ->
-          {true, nil}
-
-        false ->
-          remaining = remaining_runs(scope)
-          {remaining > 0, remaining}
-      end
-
-    %{
-      status: subscription.status,
-      can_start_turn: can_start_turn,
-      pretrial_runs_remaining: remaining,
-      has_billing_customer: has_billing_customer?(scope, subscription),
-      interval: subscription.interval,
-      current_period_end: subscription.current_period_end,
-      trial_end: subscription.trial_end,
-      cancel_at: subscription.cancel_at,
-      canceled_at: subscription.canceled_at
-    }
-  end
-
-  defp status_payload(scope, nil) do
-    remaining = remaining_runs(scope)
-
-    %{
-      status: "none",
-      can_start_turn: remaining > 0,
-      pretrial_runs_remaining: remaining,
-      has_billing_customer: has_billing_customer?(scope, nil),
-      interval: nil,
-      current_period_end: nil,
-      trial_end: nil,
-      cancel_at: nil,
-      canceled_at: nil
-    }
-  end
-
-  defp has_billing_customer?(_scope, %Subscription{}), do: true
-
-  defp has_billing_customer?(scope, nil) do
+  defp customer(scope) do
     Customer
-    |> Customer.for_user(Accounts.scope_user_id(scope))
-    |> Repo.exists?()
-  end
-
-  defp scoped_subscription_query(scope) do
-    Subscription.for_user(Subscription, Accounts.scope_user_id(scope))
-  end
-
-  defp trial_consumed_query(scope) do
-    scope
-    |> scoped_subscription_query()
-    |> Subscription.with_consumed_trial()
+    |> Customer.for_user(Scope.user_id(scope))
+    |> Repo.one()
   end
 
   defp billing_client do

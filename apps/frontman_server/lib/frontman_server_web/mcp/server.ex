@@ -14,6 +14,7 @@ defmodule FrontmanServerWeb.MCP.Server do
   alias Anubis.Server.{Component.Tool, Frame, Handlers, Response}
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Billing
   alias FrontmanServer.Protocols.MCP.Schema
   alias FrontmanServer.WordPress
   alias FrontmanServer.WordPress.Onboarding
@@ -22,7 +23,25 @@ defmodule FrontmanServerWeb.MCP.Server do
   @impl true
   def handle_request(%{"method" => method} = request, frame)
       when method in ["tools/list", "tools/call"] do
-    previous = Map.fetch(frame.assigns, :mcp_catalog)
+    with {:ok, scope} <- resolve_scope(frame),
+         true <- match?({:allowed, _}, Billing.subscription_access(scope)) do
+      handle_tools_request(request, frame, scope)
+    else
+      :error ->
+        {:error, Error.execution("Account unavailable"), frame}
+
+      false ->
+        {:error,
+         Error.execution("An active subscription or eligible trial is required for hosted MCP"),
+         frame}
+    end
+  end
+
+  def handle_request(request, frame), do: Handlers.handle(request, __MODULE__, frame)
+
+  defp handle_tools_request(%{"method" => method} = request, frame, scope) do
+    previous = Map.take(frame.assigns, [:mcp_catalog, :current_scope])
+    frame = Frame.assign(frame, :current_scope, scope)
 
     {status, result, returned} =
       case discover(request, frame) do
@@ -34,15 +53,12 @@ defmodule FrontmanServerWeb.MCP.Server do
       end
 
     assigns =
-      case previous do
-        {:ok, value} -> Map.put(returned.assigns, :mcp_catalog, value)
-        :error -> Map.delete(returned.assigns, :mcp_catalog)
-      end
+      returned.assigns
+      |> Map.drop([:mcp_catalog, :current_scope])
+      |> Map.merge(previous)
 
     {status, tool_list_result(method, status, result), %{returned | assigns: assigns}}
   end
-
-  def handle_request(request, frame), do: Handlers.handle(request, __MODULE__, frame)
 
   defp discover(%{"method" => "tools/call", "params" => %{"name" => "list_sites"}}, _frame),
     do: {:ok, []}
@@ -177,7 +193,10 @@ defmodule FrontmanServerWeb.MCP.Server do
 
   defp tool_response(_), do: :error
 
-  defp scope(frame) do
+  defp scope(%Frame{assigns: %{current_scope: %Scope{} = scope}}), do: {:ok, scope}
+  defp scope(_frame), do: :error
+
+  defp resolve_scope(frame) do
     with subject when is_binary(subject) <- Frame.subject(frame),
          {:ok, id} <- Ecto.UUID.cast(subject),
          user when not is_nil(user) <- Accounts.get_user(id) do
@@ -202,73 +221,10 @@ defmodule FrontmanServerWeb.MCP.Server do
   defp discovery_connections(_, _), do: []
 
   defp remote_tools(scope, connections) do
-    started = System.monotonic_time(:millisecond)
-    deadline = started + 6_000
-
-    result =
-      scope
-      |> WordPress.stream_catalogs(Enum.map(connections, & &1.id), deadline)
-      |> Enum.reduce_while({:ok, [], 0}, fn
-        {:ok, {id, {:ok, catalog}}}, {:ok, entries, validated} ->
-          case validated_tools(catalog, deadline) do
-            {:ok, tools} ->
-              {:cont, {:ok, Enum.map(tools, &{id, &1}) ++ entries, validated + 1}}
-
-            {:error, reason} ->
-              {:halt, {:error, reason, validated}}
-          end
-
-        {:exit, :timeout}, {:ok, _, validated} ->
-          {:halt, {:error, :timeout, validated}}
-
-        {:exit, _}, {:ok, _, validated} ->
-          {:halt, {:error, :task_exit, validated}}
-
-        _, {:ok, _, validated} ->
-          category =
-            if System.monotonic_time(:millisecond) >= deadline,
-              do: :deadline_expired,
-              else: :request_failed
-
-          {:halt, {:error, category, validated}}
-      end)
-
-    case result do
-      {:ok, entries, validated} ->
-        discovery_event(:ok, started, validated, length(connections))
-        {:ok, entries}
-
-      {:error, category, validated} ->
-        discovery_event(category, started, validated, length(connections))
-        {:error, Error.execution("WordPress catalog unavailable")}
+    case WordPress.discover_tools(scope, Enum.map(connections, & &1.id)) do
+      {:ok, entries} -> {:ok, entries}
+      {:error, _category} -> {:error, Error.execution("WordPress catalog unavailable")}
     end
-  end
-
-  defp validated_tools(%{"tools" => tools} = catalog, deadline) do
-    defaults = %{"resultType" => "complete", "ttlMs" => 0, "cacheScope" => "private"}
-
-    cond do
-      Map.get(catalog, "resultType", "complete") != "complete" -> {:error, :incomplete}
-      Map.get(catalog, "nextCursor") not in [nil, ""] -> {:error, :paginated}
-      not Schema.bounded?(catalog) -> {:error, :bounds}
-      System.monotonic_time(:millisecond) >= deadline -> {:error, :deadline_expired}
-      Schema.validate_tools_list_envelope(Map.merge(defaults, catalog)) == :ok -> {:ok, tools}
-      true -> {:error, :schema}
-    end
-  end
-
-  defp validated_tools(_, _deadline), do: {:error, :schema}
-
-  defp discovery_event(outcome, started, validated, total) do
-    :telemetry.execute(
-      [:frontman_server, :wordpress, :discovery, :stop],
-      %{
-        duration_ms: max(System.monotonic_time(:millisecond) - started, 0),
-        validated: validated,
-        total: total
-      },
-      %{outcome: outcome}
-    )
   end
 
   def catalog_tools(entries, reserved) do

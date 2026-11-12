@@ -28,6 +28,7 @@ defmodule FrontmanServer.Tasks do
     Interaction.ToolCall,
     Interaction.ToolResult,
     RetryCoordinator,
+    RunAllowance,
     Todos.Todo
   ]
 
@@ -59,6 +60,7 @@ defmodule FrontmanServer.Tasks do
     History,
     Interaction,
     InteractionSchema,
+    RunAllowance,
     TaskSchema,
     Todos
   }
@@ -69,6 +71,8 @@ defmodule FrontmanServer.Tasks do
   alias SwarmAi.Message.ContentPart
   alias SwarmAi.Message.Tool
   require Logger
+
+  @pretrial_run_limit 5
 
   @doc "Gets task metadata by ID without loading its interaction history."
   def get_task(scope, task_id) do
@@ -542,19 +546,60 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp guard_billing_access(scope) do
-    case Billing.can_start_turn?(scope) do
+    case can_start_turn?(scope) do
       true -> :ok
       false -> {:error, :billing_inactive}
     end
   end
 
   def billing_inactive_message(%Scope{} = scope) do
-    case Billing.get_current_subscription(scope) do
-      nil ->
+    case Billing.subscription_access(scope) do
+      :none ->
         "Keep going with a 7-day free Pro trial. Card required."
 
-      %Billing.Subscription{} ->
+      {_access, _status} ->
         "Your Frontman access has ended. Start a subscription to continue."
+    end
+  end
+
+  @doc "Advisory eligibility for starting a new turn."
+  def can_start_turn?(%Scope{} = scope) do
+    case Billing.subscription_access(scope) do
+      {:allowed, _status} -> true
+      _inactive -> remaining_runs(scope) > 0
+    end
+  end
+
+  @doc "Returns the remaining lifetime pretrial runs."
+  def remaining_runs(%Scope{} = scope) do
+    case Repo.get(RunAllowance, Accounts.scope_user_id(scope)) do
+      nil -> @pretrial_run_limit
+      %RunAllowance{used: used} -> @pretrial_run_limit - used
+    end
+  end
+
+  @doc "Returns the PubSub topic for access status updates."
+  def status_topic(%Scope{} = scope), do: "billing_status:user:#{Scope.user_id(scope)}"
+
+  @doc "Broadcasts that a user's access status changed."
+  def broadcast_status_changed(%Scope{} = scope) do
+    Phoenix.PubSub.broadcast(FrontmanServer.PubSub, status_topic(scope), :billing_status_changed)
+  end
+
+  defp authorize_new_turn(%Scope{} = scope) do
+    case Billing.subscription_access(scope) do
+      {:allowed, _status} -> {:ok, :subscription}
+      _inactive -> consume_pretrial_run(scope)
+    end
+  end
+
+  defp consume_pretrial_run(scope) do
+    case Repo.insert_all(RunAllowance, [%{user_id: Accounts.scope_user_id(scope), used: 1}],
+           conflict_target: :user_id,
+           on_conflict: RunAllowance.increment_below(@pretrial_run_limit)
+         ) do
+      {1, _} -> {:ok, :pretrial}
+      {0, _} -> {:error, :billing_inactive}
     end
   end
 
@@ -614,7 +659,7 @@ defmodule FrontmanServer.Tasks do
         broadcast_task(task_id, {:interaction, turn_started_row})
 
         case billing_authorization do
-          :pretrial -> Billing.broadcast_status_changed(Accounts.scope_user_id(scope))
+          :pretrial -> broadcast_status_changed(scope)
           :subscription -> :ok
         end
 
@@ -658,7 +703,7 @@ defmodule FrontmanServer.Tasks do
          user_message_ids = Enum.map(accepted_messages, & &1.id),
          {:ok, agent} <- Agents.get_agent(scope, agent_id),
          {:ok, _access} <- Providers.resolve_model_access(scope, turn_model),
-         {:ok, billing_authorization} <- Billing.authorize_new_turn(scope),
+         {:ok, billing_authorization} <- authorize_new_turn(scope),
          {:ok, turn_started_row} <-
            insert_interaction_row(task_schema, %{
              id: Ecto.UUID.generate(),
