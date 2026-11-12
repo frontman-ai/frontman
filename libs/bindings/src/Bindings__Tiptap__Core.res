@@ -56,7 +56,6 @@ external mergeAttributes: (htmlAttributes, Dict.t<string>) => htmlAttributes = "
 @send external setEditable: (editor, bool, ~emitUpdate: bool=?) => unit = "setEditable"
 @get external isEmpty: editor => bool = "isEmpty"
 @get external state: editor => editorState = "state"
-@get external elementEditor: WebAPI.DomTypes.element => editor = "editor"
 
 @get external nodeType: proseMirrorNode => proseMirrorNodeType = "type"
 @get external nodeTypeName: proseMirrorNodeType => string = "name"
