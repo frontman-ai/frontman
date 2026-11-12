@@ -186,7 +186,7 @@ class Frontman_Tool_Posts {
 				'required' => [ 'source_id' ],
 			],
 			[ $this, 'duplicate_post' ],
-			new Frontman_Tool_Annotations( false, false, false, false )
+			new Frontman_Tool_Annotations( false, true, false, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -287,7 +287,7 @@ class Frontman_Tool_Posts {
 				'required' => [ 'id', 'content' ],
 			],
 			[ $this, 'save_post_preview' ],
-			new Frontman_Tool_Annotations( false, false, false, false ), 'read-write', true, true
+			new Frontman_Tool_Annotations( false, true, false, false ), 'read-write', true, true
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(

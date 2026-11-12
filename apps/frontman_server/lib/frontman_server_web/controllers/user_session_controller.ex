@@ -72,7 +72,7 @@ defmodule FrontmanServerWeb.UserSessionController do
       |> put_flash(:info, "Welcome back!")
       |> UserAuth.log_in_user(user, user_params)
     else
-      form = Phoenix.Component.to_form(user_params, as: "user")
+      form = Phoenix.Component.to_form(Map.delete(user_params, "password"), as: "user")
 
       conn
       |> put_flash(:error, "Invalid email or password")

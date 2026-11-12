@@ -48,11 +48,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Show password sign-in alongside OAuth and email-link options on the standard sign-in page.
 - The API server serves the public OpenAI Apps domain-verification challenge as plain text.
 - Production first-use campaign enrollment is configured for signups from 2026-11-10 15:00 UTC.
 
 ### Fixed
 
+- Stop CI jobs from pruning shared Docker storage and runner caches before tests.
 - Successful WordPress MCP tool use now exits the first-use campaign.
 - Contact synchronization preserves opt-outs when an existing contact is retried.
 

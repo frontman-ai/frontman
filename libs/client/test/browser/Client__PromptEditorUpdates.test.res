@@ -30,10 +30,13 @@ testAsync(
       root->ReactDOM.Client.Root.render(
         <React.StrictMode>
           <Client__GetStartedTasks
-            recentTasks=[] onResume={_ => ()}
+            recentTasks=[]
+            onResume={_ => ()}
             onSelect={text =>
-              commandsRef.current->Nullable.toOption->Option.forEach(
-                (commands: Client__PromptEditor.commands) => commands.insertText(text),
+              commandsRef.current
+              ->Nullable.toOption
+              ->Option.forEach((commands: Client__PromptEditor.commands) =>
+                commands.insertText(text)
               )}
           />
           <Client__PromptEditor
@@ -63,7 +66,16 @@ testAsync(
     let text = "Change the heading to Hello Frontman. " ++ "a"->String.repeat(120)
     await userEvent->keyboard(text)
     t->expect(changes)->Expect.toEqual([true])
-    t->expect(container->Element.querySelector("[role=textbox]")->Null.getOrThrow->Element.asNode->Node.textContent->Null.getOrThrow)->Expect.toBe(text)
+    t
+    ->expect(
+      container
+      ->Element.querySelector("[role=textbox]")
+      ->Null.getOrThrow
+      ->Element.asNode
+      ->Node.textContent
+      ->Null.getOrThrow,
+    )
+    ->Expect.toBe(text)
     render(true)
     await waitFor(() =>
       t
@@ -86,24 +98,53 @@ testAsync(
     await waitFor(() => t->expect(submitted.contents)->Expect.toBe(text))
     await waitFor(() => t->expect(changes)->Expect.toEqual([true, false]))
     await textbox->fill("Another draft")
-    await textbox->fill("")
+    await userEvent->keyboard("{ControlOrMeta>}a{/ControlOrMeta}{Backspace}")
     await waitFor(() => t->expect(changes)->Expect.toEqual([true, false, true, false]))
     await textbox->fill("Keep this draft")
-    let file = WebAPI.File.make(~fileBits=[String("image")], ~fileName="example.png", ~options={type_: "image/png"})
-    commandsRef.current->Nullable.toOption->Option.getOrThrow->((commands: Client__PromptEditor.commands) => commands.dropFiles([file]))
+    let file = WebAPI.File.make(
+      ~fileBits=[String("image")],
+      ~fileName="example.png",
+      ~options={type_: "image/png"},
+    )
+    commandsRef.current
+    ->Nullable.toOption
+    ->Option.getOrThrow
+    ->((commands: Client__PromptEditor.commands) => commands.dropFiles([file]))
     await waitFor(() =>
-      t->expect(container->Element.querySelector("[data-chip-type=file]")->Null.toOption->Option.isSome)->Expect.toBe(true)
+      t
+      ->expect(
+        container->Element.querySelector("[data-chip-type=file]")->Null.toOption->Option.isSome,
+      )
+      ->Expect.toBe(true)
     )
     Client__PromptEditor.focus()
-    await userEvent->keyboard("{Control>}a{/Control}")
+    await userEvent->keyboard("{ControlOrMeta>}a{/ControlOrMeta}")
     await page->getByRole("button", {name: "Make this heading a little larger"})->click
     await waitFor(() =>
-      t->expect(container->Element.querySelector("[role=textbox]")->Null.getOrThrow->Element.asNode->Node.textContent->Null.getOrThrow->String.includes("Make this heading a little larger"))->Expect.toBe(true)
+      t
+      ->expect(
+        container
+        ->Element.querySelector("[role=textbox]")
+        ->Null.getOrThrow
+        ->Element.asNode
+        ->Node.textContent
+        ->Null.getOrThrow
+        ->String.includes("Make this heading a little larger"),
+      )
+      ->Expect.toBe(true)
     )
-    t->expect(container->Element.querySelector("[data-chip-type=file]")->Null.toOption->Option.isSome)->Expect.toBe(true)
+    t
+    ->expect(
+      container->Element.querySelector("[data-chip-type=file]")->Null.toOption->Option.isSome,
+    )
+    ->Expect.toBe(true)
     t->expect(submitted.contents)->Expect.toBe(text)
     await userEvent->keyboard(" please{Enter}")
-    await waitFor(() => t->expect(submitted.contents)->Expect.toBe("Keep this draft Make this heading a little larger please"))
+    await waitFor(() =>
+      t
+      ->expect(submitted.contents)
+      ->Expect.toBe("Keep this draft Make this heading a little larger please")
+    )
     t->expect(submittedFiles.contents)->Expect.toBe(1)
   },
 )

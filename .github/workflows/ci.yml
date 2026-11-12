@@ -520,14 +520,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      - name: Free runner disk space
-        run: |
-          df -h
-          docker system prune --all --force --volumes || true
-          docker builder prune --all --force || true
-          sudo rm -rf /root/.yarn/berry/cache/* /root/.cache/yarn/* /tmp/runner/work/_temp/*
-          sudo apt-get clean
-          df -h
+      - name: Report runner disk space
+        run: df -h
 
       - name: Install native build dependencies
         run: |
@@ -598,14 +592,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      - name: Free runner disk space
-        run: |
-          df -h
-          docker system prune --all --force --volumes || true
-          docker builder prune --all --force || true
-          sudo rm -rf /root/.yarn/berry/cache/* /root/.cache/yarn/* /tmp/runner/work/_temp/*
-          sudo apt-get clean
-          df -h
+      - name: Report runner disk space
+        run: df -h
 
       - name: Start PostgreSQL
         run: |

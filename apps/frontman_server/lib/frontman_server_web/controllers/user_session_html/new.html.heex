@@ -188,7 +188,7 @@
             </div>
           </div>
 
-          <%= if Application.get_env(:frontman_server, :dev_routes) do %>
+          <div :if={!@current_scope || !@embedded_request}>
             <div class="divider text-xs text-base-content/40">Password login</div>
 
             <.form for={@form} action={~p"/users/log-in"} id="login-form" class="space-y-3">
@@ -197,6 +197,7 @@
                 field={@form[:email]}
                 type="email"
                 placeholder="Email"
+                autocomplete="email"
                 required
                 class="input input-lg w-full"
               />
@@ -204,14 +205,15 @@
                 field={@form[:password]}
                 type="password"
                 placeholder="Password"
+                autocomplete="current-password"
                 required
                 class="input input-lg w-full"
               />
               <button type="submit" id="login-submit" class="btn btn-neutral btn-lg btn-block">
-                Sign in with email
+                Sign in with password
               </button>
             </.form>
-          <% end %>
+          </div>
 
           <p class="text-center text-xs leading-relaxed text-base-content/40">
             By signing in, you agree to our

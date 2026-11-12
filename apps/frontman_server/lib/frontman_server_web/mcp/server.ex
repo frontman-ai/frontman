@@ -91,6 +91,7 @@ defmodule FrontmanServerWeb.MCP.Server do
     fixed = [
       %Tool{
         name: "list_sites",
+        title: "List WordPress Sites",
         description:
           "List connected WordPress sites for a requested WordPress task. If none are connected, guide the user through setup.",
         input_schema: %{"type" => "object", "properties" => %{}},

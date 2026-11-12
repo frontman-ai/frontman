@@ -22,7 +22,7 @@ final class Frontman_Tool_Annotations {
 	 * when a WordPress integration calls from a non-strict PHP file.
 	 *
 	 * @param bool $read_only_hint   Whether the tool only reads or computes.
-	 * @param bool $destructive_hint Whether the tool can destroy or overwrite state.
+	 * @param bool $destructive_hint Whether the tool can modify or delete data (Claude directory convention).
 	 * @param bool $open_world_hint  Whether the tool interacts with public or open-ended entities.
 	 * @param bool $idempotent_hint  Whether identical calls have no additional effect.
 	 */

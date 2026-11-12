@@ -9,7 +9,7 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
   end
 
   describe "GET /users/log-in" do
-    test "renders login page with OAuth options", %{conn: conn} do
+    test "renders login page with OAuth, email-link, and password options", %{conn: conn} do
       conn = get(conn, ~p"/users/log-in")
       response = html_response(conn, 200)
       assert response =~ "Sign in to Frontman"
@@ -17,7 +17,12 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       assert response =~ "Login with Google"
       assert response =~ ~s(id="email-link-form")
       assert response =~ "Send sign-in link"
-      refute response =~ ~s(type="password")
+      assert response =~ ~s(id="login-form")
+      assert response =~ ~s(type="password")
+      assert response =~ "Sign in with password"
+      form = response |> LazyHTML.from_document() |> LazyHTML.query("#login-form")
+      assert LazyHTML.attribute(form, "action") == ["/users/log-in"]
+      assert LazyHTML.attribute(form, "method") == ["post"]
     end
 
     test "stores canonical signup framework in session", %{conn: conn} do
@@ -125,6 +130,7 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       assert response =~ "embedded-connect-form"
       assert response =~ "https://customer.example"
       refute response =~ ~s(id="email-link-form")
+      refute response =~ ~s(id="login-form")
       refute FrontmanServer.Repo.get_by(Accounts.UserToken, context: "embedded_client")
     end
 
@@ -145,11 +151,19 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
   end
 
   describe "POST /users/log-in - email and password" do
-    test "logs the user in", %{conn: conn, user: user} do
+    test "logs the user in through the default password form", %{conn: conn, user: user} do
       user = set_password(user)
+      conn = get(conn, ~p"/users/log-in")
+
+      form =
+        conn |> html_response(200) |> LazyHTML.from_document() |> LazyHTML.query("#login-form")
+
+      [action] = LazyHTML.attribute(form, "action")
+      [csrf_token] = LazyHTML.attribute(LazyHTML.query(form, "input[name=_csrf_token]"), "value")
 
       conn =
-        post(conn, ~p"/users/log-in", %{
+        post(conn, action, %{
+          "_csrf_token" => csrf_token,
           "user" => %{"email" => user.email, "password" => valid_user_password()}
         })
 
@@ -229,15 +243,110 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
                "https://customer.example"
     end
 
-    test "emits error message with invalid credentials", %{conn: conn, user: user} do
+    test "password retry preserves the embedded request", %{conn: conn, user: user} do
+      user = set_password(user)
+      params = %{"embedded_origin" => "https://customer.example", "embedded_state" => "state-123"}
+      conn = get(conn, ~p"/users/log-in?#{params}")
+      document = conn |> html_response(200) |> LazyHTML.from_document()
+      form = LazyHTML.query(document, "#login-form")
+
+      assert LazyHTML.attribute(LazyHTML.query(form, "input[name=embedded_origin]"), "value") ==
+               [params["embedded_origin"]]
+
       conn =
-        post(conn, ~p"/users/log-in?mode=password", %{
-          "user" => %{"email" => user.email, "password" => "invalid_password"}
+        post(
+          conn,
+          ~p"/users/log-in",
+          Map.put(params, "user", %{
+            "email" => user.email,
+            "password" => "incorrect"
+          })
+        )
+
+      document = conn |> html_response(200) |> LazyHTML.from_document()
+      form = LazyHTML.query(document, "#login-form")
+
+      assert LazyHTML.attribute(LazyHTML.query(form, "input[name=embedded_state]"), "value") ==
+               [params["embedded_state"]]
+
+      assert conn.resp_body =~ "Invalid email or password"
+
+      conn =
+        post(
+          conn,
+          ~p"/users/log-in",
+          Map.put(params, "user", %{
+            "email" => user.email,
+            "password" => valid_user_password()
+          })
+        )
+
+      assert html_response(conn, 200) =~ ~s(data-origin="https://customer.example")
+      assert conn.resp_body =~ ~s(data-state="state-123")
+      assert get_session(conn, :user_token)
+    end
+
+    test "emits error message with invalid credentials", %{conn: conn, user: user} do
+      password = "unique-incorrect-password-492371"
+
+      conn =
+        post(conn, ~p"/users/log-in", %{
+          "user" => %{"email" => user.email, "password" => password}
         })
 
       response = html_response(conn, 200)
+      form = response |> LazyHTML.from_document() |> LazyHTML.query("#login-form")
+      password_input = LazyHTML.query(form, "input[name='user[password]']")
+      assert LazyHTML.attribute(password_input, "value") in [[], [""]]
+
+      assert LazyHTML.attribute(LazyHTML.query(form, "input[name='user[email]']"), "value") ==
+               [user.email]
+
+      refute response =~ password
       assert response =~ "Sign in to Frontman"
       assert response =~ "Invalid email or password"
+      assert response =~ ~s(id="login-form")
+      assert response =~ ~s(action="/users/log-in")
+      refute get_session(conn, :user_token)
+    end
+
+    test "password form retains an MCP handoff through a failed attempt", %{
+      conn: conn,
+      user: user
+    } do
+      user = set_password(user)
+      conn = get(conn, "/auth/mcp/workos?external_auth_id=unverified-request")
+      pending = get_session(conn, :connect_handoff)
+      conn = get(conn, ~p"/users/log-in")
+      assert html_response(conn, 200) =~ ~s(id="login-form")
+
+      conn =
+        post(conn, ~p"/users/log-in", %{
+          "user" => %{"email" => user.email, "password" => "incorrect"}
+        })
+
+      assert html_response(conn, 200) =~ "Invalid email or password"
+      assert conn.resp_body =~ ~s(id="login-form")
+      assert get_session(conn, :connect_handoff) == pending
+
+      conn =
+        post(conn, ~p"/users/log-in", %{
+          "user" => %{"email" => user.email, "password" => valid_user_password()}
+        })
+
+      assert get_session(conn, :user_token)
+      assert get_session(conn, :connect_handoff)["user_id"] == user.id
+      assert redirected_to(conn) == "/auth/mcp/workos/pending?ref=#{pending["ref"]}"
+
+      document =
+        conn |> get(redirected_to(conn)) |> html_response(200) |> LazyHTML.from_document()
+
+      assert LazyHTML.text(LazyHTML.query(document, "#connect-account")) =~ user.email
+      form = LazyHTML.query(document, "#connect-handoff")
+      assert LazyHTML.attribute(form, "action") == ["/auth/mcp/workos/pending"]
+
+      assert LazyHTML.attribute(LazyHTML.query(form, "input[name=ref]"), "value") ==
+               [pending["ref"]]
     end
   end
 
