@@ -1,5 +1,5 @@
 defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   import FrontmanServer.ProvidersFixtures, only: [png_fixture: 2]
 

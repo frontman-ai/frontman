@@ -1,5 +1,5 @@
 defmodule FrontmanServer.Accounts.UserIdentityTest do
-  use FrontmanServer.DataCase
+  use FrontmanServer.DataCase, async: true
 
   alias FrontmanServer.Accounts.UserIdentity
 
