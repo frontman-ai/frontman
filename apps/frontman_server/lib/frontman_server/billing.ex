@@ -136,6 +136,26 @@ defmodule FrontmanServer.Billing do
     |> Subscription.allow_access?()
   end
 
+  @doc "Returns whether the scoped user can access hosted MCP tools."
+  @spec mcp_access?(Scope.t()) :: boolean()
+  def mcp_access?(%Scope{} = scope) do
+    match?({:allowed, _}, mcp_access_status(scope))
+  end
+
+  @doc "Returns the subscription status used to determine hosted MCP access."
+  @spec mcp_access_status(Scope.t()) :: {:allowed, String.t()} | :none | {:inactive, String.t()}
+  def mcp_access_status(%Scope{} = scope) do
+    case get_current_subscription(scope) do
+      %Subscription{status: status} = subscription ->
+        if Subscription.allow_access?(subscription),
+          do: {:allowed, status},
+          else: {:inactive, status}
+
+      nil ->
+        :none
+    end
+  end
+
   @doc "Advisory new-turn eligibility. authorize_new_turn/1 makes the authoritative billing decision."
   def can_start_turn?(%Scope{} = scope) do
     case subscription_allows_runs?(scope) do

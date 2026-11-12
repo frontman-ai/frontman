@@ -99,6 +99,12 @@ describe("WorkOS MCP OAuth", () => {
         {:ok, user} = Accounts.register_user(%{email: System.fetch_env!("E2E_MCP_EMAIL"),
           password: System.fetch_env!("E2E_MCP_PASSWORD"), name: "MCP E2E"})
         user |> Accounts.User.confirm_changeset() |> Repo.update!()
+        alias FrontmanServer.Billing.{Customer, Subscription}
+        customer = %Customer{user_id: user.id}
+          |> Customer.changeset(%{stripe_customer_id: "cus_e2e_" <> user.id}) |> Repo.insert!()
+        %Subscription{billing_customer_id: customer.id}
+          |> Subscription.changeset(%{stripe_customer_id: customer.stripe_customer_id,
+            stripe_subscription_id: "sub_e2e_" <> user.id, status: "active"}) |> Repo.insert!()
       `, email, password);
       userCreated = true;
 

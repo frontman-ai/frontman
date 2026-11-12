@@ -14,6 +14,7 @@ defmodule FrontmanServerWeb.MCP.Server do
   alias Anubis.Server.{Component.Tool, Frame, Handlers, Response}
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Billing
   alias FrontmanServer.Protocols.MCP.Schema
   alias FrontmanServer.WordPress
   alias FrontmanServer.WordPress.Onboarding
@@ -22,6 +23,23 @@ defmodule FrontmanServerWeb.MCP.Server do
   @impl true
   def handle_request(%{"method" => method} = request, frame)
       when method in ["tools/list", "tools/call"] do
+    with {:ok, scope} <- scope(frame),
+         true <- Billing.mcp_access?(scope) do
+      handle_tools_request(request, frame)
+    else
+      :error ->
+        {:error, Error.execution("Account unavailable"), frame}
+
+      false ->
+        {:error,
+         Error.execution("An active subscription or eligible trial is required for hosted MCP"),
+         frame}
+    end
+  end
+
+  def handle_request(request, frame), do: Handlers.handle(request, __MODULE__, frame)
+
+  defp handle_tools_request(%{"method" => method} = request, frame) do
     previous = Map.fetch(frame.assigns, :mcp_catalog)
 
     {status, result, returned} =
@@ -41,8 +59,6 @@ defmodule FrontmanServerWeb.MCP.Server do
 
     {status, tool_list_result(method, status, result), %{returned | assigns: assigns}}
   end
-
-  def handle_request(request, frame), do: Handlers.handle(request, __MODULE__, frame)
 
   defp discover(%{"method" => "tools/call", "params" => %{"name" => "list_sites"}}, _frame),
     do: {:ok, []}
@@ -244,7 +260,7 @@ defmodule FrontmanServerWeb.MCP.Server do
     end
   end
 
-  defp validated_tools(%{"tools" => tools} = catalog, deadline) do
+  def validated_tools(%{"tools" => tools} = catalog, deadline) do
     defaults = %{"resultType" => "complete", "ttlMs" => 0, "cacheScope" => "private"}
 
     cond do
@@ -257,7 +273,7 @@ defmodule FrontmanServerWeb.MCP.Server do
     end
   end
 
-  defp validated_tools(_, _deadline), do: {:error, :schema}
+  def validated_tools(_, _deadline), do: {:error, :schema}
 
   defp discovery_event(outcome, started, validated, total) do
     :telemetry.execute(
