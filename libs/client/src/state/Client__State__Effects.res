@@ -358,7 +358,49 @@ let targetIsCurrent = (state: state, target: taskTarget): bool =>
 let handleEffect = (effect, state: state, dispatch: action => unit) => {
   switch effect {
   | ReloadFrontman => WebAPI.Window.current->WebAPI.Window.location->WebAPI.Location.reload
-  | PersistSelectedModel(value) => Client__State__ModelPreference.syncSelectedModelValueToStorage(value)
+  | ObserveWordPressWarning =>
+    switch state.connection {
+    | Some({connection: Ok(Some({lifetimeAbortController}))}) =>
+      let signal = lifetimeAbortController.signal
+      let ready = () => {
+        switch signal.aborted {
+        | false => dispatch(WordPressWarningCleared(signal))
+        | true => ()
+        }
+      }
+      switch WebAPI.DomGlobal.document
+      ->WebAPI.Document.getElementById("frontman-warning-overlay")
+      ->Null.toOption {
+      | None => ready()
+      | Some(overlay) =>
+        let check = observer => {
+          switch overlay->WebAPI.Element.hasAttribute("hidden") {
+          | true =>
+            observer->WebAPI.MutationObserver.disconnect
+            ready()
+          | false => ()
+          }
+        }
+        let observer = WebAPI.MutationObserver.make((_, observer) => check(observer))
+        switch signal.aborted {
+        | true => ()
+        | false =>
+          signal->WebAPI.AbortSignal.addEventListener(
+            Custom("abort"),
+            _ => observer->WebAPI.MutationObserver.disconnect,
+            ~options={once: true},
+          )
+          observer->WebAPI.MutationObserver.observe(
+            ~target=(overlay :> WebAPI.DomTypes.node),
+            ~options={attributes: true, attributeFilter: ["hidden"]},
+          )
+          check(observer)
+        }
+      }
+    | _ => failwith("WordPress warning observation requires an initialized connection")
+    }
+  | PersistSelectedModel(value) =>
+    Client__State__ModelPreference.syncSelectedModelValueToStorage(value)
   | BufferAssistantText({taskId, messageId, text, agentId}) =>
     getSessionTextBuffer(dispatch).add(~taskId, ~messageId, ~text, ~agentId)
   | BufferUserBlock({taskId, messageId, block, agentId}) =>

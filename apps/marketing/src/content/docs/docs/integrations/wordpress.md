@@ -1,13 +1,13 @@
 ---
 title: Install and Use Frontman for WordPress
-description: Install the Frontman WordPress plugin, connect model access, verify the editor, and troubleshoot supported site changes.
+description: Install the Frontman WordPress plugin, connect ChatGPT or the Frontman editor, and troubleshoot supported site changes.
 ---
 
-The Frontman WordPress plugin adds an AI agent directly to your WordPress site. Open **Frontman** from the WordPress admin menu, describe what you want to change, and the agent handles the supported workflow inside the site preview — no code editor or terminal required for those supported changes.
+The Frontman WordPress plugin connects your site to an AI assistant such as ChatGPT or to the embedded Frontman editor. The editor includes a site preview for supported changes.
 
 This guide owns WordPress installation and use. For the cross-platform support matrix, see [Frontman Framework Compatibility](/docs/reference/compatibility/). For the product overview, see [Frontman for WordPress](/).
 
-> Frontman for WordPress is production-ready. Keep backups and review changes in the live preview. Use staging for higher-risk changes.
+> Keep backups and review changes carefully. Use staging for higher-risk changes. Changes to a live site can take effect before review.
 
 ## Requirements
 
@@ -16,7 +16,10 @@ This guide owns WordPress installation and use. For the cross-platform support m
 - An admin account (`manage_options` capability)
 - A GitHub or Google account for Frontman sign-in
 - Frontman service access (see [current pricing](/pricing/))
-- Your own supported AI provider connection or API key, with separate provider costs (see [API Keys & Providers](/docs/api-keys/))
+
+For ChatGPT, you also need an active Frontman subscription or trial. ChatGPT supplies the model for hosted MCP, so no additional AI provider connection or API key is required to connect the site or view Billing.
+
+For the embedded Frontman editor, you need a supported AI provider connection or API key. Separate provider charges can apply. See [API Keys & Providers](/docs/api-keys/).
 
 ## Installation
 
@@ -29,16 +32,27 @@ Install Frontman from the [WordPress Plugin Directory](https://wordpress.org/plu
 3. Click **Install Now**.
 4. Click **Activate Plugin**.
 
-## Using Frontman
+## Connect an AI assistant
 
-1. Make sure you're logged in to WordPress as an admin.
-2. Select **Frontman** in the WordPress admin menu. The plugin chooses the correct URL for your permalink configuration.
-3. If prompted, sign in to Frontman at `api.frontman.sh` with GitHub or Google. This is separate from your WordPress admin login.
-4. Once signed in, return through the **Frontman** admin menu. Frontman redirects back automatically when the site URL is accepted.
-5. Connect a supported AI provider with OAuth or add an API key by following [Configure Frontman API Keys & Providers](/docs/api-keys/).
-6. Describe what you want to change in the chat interface beside the live preview.
+1. Sign in to WordPress as an admin and select **Frontman** from the admin menu.
+2. Sign in to Frontman with the account that has your active subscription or trial.
+3. Open **Settings → General**, or select **Connect your agent** if that choice is shown.
+4. For a new connection, select **Enable MCP and connect** to approve site access. If a saved connection has MCP disabled, select **Enable MCP**. If it is already enabled, continue.
+5. Open the [connection setup page](https://api.frontman.sh/wordpress/connect) to verify read access to the site's tool catalog. This does not verify write permissions.
+6. Connect Frontman in ChatGPT using the same Frontman account. If it is already connected, return to your original conversation and ask: **Check my connected WordPress sites.**
 
-Frontman attempts to return you to the same site URL after hosted sign-in. If the hosted page remains open instead, reopen **Frontman** from the WordPress admin menu after signing in. Frontman does not include a built-in model credential; see [API Keys & Providers](/docs/api-keys/).
+Connecting enables site-wide MCP access. Tools can change or delete content. Frontman stores an Application Password with the administrator account's broader REST permissions. Disabling MCP does not revoke that password. To revoke it, remove **Frontman MCP** from your WordPress profile.
+
+## Use the Frontman editor
+
+1. Sign in to WordPress as an admin and select **Frontman** from the admin menu.
+2. If prompted, sign in to Frontman at `api.frontman.sh` with GitHub or Google.
+3. Open **Settings → Providers**, or select **Edit in Frontman** if that choice is shown. Connect a supported AI provider using [Configure Frontman API Keys & Providers](/docs/api-keys/).
+4. Describe the change in the chat beside the site preview.
+
+Frontman sign-in is separate from WordPress sign-in. If the hosted sign-in page stays open, reopen **Frontman** from the WordPress admin menu.
+
+The [existing Frontman demo](/#demo) shows the embedded editor and site preview, not the ChatGPT interface.
 
 Sites with pretty permalinks can also open Frontman while browsing any page: append `/frontman` to the page URL (for example, `https://yoursite.com/about/frontman`) and the agent will preview that page. Sites using Plain permalinks use the admin menu entrypoint, which routes through `/index.php/frontman`.
 
@@ -98,7 +112,7 @@ This recovery flow has runtime coverage on WordPress 6.0.9 with PHP 7.4, WordPre
 - Only users with the `manage_options` capability can access Frontman.
 - Tool call requests (POST) are validated with WordPress nonces.
 - Site options are restricted to a safe allowlist — arbitrary option writes are not permitted.
-- Loading `/frontman` requests UI assets from Frontman's hosted client. Your site content is not sent to Frontman's API until you actively submit a message in the chat.
+- Loading `/frontman` requests UI assets from Frontman's hosted client. Connected assistants can access site content through the MCP connection.
 
 ## External Services
 
@@ -107,7 +121,7 @@ The plugin connects to two Frontman-hosted services:
 - **app.frontman.sh** — Serves the chat UI (JavaScript and CSS).
 - **api.frontman.sh** — Handles AI agent communication via WebSocket. Site content is sent here when you submit a message.
 
-AI responses are generated by third-party providers (Anthropic, OpenAI, etc.) via the Frontman API. See the [Privacy Policy](/privacy/) for details.
+The embedded editor uses your connected AI provider through the Frontman API. ChatGPT supplies the model when you use ChatGPT with hosted MCP. See the [Privacy Policy](/privacy/) for details.
 
 ## Troubleshooting
 

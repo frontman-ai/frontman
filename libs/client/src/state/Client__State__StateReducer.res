@@ -114,6 +114,7 @@ let clearConnectionState = (state: state) => {
     ...clearPendingQuestions(state),
     wordPressConnectionStatus: WordPressNotChecked,
     wordPressConnectionRequestId: state.wordPressConnectionRequestId + 1,
+    wordPressAssistantSetupSelected: false,
     billingStatus: Client__Billing.NotLoaded,
     billingFlow: Client__Billing.Idle,
     billingAbortController: None,
@@ -135,11 +136,25 @@ let rec next = (state: state, action) => {
     | None => {...state, wordPressLoginRecovery: Some({loginUrl: loginUrl})}->StateReducer.update
     }
   | ReloadAfterWordPressLogin => state->StateReducer.update(~sideEffects=[ReloadFrontman])
+  | WordPressWarningCleared(signal) =>
+    switch state.connection {
+    | Some({connection: Ok(Some({lifetimeAbortController}))})
+      if signal === lifetimeAbortController.signal && !signal.aborted =>
+      {...state, wordPressWarningReady: true}->StateReducer.update
+    | _ => state->StateReducer.update
+    }
   | InitializeConnection(config) =>
-    next(
-      {...state, connection: Some(Connection.initialState(config))},
+    let (initialized, effects) = next(
+      {...state, connection: Some(Connection.initialState(config)), wordPressWarningReady: false},
       ConnectionAction(Initialize),
     )
+    let warningEffects = switch config.acp.clientInfo._meta->Option.flatMap(
+      Connection.frameworkFromClientInfoMeta,
+    ) {
+    | Some("wordpress") => [ObserveWordPressWarning]
+    | Some(_) | None => []
+    }
+    initialized->StateReducer.update(~sideEffects=Array.concat(warningEffects, effects))
   | ConnectionEvent({signal, action}) =>
     switch state.connection {
     | Some(connection) if Connection.isCurrentConnection(connection, signal) => next(state, action)
@@ -568,6 +583,12 @@ let rec next = (state: state, action) => {
     }
 
   | SetSettingsModalTab({tab}) => {...state, settingsModalTab: tab}->StateReducer.update
+  | OpenWordPressAssistantSetup =>
+    {
+      ...state,
+      wordPressAssistantSetupSelected: true,
+      settingsModalTab: Some(General),
+    }->StateReducer.update
   | RequestBilling(request) =>
     switch (Selectors.apiBaseUrl(state), request, state.billingFlow) {
     | (None, _, _) | (_, Checkout(_) | CustomerPortal, Opening | AwaitingCheckout) =>

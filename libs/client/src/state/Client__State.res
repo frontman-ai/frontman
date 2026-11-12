@@ -7,7 +7,6 @@ module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
 
 module Actions = {
-
   let wordPressAuthenticationRequired = loginUrl =>
     Client__State__Store.dispatch(WordPressAuthenticationRequired(loginUrl))
 
@@ -21,13 +20,15 @@ module Actions = {
 
   let addUserMessage = (~content, ~annotationId=?) =>
     Promise.make((resolve, _) =>
-      Client__State__Store.dispatch(AddUserMessage({
-        id: Client__Message.UserMessageId.make(),
-        timestamp: Date.now(),
-        content,
-        annotationId,
-        onComplete: resolve,
-      }))
+      Client__State__Store.dispatch(
+        AddUserMessage({
+          id: Client__Message.UserMessageId.make(),
+          timestamp: Date.now(),
+          content,
+          annotationId,
+          onComplete: resolve,
+        }),
+      )
     )
 
   let setCurrentPreviewUrl = (~url) =>
@@ -104,7 +105,9 @@ module Actions = {
         target: CurrentTask,
         action: AddAnnotations({
           elements: elements->Array.map(el => {
-            Client__Task__Reducer.id: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
+            Client__Task__Reducer.id: WebAPI.Window.current
+            ->WebAPI.Window.crypto
+            ->WebAPI.Crypto.randomUUID,
             element: el.element,
             tagName: el.tagName,
           }),
@@ -136,15 +139,19 @@ module Actions = {
   let switchTask = (~taskId) => Client__State__Store.dispatch(SwitchTask({taskId: taskId}))
 
   let deleteTask = (~taskId) =>
-    Client__State__Store.dispatch(DeleteTask({
-      taskId,
-      replacementClientId: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
-    }))
+    Client__State__Store.dispatch(
+      DeleteTask({
+        taskId,
+        replacementClientId: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
+      }),
+    )
 
   let clearCurrentTask = () =>
-    Client__State__Store.dispatch(ClearCurrentTask({
-      replacementClientId: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
-    }))
+    Client__State__Store.dispatch(
+      ClearCurrentTask({
+        replacementClientId: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
+      }),
+    )
 
   let cancelTurn = () => Client__State__Store.dispatch(CancelTurn)
 
@@ -173,6 +180,7 @@ module Actions = {
   let openSettingsModal = () => setSettingsModalTab(Some(Client__State__Types.General))
   let openSettingsModalOnProviders = () => setSettingsModalTab(Some(Client__State__Types.Providers))
   let openSettingsModalOnBilling = () => setSettingsModalTab(Some(Client__State__Types.Billing))
+  let openWordPressAssistantSetup = () => Client__State__Store.dispatch(OpenWordPressAssistantSetup)
   let dismissBillingCheckout = () => Client__State__Store.dispatch(BillingCheckoutDismissed)
   let requestBilling = request => Client__State__Store.dispatch(RequestBilling(request))
   let closeSettingsModal = () => setSettingsModalTab(None)

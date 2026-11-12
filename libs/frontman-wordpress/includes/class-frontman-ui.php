@@ -64,7 +64,7 @@ class Frontman_UI {
 		?>
 		<div class="notice notice-info">
 			<h2><?php esc_html_e( 'Frontman is active. Start here.', 'frontman-agentic-ai-editor' ); ?></h2>
-			<p><?php esc_html_e( 'Sign in to Frontman and connect an AI provider, then open a page in the live preview and describe your change. Provider charges may apply.', 'frontman-agentic-ai-editor' ); ?></p>
+			<p><?php esc_html_e( 'Sign in to Frontman to connect an AI assistant such as ChatGPT. No additional AI provider key is needed for ChatGPT. To use the Frontman editor, connect a supported AI provider; separate provider charges may apply.', 'frontman-agentic-ai-editor' ); ?></p>
 			<p><?php esc_html_e( 'Frontman can change your live site. Make a current backup and use staging for higher-risk changes.', 'frontman-agentic-ai-editor' ); ?></p>
 			<p><a class="button button-primary" href="<?php echo esc_url( self::url( '/frontman' ) ); ?>"><?php esc_html_e( 'Open Frontman', 'frontman-agentic-ai-editor' ); ?></a></p>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">

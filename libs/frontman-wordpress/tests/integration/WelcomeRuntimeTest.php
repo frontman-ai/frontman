@@ -36,7 +36,7 @@ try {
 	foreach ( [ '' => '/index.php/frontman', '/index.php/%postname%/' => '/index.php/frontman', '/%postname%/' => '/frontman' ] as $structure => $path ) {
 		update_option( 'permalink_structure', $structure );
 		$notice = $welcome_page( $admin_cookie );
-		foreach ( [ 'Frontman is active. Start here.', 'live preview', 'Sign in to Frontman', 'connect an AI provider', 'Provider charges may apply', 'open a page', 'backup', 'live site', esc_url( home_url( $path ) ) ] as $text ) {
+		foreach ( [ 'Frontman is active. Start here.', 'Sign in to Frontman to connect an AI assistant such as ChatGPT.', 'No additional AI provider key is needed for ChatGPT.', 'To use the Frontman editor, connect a supported AI provider; separate provider charges may apply.', 'backup', 'live site', esc_url( home_url( $path ) ) ] as $text ) {
 			frontman_runtime_assert( false !== strpos( $notice, $text ), 'Activation notice missing: ' . $text );
 		}
 		frontman_runtime_assert( 1 === preg_match( '~<form method="post" action="' . preg_quote( esc_url( admin_url( 'admin-post.php' ) ), '~' ) . '">\\s*<input type="hidden" name="action" value="frontman_dismiss_welcome">\\s*<input type="hidden" id="_wpnonce" name="_wpnonce" value="([^"]+)"~', $notice, $nonce_match ), 'Welcome form must submit its action and nonce to admin-post.' );

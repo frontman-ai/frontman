@@ -23,6 +23,7 @@ type screenshotOptions = {@live path: string, @live fullPage: bool}
 @send external count: locator => promise<int> = "count"
 @send external textContent: locator => promise<string> = "textContent"
 @send external click: locator => promise<unit> = "click"
+@send external press: (locator, string) => promise<unit> = "press"
 @send external fill: (locator, string) => promise<unit> = "fill"
 @send external pageUrl: page => string = "url"
 @send external route: (page, string, route => promise<unit>) => promise<unit> = "route"

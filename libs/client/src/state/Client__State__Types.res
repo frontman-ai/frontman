@@ -260,6 +260,8 @@ type state = {
   wordPressConnectionRequestId: int,
   wordPressPendingMutation: option<int>,
   wordPressCredentialWarning: bool,
+  wordPressAssistantSetupSelected: bool,
+  wordPressWarningReady: bool,
   userProfile: option<userProfile>,
   settingsModalTab: option<settingsTab>,
   billingStatus: Client__Billing.state,
