@@ -24,7 +24,7 @@ defmodule FrontmanServerWeb.MCP.Server do
   def handle_request(%{"method" => method} = request, frame)
       when method in ["tools/list", "tools/call"] do
     with {:ok, scope} <- resolve_scope(frame),
-         true <- Billing.mcp_access?(scope) do
+         true <- match?({:allowed, _}, Billing.mcp_access(scope)) do
       handle_tools_request(request, frame, scope)
     else
       :error ->

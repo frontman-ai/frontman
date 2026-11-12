@@ -28,7 +28,7 @@ defmodule FrontmanServer.WordPress do
     started = System.monotonic_time(:millisecond)
     deadline = started + 6_000
 
-    result =
+    {status, result, validated} =
       scope
       |> stream_catalogs(site_ids, deadline)
       |> Enum.reduce_while({:ok, [], 0}, fn
@@ -56,15 +56,9 @@ defmodule FrontmanServer.WordPress do
           {:halt, {:error, category, validated}}
       end)
 
-    case result do
-      {:ok, entries, validated} ->
-        discovery_event(:ok, started, validated, length(site_ids))
-        {:ok, entries}
-
-      {:error, category, validated} ->
-        discovery_event(category, started, validated, length(site_ids))
-        {:error, category}
-    end
+    outcome = if status == :ok, do: :ok, else: result
+    discovery_event(outcome, started, validated, length(site_ids))
+    {status, result}
   end
 
   @doc """
