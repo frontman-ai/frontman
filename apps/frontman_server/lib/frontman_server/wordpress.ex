@@ -8,6 +8,7 @@ defmodule FrontmanServer.WordPress do
   @moduledoc false
 
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Protocols.MCP.Schema
   alias FrontmanServer.{PublicURL, Repo}
   alias FrontmanServer.WordPress.Connection
 
@@ -23,11 +24,50 @@ defmodule FrontmanServer.WordPress do
     request_site(scope, site_id, :get, nil, timeout)
   end
 
+  def discover_tools(%Scope{} = scope, site_ids) do
+    started = System.monotonic_time(:millisecond)
+    deadline = started + 6_000
+
+    {status, result, validated} =
+      scope
+      |> stream_catalogs(site_ids, deadline)
+      |> Enum.reduce_while({:ok, [], 0}, fn
+        {:ok, {id, {:ok, catalog}}}, {:ok, entries, validated} ->
+          case validated_tools(catalog, deadline) do
+            {:ok, tools} ->
+              {:cont, {:ok, Enum.map(tools, &{id, &1}) ++ entries, validated + 1}}
+
+            {:error, reason} ->
+              {:halt, {:error, reason, validated}}
+          end
+
+        {:exit, :timeout}, {:ok, _, validated} ->
+          {:halt, {:error, :timeout, validated}}
+
+        {:exit, _}, {:ok, _, validated} ->
+          {:halt, {:error, :task_exit, validated}}
+
+        _, {:ok, _, validated} ->
+          category =
+            if System.monotonic_time(:millisecond) >= deadline,
+              do: :deadline_expired,
+              else: :request_failed
+
+          {:halt, {:error, category, validated}}
+      end)
+
+    outcome = if status == :ok, do: :ok, else: result
+    discovery_event(outcome, started, validated, length(site_ids))
+    {status, result}
+  end
+
   @doc """
   Streams catalogs until an absolute monotonic deadline in milliseconds.
 
   Loads owned connections before starting cancellable HTTP workers. Cancellation
   must not interrupt a database checkout and disconnect its transaction.
+  Each batch contains at most one connection per origin, so discovery cannot
+  flood a shared WordPress server while independent origins remain concurrent.
   """
   def stream_catalogs(%Scope{} = scope, site_ids, deadline) do
     connections =
@@ -37,27 +77,25 @@ defmodule FrontmanServer.WordPress do
       |> Repo.all()
       |> Map.new(&{&1.id, &1})
 
-    Task.async_stream(
-      site_ids,
-      fn id ->
-        remaining = deadline - System.monotonic_time(:millisecond)
-
-        result =
-          case Map.fetch(connections, id) do
-            {:ok, connection} when remaining > 0 ->
-              request_connection(connection, :get, nil, remaining)
-
-            _ ->
-              {:error, :connection_failed}
-          end
-
-        {id, result}
-      end,
-      max_concurrency: 32,
-      ordered: false,
-      timeout: max(deadline - System.monotonic_time(:millisecond), 1),
-      on_timeout: :kill_task
-    )
+    site_ids
+    |> Enum.group_by(fn id ->
+      case Map.fetch(connections, id) do
+        {:ok, connection} -> origin(connection.catalog_url)
+        :error -> {:missing, id}
+      end
+    end)
+    |> Map.values()
+    |> catalog_batches()
+    |> Stream.flat_map(fn batch ->
+      Task.async_stream(
+        batch,
+        &fetch_catalog(connections, &1, deadline),
+        max_concurrency: 32,
+        ordered: false,
+        timeout: max(deadline - System.monotonic_time(:millisecond), 1),
+        on_timeout: :kill_task
+      )
+    end)
   end
 
   def call(%Scope{} = scope, site_id, name, arguments) do
@@ -97,6 +135,59 @@ defmodule FrontmanServer.WordPress do
 
   def connected?(%Scope{} = scope, catalog_url) when is_binary(catalog_url) do
     scope |> Scope.user_id() |> Connection.owned_catalog(catalog_url) |> Repo.exists?()
+  end
+
+  defp validated_tools(%{"tools" => tools} = catalog, deadline) do
+    defaults = %{"resultType" => "complete", "ttlMs" => 0, "cacheScope" => "private"}
+
+    cond do
+      Map.get(catalog, "resultType", "complete") != "complete" -> {:error, :incomplete}
+      Map.get(catalog, "nextCursor") not in [nil, ""] -> {:error, :paginated}
+      not Schema.bounded?(catalog) -> {:error, :bounds}
+      System.monotonic_time(:millisecond) >= deadline -> {:error, :deadline_expired}
+      Schema.validate_tools_list_envelope(Map.merge(defaults, catalog)) == :ok -> {:ok, tools}
+      true -> {:error, :schema}
+    end
+  end
+
+  defp validated_tools(_, _deadline), do: {:error, :schema}
+
+  defp discovery_event(outcome, started, validated, total) do
+    :telemetry.execute(
+      [:frontman_server, :wordpress, :discovery, :stop],
+      %{
+        duration_ms: max(System.monotonic_time(:millisecond) - started, 0),
+        validated: validated,
+        total: total
+      },
+      %{outcome: outcome}
+    )
+  end
+
+  defp catalog_batches(groups) do
+    Stream.unfold(groups, fn
+      [] ->
+        nil
+
+      groups ->
+        {batch, remaining} = Enum.unzip(Enum.map(groups, fn [id | rest] -> {id, rest} end))
+        {batch, Enum.reject(remaining, &(&1 == []))}
+    end)
+  end
+
+  defp fetch_catalog(connections, id, deadline) do
+    remaining = deadline - System.monotonic_time(:millisecond)
+
+    result =
+      case Map.fetch(connections, id) do
+        {:ok, connection} when remaining > 0 ->
+          request_connection(connection, :get, nil, remaining)
+
+        _ ->
+          {:error, :connection_failed}
+      end
+
+    {id, result}
   end
 
   defp request_site(scope, site_id, method, body, timeout) do

@@ -16,6 +16,7 @@ defmodule FrontmanServerWeb.OAuthController do
 
   plug(:require_sudo_mode when action in [:link_request, :link_callback, :unlink])
   plug(EmbeddedClientAuth when action == :request)
+  plug(FrontmanServerWeb.ConnectHandoff)
 
   def request(conn, %{"provider" => provider}) do
     authorize(conn, provider, url(~p"/auth/callback"), :oauth_signin_state)
@@ -92,7 +93,10 @@ defmodule FrontmanServerWeb.OAuthController do
         |> redirect(to: ~p"/users/log-in")
 
       pending ->
-        render(conn, :verify_email, email: pending["email"], state: pending["state"])
+        conn
+        |> assign(:embedded_request, pending["request"])
+        |> FrontmanServerWeb.ConnectHandoff.call([])
+        |> render(:verify_email, email: pending["email"], state: pending["state"])
     end
   end
 

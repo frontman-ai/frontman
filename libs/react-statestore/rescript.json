@@ -28,6 +28,7 @@
 	"dependencies": ["@rescript/react"],
 	"dev-dependencies": ["rescript-vitest"],
 	"compiler-flags": [],
+	"warnings": {"error": "+8"},
 	"jsx": {
 		"version": 4
 	}

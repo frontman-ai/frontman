@@ -71,7 +71,7 @@ afterEach(() => {
         },
       )
       force({
-        ...Reducer.defaultState,
+        ...Initialization.defaultState,
         connection: Client__ConnectionTestHelpers.ready(~apiBaseUrl="https://api.example"),
         settingsModalTab: Some(Billing),
         billingStatus: Loaded(loaded(false, false)),

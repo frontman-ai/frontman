@@ -46,7 +46,7 @@ test('access Markdown distinguishes public reads from hosted, provider, WordPres
 	const response = await authGet({} as never)
 	expect(response.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8')
 	const body = await response.text()
-	for (const text of ['# Frontman authentication', 'No sign-in, API key, or cookie', 'not a public OAuth API', '## AI-provider access', 'administrator access', 'authenticated WebSocket sessions']) expect(body).toContain(text)
+	for (const text of ['# Frontman auth.md', 'No sign-in, API key, or cookie', 'not a public OAuth API', '## MCP OAuth discovery', '## Credential boundaries and AI-provider access', 'administrator access', 'authenticated WebSocket sessions']) expect(body).toContain(text)
 	expect(body).not.toMatch(/free tier|public editing API/i)
 })
 

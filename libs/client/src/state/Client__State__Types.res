@@ -10,6 +10,7 @@ let messageAnnotationsToContentBlocks = Client__Task__Types.messageAnnotationsTo
 
 type submission = {
   id: Message.UserMessageId.t,
+  timestamp: float,
   content: array<UserContentPart.t>,
   annotations: array<Message.MessageAnnotation.t>,
   agentId: string,

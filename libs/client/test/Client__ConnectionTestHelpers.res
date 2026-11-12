@@ -3,12 +3,8 @@ module ACP = Connection.ACP
 
 let makeStore = (state, handle) =>
   StateStore.make(
-    module(
-      {
-        include Client__State__StateReducer
-        let handleEffect = handle
-      }
-    ),
+    module(Client__State__StateReducer),
+    ~handleEffect=handle,
     state,
   )
 

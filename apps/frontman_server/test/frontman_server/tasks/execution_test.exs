@@ -556,7 +556,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       execution = execution_request_fixture()
       assert {:error, :no_api_key} = Tasks.execute_next_turn(scope, task.id, execution)
       assert [] == turn_started_rows(task.id)
-      assert %{pretrial_runs_remaining: 5} = FrontmanServer.Billing.status(scope)
+      assert Tasks.remaining_runs(scope) == 5
 
       :ok = FrontmanServer.Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
       expect_llm_responses(["Done"])
@@ -567,7 +567,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert [%{data: %Interaction.TurnStarted{user_message_ids: [^message_id]}}] =
                turn_started_rows(task.id)
 
-      assert %{pretrial_runs_remaining: 4} = FrontmanServer.Billing.status(scope)
+      assert Tasks.remaining_runs(scope) == 4
     end
 
     test "submits browser context prompt through production recording path", %{
@@ -1262,7 +1262,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
              ]
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
-      assert %{pretrial_runs_remaining: 0} = FrontmanServer.Billing.status(scope)
+      assert Tasks.remaining_runs(scope) == 0
       assert length(turn_started_rows(task_id)) == 1
       refute_receive {:interaction, %{data: %Interaction.ToolCall{tool_name: "write_file"}}}, 50
     end
@@ -1650,7 +1650,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         }
       })
 
-      assert %{pretrial_runs_remaining: 0} = FrontmanServer.Billing.status(scope)
+      assert Tasks.remaining_runs(scope) == 0
       FrontmanServer.BillingFixtures.subscription_for_scope_fixture(scope, %{status: "canceled"})
       %{assigns: %{retry_state: retry_state}} = :sys.get_state(socket.channel_pid)
       send(socket.channel_pid, {:fire_retry, retry_state.timer_token})

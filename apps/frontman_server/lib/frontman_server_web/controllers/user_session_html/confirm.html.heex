@@ -2,9 +2,13 @@
   <div class="space-y-8">
     <div class="text-center space-y-2">
       <h1 class="font-headings text-2xl font-semibold text-base-content tracking-tight">
-        Welcome back
+        {if @assistant_connection, do: "Continue assistant setup", else: "Welcome back"}
       </h1>
       <p class="text-sm text-base-content/50">{@user.email}</p>
+      <p :if={@assistant_connection} class="text-sm leading-6 text-base-content/70">
+        Sign in with this email, then confirm the Frontman account you will connect to your AI assistant.
+        Website access is approved separately.
+      </p>
       <p :if={@embedded_request}>
         Continue to let <strong>{@embedded_request["origin"]}</strong> use your Frontman account.
       </p>

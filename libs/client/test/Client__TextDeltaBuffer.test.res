@@ -73,7 +73,7 @@ describe("TextDeltaBuffer", () => {
     | Ok(Some({phase: Ready(ready)})) => ready
     | _ => failwith("Expected ready connection")
     }
-    Client__State__StateReducer.ConnectionEffects.handleEffect(
+    Client__State__ConnectionEffects.handleEffect(
       SessionCompletionEffect({
         sessionId: "task-1",
         ready,

@@ -8,7 +8,7 @@
     "email": "support@frontman.sh",
     "url": "https://frontman.sh/"
   },
-  "homepage": "https://frontman.sh/",
+  "homepage": "https://frontman.sh/chatgpt/",
   "repository": "https://github.com/frontman-ai/frontman",
   "keywords": [
     "WordPress AI editing",
@@ -36,7 +36,7 @@
           "Inspect and update supported SEO metadata",
           "Manage menus, templates and widgets"
         ],
-        "websiteURL": "https://frontman.sh/",
+        "websiteURL": "https://frontman.sh/chatgpt/",
         "supportURL": "https://frontman.sh/contact/",
         "privacyPolicyURL": "https://frontman.sh/privacy/",
         "termsOfServiceURL": "https://frontman.sh/terms/",

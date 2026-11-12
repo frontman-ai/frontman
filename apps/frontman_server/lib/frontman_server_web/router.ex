@@ -53,6 +53,7 @@ defmodule FrontmanServerWeb.Router do
   scope "/auth/mcp/workos", FrontmanServerWeb do
     pipe_through([:connect_handoff, :browser, :require_authenticated_user])
     post("/pending", ConnectHandoffController, :complete, log: false)
+    post("/switch-account", ConnectHandoffController, :switch_account, log: false)
   end
 
   scope "/", FrontmanServerWeb do

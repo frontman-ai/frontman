@@ -18,7 +18,7 @@ let renderBilling = (~status, ~remaining, ~cancelAt, ~canceledAt) => {
     ),
     ~to=Billing.statusSchema,
   )
-  force({...Reducer.defaultState, billingStatus: Loaded(billing)})
+  force({...Initialization.defaultState, billingStatus: Loaded(billing)})
   render(<Client__SettingsModal__Tab__Billing />)
 }
 

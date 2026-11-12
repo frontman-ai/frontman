@@ -3,7 +3,9 @@
     <div class="card card-border bg-base-200 text-base-content shadow-xl">
       <div class="card-body gap-6">
         <div class="space-y-2 text-center">
-          <div class="badge badge-primary badge-soft mx-auto">Almost there</div>
+          <div class="badge badge-primary badge-soft mx-auto">
+            {if @assistant_connection, do: "AI assistant setup", else: "Almost there"}
+          </div>
           <h1 class="card-title justify-center font-headings text-2xl tracking-tight">
             Verify your email
           </h1>
@@ -14,6 +16,10 @@
               We sent a verification code to your email address.
             <% end %>
             <br /> Enter the code below to complete sign in.
+          </p>
+          <p :if={@assistant_connection} class="text-sm leading-6 text-base-content/70">
+            Next, confirm the Frontman account you will connect to your AI assistant.
+            This does not connect a new website or start a subscription.
           </p>
         </div>
 

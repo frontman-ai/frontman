@@ -49,7 +49,7 @@ module State = {
 describe("Initialization", () => {
   test("Running Next with ID shouldn't update Anything", t => {
     let {result} = ReactTestingLibrary.renderHook(
-      () => StateReducer.useReducer(module(State), State.empty()),
+      () => StateReducer.useReducer(module(State), ~handleEffect=State.handleEffect, State.empty()),
     )
     let (state, _dispatch) = result.current
     t->expect(state)->Expect.toEqual(State.empty())
@@ -57,7 +57,7 @@ describe("Initialization", () => {
 
   test("Running an action should work", t => {
     let {result} = ReactTestingLibrary.renderHook(
-      () => StateReducer.useReducer(module(State), State.empty()),
+      () => StateReducer.useReducer(module(State), ~handleEffect=State.handleEffect, State.empty()),
     )
     ReactTestingLibrary.act(
       () => {
@@ -73,7 +73,7 @@ describe("Initialization", () => {
 describe("Syncronous Updates", () => {
   test("Running Sync Actions should directly update", t => {
     let {result} = ReactTestingLibrary.renderHook(
-      () => StateReducer.useReducer(module(State), State.empty()),
+      () => StateReducer.useReducer(module(State), ~handleEffect=State.handleEffect, State.empty()),
     )
 
     ReactTestingLibrary.act(
@@ -92,7 +92,7 @@ describe("Syncronous Updates", () => {
 describe("Asynchrounous Updates", () => {
   testAsync("Running async functions should update the state", t => {
     let {result} = ReactTestingLibrary.renderHook(
-      () => StateReducer.useReducer(module(State), State.empty()),
+      () => StateReducer.useReducer(module(State), ~handleEffect=State.handleEffect, State.empty()),
     )
     ReactTestingLibrary.act(
       () => {
