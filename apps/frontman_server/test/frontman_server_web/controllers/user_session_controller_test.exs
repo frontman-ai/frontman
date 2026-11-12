@@ -338,8 +338,15 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       assert get_session(conn, :connect_handoff)["user_id"] == user.id
       assert redirected_to(conn) == "/auth/mcp/workos/pending?ref=#{pending["ref"]}"
 
-      assert conn |> get(redirected_to(conn)) |> html_response(200) =~
-               "This step does not give access"
+      document =
+        conn |> get(redirected_to(conn)) |> html_response(200) |> LazyHTML.from_document()
+
+      assert LazyHTML.text(LazyHTML.query(document, "#connect-account")) =~ user.email
+      form = LazyHTML.query(document, "#connect-handoff")
+      assert LazyHTML.attribute(form, "action") == ["/auth/mcp/workos/pending"]
+
+      assert LazyHTML.attribute(LazyHTML.query(form, "input[name=ref]"), "value") ==
+               [pending["ref"]]
     end
   end
 
