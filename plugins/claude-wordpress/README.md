@@ -51,7 +51,11 @@ This bundle is licensed under Apache-2.0; see the [repository license](https://g
 Run `make -C plugins/claude-wordpress toolchain` once to download Claude Code
 2.1.311 into the ignored workspace `dist/` directory. This verifies Anthropic's
 release signing-key fingerprint, signed manifest, and binary checksum. It
-requires curl, GnuPG, jq, and a SHA-256 utility; checks also require Python 3,
+requires curl, GnuPG, jq, and a SHA-256 utility; checks also require Make,
 Bash, zip, and unzip. The supported bootstrap platforms are macOS and Linux on x64 or
-ARM64. Then run `make check-claude-wordpress` and
-`make package-claude-wordpress`. Validation does not require login or inference.
+ARM64. Then run `make check-claude-wordpress`.
+The official Claude CLI validates the plugin format. A small integration test
+checks the Frontman endpoint, isolated CLI configuration, and the ZIP's exact
+contents. Run `make package-claude-wordpress` only when you need a local upload.
+The directory reads the GitHub-backed source, not this ZIP. Update the committed
+manifest version when releasing plugin changes. Validation does not require login or inference.

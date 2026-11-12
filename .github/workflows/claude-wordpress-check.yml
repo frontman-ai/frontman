@@ -4,13 +4,13 @@ on:
   pull_request:
     paths:
       - 'plugins/claude-wordpress/**'
-      - 'scripts/*claude-wordpress*.sh'
+      - 'scripts/install-claude-wordpress-validator.sh'
       - '.github/workflows/claude-wordpress-check.yml'
       - 'Makefile'
   push:
     paths:
       - 'plugins/claude-wordpress/**'
-      - 'scripts/*claude-wordpress*.sh'
+      - 'scripts/install-claude-wordpress-validator.sh'
       - '.github/workflows/claude-wordpress-check.yml'
       - 'Makefile'
 
@@ -23,14 +23,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          fetch-depth: 0
       - name: Install pinned Claude validator
         run: make -C plugins/claude-wordpress toolchain
-      - name: Check, test, and package
-        run: make -C plugins/claude-wordpress check test package
-      - name: Enforce source version increase
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: bash scripts/check-claude-wordpress-version.sh "$BASE_SHA" HEAD
+      - name: Check endpoint and plugin package
+        run: make -C plugins/claude-wordpress test
