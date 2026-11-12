@@ -7,13 +7,13 @@ defmodule FrontmanServer.BillingFixtures do
     top_level?: true,
     check: [in: false, out: false]
 
-  alias FrontmanServer.Billing
-  alias FrontmanServer.Billing.{Customer, StripeEvent, Subscription}
+  alias FrontmanServer.Billing.{Customer, StripeEvent, Subscription, Subscriptions}
   alias FrontmanServer.Repo
+  alias FrontmanServer.Tasks.RunAllowance
   alias FrontmanServer.Test.Fixtures.Accounts
 
   def run_allowance_fixture(scope, used) do
-    Repo.insert!(%Billing.RunAllowance{user_id: scope.user.id, used: used})
+    Repo.insert!(%RunAllowance{user_id: scope.user.id, used: used})
   end
 
   @doc """
@@ -100,7 +100,7 @@ defmodule FrontmanServer.BillingFixtures do
   Create an allowed-access subscription for an existing user scope.
   """
   def allow_access_for_scope_fixture(scope, attrs \\ %{}) do
-    case Billing.get_current_subscription(scope) do
+    case Subscriptions.current(scope) do
       nil ->
         subscription_for_scope_fixture(
           scope,

@@ -8,10 +8,12 @@ defmodule FrontmanServerWeb.BillingController do
   use FrontmanServerWeb, :controller
 
   alias FrontmanServer.Billing
+  alias FrontmanServer.Billing.Subscriptions
+  alias FrontmanServerWeb.BillingJSON
 
   action_fallback FrontmanServerWeb.BillingFallbackController
 
-  def status(conn, _params), do: json(conn, Billing.status(conn.assigns.current_scope))
+  def status(conn, _params), do: json(conn, BillingJSON.status(conn.assigns.current_scope))
 
   def checkout(conn, %{"interval" => "monthly"}), do: checkout_url(conn, :monthly)
   def checkout(conn, %{"interval" => "yearly"}), do: checkout_url(conn, :yearly)
@@ -47,7 +49,7 @@ defmodule FrontmanServerWeb.BillingController do
       cancel_url: url(~p"/billing/stripe-return/cancel")
     }
 
-    case Billing.start_checkout(conn.assigns.current_scope, interval, return_urls) do
+    case Subscriptions.start_checkout(conn.assigns.current_scope, interval, return_urls) do
       {:ok, %{"url" => url}} when is_binary(url) -> json(conn, %{url: url})
       {:error, reason} -> {:error, {:billing, :checkout, reason}}
     end

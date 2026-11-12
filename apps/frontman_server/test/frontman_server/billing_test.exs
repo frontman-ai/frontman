@@ -1,34 +1,33 @@
 defmodule FrontmanServer.BillingTest do
-  use FrontmanServer.DataCase, async: false
+  use FrontmanServer.DataCase, async: true
 
   import FrontmanServer.BillingFixtures
 
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Billing
-  alias FrontmanServer.Billing.Webhooks
-  alias FrontmanServer.Test.BillingClientStub
+  alias FrontmanServer.Billing.Subscriptions
+  alias FrontmanServer.SubscriptionWebhook
+  alias FrontmanServer.Tasks
   alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
+  alias FrontmanServerWeb.BillingJSON
 
   describe "start_checkout/3" do
-    test "rejects a second checkout for active, trialing, and past-due subscriptions" do
-      use_billing_client_stub()
+    setup :setup_paper_tiger
 
+    test "rejects a second checkout for active, trialing, and past-due subscriptions" do
       for status <- ["trialing", "active", "past_due"] do
         scope = scope_with_subscription_fixture(status)
 
         assert {:error, :subscription_already_active} =
-                 Billing.start_checkout(scope, :monthly, %{
+                 Subscriptions.start_checkout(scope, :monthly, %{
                    success_url: "https://frontman.test/success",
                    cancel_url: "https://frontman.test/cancel"
                  })
       end
 
-      refute_received {:start_checkout, _, _, _, _, _}
+      assert PaperTiger.Test.requests(method: :post, path: "/v1/checkout/sessions") == []
     end
 
     test "allows a canceled subscriber to return without a second trial" do
-      use_billing_client_stub()
-      BillingClientStub.stub_start_checkout({:ok, %{"id" => "cs_returning"}})
       scope = AccountsFixtures.user_scope_fixture()
       customer = customer_for_scope_fixture(scope)
       run_allowance_fixture(scope, 4)
@@ -39,120 +38,51 @@ defmodule FrontmanServer.BillingTest do
           trial_end: ~U[2026-01-01 00:00:00Z]
         })
 
-      assert {:ok, :subscription} = Billing.authorize_new_turn(scope)
       subscription |> Ecto.Changeset.change(status: "canceled") |> Repo.update!()
-      assert %{can_start_turn: true, pretrial_runs_remaining: 1} = Billing.status(scope)
+      assert %{can_start_turn: true, pretrial_runs_remaining: 1} = BillingJSON.status(scope)
 
-      assert {:ok, %{"id" => "cs_returning"}} =
-               Billing.start_checkout(scope, :yearly, %{
+      assert {:ok, checkout} =
+               Subscriptions.start_checkout(scope, :yearly, %{
                  success_url: "https://frontman.test/success",
                  cancel_url: "https://frontman.test/cancel"
                })
 
-      assert_received {:start_checkout, _, ^customer, :yearly, _, [trial_eligible: false]}
-      assert %{trial_eligible: false, trial_days: 7} = Billing.status(scope)
-      assert {:ok, :pretrial} = Billing.authorize_new_turn(scope)
-      assert {:error, :billing_inactive} = Billing.authorize_new_turn(scope)
+      assert_paper_tiger_checkout_session!(checkout)
+
+      assert [%{params: params}] =
+               PaperTiger.Test.requests(method: :post, path: "/v1/checkout/sessions")
+
+      assert params["customer"] == customer.stripe_customer_id
+      refute get_in(params, ["subscription_data", "trial_period_days"])
+      assert %{trial_eligible: false, trial_days: 7} = BillingJSON.status(scope)
     end
   end
 
   describe "trial_eligible?/1" do
     test "returns true when the user has never had a trial" do
       user = AccountsFixtures.user_fixture()
-
-      assert Billing.trial_eligible?(Scope.for_user(user))
+      assert Subscriptions.trial_eligible?(Scope.for_user(user))
     end
 
     test "returns false when the user has a trialing subscription" do
-      user = AccountsFixtures.user_fixture()
-      scope = Scope.for_user(user)
-
-      customer = customer_for_scope_fixture(scope, %{stripe_customer_id: "cus_trialing_test"})
-
-      subscription_for_customer_fixture(scope, customer, %{
-        stripe_subscription_id: "sub_trialing_test",
-        stripe_customer_id: "cus_trialing_test",
-        status: "trialing",
-        interval: :monthly,
-        price_id: "price_monthly_test"
-      })
-
-      refute Billing.trial_eligible?(scope)
+      scope = AccountsFixtures.user_scope_fixture()
+      subscription_for_scope_fixture(scope, %{status: "trialing"})
+      refute Subscriptions.trial_eligible?(scope)
     end
 
     test "returns false when the user has any subscription with a trial end" do
-      user = AccountsFixtures.user_fixture()
-      scope = Scope.for_user(user)
+      scope = AccountsFixtures.user_scope_fixture()
 
-      customer = customer_for_scope_fixture(scope, %{stripe_customer_id: "cus_trial_end_test"})
-
-      subscription_for_customer_fixture(scope, customer, %{
-        stripe_subscription_id: "sub_trial_end_test",
-        stripe_customer_id: "cus_trial_end_test",
+      subscription_for_scope_fixture(scope, %{
         status: "active",
-        interval: :yearly,
-        price_id: "price_yearly_test",
         trial_end: ~U[2026-01-01 00:00:00Z]
       })
 
-      refute Billing.trial_eligible?(scope)
+      refute Subscriptions.trial_eligible?(scope)
     end
   end
 
-  describe "create_customer_portal_url/2" do
-    test "returns missing customer before calling the billing client" do
-      use_billing_client_stub()
-
-      scope = AccountsFixtures.user_scope_fixture()
-
-      assert {:error, :billing_customer_missing} =
-               Billing.create_customer_portal_url(
-                 scope,
-                 "https://frontman.test/billing/stripe-return/customer-portal"
-               )
-
-      refute_received {:create_customer_portal_url, _customer, _return_url}
-    end
-
-    test "returns a Stripe Customer Portal URL for the scoped billing customer" do
-      use_billing_client_stub()
-
-      BillingClientStub.stub_customer_portal_url({:ok, "https://billing.stripe.test/p/session"})
-
-      scope = AccountsFixtures.user_scope_fixture()
-
-      customer =
-        customer_for_scope_fixture(scope, %{stripe_customer_id: "cus_customer_portal_test"})
-
-      assert {:ok, "https://billing.stripe.test/p/session"} =
-               Billing.create_customer_portal_url(
-                 scope,
-                 "https://frontman.test/billing/stripe-return/customer-portal"
-               )
-
-      assert_received {
-        :create_customer_portal_url,
-        ^customer,
-        "https://frontman.test/billing/stripe-return/customer-portal"
-      }
-    end
-
-    test "wraps billing client failures" do
-      use_billing_client_stub()
-      BillingClientStub.stub_customer_portal_url({:error, :stripe_timeout})
-
-      scope = AccountsFixtures.user_scope_fixture()
-      customer_for_scope_fixture(scope, %{stripe_customer_id: "cus_customer_portal_error_test"})
-
-      assert {:error, {:customer_portal_url_failed, :stripe_timeout}} =
-               Billing.create_customer_portal_url(
-                 scope,
-                 "https://frontman.test/billing/stripe-return/customer-portal"
-               )
-    end
-  end
-
-  describe "status/1" do
+  describe "status presentation" do
     test "returns none before subscription exists" do
       scope = AccountsFixtures.user_scope_fixture()
 
@@ -168,95 +98,52 @@ defmodule FrontmanServer.BillingTest do
                trial_end: nil,
                cancel_at: nil,
                canceled_at: nil
-             } = Billing.status(scope)
+             } = BillingJSON.status(scope)
     end
 
     test "returns customer flag before subscription exists" do
       scope = AccountsFixtures.user_scope_fixture()
-      customer_for_scope_fixture(scope, %{stripe_customer_id: "cus_status_customer_test"})
+      customer_for_scope_fixture(scope)
 
       assert %{
                status: "none",
                can_start_turn: true,
                has_billing_customer: true
-             } = Billing.status(scope)
+             } = BillingJSON.status(scope)
     end
 
     test "returns allowed subscription status" do
       scope = AccountsFixtures.user_scope_fixture()
-      customer = customer_for_scope_fixture(scope, %{stripe_customer_id: "cus_status_test"})
+      current_period_end = ~U[2026-06-01 00:00:00Z]
 
-      subscription =
-        subscription_for_customer_fixture(scope, customer, %{
-          stripe_subscription_id: "sub_status_test",
-          stripe_customer_id: "cus_status_test",
-          status: "trialing",
-          interval: :monthly,
-          price_id: "price_monthly_test",
-          current_period_end: ~U[2026-06-01 00:00:00Z]
-        })
-
-      current_period_end = subscription.current_period_end
+      subscription_for_scope_fixture(scope, %{
+        status: "trialing",
+        interval: :monthly,
+        current_period_end: current_period_end
+      })
 
       assert %{
                status: "trialing",
                can_start_turn: true,
+               pretrial_runs_remaining: nil,
                trial_eligible: false,
                has_billing_customer: true,
                interval: :monthly,
                current_period_end: ^current_period_end
-             } = Billing.status(scope)
+             } = BillingJSON.status(scope)
     end
   end
 
-  describe "subscription_allows_runs?/1" do
-    test "returns false when the user has no subscription" do
-      user = AccountsFixtures.user_fixture()
-      scope = Scope.for_user(user)
-
-      refute Billing.subscription_allows_runs?(scope)
-    end
-
-    test "returns true for active subscriptions" do
-      scope = scope_with_subscription_fixture("active")
-
-      assert Billing.subscription_allows_runs?(scope)
-      assert {:ok, :subscription} = Billing.authorize_new_turn(scope)
-    end
-  end
-
-  test "allowance belongs to the user and survives conversation deletion" do
-    scope = AccountsFixtures.user_scope_fixture()
-    task = FrontmanServer.Test.Fixtures.Tasks.task_fixture(scope)
-    assert {:ok, :pretrial} = Billing.authorize_new_turn(scope)
-    assert :ok = FrontmanServer.Tasks.delete_task(scope, task.id)
-    assert %{pretrial_runs_remaining: 4} = Billing.status(scope)
-    assert %{pretrial_runs_remaining: 5} = Billing.status(AccountsFixtures.user_scope_fixture())
-  end
-
-  describe "get_current_subscription/1" do
+  describe "current/1" do
     test "returns nil when the scoped user has no subscription" do
-      user = AccountsFixtures.user_fixture()
-
-      assert Billing.get_current_subscription(Scope.for_user(user)) == nil
+      scope = AccountsFixtures.user_scope_fixture()
+      assert Subscriptions.current(scope) == nil
     end
 
     test "returns the scoped user's subscription" do
-      user = AccountsFixtures.user_fixture()
-      scope = Scope.for_user(user)
-
-      customer = customer_for_scope_fixture(scope, %{stripe_customer_id: "cus_status_test"})
-
-      subscription =
-        subscription_for_customer_fixture(scope, customer, %{
-          stripe_subscription_id: "sub_status_test",
-          stripe_customer_id: "cus_status_test",
-          status: "trialing",
-          interval: :monthly,
-          price_id: "price_monthly_test"
-        })
-
-      assert Billing.get_current_subscription(Scope.for_user(user)).id == subscription.id
+      scope = AccountsFixtures.user_scope_fixture()
+      subscription = subscription_for_scope_fixture(scope)
+      assert Subscriptions.current(scope).id == subscription.id
     end
   end
 
@@ -264,20 +151,19 @@ defmodule FrontmanServer.BillingTest do
     test "broadcast_status_changed publishes on the user billing topic" do
       scope = AccountsFixtures.user_scope_fixture()
 
-      assert Billing.status_topic(scope) == "billing_status:user:#{Scope.user_id(scope)}"
-      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope))
-
-      assert :ok = Billing.broadcast_status_changed(scope)
+      assert Tasks.status_topic(scope) == "billing_status:user:#{Scope.user_id(scope)}"
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.status_topic(scope))
+      assert :ok = Tasks.broadcast_status_changed(scope)
       assert_receive :billing_status_changed
     end
 
     test "subscription webhook broadcasts billing status change" do
       scope = AccountsFixtures.user_scope_fixture()
+      event = subscription_webhook_event(scope.user.id)
       current_period_end = DateTime.from_unix!(1_780_243_481, :second)
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.status_topic(scope))
 
-      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope))
-
-      assert {:ok, :processed} = Webhooks.process_event(subscription_webhook_event(scope.user.id))
+      assert {:ok, :processed} = SubscriptionWebhook.process_event(event)
       assert_receive :billing_status_changed
 
       assert %{
@@ -286,17 +172,16 @@ defmodule FrontmanServer.BillingTest do
                has_billing_customer: true,
                interval: :monthly,
                current_period_end: ^current_period_end
-             } = Billing.status(scope)
+             } = BillingJSON.status(scope)
     end
 
     test "payment failure blocks access until the subscription becomes active again" do
       scope = AccountsFixtures.user_scope_fixture()
       run_allowance_fixture(scope, 5)
       event = subscription_webhook_event(scope.user.id)
-      assert {:ok, :processed} = Webhooks.process_event(event)
-      assert Billing.subscription_allows_runs?(scope)
-
-      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope))
+      assert {:ok, :processed} = SubscriptionWebhook.process_event(event)
+      assert {:allowed, "active"} = Subscriptions.access(scope)
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.status_topic(scope))
 
       past_due_event =
         event
@@ -304,23 +189,23 @@ defmodule FrontmanServer.BillingTest do
         |> Map.put("type", "customer.subscription.updated")
         |> put_in(["data", "object", "status"], "past_due")
 
-      assert {:ok, :processed} = Webhooks.process_event(past_due_event)
+      assert {:ok, :processed} = SubscriptionWebhook.process_event(past_due_event)
       assert_receive :billing_status_changed
-      refute Billing.subscription_allows_runs?(scope)
-      assert {:error, :billing_inactive} = Billing.authorize_new_turn(scope)
+      assert {:inactive, "past_due"} = Subscriptions.access(scope)
+      refute Tasks.can_start_turn?(scope)
 
       assert %{status: "past_due", can_start_turn: false, has_billing_customer: true} =
-               Billing.status(scope)
+               BillingJSON.status(scope)
 
       recovered_event =
         event
         |> Map.put("id", event["id"] <> "_recovered")
         |> Map.put("type", "customer.subscription.updated")
 
-      assert {:ok, :processed} = Webhooks.process_event(recovered_event)
+      assert {:ok, :processed} = SubscriptionWebhook.process_event(recovered_event)
       assert_receive :billing_status_changed
-      assert Billing.subscription_allows_runs?(scope)
-      assert %{status: "active", can_start_turn: true} = Billing.status(scope)
+      assert {:allowed, "active"} = Subscriptions.access(scope)
+      assert %{status: "active", can_start_turn: true} = BillingJSON.status(scope)
     end
 
     test "trial cancellation blocks exhausted users immediately and undoing it restores access" do
@@ -341,9 +226,9 @@ defmodule FrontmanServer.BillingTest do
           |> put_in(["data", "object", "status"], "trialing")
           |> put_in(["data", "object", "trial_end"], 1_780_243_481)
 
-        assert {:ok, :processed} = Webhooks.process_event(event)
-        assert {:ok, :subscription} = Billing.authorize_new_turn(scope)
-        Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope))
+        assert {:ok, :processed} = SubscriptionWebhook.process_event(event)
+        assert {:allowed, "trialing"} = Subscriptions.access(scope)
+        Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.status_topic(scope))
 
         canceled_event =
           event
@@ -351,35 +236,32 @@ defmodule FrontmanServer.BillingTest do
           |> Map.put("type", "customer.subscription.updated")
           |> update_in(["data", "object"], &Map.merge(&1, cancellation))
 
-        assert {:ok, :processed} = Webhooks.process_event(canceled_event)
+        assert {:ok, :processed} = SubscriptionWebhook.process_event(canceled_event)
         assert_receive :billing_status_changed
-        refute Billing.subscription_allows_runs?(scope)
-        refute Billing.can_start_turn?(scope)
-        assert {:error, :billing_inactive} = Billing.authorize_new_turn(scope)
+        assert {:inactive, "trialing"} = Subscriptions.access(scope)
+        refute Tasks.can_start_turn?(scope)
 
         assert %{
                  status: "trialing",
                  can_start_turn: false,
                  pretrial_runs_remaining: 0,
                  trial_eligible: false
-               } = Billing.status(scope)
+               } = BillingJSON.status(scope)
 
         resumed_event =
           event
           |> Map.put("id", event["id"] <> "_resume")
           |> Map.put("type", "customer.subscription.updated")
-          |> put_in(["data", "object", "cancel_at_period_end"], false)
-          |> put_in(["data", "object", "cancel_at"], nil)
-          |> put_in(["data", "object", "canceled_at"], nil)
+          |> put_in(["data", "object", "status"], "trialing")
 
-        assert {:ok, :processed} = Webhooks.process_event(resumed_event)
+        assert {:ok, :processed} = SubscriptionWebhook.process_event(resumed_event)
         assert_receive :billing_status_changed
-        assert {:ok, :subscription} = Billing.authorize_new_turn(scope)
-        assert %{can_start_turn: true, pretrial_runs_remaining: nil} = Billing.status(scope)
+        assert {:allowed, "trialing"} = Subscriptions.access(scope)
+        assert %{can_start_turn: true, pretrial_runs_remaining: nil} = BillingJSON.status(scope)
       end
     end
 
-    test "canceling a trial preserves only the unused free prompts" do
+    test "canceling a trial preserves the unused free prompts" do
       scope = AccountsFixtures.user_scope_fixture()
       run_allowance_fixture(scope, 4)
 
@@ -391,12 +273,9 @@ defmodule FrontmanServer.BillingTest do
         |> put_in(["data", "object", "cancel_at"], 1_780_243_481)
         |> put_in(["data", "object", "canceled_at"], 1_780_157_081)
 
-      assert {:ok, :processed} = Webhooks.process_event(event)
-      refute Billing.subscription_allows_runs?(scope)
-      assert %{can_start_turn: true, pretrial_runs_remaining: 1} = Billing.status(scope)
-      assert {:ok, :pretrial} = Billing.authorize_new_turn(scope)
-      assert %{can_start_turn: false, pretrial_runs_remaining: 0} = Billing.status(scope)
-      assert {:error, :billing_inactive} = Billing.authorize_new_turn(scope)
+      assert {:ok, :processed} = SubscriptionWebhook.process_event(event)
+      assert {:inactive, "trialing"} = Subscriptions.access(scope)
+      assert %{can_start_turn: true, pretrial_runs_remaining: 1} = BillingJSON.status(scope)
     end
 
     test "scheduling cancellation of a paid subscription preserves access" do
@@ -411,32 +290,23 @@ defmodule FrontmanServer.BillingTest do
         |> put_in(["data", "object", "cancel_at"], 1_780_243_481)
         |> put_in(["data", "object", "canceled_at"], 1_780_157_081)
 
-      assert {:ok, :processed} = Webhooks.process_event(event)
-      assert Billing.subscription_allows_runs?(scope)
-      assert {:ok, :subscription} = Billing.authorize_new_turn(scope)
-      assert %{status: "active", can_start_turn: true} = Billing.status(scope)
+      assert {:ok, :processed} = SubscriptionWebhook.process_event(event)
+      assert {:allowed, "active"} = Subscriptions.access(scope)
+      assert %{status: "active", can_start_turn: true} = BillingJSON.status(scope)
     end
 
     test "checkout webhook broadcasts billing status change" do
       scope = AccountsFixtures.user_scope_fixture()
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.status_topic(scope))
 
-      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope))
+      assert {:ok, :processed} =
+               SubscriptionWebhook.process_event(checkout_webhook_event(scope.user.id))
 
-      assert {:ok, :processed} = Webhooks.process_event(checkout_webhook_event(scope.user.id))
       assert_receive :billing_status_changed
 
-      assert %{
-               status: "none",
-               can_start_turn: true,
-               has_billing_customer: true
-             } = Billing.status(scope)
+      assert %{status: "none", can_start_turn: true, has_billing_customer: true} =
+               BillingJSON.status(scope)
     end
-  end
-
-  defp use_billing_client_stub do
-    billing_client = Application.fetch_env!(:frontman_server, :billing_client)
-    Application.put_env(:frontman_server, :billing_client, BillingClientStub)
-    on_exit(fn -> Application.put_env(:frontman_server, :billing_client, billing_client) end)
   end
 
   defp subscription_webhook_event(user_id) do

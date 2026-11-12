@@ -9,14 +9,14 @@ defmodule FrontmanServerWeb.StripeWebhookController do
 
   require Logger
 
-  alias FrontmanServer.Billing.Webhooks
+  alias FrontmanServer.SubscriptionWebhook
 
   def create(conn, _params) do
     raw_body = conn.assigns.raw_body
     signature = conn |> get_req_header("stripe-signature") |> List.first()
 
     with {:ok, event} <- billing_client().construct_webhook_event(raw_body, signature),
-         {:ok, result} <- Webhooks.process_event(event) do
+         {:ok, result} <- SubscriptionWebhook.process_event(event) do
       json(conn, %{status: "ok", result: result})
     else
       {:error, reason} ->

@@ -14,7 +14,7 @@ defmodule FrontmanServerWeb.MCP.Server do
   alias Anubis.Server.{Component.Tool, Frame, Handlers, Response}
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Billing
+  alias FrontmanServer.Billing.Subscriptions
   alias FrontmanServer.Protocols.MCP.Schema
   alias FrontmanServer.WordPress
   alias FrontmanServer.WordPress.Onboarding
@@ -24,7 +24,7 @@ defmodule FrontmanServerWeb.MCP.Server do
   def handle_request(%{"method" => method} = request, frame)
       when method in ["tools/list", "tools/call"] do
     with {:ok, scope} <- resolve_scope(frame),
-         true <- match?({:allowed, _}, Billing.mcp_access(scope)) do
+         true <- match?({:allowed, _}, Subscriptions.access(scope)) do
       handle_tools_request(request, frame, scope)
     else
       :error ->

@@ -30,6 +30,7 @@ defmodule FrontmanServer do
     Image,
     CurrentPageContext,
     PublicURL,
+    SubscriptionWebhook,
     Mailer,
     Release,
     Encrypted.Binary,

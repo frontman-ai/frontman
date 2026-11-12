@@ -16,7 +16,6 @@ defmodule FrontmanServerWeb.TaskChannel do
   require Logger
 
   alias FrontmanServer.Agents
-  alias FrontmanServer.Billing
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Protocols.{ACP, JsonRpc, MCP}
@@ -43,7 +42,7 @@ defmodule FrontmanServerWeb.TaskChannel do
          {:ok, _owner} <-
            Registry.register(FrontmanServer.ProcessRegistry, {:task_channel, task_id}, nil) do
       {:ok, history} = TaskHistory.new(task.interaction_rows)
-      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope))
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.status_topic(scope))
 
       Phoenix.PubSub.subscribe(
         FrontmanServer.PubSub,
@@ -162,12 +161,12 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   def handle_info(:billing_status_changed, socket) do
-    if Billing.can_start_turn?(socket.assigns.scope), do: wake_runner(socket, nil)
+    if Tasks.can_start_turn?(socket.assigns.scope), do: wake_runner(socket, nil)
     {:noreply, socket}
   end
 
   def handle_info(:config_options_changed, socket) do
-    if Billing.can_start_turn?(socket.assigns.scope), do: wake_runner(socket, nil)
+    if Tasks.can_start_turn?(socket.assigns.scope), do: wake_runner(socket, nil)
     {:noreply, socket}
   end
 
