@@ -1,0 +1,14 @@
+{
+  "name": "frontman-wordpress",
+  "displayName": "Frontman for WordPress",
+  "version": "1.0.0",
+  "description": "Edit and manage connected WordPress sites from Claude. Available tools depend on your site's integrations and permissions.",
+  "author": {
+    "name": "Boilerplate Ventures UG",
+    "email": "support@frontman.sh",
+    "url": "https://frontman.sh/"
+  },
+  "homepage": "https://frontman.sh/",
+  "repository": "https://github.com/frontman-ai/frontman",
+  "license": "Apache-2.0"
+}

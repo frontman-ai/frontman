@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "frontman": {
+      "type": "http",
+      "url": "https://api.frontman.sh/mcp"
+    }
+  }
+}

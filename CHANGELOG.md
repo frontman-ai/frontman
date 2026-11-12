@@ -38,6 +38,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Add a candidate Claude WordPress plugin bundle for local evaluation; policy and OAuth acceptance remain pending.
 - Allow password sign-in through an explicit login URL without changing the default sign-in page.
 - The API server serves the public OpenAI Apps domain-verification challenge as plain text.
 - Production first-use campaign enrollment is configured for signups from 2026-11-10 15:00 UTC.
