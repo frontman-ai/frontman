@@ -1,5 +1,5 @@
 defmodule FrontmanServer.SentryTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   require Logger
 
