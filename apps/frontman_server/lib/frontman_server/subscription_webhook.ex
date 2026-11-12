@@ -60,13 +60,6 @@ defmodule FrontmanServer.SubscriptionWebhook do
     )
   end
 
-  defp user_scope(user_id) do
-    case Accounts.get_user(user_id) do
-      nil -> {:error, :account_unavailable}
-      user -> {:ok, Scope.for_user(user)}
-    end
-  end
-
   defp handle_event("checkout.session.completed", event) do
     session = event_object(event)
     user_id = session["client_reference_id"] || get_in(session, ["metadata", "user_id"])
@@ -76,7 +69,8 @@ defmodule FrontmanServer.SubscriptionWebhook do
         {:ok, :ignored}
 
       user_id ->
-        with {:ok, scope} <- user_scope(user_id),
+        with %Scope{} = scope <-
+               Scope.for_user(Accounts.get_user(user_id)) || {:error, :account_unavailable},
              {:ok, _customer} <- Billing.upsert_customer(scope, session["customer"]) do
           {:ok, {:processed, scope}}
         end
@@ -93,7 +87,8 @@ defmodule FrontmanServer.SubscriptionWebhook do
         {:ok, :ignored}
 
       user_id ->
-        with {:ok, scope} <- user_scope(user_id),
+        with %Scope{} = scope <-
+               Scope.for_user(Accounts.get_user(user_id)) || {:error, :account_unavailable},
              {:ok, customer} <- Billing.upsert_customer(scope, subscription["customer"]),
              {:ok, _subscription} <-
                Billing.upsert_subscription(

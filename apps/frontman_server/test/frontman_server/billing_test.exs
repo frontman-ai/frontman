@@ -299,6 +299,17 @@ defmodule FrontmanServer.BillingTest do
       scope = AccountsFixtures.user_scope_fixture()
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.status_topic(scope))
 
+      for event <- [
+            checkout_webhook_event(Ecto.UUID.generate()),
+            subscription_webhook_event(Ecto.UUID.generate())
+          ] do
+        assert {:error, :account_unavailable} = SubscriptionWebhook.process_event(event)
+
+        refute Repo.get_by(FrontmanServer.Billing.StripeEvent, stripe_event_id: event["id"])
+      end
+
+      refute_receive :billing_status_changed
+
       assert {:ok, :processed} =
                SubscriptionWebhook.process_event(checkout_webhook_event(scope.user.id))
 
