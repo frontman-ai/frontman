@@ -1,42 +1,77 @@
 <Layouts.app flash={@flash} current_scope={@current_scope}>
   <div class="grid gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-16">
-    <section class="mx-auto w-full max-w-md space-y-8 text-center lg:mx-0 lg:max-w-2xl lg:text-left">
+    <section class={[
+      "mx-auto w-full max-w-md space-y-8 text-center lg:mx-0 lg:max-w-2xl lg:text-left",
+      @assistant_connection && "lg:col-start-1 lg:row-start-1"
+    ]}>
       <div class="space-y-5">
         <div class="space-y-4">
           <h1 class="font-headings text-4xl font-bold leading-tight tracking-tight text-base-content sm:text-5xl lg:text-6xl">
-            Enter the runtime era.
+            <%= if @assistant_connection do %>
+              Edit your WordPress site, your way.
+            <% else %>
+              Enter the runtime era.
+            <% end %>
           </h1>
           <p class="mx-auto max-w-xl text-base leading-relaxed text-base-content/70 sm:text-lg lg:mx-0">
-            Frontman sees your live product, understands the DOM, and turns plain-English changes into real code edits.
+            <%= if @assistant_connection do %>
+              Work in Frontman's visual editor, or update your site from the AI assistant you already use.
+            <% else %>
+              Frontman sees your live product, understands the DOM, and turns plain-English changes into real code edits.
+            <% end %>
           </p>
         </div>
       </div>
 
-      <div class="flex flex-wrap justify-center gap-3 lg:justify-start">
+      <div
+        :if={@assistant_connection}
+        id="assistant-requirements"
+        class="space-y-1 text-sm leading-6 text-base-content/70"
+      >
+        <p>No separate AI-provider API key is needed to use Frontman through your assistant.</p>
+        <p>An active Frontman subscription or eligible trial is required.</p>
+      </div>
+
+      <div
+        :if={!@assistant_connection}
+        class="flex flex-wrap justify-center gap-3 lg:justify-start"
+      >
         <span class="badge badge-success">Sees your live DOM</span>
         <span class="badge badge-success">Understands your framework</span>
         <span class="badge badge-success">Ships real code edits</span>
       </div>
     </section>
 
-    <section class="mx-auto w-full max-w-md lg:mx-0 lg:ml-auto">
+    <section class={[
+      "mx-auto w-full max-w-md lg:mx-0 lg:ml-auto",
+      @assistant_connection && "lg:col-start-2 lg:row-start-1 lg:row-span-2"
+    ]}>
       <div class="card card-border bg-base-200 text-base-content shadow-xl">
         <div class="card-body gap-6">
           <div class="space-y-2 text-center">
             <h2 class="card-title justify-center font-headings text-2xl tracking-tight">
-              <%= if @embedded_request do %>
-                Connect Frontman
-              <% else %>
-                Sign in to Frontman
+              <%= cond do %>
+                <% @assistant_connection -> %>
+                  Connect Frontman to your AI assistant
+                <% @embedded_request -> %>
+                  Connect Frontman
+                <% true -> %>
+                  Sign in to Frontman
               <% end %>
             </h2>
             <p class="text-sm leading-6 text-base-content/60">
-              <%= if @embedded_request do %>
-                Continue to let <strong class="break-all">{@embedded_request["origin"]}</strong>
-                use your Frontman account.
-              <% else %>
-                Choose your workspace identity to continue.
+              <%= cond do %>
+                <% @assistant_connection -> %>
+                  Sign in, confirm your account, then choose a connected WordPress site.
+                <% @embedded_request -> %>
+                  Continue to let <strong class="break-all">{@embedded_request["origin"]}</strong>
+                  use your Frontman account.
+                <% true -> %>
+                  Choose your workspace identity to continue.
               <% end %>
+            </p>
+            <p :if={@assistant_connection} class="text-sm leading-6 text-base-content/60">
+              New here? Continue with Google or GitHub to create an account.
             </p>
           </div>
 
@@ -74,7 +109,7 @@
                     d="M12,2A10,10 0 0,0 2,12C2,16.42 4.87,20.17 8.84,21.5C9.34,21.58 9.5,21.27 9.5,21C9.5,20.77 9.5,20.14 9.5,19.31C6.73,19.91 6.14,17.97 6.14,17.97C5.68,16.81 5.03,16.5 5.03,16.5C4.12,15.88 5.1,15.9 5.1,15.9C6.1,15.97 6.63,16.93 6.63,16.93C7.5,18.45 8.97,18 9.54,17.76C9.63,17.11 9.89,16.67 10.17,16.42C7.95,16.17 5.62,15.31 5.62,11.5C5.62,10.39 6,9.5 6.65,8.79C6.55,8.54 6.2,7.5 6.75,6.15C6.75,6.15 7.59,5.88 9.5,7.17C10.29,6.95 11.15,6.84 12,6.84C12.85,6.84 13.71,6.95 14.5,7.17C16.41,5.88 17.25,6.15 17.25,6.15C17.8,7.5 17.45,8.54 17.35,8.79C18,9.5 18.38,10.39 18.38,11.5C18.38,15.32 16.04,16.16 13.81,16.41C14.17,16.72 14.5,17.33 14.5,18.26C14.5,19.6 14.5,20.68 14.5,21C14.5,21.27 14.66,21.59 15.17,21.5C19.14,20.16 22,16.42 22,12A10,10 0 0,0 12,2Z"
                   />
                 </svg>
-                Login with GitHub
+                {if @assistant_connection, do: "Continue with GitHub", else: "Login with GitHub"}
               </button>
             </.form>
 
@@ -102,14 +137,16 @@
                     />
                   </g>
                 </svg>
-                Login with Google
+                {if @assistant_connection, do: "Continue with Google", else: "Login with Google"}
               </button>
             </.form>
           </div>
 
           <div :if={!@current_scope || !@embedded_request}>
             <div class="mb-4 border-t border-base-content/10 pt-4 text-center text-xs text-base-content/50">
-              Email sign-in
+              {if @assistant_connection,
+                do: "Already have an account?",
+                else: "Email sign-in"}
             </div>
             <.form for={@form} action={~p"/users/log-in"} id="email-link-form" class="space-y-3">
               <.embedded_request request={@embedded_request} />
@@ -121,6 +158,12 @@
                 required
                 class="w-full rounded-lg border border-base-content/20 bg-base-100 px-4 py-3 text-base text-base-content outline-none transition focus:border-base-content/60 focus:ring-2 focus:ring-base-content/20"
               />
+              <p
+                :if={@assistant_connection}
+                class="text-left text-sm leading-6 text-base-content/70"
+              >
+                Use your Frontman email to receive a sign-in link.
+              </p>
               <button
                 type="submit"
                 class="w-full rounded-lg bg-base-content px-4 py-3 font-semibold text-base-100 transition hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2"
@@ -184,6 +227,44 @@
           </p>
         </div>
       </div>
+    </section>
+    <section
+      :if={@assistant_connection}
+      aria-label="Connection steps"
+      class="mx-auto w-full max-w-md space-y-6 lg:col-start-1 lg:row-start-2 lg:mx-0 lg:max-w-2xl"
+    >
+      <ol id="assistant-setup-steps" class="space-y-5 text-left">
+        <li class="flex gap-4" aria-current="step">
+          <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-700 text-white font-semibold">1</span>
+          <div>
+            <p class="font-semibold">Sign in to Frontman</p>
+            <p class="mt-1 text-sm leading-6 text-base-content/70">
+              Use the same Frontman account for your assistant and your WordPress site.
+            </p>
+          </div>
+        </li>
+        <li class="flex gap-4">
+          <span class="flex size-8 shrink-0 items-center justify-center rounded-full border border-base-content/20 text-base-content/70">2</span>
+          <div>
+            <p class="font-semibold">Confirm your account</p>
+            <p class="mt-1 text-sm leading-6 text-base-content/70">
+              Review the email address before authorizing assistant access.
+            </p>
+          </div>
+        </li>
+        <li class="flex gap-4">
+          <span class="flex size-8 shrink-0 items-center justify-center rounded-full border border-base-content/20 text-base-content/70">3</span>
+          <div>
+            <p class="font-semibold">Return to your assistant</p>
+            <p class="mt-1 text-sm leading-6 text-base-content/70">
+              Choose a connected site, or follow the steps to connect one.
+            </p>
+          </div>
+        </li>
+      </ol>
+      <p class="text-sm leading-6 text-base-content/70">
+        Signing in does not connect a new website or start a subscription.
+      </p>
     </section>
   </div>
 </Layouts.app>

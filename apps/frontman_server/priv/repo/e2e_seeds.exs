@@ -42,7 +42,7 @@ defmodule FrontmanServer.E2ESeeds do
 end
 
 alias FrontmanServer.Accounts
-alias FrontmanServer.Billing.Webhooks
+alias FrontmanServer.SubscriptionWebhook
 alias FrontmanServer.E2ESeeds
 alias FrontmanServer.Providers.OAuthToken
 alias FrontmanServer.Repo
@@ -71,7 +71,7 @@ user =
 IO.puts("E2E user: #{user.email} (id: #{user.id})")
 
 {:ok, _result} =
-  Webhooks.process_event(%{
+  SubscriptionWebhook.process_event(%{
     "id" => "evt_e2e_subscription_#{user.id}",
     "type" => "customer.subscription.created",
     "data" => %{

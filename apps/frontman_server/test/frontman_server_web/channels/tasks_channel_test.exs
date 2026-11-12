@@ -6,9 +6,9 @@ defmodule FrontmanServerWeb.TasksChannelTest do
   import FrontmanServer.Test.Fixtures.Tasks
   import ExUnit.CaptureLog
 
-  alias FrontmanServer.Billing
   alias FrontmanServer.Protocols.ACP
   alias FrontmanServer.Repo
+  alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.TaskSchema
   alias FrontmanServerWeb.UserSocket
 
@@ -25,7 +25,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     test "pushes billing status update when billing changes", %{socket: _socket, scope: scope} do
       subscription_for_scope_fixture(scope, %{status: "active"})
 
-      assert :ok = Billing.broadcast_status_changed(scope.user.id)
+      assert :ok = Tasks.broadcast_status_changed(scope)
 
       assert_push("billing_status_updated", %{
         status: "active",

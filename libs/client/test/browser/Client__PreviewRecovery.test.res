@@ -65,7 +65,10 @@ beforeEachAsync(async () => {
       ~to=S.json,
     )
   RuntimeConfig.set(WebAPI.Window.current, Nullable.make(runtime))
-  Test.force({...Test.original, currentTask: Task.New(Task.makeNew(~previewUrl))})
+  Test.force({
+    ...Test.original,
+    currentTask: Task.New(Task.makeNew(~previewUrl, ~clientId="preview")),
+  })
   await Test.page->Test.viewport(1280, 900)
   Test.render(<Preview />)
   await waitReady()
@@ -102,10 +105,9 @@ testAsync(
     t->expect((await screenshot())->String.includes("not available"))->Expect.toBe(true)
     let status = JSON.stringify(await Fixture.execute(~name="preview_status", "{}"))
     t->expect(status->String.includes(`"ready":false`))->Expect.toBe(true)
-    let requested = JSON.stringify(await Fixture.execute(
-      ~name="navigate_preview",
-      `{"url":"${previewUrl}"}`,
-    ))
+    let requested = JSON.stringify(
+      await Fixture.execute(~name="navigate_preview", `{"url":"${previewUrl}"}`),
+    )
     t->expect(requested->String.includes(`"accepted":true`))->Expect.toBe(true)
     t->expect(requested->String.includes(`"ready":false`))->Expect.toBe(false)
     await waitReady()
@@ -117,44 +119,56 @@ testAsync(
   },
 )
 
-testAsync("rejects unsupported WordPress and cross-origin destinations without replacing the frame", async t => {
-  let runtime = {"framework": "wordpress"}->S.decodeOrThrow(
-    ~from=S.object(s => {"framework": s.field("framework", S.string)}),
-    ~to=S.json,
-  )
-  RuntimeConfig.set(WebAPI.Window.current, Nullable.make(runtime))
-  let frame = renderedFrame()
-  for index in 0 to 7 {
-    let url = [
-      "/wp-admin/customize.php?autofocus[section]=woocommerce_product_catalog",
-      "/wp-login.php",
-      "/subsite/wp-admin/",
-      "https://example.invalid/shop/",
-      "/wp-%61dmin/customize.php",
-      "/subsite/wp-%6cogin.php",
-      "/subsite/wp%2dadmin/customize.php",
-      "/shop/%ZZ",
-    ]->Array.get(index)->Option.getOrThrow
-    let result = JSON.stringify(await Fixture.execute(~name="navigate_preview", `{"url":"${url}"}`))
-    t->expect(result->String.includes(`"accepted":false`))->Expect.toBe(true)
-    t->expect(renderedFrame() === frame)->Expect.toBe(true)
-  }
-  t->expect((await executeJs())->String.includes("Supported preview"))->Expect.toBe(true)
-})
+testAsync(
+  "rejects unsupported WordPress and cross-origin destinations without replacing the frame",
+  async t => {
+    let runtime =
+      {"framework": "wordpress"}->S.decodeOrThrow(
+        ~from=S.object(s => {"framework": s.field("framework", S.string)}),
+        ~to=S.json,
+      )
+    RuntimeConfig.set(WebAPI.Window.current, Nullable.make(runtime))
+    let frame = renderedFrame()
+    for index in 0 to 7 {
+      let url =
+        [
+          "/wp-admin/customize.php?autofocus[section]=woocommerce_product_catalog",
+          "/wp-login.php",
+          "/subsite/wp-admin/",
+          "https://example.invalid/shop/",
+          "/wp-%61dmin/customize.php",
+          "/subsite/wp-%6cogin.php",
+          "/subsite/wp%2dadmin/customize.php",
+          "/shop/%ZZ",
+        ]
+        ->Array.get(index)
+        ->Option.getOrThrow
+      let result = JSON.stringify(
+        await Fixture.execute(~name="navigate_preview", `{"url":"${url}"}`),
+      )
+      t->expect(result->String.includes(`"accepted":false`))->Expect.toBe(true)
+      t->expect(renderedFrame() === frame)->Expect.toBe(true)
+    }
+    t->expect((await executeJs())->String.includes("Supported preview"))->Expect.toBe(true)
+  },
+)
 
-testAsync("rejects blank navigation URLs and points to preview_status without replacing the frame", async t => {
-  let frame = renderedFrame()
-  for index in 0 to 1 {
-    let url = ["", "   "]->Array.get(index)->Option.getOrThrow
-    let result = JSON.stringify(
-      await Fixture.execute(~name="navigate_preview", `{"url":"${url}"}`),
-    )
-    t->expect(result->String.includes(`"accepted":false`))->Expect.toBe(true)
-    t->expect(result->String.includes("preview_status"))->Expect.toBe(true)
-    t->expect(renderedFrame() === frame)->Expect.toBe(true)
-  }
-  t->expect((await executeJs())->String.includes("Supported preview"))->Expect.toBe(true)
-})
+testAsync(
+  "rejects blank navigation URLs and points to preview_status without replacing the frame",
+  async t => {
+    let frame = renderedFrame()
+    for index in 0 to 1 {
+      let url = ["", "   "]->Array.get(index)->Option.getOrThrow
+      let result = JSON.stringify(
+        await Fixture.execute(~name="navigate_preview", `{"url":"${url}"}`),
+      )
+      t->expect(result->String.includes(`"accepted":false`))->Expect.toBe(true)
+      t->expect(result->String.includes("preview_status"))->Expect.toBe(true)
+      t->expect(renderedFrame() === frame)->Expect.toBe(true)
+    }
+    t->expect((await executeJs())->String.includes("Supported preview"))->Expect.toBe(true)
+  },
+)
 
 testAsync("toolbar reload and address entry recover without restarting the client", async t => {
   let frame = renderedFrame()
@@ -189,7 +203,11 @@ testAsync("toolbar reload and address entry recover without restarting the clien
 testAsync(
   "retained task frames cannot update another task or reuse a replaced document",
   async t => {
-    let make = id => Task.makeNew(~previewUrl)->Task.newToLoaded(~id, ~title=id)
+    let make = id =>
+      switch Task.makeNew(~previewUrl, ~clientId=id) {
+      | Task.New(draft) => Task.Loaded(Task.promoteDraft(draft, ~id, ~title=id, ~timestamp=0.0))
+      | _ => failwith("Expected a draft")
+      }
     let first = switch make("first") {
     | Task.Loaded(data) => Task.Loaded({...data, updatedAt: data.updatedAt -. 1000.0})
     | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => failwith("Expected a loaded task")

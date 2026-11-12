@@ -5,7 +5,7 @@ let exnMessage = (exn: exn): string =>
 
 let get = (): option<t> => {
   let state = StateStore.getState(Client__State__Store.store)
-  let previewFrame = Client__State__StateReducer.Selectors.previewFrame(state)
+  let previewFrame = Client__State__Selectors.previewFrame(state)
   switch (previewFrame.contentDocument, previewFrame.contentWindow) {
   | (Some(doc), Some(window)) =>
     switch Client__PreviewFrame.isCurrent(~doc, ~window) {

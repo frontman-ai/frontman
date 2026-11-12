@@ -460,7 +460,10 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       uri = URI.parse(url)
       token = uri.path |> String.split("/") |> List.last()
       conn = get(conn, uri.path)
-      assert html_response(conn, 200) =~ "Confirm and stay logged in"
+      html = html_response(conn, 200)
+      assert html =~ "Confirm and stay logged in"
+      assert html =~ "Continue assistant setup"
+      assert html =~ "Website access is approved separately"
 
       conn =
         post(conn, ~p"/users/log-in", %{"user" => %{"token" => token}, "_action" => "confirmed"})
@@ -469,8 +472,11 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       assert get_session(conn, :connect_handoff)["user_id"] == user.id
       assert Accounts.get_user!(user.id).confirmed_at
 
-      assert conn |> get(redirected_to(conn)) |> html_response(200) =~
-               "This step does not give access"
+      conn = get(conn, redirected_to(conn))
+      page = html_response(conn, 200)
+      assert page =~ "This does not connect a new website"
+      assert page =~ user.email
+      assert get_session(conn, :connect_handoff)["ref"] == pending["ref"]
     end
 
     test "sends magic link email when user exists", %{conn: conn, user: user} do

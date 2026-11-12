@@ -8,10 +8,11 @@ defmodule FrontmanServerWeb.BillingController do
   use FrontmanServerWeb, :controller
 
   alias FrontmanServer.Billing
+  alias FrontmanServerWeb.BillingJSON
 
   action_fallback FrontmanServerWeb.BillingFallbackController
 
-  def status(conn, _params), do: json(conn, Billing.status(conn.assigns.current_scope))
+  def status(conn, _params), do: json(conn, BillingJSON.status(conn.assigns.current_scope))
 
   def checkout(conn, %{"interval" => "monthly"}), do: checkout_url(conn, :monthly)
   def checkout(conn, %{"interval" => "yearly"}), do: checkout_url(conn, :yearly)

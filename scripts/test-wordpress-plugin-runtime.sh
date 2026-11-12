@@ -68,6 +68,12 @@ BUILD_DIR="$(mktemp -d)"
 NETWORK_CREATED=false
 
 cleanup() {
+  local status=$?
+  if [[ "$status" -ne 0 ]]; then
+    "$RUNTIME" logs --since 10m "$WORDPRESS" >&2 || true
+    "$RUNTIME" exec "$WORDPRESS" apache2ctl -t -D DUMP_RUN_CFG >&2 || true
+    "$RUNTIME" stats --no-stream --format '{{.Name}} {{.CPUPerc}} {{.MemUsage}} {{.PIDs}}' "$WORDPRESS" "$DATABASE" >&2 || true
+  fi
   "$RUNTIME" rm -fv "$WORDPRESS" >/dev/null 2>&1 || true
   "$RUNTIME" rm -fv "$DATABASE" >/dev/null 2>&1 || true
   if "$NETWORK_CREATED"; then "$RUNTIME" network rm "$NETWORK" >/dev/null 2>&1 || true; fi

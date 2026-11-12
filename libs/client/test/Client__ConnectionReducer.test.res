@@ -4,7 +4,7 @@ module Reducer = Client__ConnectionReducer
 module App = Client__State__StateReducer
 
 let handleEffect = (effect, state, dispatch) =>
-  App.ConnectionEffects.handleEffect(
+  Client__State__ConnectionEffects.handleEffect(
     effect,
     state,
     dispatch,
@@ -239,7 +239,7 @@ describe("Connection Reducer", () => {
         ]->Array.forEach(
           ((message, reason)) =>
             t
-            ->expect(Client__State__StateReducer.ConnectionEffects.relayFailureReason(message))
+            ->expect(Client__State__ConnectionEffects.relayFailureReason(message))
             ->Expect.toBe(reason),
         )
       },
@@ -256,12 +256,12 @@ describe("Connection Reducer", () => {
     ->expect(Reducer.Selectors.getConnectionStatus(lost))
     ->Expect.toEqual(Error(Reducer.ACP.Protocol.connectionLost))
     t->expect(Reducer.Selectors.getSession(lost))->Expect.toBe(None)
-    let current = {...App.defaultState, connection: Some(original)}
+    let current = {...Client__State__Initialization.defaultState, connection: Some(original)}
     let newer = {...current, connection: Some(withSession(active(session)))}
-    let action = App.SessionsLoadSuccess({sessions: []})
+    let action = Client__State__Protocol.SessionsLoadSuccess({sessions: []})
     [
-      App.ConnectionEvent({signal, action}),
-      App.SessionEvent({requestId: requestId(original), action}),
+      Client__State__Protocol.ConnectionEvent({signal, action}),
+      Client__State__Protocol.SessionEvent({requestId: requestId(original), action}),
     ]->Array.forEach(
       event => {
         [newer, {...current, connection: Some(lost)}]->Array.forEach(
@@ -634,7 +634,7 @@ describe("Connection Reducer", () => {
         let state = ref(initialized())
         let losses = ref(0)
         let signal = runtime(state.contents).lifetimeAbortController.signal
-        let result = await App.ConnectionEffects.connectRuntime(
+        let result = await Client__State__ConnectionEffects.connectRuntime(
           ~config={...config, acp: {...config.acp, getAuthToken: () => Some("test")}},
           ~signal,
           ~onConnectionLost=error => {

@@ -114,13 +114,6 @@ defmodule FrontmanServerWeb.UserAuth do
   so the user is redirected back after re-authenticating.
   """
   def log_out_user(conn, return_to \\ nil) do
-    user_token = get_session(conn, :user_token)
-    user_token && Accounts.delete_user_session_token(user_token)
-
-    if live_socket_id = get_session(conn, :live_socket_id) do
-      FrontmanServerWeb.Endpoint.broadcast(live_socket_id, "disconnect", %{})
-    end
-
     redirect_url =
       case return_to do
         "/users/popup-complete" -> ~p"/users/popup-complete"
@@ -129,9 +122,22 @@ defmodule FrontmanServerWeb.UserAuth do
       end
 
     conn
+    |> end_user_session()
+    |> redirect(to: redirect_url)
+  end
+
+  @doc "Revokes the current browser session without redirecting."
+  def end_user_session(conn) do
+    user_token = get_session(conn, :user_token)
+    user_token && Accounts.delete_user_session_token(user_token)
+
+    if live_socket_id = get_session(conn, :live_socket_id) do
+      FrontmanServerWeb.Endpoint.broadcast(live_socket_id, "disconnect", %{})
+    end
+
+    conn
     |> renew_session(nil)
     |> delete_resp_cookie(@remember_me_cookie)
-    |> redirect(to: redirect_url)
   end
 
   @doc """

@@ -98,7 +98,7 @@ module UserContentPart = {
   type t =
     | Text({text: string})
     | Image({id: option<string>, image: string, mediaType: option<string>, name: option<string>})
-    | File({file: string})
+    | File({id: string, file: string})
 
   let text = (text: string): t => Text({text: text})
 }
@@ -141,7 +141,7 @@ type toolCall = {
 
 module ErrorMessage: {
   type t
-  let make: (~id: string=?, ~error: string, ~category: Client__ErrorCategory.t) => t
+  let make: (~id: string, ~retryErrorId: option<string>, ~error: string, ~category: Client__ErrorCategory.t) => t
   let id: t => string
   let retryErrorId: t => option<string>
   let error: t => string
@@ -154,12 +154,9 @@ module ErrorMessage: {
     category: Client__ErrorCategory.t,
   }
 
-  let make = (~id=?, ~error, ~category) => {
-    id: switch id {
-    | Some(id) => id
-    | None => WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID
-    },
-    retryErrorId: id,
+  let make = (~id, ~retryErrorId, ~error, ~category) => {
+    id,
+    retryErrorId,
     error,
     category,
   }

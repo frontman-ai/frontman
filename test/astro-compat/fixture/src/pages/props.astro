@@ -1,0 +1,53 @@
+---
+import {version} from "astro/package.json"
+import {jsx} from "astro/jsx-runtime"
+import Greeting from "../components/Greeting.astro"
+import PropsLayout from "../components/PropsLayout.astro"
+import AsyncGreeting from "../components/AsyncGreeting.astro"
+import SlotLayout from "../components/SlotLayout.astro"
+
+const supportsJsx = Number(version.split(".")[0]) >= 7
+const PromisedGreeting = Promise.resolve(Greeting)
+const bounded = {
+  apiKey: "never expose this",
+  privateKey: "private material",
+  credentials: "login material",
+  author: "Ada",
+  profile: {name: "Ada", authorization: "Bearer secret"},
+  items: Array.from({length: 80}, (_, index) => index),
+  deep: {one: {two: {three: {four: {five: "hidden"}}}}},
+  long: "x".repeat(5000),
+  custom: new Date("2026-01-01"),
+}
+const shared = {name: "Ada"}
+const circular = {}
+circular.self = circular
+const secretGetter = Object.defineProperty({name: "Astro"}, "privateKey", {
+  enumerable: true,
+  get() { throw new Error("secret getter must not execute") },
+})
+const overflow = Object.fromEntries(Array.from({length: 50}, (_, index) => [`value${index}`, index]))
+Object.defineProperty(overflow, "overflow", {
+  enumerable: true,
+  get() { throw new Error("overflow getter must not execute") },
+})
+const unsafe = {get value() { throw new Error("unsafe getter") }}
+const oversized = Object.fromEntries(Array.from({length: 10}, (_, index) => [`value${index}`, "x".repeat(4000)]))
+---
+
+<html lang="en">
+  <body>
+    <PropsLayout label="layout"><Greeting name="slotted" /></PropsLayout>
+    <PromisedGreeting name="async" />
+    <div>Before async</div><AsyncGreeting name="awaited" /><div>After async</div>
+    <Fragment><Greeting name="fragment" /></Fragment>
+    {supportsJsx ? jsx(SlotLayout, {children: jsx(Greeting, {name: "jsx-slotted"})}) : null}
+    <Greeting name="bounded" {...bounded} class="ignored" class:list={{active: true}} />
+    <Greeting name="references" primary={shared} secondary={shared} circular={circular} />
+    <Greeting name="secret-getter" value={secretGetter} />
+    <Greeting name="overflow" value={overflow} />
+    <Greeting name="unsafe" value={unsafe} />
+    <Greeting name="oversized" value={oversized} />
+    <Greeting name="café 😀" />
+  </body>
+</html>

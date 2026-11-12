@@ -7,9 +7,12 @@ defmodule FrontmanServerWeb.MCPSitesTest do
   alias Anubis.Server.Transport.StreamableHTTP.Plug, as: AnubisPlug
   alias Anubis.Server.Transport.StreamableHTTP.StatelessBinding
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Billing
+  alias FrontmanServer.Billing.Subscription
   alias FrontmanServer.BillingFixtures
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.RunAllowance
   alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
   alias FrontmanServer.Test.Fixtures.Tasks, as: TasksFixtures
   alias FrontmanServer.WordPress
@@ -19,6 +22,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
   test "SDK lists only the authenticated account's sites without credentials or endpoints" do
     owner = AccountsFixtures.user_fixture()
+    BillingFixtures.subscription_for_scope_fixture(Scope.for_user(owner))
     other = AccountsFixtures.user_fixture()
     first = insert_site(owner, "first.example")
     second = insert_site(owner, "second.example")
@@ -36,7 +40,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     assert {:reply, %{"content" => [%{"text" => text}]}, returned} =
              Server.handle_request(request, frame)
 
-    refute Map.has_key?(returned.assigns, :mcp_catalog)
+    assert returned.assigns == frame.assigns
     assert %{"sites" => sites} = Jason.decode!(text)
 
     assert Enum.sort(sites) ==
@@ -53,6 +57,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
   test "empty accounts return no sites and missing subjects fail closed" do
     user = AccountsFixtures.user_fixture()
+    BillingFixtures.subscription_for_scope_fixture(Scope.for_user(user))
     request = %{"params" => %{"name" => "list_sites", "arguments" => %{}}}
     frame = %Frame{context: %Context{auth: %{sub: user.id}}}
 
@@ -60,7 +65,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
              Server.handle_request(%{"method" => "tools/list"}, frame)
 
     assert {:reply, %{"content" => [%{"text" => text}]} = result, _} =
-             Tools.handle_call(request, frame, Server)
+             Server.handle_request(Map.put(request, "method", "tools/call"), frame)
 
     refute result["isError"]
 
@@ -79,17 +84,19 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     site = insert_site(user, "connected.example")
 
     assert {:reply, %{"content" => [%{"text" => text}]}, _} =
-             Tools.handle_call(request, frame, Server)
+             Server.handle_request(Map.put(request, "method", "tools/call"), frame)
 
     assert Jason.decode!(text) == %{
              "sites" => [%{"id" => site.id, "label" => "connected.example"}]
            }
 
-    assert {:error, _, _} = Tools.handle_call(request, %Frame{}, Server)
+    assert {:error, _, _} =
+             Server.handle_request(Map.put(request, "method", "tools/call"), %Frame{})
   end
 
   test "HTTP discovery declares read-only OAuth-protected site discovery for empty accounts" do
     user = AccountsFixtures.user_fixture()
+    BillingFixtures.subscription_for_scope_fixture(Scope.for_user(user))
 
     assert %{"result" => %{"tools" => [tool]}} = sdk_request(user, "tools/list")
     assert tool["name"] == "list_sites"
@@ -109,6 +116,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
   test "parsed SDK calls reject absent, malformed and foreign selectors before discovery" do
     owner = AccountsFixtures.user_fixture()
+    BillingFixtures.subscription_for_scope_fixture(Scope.for_user(owner))
     other = AccountsFixtures.user_fixture()
     owned = insert_site(owner, "owner.invalid")
     foreign = insert_site(other, "foreign.invalid")
@@ -116,7 +124,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
     frame = %Frame{
       context: %Context{auth: %{sub: owner.id}},
-      assigns: %{mcp_catalog: :original}
+      assigns: %{mcp_catalog: :original, current_scope: Scope.for_user(other)}
     }
 
     record_requests()
@@ -141,8 +149,13 @@ defmodule FrontmanServerWeb.MCPSitesTest do
                "Call list_sites and pass an accessible site's id as site_id. " <>
                  "If no sites are listed, connect a WordPress site first."
 
-      assert returned.assigns.mcp_catalog == :original
+      assert returned.assigns == frame.assigns
     end
+
+    assert {:reply, %{"tools" => [%{"name" => "list_sites"}]}, returned} =
+             Server.handle_request(%{"method" => "tools/list"}, frame)
+
+    assert returned.assigns == frame.assigns
 
     for id <- [foreign.id, "bad", owned.id] do
       assert {:error, :connection_failed} = WordPress.catalog(Scope.for_user(owner), id, 1_000)
@@ -169,6 +182,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
   test "stateless SDK binding parses and dispatches a request with verified claims" do
     user = AccountsFixtures.user_fixture()
+    BillingFixtures.subscription_for_scope_fixture(Scope.for_user(user))
     site = insert_site(user, "owned.example")
 
     assert %{"result" => %{"content" => [%{"text" => text}]}} =
@@ -225,8 +239,9 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
   @tag :wordpress_runtime
   @tag skip: System.get_env("FRONTMAN_WP_RUNTIME_URL") == nil
-  test "HTTP discovery preserves the full WordPress catalog beyond the first concurrent batch" do
+  test "HTTP discovery fetches all 33 catalogs without concurrent requests to one origin" do
     user = AccountsFixtures.user_fixture()
+    BillingFixtures.subscription_for_scope_fixture(Scope.for_user(user))
     connect_wordpress_runtime(user, 33)
 
     site_id = user |> Scope.for_user() |> WordPress.list_sites() |> List.last() |> Map.fetch!(:id)
@@ -305,6 +320,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
   @tag skip: System.get_env("FRONTMAN_WP_RUNTIME_URL") == nil
   test "remote tool errors do not activate" do
     user = AccountsFixtures.user_fixture()
+    BillingFixtures.subscription_for_scope_fixture(Scope.for_user(user))
     [site] = connect_wordpress_runtime(user, 1)
 
     assert %{"result" => %{"isError" => true}} =
@@ -334,6 +350,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
   @tag skip: System.get_env("FRONTMAN_WP_RUNTIME_URL") == nil
   test "HTTP discovery fails completely during outages while selected-site calls keep working" do
     user = AccountsFixtures.user_fixture()
+    BillingFixtures.subscription_for_scope_fixture(Scope.for_user(user))
     [selected, offline] = connect_wordpress_runtime(user, 2)
     url = selected.catalog_url
     invalid_url = String.replace(url, "/frontman/v1/tools", "/wp/v2/types")
@@ -392,6 +409,8 @@ defmodule FrontmanServerWeb.MCPSitesTest do
   @tag timeout: 180_000
   test "the real client approves, restores and changes WordPress access" do
     user = AccountsFixtures.user_fixture()
+    BillingFixtures.subscription_for_scope_fixture(Scope.for_user(user))
+    assert FrontmanServer.Providers.available_models(Scope.for_user(user)) == %{groups: []}
 
     %{scheme: scheme, host: host, port: port} =
       URI.parse(System.fetch_env!("FRONTMAN_WP_RUNTIME_URL"))
@@ -498,6 +517,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
     assert [tool] = Server.catalog_tools([{site, remote}], [])
     user = AccountsFixtures.user_fixture()
+    BillingFixtures.subscription_for_scope_fixture(Scope.for_user(user))
 
     frame = %Frame{
       context: %Context{auth: %{sub: user.id}},
@@ -530,6 +550,97 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     assert forwarded["inputSchema"] == tool.input_schema
   end
 
+  test "hosted tools require an eligible subscription without consuming free turns" do
+    user = AccountsFixtures.user_fixture()
+    scope = Scope.for_user(user)
+    site = insert_site(user, "entitlement.invalid")
+    record_requests()
+
+    requests = [
+      {"tools/list", %{}},
+      {"tools/call", %{"name" => "list_sites", "arguments" => %{}}},
+      {"tools/call", %{"name" => "wp_read_post", "arguments" => %{"site_id" => site.id}}}
+    ]
+
+    assert_denied = fn ->
+      for {method, params} <- requests do
+        assert %{"error" => %{"code" => -32_000, "message" => message}} =
+                 sdk_request(user, method, params)
+
+        assert message == "An active subscription or eligible trial is required for hosted MCP"
+      end
+
+      refute_received {:outbound, _, _, "entitlement.invalid"}
+    end
+
+    assert_denied.()
+    assert Tasks.remaining_runs(scope) == 5
+    BillingFixtures.run_allowance_fixture(scope, 5)
+    assert_denied.()
+    assert Tasks.remaining_runs(scope) == 0
+
+    subscription = BillingFixtures.subscription_for_scope_fixture(scope, %{status: "trialing"})
+
+    for status <- ~w(canceled past_due unpaid incomplete incomplete_expired paused) do
+      subscription |> Subscription.changeset(%{status: status}) |> Repo.update!()
+      assert_denied.()
+      assert Repo.get!(RunAllowance, user.id).used == 5
+    end
+
+    subscription
+    |> Subscription.changeset(%{status: "active", cancel_at: ~U[2020-01-01 00:00:00Z]})
+    |> Repo.update!()
+
+    assert %{"result" => %{"content" => [%{"text" => text}]}} =
+             sdk_request(user, "tools/call", %{"name" => "list_sites", "arguments" => %{}})
+
+    assert %{"sites" => [%{"id" => id}]} = Jason.decode!(text)
+    assert id == site.id
+
+    subscription |> Subscription.changeset(%{status: "canceled"}) |> Repo.update!()
+    assert_denied.()
+    assert Tasks.remaining_runs(scope) == 0
+  end
+
+  test "trial access permits discovery and site listing until canceled without using free turns" do
+    user = AccountsFixtures.user_fixture()
+    scope = Scope.for_user(user)
+    subscription = BillingFixtures.subscription_for_scope_fixture(scope, %{status: "trialing"})
+    BillingFixtures.run_allowance_fixture(scope, 1)
+
+    assert Billing.subscription_access(scope) == {:allowed, "trialing"}
+
+    assert %{"result" => %{"tools" => [%{"name" => "list_sites"}]}} =
+             sdk_request(user, "tools/list")
+
+    site = insert_site(user, "trial.example")
+
+    assert %{"result" => %{"content" => [%{"text" => text}]}} =
+             sdk_request(user, "tools/call", %{"name" => "list_sites", "arguments" => %{}})
+
+    assert %{"sites" => [%{"id" => id}]} = Jason.decode!(text)
+    assert id == site.id
+    assert Repo.get!(RunAllowance, user.id).used == 1
+
+    for field <- [:cancel_at, :canceled_at] do
+      subscription
+      |> Ecto.Changeset.change(%{field => ~U[2030-01-01 00:00:00Z]})
+      |> Repo.update!()
+
+      assert Billing.subscription_access(scope) == {:inactive, "trialing"}
+      assert %{"error" => %{"code" => -32_000}} = sdk_request(user, "tools/list")
+      subscription |> Repo.reload!() |> Ecto.Changeset.change(%{field => nil}) |> Repo.update!()
+    end
+
+    subscription |> Repo.reload!() |> Ecto.Changeset.change(status: "canceled") |> Repo.update!()
+    assert Billing.subscription_access(scope) == {:inactive, "canceled"}
+
+    assert %{"error" => %{"code" => -32_000}} =
+             sdk_request(user, "tools/call", %{"name" => "list_sites", "arguments" => %{}})
+
+    assert Tasks.remaining_runs(scope) == 4
+  end
+
   def record_request([:anubis_mcp, :server, :request], _, %{id: id}, {test, id})
       when is_binary(id),
       do: Process.put(:"$callers", [test])
@@ -559,10 +670,24 @@ defmodule FrontmanServerWeb.MCPSitesTest do
       do: send(test, {:completed, id, request.method, request.host})
   end
 
+  def record_request([:finch, phase, :stop], %{duration: duration}, metadata, {test, id})
+      when phase in [:queue, :connect, :send, :recv] do
+    if test in [self() | Process.get(:"$callers", [])] do
+      elapsed = System.convert_time_unit(duration, :native, :millisecond)
+      send(test, {:http_phase, id, phase, elapsed, Map.has_key?(metadata, :error)})
+    end
+  end
+
   def record_request(_, _, _, _), do: :ok
 
   defp record_requests(id \\ nil) do
     handler = {__MODULE__, make_ref()}
+
+    phases =
+      case System.get_env("FRONTMAN_WP_DIAGNOSTICS") do
+        "1" -> for phase <- [:queue, :connect, :send, :recv], do: [:finch, phase, :stop]
+        _ -> []
+      end
 
     :ok =
       :telemetry.attach_many(
@@ -574,7 +699,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
           [:frontman_server, :wordpress, :catalog, :stop],
           [:frontman_server, :wordpress, :call, :stop],
           [:frontman_server, :wordpress, :discovery, :stop]
-        ],
+        ] ++ phases,
         &__MODULE__.record_request/4,
         {self(), id}
       )
@@ -615,8 +740,34 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     context = %{auth: %{sub: user.id}, assigns: %{}, req_headers: conn.req_headers}
 
     try do
+      started = System.monotonic_time(:millisecond)
+
       response =
         StatelessBinding.call(conn, "2026-07-28", context, AnubisPlug.init(server: Server))
+
+      if System.get_env("FRONTMAN_WP_DIAGNOSTICS") == "1" do
+        phases =
+          body["id"]
+          |> collect_http_phases(512, [])
+          |> Enum.group_by(&elem(&1, 0))
+          |> Map.new(fn {phase, samples} ->
+            {phase,
+             %{
+               count: length(samples),
+               max_ms: samples |> Enum.map(&elem(&1, 1)) |> Enum.max(),
+               errors: Enum.count(samples, &elem(&1, 2))
+             }}
+          end)
+
+        IO.puts(
+          "WORDPRESS_HTTP_TIMINGS " <>
+            Jason.encode!(%{
+              method: method,
+              elapsed_ms: System.monotonic_time(:millisecond) - started,
+              phases: phases
+            })
+        )
+      end
 
       assert response.status == 200
 
@@ -626,7 +777,8 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
         for method <- expected_methods do
           assert_received {:outbound, ^id, ^method, ^host}
-          assert_received {:completed, ^id, ^method, ^host}
+          assert_received {event, ^id, ^method, ^host}
+          assert event == :completed
         end
 
         refute_received {:outbound, ^id, _, _}
@@ -636,6 +788,17 @@ defmodule FrontmanServerWeb.MCPSitesTest do
       Jason.decode!(response.resp_body)
     after
       :telemetry.detach(handler)
+    end
+  end
+
+  defp collect_http_phases(_id, 0, samples), do: samples
+
+  defp collect_http_phases(id, remaining, samples) do
+    receive do
+      {:http_phase, ^id, phase, elapsed, error} ->
+        collect_http_phases(id, remaining - 1, [{phase, elapsed, error} | samples])
+    after
+      0 -> samples
     end
   end
 

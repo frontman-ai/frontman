@@ -13,7 +13,7 @@ let renderSetup = () =>
   )
 
 testAsync("provider setup opens Providers", async t => {
-  force(Reducer.defaultState)
+  force(Initialization.defaultState)
   renderSetup()
   await waitFor(() =>
     t->expect(query("[data-slot='dialog-content']")->Option.isSome)->Expect.toBe(true)

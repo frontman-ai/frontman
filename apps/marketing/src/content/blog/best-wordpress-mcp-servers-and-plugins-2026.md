@@ -2,7 +2,7 @@
 title: 'Best WordPress MCP Servers and Plugins in 2026'
 seoTitle: 'Best WordPress MCP Servers and Plugins 2026'
 pubDate: 2026-07-31T05:00:00Z
-updatedDate: 2026-10-25T00:00:00Z
+updatedDate: 2026-11-11T00:00:00Z
 description: 'Compare WordPress MCP servers and plugins for Claude, ChatGPT, Cursor, content, SEO, WooCommerce, Elementor, security, and custom abilities.'
 image: '/blog/best-wordpress-mcp-servers-and-plugins-2026-cover.png'
 tags: ['wordpress', 'mcp', 'comparison', 'ai']
@@ -38,7 +38,7 @@ faq:
   - question: 'Is a WordPress MCP server safe to use on production?'
     answer: 'An MCP server creates a privileged application surface and should not be treated as safe merely because it supports OAuth or application passwords. Start on staging, use a dedicated low-privilege WordPress user, expose the smallest possible tool set, require confirmation for writes, keep backups, log calls, and test revocation before production use.'
   - question: 'Is Frontman a WordPress MCP server?'
-    answer: 'No. Frontman is an AI website editor for WordPress with its own agent interface and WordPress-native tools beside a live preview. Choose an MCP server when an external client must call WordPress tools. Choose Frontman when a person needs to make and visually review supported site changes without configuring an external MCP client.'
+    answer: 'Yes. Frontman offers hosted MCP access connecting ChatGPT to user-connected WordPress sites, alongside a separate embedded editor with a live preview. Hosted MCP requires an active paid Frontman subscription. Trials and free editor uses do not grant MCP access. Setup requires a Frontman account and WordPress administrator access to connect the site. Available tools depend on active plugins and permissions.'
 author: 'Itay Adler'
 articleSection: 'Comparison or Buyer Guide'
 imageAlt: 'Best WordPress MCP Servers and Plugins in 2026 article cover.'
@@ -48,7 +48,9 @@ imageAlt: 'Best WordPress MCP Servers and Plugins in 2026 article cover.'
 
 **Quick answer:** Start with [Royal MCP](https://wordpress.org/plugins/royal-mcp/) when you want a focused WordPress plugin and can use OAuth with a dedicated, limited-permission user. Developers building custom WordPress tools should start with the official [WordPress MCP Adapter](https://github.com/WordPress/mcp-adapter). If neither describes your job, use the table below to choose by workflow, safeguards, and hosting model.
 
-**Disclosure and evidence status:** We build [Frontman for WordPress](/), which appears later as a non-MCP alternative for live-preview editing. [Itay Adler](/authors/itay-adler/), this article's author, is a former Frontman co-founder with a full-stack engineering and WordPress product background. This article is not an affiliate roundup. We did not run a hands-on benchmark of every plugin. Product capabilities below are documented claims checked against official WordPress documentation, WordPress.org plugin pages, and public repositories on July 31, 2026. Tool counts, client support, versions, pricing, and authentication flows can change.
+**Disclosure and evidence status:** We build [Frontman for WordPress](/), which offers hosted MCP and a separate live-preview editor. [Itay Adler](/authors/itay-adler/), this article's author, is a former Frontman co-founder with a full-stack engineering and WordPress product background. This article is not an affiliate roundup. We did not run a hands-on benchmark of every plugin. Competitor capabilities below are documented claims checked against official WordPress documentation, WordPress.org plugin pages, and public repositories on July 31, 2026. Tool counts, client support, versions, pricing, and authentication flows can change.
+
+**Frontman capability update, November 11, 2026:** Frontman now offers hosted MCP for connecting ChatGPT to user-connected WordPress sites. This update covers Frontman only; the competitor source review and rankings remain as of July 31, 2026.
 
 ## Best WordPress MCP servers and plugins at a glance
 
@@ -67,9 +69,9 @@ imageAlt: 'Best WordPress MCP Servers and Plugins in 2026 article cover.'
 There is no universal winner. Your decision turns on five things: the WordPress actions you need, how the server authenticates clients, whether writes require review, where the server runs, and how you recover from a bad tool call.
 
 <aside id="wordpress-mcp-workflow-choice" class="my-8 border-l-2 border-violet-500 pl-5">
-  <p>Need an external client such as Claude, ChatGPT, or Cursor to call WordPress tools? Continue with the MCP comparison below.</p>
-  <p>Need a person to make supported visual edits? Frontman is not an MCP server. It is a visual site editor with its own interface. Inspect its workflow before choosing. Writes affect the connected WordPress installation; live preview is not a universal approval gate. Start on staging and keep backups.</p>
-  <p><a href="/blog/best-wordpress-ai-plugins-2026/#frontman-workflow-demo" data-ga-event="wordpress_article_cta_clicked" data-ga-category="engagement" data-ga-label="wordpress_mcp_visual_demo" data-ga-placement="quick_answer" data-ga-destination="wordpress_demo" data-ga-task-family="update">Watch the Frontman visual editing workflow</a></p>
+  <p>Need an external client to call WordPress tools? Continue with the MCP comparison below, or see <a href="/chatgpt/">Frontman for ChatGPT</a>.</p>
+  <p>Frontman also has a separate embedded editor for supported visual edits. Writes can affect published content immediately; live preview is not a universal approval gate, and there is no universal undo. Start on staging and keep backups.</p>
+  <p><a href="/blog/best-wordpress-ai-plugins-2026/#frontman-workflow-demo" data-ga-event="wordpress_article_cta_clicked" data-ga-category="engagement" data-ga-label="wordpress_mcp_visual_demo" data-ga-placement="quick_answer" data-ga-destination="wordpress_demo" data-ga-task-family="update">Watch the Frontman embedded editor workflow</a></p>
 </aside>
 
 If you cannot explain who approves a write and how you recover it, the server is not ready for production.
@@ -231,11 +233,11 @@ Before adoption, run one representative staging test for every WordPress surface
 
 Royal MCP and StifLi document dedicated Elementor operations. Easy MCP AI documents Gutenberg, templates, global styles, and broad WooCommerce tools. AI Engine documents Gutenberg tools in its free Core WordPress group, while WooCommerce management is listed among its Pro MCP tools. The official Adapter supports whatever carefully designed Abilities you or another plugin registers. None of those facts proves compatibility with your exact stack.
 
-## When you need visual editing rather than MCP
+## Frontman: hosted MCP and a separate visual editor
 
-Frontman is not an MCP server and does not connect arbitrary external clients to WordPress. [Frontman for WordPress](/) is an alternative for administrators who want to request changes to posts, pages, Gutenberg blocks, Elementor content, menus, templates, widgets, allowlisted settings, media, and WooCommerce data beside a live preview.
+[Frontman for ChatGPT](/chatgpt/) connects ChatGPT through hosted MCP to WordPress sites a user has connected. Hosted MCP requires an active paid Frontman subscription and a connected site. Setup requires a Frontman account and WordPress administrator access. Trials and free editor uses do not grant MCP access. ChatGPT provides the model for this route, so no additional model API key is needed. Tool availability depends on active plugins and permissions.
 
-Choose an MCP option when the workflow must start in Claude, ChatGPT, Cursor, or another external client. Choose Frontman when the workflow is: open the page, request a change, inspect the live result, then approve or revise it without configuring an external MCP client. Frontman is early-access software, requires an administrator account, sends relevant site content through its hosted agent service and configured model provider, and does not provide plugin-wide one-click rollback.
+Frontman's separate embedded editor lets administrators request supported changes beside a live preview, without an external MCP client. It sends relevant site content through its hosted agent service and a separately configured model provider. For either workflow, writes can affect published content immediately. Preview is not a universal approval gate, and there is no universal undo. Start on staging and keep backups.
 
 For the broader category decision, read [AI Agent Plugins for WordPress Compared](/blog/ai-agent-wordpress-plugin-comparison/). For current capabilities and data-flow boundaries, read [Install and Use Frontman for WordPress](/docs/integrations/wordpress/).
 
@@ -265,6 +267,6 @@ Choose one candidate and test it on staging:
 
 Reject the candidate if an underprivileged write succeeds, a revoked token remains usable, logs omit the actor or target, rollback misses required side effects, or saved WordPress data differs from the tool response. Repeat the complete sequence after every major plugin or WordPress upgrade.
 
-Need the workflow to start in Claude, ChatGPT, or Cursor? Follow the selected server's official setup guide.
+Need the workflow to start in ChatGPT? See [Frontman for ChatGPT](/chatgpt/), or follow your selected server's official setup guide. For other clients, verify the server's current client support and setup.
 
-Need visually reviewed WordPress editing without an external MCP client? Install [Frontman - AI Website Editor](https://wordpress.org/plugins/frontman-agentic-ai-editor/) on staging, then review its [current integration boundaries](/docs/integrations/wordpress/) before you connect a production site.
+Need WordPress editing beside a live preview without an external MCP client? Install [Frontman - AI Website Editor](https://wordpress.org/plugins/frontman-agentic-ai-editor/) on staging, then review its [current integration boundaries](/docs/integrations/wordpress/) before you connect a production site. Preview does not approve every write, and changes can reach published content immediately.

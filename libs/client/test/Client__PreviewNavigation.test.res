@@ -5,10 +5,10 @@ module State = Client__State__StateReducer
 let url = "http://localhost:3000/preview"
 
 test("late frame and URL observations cannot update a switched task or replaced iframe", t => {
-  let first = Task.makeNew(~previewUrl=url)
-  let second = Task.makeNew(~previewUrl=url ++ "/second")
-  let switched = {...State.defaultState, currentTask: Task.New(second)}
-  let stale = action => State.PreviewAction({
+  let first = Task.makeNew(~previewUrl=url, ~clientId="first")
+  let second = Task.makeNew(~previewUrl=url ++ "/second", ~clientId="second")
+  let switched = {...Client__State__Initialization.defaultState, currentTask: Task.New(second)}
+  let stale = action => Client__State__Protocol.PreviewAction({
     clientId: Task.getClientId(first),
     navigationKey: 0,
     action,
@@ -21,7 +21,7 @@ test("late frame and URL observations cannot update a switched task or replaced 
     t->expect(unchanged)->Expect.toBe(switched)
     t->expect(effects)->Expect.toEqual([])
   })
-  let state = {...State.defaultState, currentTask: Task.New(first)}
+  let state = {...Client__State__Initialization.defaultState, currentTask: Task.New(first)}
   let (reset, _) = State.next(
     state,
     TaskAction({target: CurrentTask, action: NavigatePreview({url: url})}),
@@ -37,6 +37,6 @@ test("late frame and URL observations cannot update a switched task or replaced 
       action: PreviewUrlObserved({url: url ++ "/observed"}),
     }),
   )
-  t->expect(State.Selectors.previewUrl(accepted))->Expect.toBe(url ++ "/observed")
-  t->expect(State.Selectors.previewFrame(accepted).navigationKey)->Expect.toBe(1)
+  t->expect(Client__State__Selectors.previewUrl(accepted))->Expect.toBe(url ++ "/observed")
+  t->expect(Client__State__Selectors.previewFrame(accepted).navigationKey)->Expect.toBe(1)
 })

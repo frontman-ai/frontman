@@ -5,7 +5,7 @@ defmodule FrontmanServer.Tasks.PretrialRunsTest do
   import FrontmanServer.Test.Fixtures.Accounts, only: [user_fixture: 0]
   import FrontmanServer.Test.Fixtures.Tasks, only: [task_topic: 1]
 
-  alias FrontmanServer.{Accounts, Billing, Providers}
+  alias FrontmanServer.{Accounts, Providers, SubscriptionWebhook, Tasks}
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Test.Fixtures.LLMProvider
 
@@ -41,7 +41,7 @@ defmodule FrontmanServer.Tasks.PretrialRunsTest do
     LLMProvider.expect_llm_responses(["Queued work completed"])
 
     assert {:ok, :processed} =
-             Billing.Webhooks.process_event(%{
+             SubscriptionWebhook.process_event(%{
                "id" => "evt_#{scope.user.id}",
                "type" => "customer.subscription.created",
                "data" => %{
@@ -86,7 +86,7 @@ defmodule FrontmanServer.Tasks.PretrialRunsTest do
     LLMProvider.expect_llm_responses(["Provider configured"])
     :ok = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
     assert_turn_completed(task_id, message_id)
-    assert %{pretrial_runs_remaining: 4} = Billing.status(scope)
+    assert Tasks.remaining_runs(scope) == 4
   end
 
   defp assert_turn_completed(task_id, message_id) do
