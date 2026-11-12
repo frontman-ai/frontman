@@ -2,7 +2,9 @@ defmodule FrontmanServerWeb.ConnectionAccessComponents do
   use FrontmanServerWeb, :html
 
   attr :status, :string, required: true
+  attr :site_links, :list, default: []
   slot :retry, required: true
+  slot :account_switch
 
   def instructions(assigns) do
     ~H"""
@@ -16,23 +18,32 @@ defmodule FrontmanServerWeb.ConnectionAccessComponents do
           {reason(@status)}
         </p>
       </div>
+      <.site_links sites={@site_links} />
       <div id="subscription-next-steps" class="space-y-3 text-sm leading-6 text-base-content/75">
         <%= if @status == "none" do %>
           <p>
             Have an existing active subscription on another account?
-            Select <strong class="font-medium text-base-content">Use a different account</strong>
-            above.
+            <%= if @account_switch == [] do %>
+              Select <strong class="font-medium text-base-content">Use a different account</strong>
+              above.
+            <% else %>
+              Sign out and use the account with your existing subscription.
+            <% end %>
           </p>
           <p>An active subscription or eligible trial is required to connect your assistant.</p>
         <% else %>
           <p class="text-xs uppercase tracking-[0.14em] text-base-content/45">Resolve in Frontman</p>
-          <p class="font-medium text-base-content">
+          <p :if={@site_links == []} class="font-medium text-base-content">
             WordPress Dashboard → Frontman → Settings → Billing
+          </p>
+          <p :if={@site_links != []}>
+            Open Frontman using a site link above. Then open <strong>Settings → Billing</strong>.
           </p>
           <p>{billing_step(@status)}</p>
           <p>Then return here to check access again.</p>
         <% end %>
       </div>
+      {render_slot(@account_switch)}
       <div class="space-y-3">
         {render_slot(@retry)}
         <p class="text-xs leading-5 text-base-content/45">
@@ -58,6 +69,32 @@ defmodule FrontmanServerWeb.ConnectionAccessComponents do
           </p>
         </div>
       </details>
+    </div>
+    """
+  end
+
+  attr :sites, :list, required: true
+
+  defp site_links(assigns) do
+    ~H"""
+    <div :if={@sites != []} id="frontman-site-links" class="space-y-3">
+      <p :if={length(@sites) > 1} class="text-sm text-base-content/65">
+        Choose the WordPress site you want to open.
+      </p>
+      <ul class="space-y-3">
+        <li :for={site <- @sites}>
+          <a
+            href={site.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            referrerpolicy="no-referrer"
+            class="block rounded-2xl bg-white/5 px-5 py-4 text-sm text-primary-200 hover:bg-white/10 [overflow-wrap:anywhere]"
+          >
+            Open Frontman on {site.label}
+          </a>
+        </li>
+      </ul>
+      <p class="text-sm text-base-content/65">Opens in a new tab. Sign in to WordPress if asked.</p>
     </div>
     """
   end
