@@ -44,6 +44,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Stop CI jobs from pruning shared Docker storage and runner caches before tests.
 - Successful WordPress MCP tool use now exits the first-use campaign.
 - Contact synchronization preserves opt-outs when an existing contact is retried.
 
