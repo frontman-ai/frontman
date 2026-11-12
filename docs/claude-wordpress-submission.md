@@ -24,6 +24,7 @@ No authenticated Claude client was available for this work.
 
 The existing [connection handoff](../apps/frontman_server/lib/frontman_server_web/controllers/connect_handoff_controller.ex#L4)
 redirects an unsigned-in user to the existing login flow.
+The standard [sign-in page](https://api.frontman.sh/users/log-in) offers password, OAuth, and email-link options after the UI release.
 Sign in to Frontman before starting the handoff, or open the email sign-in link in the same browser session.
 Complete the handoff within 15 minutes. The [pending handoff](../apps/frontman_server/lib/frontman_server_web/controllers/connect_handoff_controller.ex#L65) expires after that time.
 [Login](../apps/frontman_server/lib/frontman_server_web/user_auth.ex#L38) preserves the pending handoff in the session.

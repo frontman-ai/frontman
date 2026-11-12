@@ -9,7 +9,7 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
   end
 
   describe "GET /users/log-in" do
-    test "renders login page with OAuth options", %{conn: conn} do
+    test "renders login page with OAuth, email-link, and password options", %{conn: conn} do
       conn = get(conn, ~p"/users/log-in")
       response = html_response(conn, 200)
       assert response =~ "Sign in to Frontman"
@@ -17,20 +17,12 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       assert response =~ "Login with Google"
       assert response =~ ~s(id="email-link-form")
       assert response =~ "Send sign-in link"
-      refute response =~ ~s(type="password")
-    end
-
-    test "shows the password form only for the allowed method", %{conn: conn} do
-      for method <- ["other", "PASSWORD"] do
-        response = conn |> get(~p"/users/log-in?#{%{method: method}}") |> html_response(200)
-        refute response =~ ~s(id="login-form")
-      end
-
-      response = conn |> get(~p"/users/log-in?method=password") |> html_response(200)
-      assert response =~ ~s(id="email-link-form")
       assert response =~ ~s(id="login-form")
       assert response =~ ~s(type="password")
-      assert response =~ ~s(action="/users/log-in?method=password")
+      assert response =~ "Sign in with password"
+      form = response |> LazyHTML.from_document() |> LazyHTML.query("#login-form")
+      assert LazyHTML.attribute(form, "action") == ["/users/log-in"]
+      assert LazyHTML.attribute(form, "method") == ["post"]
     end
 
     test "stores canonical signup framework in session", %{conn: conn} do
@@ -138,6 +130,7 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       assert response =~ "embedded-connect-form"
       assert response =~ "https://customer.example"
       refute response =~ ~s(id="email-link-form")
+      refute response =~ ~s(id="login-form")
       refute FrontmanServer.Repo.get_by(Accounts.UserToken, context: "embedded_client")
     end
 
@@ -158,11 +151,19 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
   end
 
   describe "POST /users/log-in - email and password" do
-    test "logs the user in", %{conn: conn, user: user} do
+    test "logs the user in through the default password form", %{conn: conn, user: user} do
       user = set_password(user)
+      conn = get(conn, ~p"/users/log-in")
+
+      form =
+        conn |> html_response(200) |> LazyHTML.from_document() |> LazyHTML.query("#login-form")
+
+      [action] = LazyHTML.attribute(form, "action")
+      [csrf_token] = LazyHTML.attribute(LazyHTML.query(form, "input[name=_csrf_token]"), "value")
 
       conn =
-        post(conn, ~p"/users/log-in", %{
+        post(conn, action, %{
+          "_csrf_token" => csrf_token,
           "user" => %{"email" => user.email, "password" => valid_user_password()}
         })
 
@@ -245,7 +246,7 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
     test "password retry preserves the embedded request", %{conn: conn, user: user} do
       user = set_password(user)
       params = %{"embedded_origin" => "https://customer.example", "embedded_state" => "state-123"}
-      conn = get(conn, ~p"/users/log-in?#{Map.put(params, "method", "password")}")
+      conn = get(conn, ~p"/users/log-in?#{params}")
       document = conn |> html_response(200) |> LazyHTML.from_document()
       form = LazyHTML.query(document, "#login-form")
 
@@ -255,7 +256,7 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       conn =
         post(
           conn,
-          ~p"/users/log-in?method=password",
+          ~p"/users/log-in",
           Map.put(params, "user", %{
             "email" => user.email,
             "password" => "incorrect"
@@ -273,7 +274,7 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       conn =
         post(
           conn,
-          ~p"/users/log-in?method=password",
+          ~p"/users/log-in",
           Map.put(params, "user", %{
             "email" => user.email,
             "password" => valid_user_password()
@@ -289,7 +290,7 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       password = "unique-incorrect-password-492371"
 
       conn =
-        post(conn, ~p"/users/log-in?method=password", %{
+        post(conn, ~p"/users/log-in", %{
           "user" => %{"email" => user.email, "password" => password}
         })
 
@@ -305,7 +306,7 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       assert response =~ "Sign in to Frontman"
       assert response =~ "Invalid email or password"
       assert response =~ ~s(id="login-form")
-      assert response =~ ~s(action="/users/log-in?method=password")
+      assert response =~ ~s(action="/users/log-in")
       refute get_session(conn, :user_token)
     end
 
@@ -316,11 +317,11 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       user = set_password(user)
       conn = get(conn, "/auth/mcp/workos?external_auth_id=unverified-request")
       pending = get_session(conn, :connect_handoff)
-      conn = get(conn, ~p"/users/log-in?method=password")
+      conn = get(conn, ~p"/users/log-in")
       assert html_response(conn, 200) =~ ~s(id="login-form")
 
       conn =
-        post(conn, ~p"/users/log-in?method=password", %{
+        post(conn, ~p"/users/log-in", %{
           "user" => %{"email" => user.email, "password" => "incorrect"}
         })
 
@@ -329,7 +330,7 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       assert get_session(conn, :connect_handoff) == pending
 
       conn =
-        post(conn, ~p"/users/log-in?method=password", %{
+        post(conn, ~p"/users/log-in", %{
           "user" => %{"email" => user.email, "password" => valid_user_password()}
         })
 
