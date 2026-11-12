@@ -93,6 +93,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
     assert %{"result" => %{"tools" => [tool]}} = sdk_request(user, "tools/list")
     assert tool["name"] == "list_sites"
+    assert tool["title"] == "List WordPress Sites"
     assert tool["inputSchema"] == %{"type" => "object", "properties" => %{}}
 
     assert tool["annotations"] == %{
@@ -246,6 +247,8 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
     for remote <- catalog do
       tool = Map.fetch!(by_name, remote["name"])
+      assert is_binary(remote["title"]) and String.trim(remote["title"]) != ""
+      assert tool["title"] == remote["title"]
       assert tool["description"] == remote["description"]
       assert tool["annotations"] == remote["annotations"]
 

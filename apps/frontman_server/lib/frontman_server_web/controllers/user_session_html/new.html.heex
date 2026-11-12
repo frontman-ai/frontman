@@ -145,10 +145,15 @@
             </div>
           </div>
 
-          <%= if Application.get_env(:frontman_server, :dev_routes) do %>
+          <%= if @password_login || Application.get_env(:frontman_server, :dev_routes) do %>
             <div class="divider text-xs text-base-content/40">Password login</div>
 
-            <.form for={@form} action={~p"/users/log-in"} id="login-form" class="space-y-3">
+            <.form
+              for={@form}
+              action={~p"/users/log-in?method=password"}
+              id="login-form"
+              class="space-y-3"
+            >
               <.embedded_request request={@embedded_request} />
               <.input
                 field={@form[:email]}

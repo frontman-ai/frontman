@@ -15,7 +15,7 @@ function frontman_runtime_core_annotations(): array {
 			'wp_list_templates', 'wp_read_template', 'wp_list_widget_areas', 'wp_read_widget',
 		] ],
 		[ [ true, false, true, true ], [ 'wp_read_public_file' ] ],
-		[ [ false, false, false, false ], [ 'wp_duplicate_post', 'wp_save_post_preview', 'wp_create_menu' ] ],
+		[ [ false, true, false, false ], [ 'wp_duplicate_post', 'wp_save_post_preview', 'wp_create_menu' ] ],
 		[ [ false, true, true, false ], [
 			'wp_create_post', 'wp_update_post', 'wp_delete_post',
 			'wp_update_block', 'wp_insert_block', 'wp_move_block', 'wp_delete_block',
@@ -69,10 +69,10 @@ function frontman_runtime_woocommerce_annotations(): array {
 		'update_catalog_display',
 	] as $method ) { $expected[ 'wc_' . $method ] = $write; }
 	foreach ( [ 'create_product_tag', 'create_product_attribute', 'create_attribute_term' ] as $method ) {
-		$expected[ 'wc_' . $method ] = [ false, false, true, false ];
+		$expected[ 'wc_' . $method ] = [ false, true, true, false ];
 	}
-	$expected['wc_create_tax_class'] = [ false, false, false, false ];
-	$expected['wc_get_system_status'] = [ false, false, true, false ];
+	$expected['wc_create_tax_class'] = [ false, true, false, false ];
+	$expected['wc_get_system_status'] = [ false, true, true, false ];
 	foreach ( [ 'product', 'order', 'customer' ] as $entity ) {
 		$expected[ 'wc_get_' . $entity . '_meta' ] = $read;
 		foreach ( [ 'update', 'delete' ] as $operation ) {

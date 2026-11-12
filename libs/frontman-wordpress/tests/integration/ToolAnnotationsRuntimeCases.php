@@ -15,8 +15,15 @@ $expected_hints = [
 	'idempotent' => [ 'readOnlyHint' => false, 'destructiveHint' => false, 'openWorldHint' => false, 'idempotentHint' => true ],
 	'true' => [ 'readOnlyHint' => true, 'destructiveHint' => true, 'openWorldHint' => true, 'idempotentHint' => true ],
 ];
+$registry_by_name = array_column( $catalogs['registry'], null, 'name' );
 foreach ( $catalogs as $transport => $definitions ) {
 	$by_name = array_column( $definitions, null, 'name' );
+	foreach ( $definitions as $definition ) {
+		frontman_runtime_assert( isset( $definition['title'] ) && is_string( $definition['title'] ) && '' !== trim( $definition['title'] ), $transport . ' has a readable title for ' . $definition['name'] );
+		frontman_runtime_assert( isset( $registry_by_name[ $definition['name'] ] ), $transport . ' tool exists in the registry.' );
+		frontman_runtime_same( $registry_by_name[ $definition['name'] ]['title'], $definition['title'], $transport . ' preserves the registry title.' );
+	}
+	frontman_runtime_same( 'WordPress: Read Post', $by_name['wp_read_post']['title'], $transport . ' uses a readable WordPress title.' );
 	foreach ( $expected_hints as $suffix => $expected ) {
 		$name = 'wp_test_annotations_' . $suffix;
 		frontman_runtime_assert( isset( $by_name[ $name ] ), $transport . ' includes annotated tool ' . $name );

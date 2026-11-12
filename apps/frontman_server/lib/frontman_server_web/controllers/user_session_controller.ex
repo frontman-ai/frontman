@@ -25,7 +25,7 @@ defmodule FrontmanServerWeb.UserSessionController do
       |> maybe_put_user_return_to(params["return_to"])
       |> maybe_put_signup_framework(params["framework"])
 
-    render(conn, :new, form: form)
+    render(conn, :new, form: form, password_login: params["method"] == "password")
   end
 
   def create(conn, %{"_action" => "connect"} = params) do
@@ -53,7 +53,7 @@ defmodule FrontmanServerWeb.UserSessionController do
       {:error, :not_found} ->
         conn
         |> put_flash(:error, "The link is invalid or it has expired.")
-        |> render(:new, form: Phoenix.Component.to_form(%{}, as: "user"))
+        |> render(:new, form: Phoenix.Component.to_form(%{}, as: "user"), password_login: false)
     end
   end
 
@@ -63,11 +63,11 @@ defmodule FrontmanServerWeb.UserSessionController do
       |> put_flash(:info, "Welcome back!")
       |> UserAuth.log_in_user(user, user_params)
     else
-      form = Phoenix.Component.to_form(user_params, as: "user")
+      form = Phoenix.Component.to_form(Map.delete(user_params, "password"), as: "user")
 
       conn
       |> put_flash(:error, "Invalid email or password")
-      |> render(:new, form: form)
+      |> render(:new, form: form, password_login: true)
     end
   end
 

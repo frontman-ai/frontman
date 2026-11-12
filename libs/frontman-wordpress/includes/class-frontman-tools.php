@@ -31,6 +31,7 @@ class Frontman_Tool_Error extends \RuntimeException {}
  */
 class Frontman_Tool_Definition {
 	public string $name;
+	public string $title;
 	public string $description;
 	public string $access;
 	public array  $input_schema;
@@ -61,6 +62,7 @@ class Frontman_Tool_Definition {
 		bool $preserve_input_strings = false
 	) {
 		$this->name                   = $name;
+		$this->title                  = self::title_for_name( $name );
 		$this->description            = $description;
 		$this->access                 = $this->normalize_access( $access ?? self::infer_access( $name ) );
 		$this->input_schema           = $input_schema;
@@ -76,12 +78,25 @@ class Frontman_Tool_Definition {
 	public function to_array(): array {
 		return [
 			'name'           => $this->name,
+			'title'          => $this->title,
 			'description'    => $this->description,
 			'access'         => $this->access,
 			'inputSchema'    => self::serialize_schema( $this->input_schema ),
 			'visibleToAgent' => $this->visible_to_agent,
 			'annotations'    => $this->annotations->to_array(),
 		];
+	}
+
+	private static function title_for_name( string $name ): string {
+		$prefix = '';
+		if ( 0 === strpos( $name, 'wp_' ) ) {
+			$prefix = 'WordPress: ';
+			$name = substr( $name, 3 );
+		} elseif ( 0 === strpos( $name, 'wc_' ) ) {
+			$prefix = 'WooCommerce: ';
+			$name = substr( $name, 3 );
+		}
+		return $prefix . ucwords( str_replace( [ '_', '-' ], ' ', $name ) );
 	}
 
 	private static function serialize_schema( array $schema ): array {

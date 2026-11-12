@@ -78,7 +78,7 @@ class Frontman_Tool_Menus {
 				'required' => [ 'name' ],
 			],
 			[ $this, 'create_menu' ],
-			new Frontman_Tool_Annotations( false, false, false, false )
+			new Frontman_Tool_Annotations( false, true, false, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
