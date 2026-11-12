@@ -40,7 +40,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     assert {:reply, %{"content" => [%{"text" => text}]}, returned} =
              Server.handle_request(request, frame)
 
-    refute Map.has_key?(returned.assigns, :mcp_catalog)
+    assert returned.assigns == frame.assigns
     assert %{"sites" => sites} = Jason.decode!(text)
 
     assert Enum.sort(sites) ==
@@ -65,7 +65,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
              Server.handle_request(%{"method" => "tools/list"}, frame)
 
     assert {:reply, %{"content" => [%{"text" => text}]} = result, _} =
-             Tools.handle_call(request, frame, Server)
+             Server.handle_request(Map.put(request, "method", "tools/call"), frame)
 
     refute result["isError"]
 
@@ -84,13 +84,14 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     site = insert_site(user, "connected.example")
 
     assert {:reply, %{"content" => [%{"text" => text}]}, _} =
-             Tools.handle_call(request, frame, Server)
+             Server.handle_request(Map.put(request, "method", "tools/call"), frame)
 
     assert Jason.decode!(text) == %{
              "sites" => [%{"id" => site.id, "label" => "connected.example"}]
            }
 
-    assert {:error, _, _} = Tools.handle_call(request, %Frame{}, Server)
+    assert {:error, _, _} =
+             Server.handle_request(Map.put(request, "method", "tools/call"), %Frame{})
   end
 
   test "HTTP discovery declares read-only OAuth-protected site discovery for empty accounts" do
@@ -122,7 +123,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
     frame = %Frame{
       context: %Context{auth: %{sub: owner.id}},
-      assigns: %{mcp_catalog: :original}
+      assigns: %{mcp_catalog: :original, current_scope: Scope.for_user(other)}
     }
 
     record_requests()
@@ -147,8 +148,13 @@ defmodule FrontmanServerWeb.MCPSitesTest do
                "Call list_sites and pass an accessible site's id as site_id. " <>
                  "If no sites are listed, connect a WordPress site first."
 
-      assert returned.assigns.mcp_catalog == :original
+      assert returned.assigns == frame.assigns
     end
+
+    assert {:reply, %{"tools" => [%{"name" => "list_sites"}]}, returned} =
+             Server.handle_request(%{"method" => "tools/list"}, frame)
+
+    assert returned.assigns == frame.assigns
 
     for id <- [foreign.id, "bad", owned.id] do
       assert {:error, :connection_failed} = WordPress.catalog(Scope.for_user(owner), id, 1_000)

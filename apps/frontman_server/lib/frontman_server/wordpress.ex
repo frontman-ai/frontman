@@ -8,6 +8,7 @@ defmodule FrontmanServer.WordPress do
   @moduledoc false
 
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Protocols.MCP.Schema
   alias FrontmanServer.{PublicURL, Repo}
   alias FrontmanServer.WordPress.Connection
 
@@ -21,6 +22,49 @@ defmodule FrontmanServer.WordPress do
 
   def catalog(%Scope{} = scope, site_id, timeout) when timeout > 0 do
     request_site(scope, site_id, :get, nil, timeout)
+  end
+
+  def discover_tools(%Scope{} = scope, site_ids) do
+    started = System.monotonic_time(:millisecond)
+    deadline = started + 6_000
+
+    result =
+      scope
+      |> stream_catalogs(site_ids, deadline)
+      |> Enum.reduce_while({:ok, [], 0}, fn
+        {:ok, {id, {:ok, catalog}}}, {:ok, entries, validated} ->
+          case validated_tools(catalog, deadline) do
+            {:ok, tools} ->
+              {:cont, {:ok, Enum.map(tools, &{id, &1}) ++ entries, validated + 1}}
+
+            {:error, reason} ->
+              {:halt, {:error, reason, validated}}
+          end
+
+        {:exit, :timeout}, {:ok, _, validated} ->
+          {:halt, {:error, :timeout, validated}}
+
+        {:exit, _}, {:ok, _, validated} ->
+          {:halt, {:error, :task_exit, validated}}
+
+        _, {:ok, _, validated} ->
+          category =
+            if System.monotonic_time(:millisecond) >= deadline,
+              do: :deadline_expired,
+              else: :request_failed
+
+          {:halt, {:error, category, validated}}
+      end)
+
+    case result do
+      {:ok, entries, validated} ->
+        discovery_event(:ok, started, validated, length(site_ids))
+        {:ok, entries}
+
+      {:error, category, validated} ->
+        discovery_event(category, started, validated, length(site_ids))
+        {:error, category}
+    end
   end
 
   @doc """
@@ -97,6 +141,33 @@ defmodule FrontmanServer.WordPress do
 
   def connected?(%Scope{} = scope, catalog_url) when is_binary(catalog_url) do
     scope |> Scope.user_id() |> Connection.owned_catalog(catalog_url) |> Repo.exists?()
+  end
+
+  defp validated_tools(%{"tools" => tools} = catalog, deadline) do
+    defaults = %{"resultType" => "complete", "ttlMs" => 0, "cacheScope" => "private"}
+
+    cond do
+      Map.get(catalog, "resultType", "complete") != "complete" -> {:error, :incomplete}
+      Map.get(catalog, "nextCursor") not in [nil, ""] -> {:error, :paginated}
+      not Schema.bounded?(catalog) -> {:error, :bounds}
+      System.monotonic_time(:millisecond) >= deadline -> {:error, :deadline_expired}
+      Schema.validate_tools_list_envelope(Map.merge(defaults, catalog)) == :ok -> {:ok, tools}
+      true -> {:error, :schema}
+    end
+  end
+
+  defp validated_tools(_, _deadline), do: {:error, :schema}
+
+  defp discovery_event(outcome, started, validated, total) do
+    :telemetry.execute(
+      [:frontman_server, :wordpress, :discovery, :stop],
+      %{
+        duration_ms: max(System.monotonic_time(:millisecond) - started, 0),
+        validated: validated,
+        total: total
+      },
+      %{outcome: outcome}
+    )
   end
 
   defp catalog_batches(groups) do
