@@ -43,7 +43,7 @@ defmodule FrontmanServerWeb.TaskChannel do
          {:ok, _owner} <-
            Registry.register(FrontmanServer.ProcessRegistry, {:task_channel, task_id}, nil) do
       {:ok, history} = TaskHistory.new(task.interaction_rows)
-      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope.user.id))
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope))
 
       Phoenix.PubSub.subscribe(
         FrontmanServer.PubSub,

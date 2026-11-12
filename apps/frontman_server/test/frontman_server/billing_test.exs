@@ -262,11 +262,12 @@ defmodule FrontmanServer.BillingTest do
 
   describe "status change notifications" do
     test "broadcast_status_changed publishes on the user billing topic" do
-      user_id = Ecto.UUID.generate()
+      scope = AccountsFixtures.user_scope_fixture()
 
-      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(user_id))
+      assert Billing.status_topic(scope) == "billing_status:user:#{Scope.user_id(scope)}"
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope))
 
-      assert :ok = Billing.broadcast_status_changed(user_id)
+      assert :ok = Billing.broadcast_status_changed(scope)
       assert_receive :billing_status_changed
     end
 
@@ -274,7 +275,7 @@ defmodule FrontmanServer.BillingTest do
       scope = AccountsFixtures.user_scope_fixture()
       current_period_end = DateTime.from_unix!(1_780_243_481, :second)
 
-      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope.user.id))
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope))
 
       assert {:ok, :processed} = Webhooks.process_event(subscription_webhook_event(scope.user.id))
       assert_receive :billing_status_changed
@@ -295,7 +296,7 @@ defmodule FrontmanServer.BillingTest do
       assert {:ok, :processed} = Webhooks.process_event(event)
       assert Billing.subscription_allows_runs?(scope)
 
-      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope.user.id))
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope))
 
       past_due_event =
         event
@@ -342,7 +343,7 @@ defmodule FrontmanServer.BillingTest do
 
         assert {:ok, :processed} = Webhooks.process_event(event)
         assert {:ok, :subscription} = Billing.authorize_new_turn(scope)
-        Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope.user.id))
+        Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope))
 
         canceled_event =
           event
@@ -419,7 +420,7 @@ defmodule FrontmanServer.BillingTest do
     test "checkout webhook broadcasts billing status change" do
       scope = AccountsFixtures.user_scope_fixture()
 
-      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope.user.id))
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope))
 
       assert {:ok, :processed} = Webhooks.process_event(checkout_webhook_event(scope.user.id))
       assert_receive :billing_status_changed

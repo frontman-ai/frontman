@@ -88,15 +88,15 @@ defmodule FrontmanServer.Billing do
   @doc """
   Returns the PubSub topic for billing status updates for a user.
   """
-  def status_topic(user_id) when is_binary(user_id), do: "billing_status:user:#{user_id}"
+  def status_topic(%Scope{} = scope), do: "billing_status:user:#{Scope.user_id(scope)}"
 
   @doc """
   Broadcasts that a user's billing status changed.
   """
-  def broadcast_status_changed(user_id) when is_binary(user_id) do
+  def broadcast_status_changed(%Scope{} = scope) do
     Phoenix.PubSub.broadcast(
       FrontmanServer.PubSub,
-      status_topic(user_id),
+      status_topic(scope),
       :billing_status_changed
     )
   end

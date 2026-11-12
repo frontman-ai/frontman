@@ -614,7 +614,7 @@ defmodule FrontmanServer.Tasks do
         broadcast_task(task_id, {:interaction, turn_started_row})
 
         case billing_authorization do
-          :pretrial -> Billing.broadcast_status_changed(Accounts.scope_user_id(scope))
+          :pretrial -> Billing.broadcast_status_changed(scope)
           :subscription -> :ok
         end
 

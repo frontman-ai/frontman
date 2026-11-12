@@ -54,7 +54,7 @@ defmodule FrontmanServerWeb.TasksChannel do
         Providers.config_pubsub_topic(user_id)
       )
 
-      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(user_id))
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(socket.assigns.scope))
 
       {:ok, %{status: "connected"}, socket}
     else

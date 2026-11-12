@@ -25,7 +25,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     test "pushes billing status update when billing changes", %{socket: _socket, scope: scope} do
       subscription_for_scope_fixture(scope, %{status: "active"})
 
-      assert :ok = Billing.broadcast_status_changed(scope.user.id)
+      assert :ok = Billing.broadcast_status_changed(scope)
 
       assert_push("billing_status_updated", %{
         status: "active",

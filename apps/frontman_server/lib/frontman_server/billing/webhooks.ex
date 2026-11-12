@@ -11,6 +11,8 @@ defmodule FrontmanServer.Billing.Webhooks do
 
   require Logger
 
+  alias FrontmanServer.Accounts
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Billing.{Customer, StripeEvent, Subscription}
   alias FrontmanServer.Repo
 
@@ -46,7 +48,8 @@ defmodule FrontmanServer.Billing.Webhooks do
   end
 
   defp normalize_process_result({:ok, {:processed, user_id}}) do
-    :ok = FrontmanServer.Billing.broadcast_status_changed(user_id)
+    scope = user_id |> Accounts.get_user!() |> Scope.for_user()
+    :ok = FrontmanServer.Billing.broadcast_status_changed(scope)
     {:ok, :processed}
   end
 
