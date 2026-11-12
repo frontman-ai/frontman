@@ -2,193 +2,85 @@ defmodule FrontmanServerWeb.ConnectionAccessComponents do
   use FrontmanServerWeb, :html
 
   attr :status, :string, required: true
-  attr :retry_path, :string, required: true
-  attr :sites, :list, default: []
-  attr :restart_required, :boolean, default: false
-  attr :switch_account, :boolean, default: true
-  attr :assistant_name, :string, default: "ChatGPT"
-  attr :retry_label, :string, default: "Check status again"
-  slot :retry
+  slot :retry, required: true
 
   def instructions(assigns) do
     ~H"""
-    <div id="subscription-instructions" class="space-y-5">
-      <div class="space-y-3">
-        <h2 class="font-headings text-xl font-semibold">
-          An active subscription or eligible trial is required
-        </h2>
-        <p id="subscription-reason" class="text-sm leading-6 text-base-content/80">
+    <div id="subscription-instructions" class="space-y-6">
+      <div>
+        <p class="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-[#dfc097] before:size-1.5 before:rounded-full before:bg-current">
+          Action needed
+        </p>
+        <h2 class="mt-4 text-3xl font-medium leading-tight tracking-tight">{heading(@status)}</h2>
+        <p id="subscription-reason" class="mt-3 text-sm leading-6 text-base-content/65">
           {reason(@status)}
         </p>
       </div>
-
-      <.site_links sites={@sites} />
-      <.next_steps
-        status={@status}
-        direct_link={@sites != []}
-        switch_account={@switch_account}
-        retry_label={@retry_label}
-      />
-
-      <p :if={@restart_required} class="text-sm leading-6 text-base-content/70">
-        This connection request expires after 15 minutes. If it expires, restart the Frontman connection from your original {@assistant_name} conversation.
-      </p>
-
-      <div class="space-y-2 text-sm leading-6">
-        <.link
-          :if={@switch_account}
-          id="use-another-account"
-          href={~p"/users/log-out?#{%{return_to: "/wordpress/connect"}}"}
-          class="font-semibold text-primary-100 underline underline-offset-4"
-        >
-          Sign out and use another account
-        </.link>
-        <p :if={@restart_required && @switch_account} class="text-base-content/70">
-          Signing out ends this connection attempt. After signing in with the other account, restart the connection in ChatGPT.
-        </p>
-        <p class="text-base-content/70">
-          Need account assistance? <a
-            href="mailto:support@frontman.sh"
-            class="font-semibold text-primary-100 underline underline-offset-4"
-          >
-            Contact Frontman support
-          </a>.
-          Do not send passwords or card details.
-        </p>
+      <div id="subscription-next-steps" class="space-y-3 text-sm leading-6 text-base-content/75">
+        <%= if @status == "none" do %>
+          <p>
+            Have an existing active subscription on another account?
+            Select <strong class="font-medium text-base-content">Use a different account</strong>
+            above.
+          </p>
+          <p>An active subscription or eligible trial is required to connect your assistant.</p>
+        <% else %>
+          <p class="text-xs uppercase tracking-[0.14em] text-base-content/45">Resolve in Frontman</p>
+          <p class="font-medium text-base-content">
+            WordPress Dashboard → Frontman → Settings → Billing
+          </p>
+          <p>{billing_step(@status)}</p>
+          <p>Then return here to check access again.</p>
+        <% end %>
       </div>
-
       <div class="space-y-3">
-        <a
-          :if={@retry == []}
-          id="check-status-again"
-          href={@retry_path}
-          class={
-            if @sites == [],
-              do: "btn btn-secondary",
-              else: "text-sm font-semibold text-primary-100 underline underline-offset-4"
-          }
-        >
-          {@retry_label}
-        </a>
         {render_slot(@retry)}
-        <p class="text-sm leading-6 text-base-content/70">
-          <strong>{@retry_label}</strong> only checks your account status.
-          It does not start a subscription or retry a payment.
+        <p class="text-xs leading-5 text-base-content/45">
+          This only checks access. It does not start a subscription or retry a payment.
           No site has been changed.
         </p>
       </div>
-    </div>
-    """
-  end
-
-  attr :sites, :list, required: true
-
-  defp site_links(assigns) do
-    ~H"""
-    <div :if={@sites != []} id="frontman-site-links" class="space-y-3">
-      <p :if={length(@sites) > 1} class="text-sm leading-6 text-base-content/80">
-        Choose the WordPress site you want to open.
-      </p>
-      <ul class="space-y-3">
-        <li :for={site <- @sites}>
-          <a
-            href={site.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            referrerpolicy="no-referrer"
-            class={
-              if length(@sites) == 1,
-                do: "btn btn-secondary h-auto max-w-full py-3",
-                else:
-                  "block rounded-xl border border-border p-4 text-sm font-semibold text-primary-100 hover:bg-base-100"
-            }
-          >
-            <span class="min-w-0 leading-6 [overflow-wrap:anywhere]">
-              Open Frontman on {site.label}
-            </span>
-            <.icon name="hero-arrow-top-right-on-square" class="size-4 shrink-0" />
-            <span
-              :if={length(@sites) > 1}
-              class="mt-1 block break-all text-xs font-normal text-base-content/70"
-            >
-              {site.url}
-            </span>
-          </a>
-        </li>
-      </ul>
-      <p class="text-sm leading-6 text-base-content/70">
-        Opens in a new tab. Sign in to WordPress if asked.
-      </p>
-    </div>
-    """
-  end
-
-  attr :status, :string, required: true
-  attr :direct_link, :boolean, required: true
-  attr :switch_account, :boolean, required: true
-  attr :retry_label, :string, required: true
-
-  defp next_steps(assigns) do
-    ~H"""
-    <div class="space-y-3">
-      <h3 class="font-headings font-semibold">What to do next</h3>
-      <ol
-        id="subscription-next-steps"
-        class="list-decimal space-y-3 pl-5 text-sm leading-6 text-base-content/80"
-      >
-        <li>
-          Check the Frontman email shown on this page. Use the account with your existing active subscription or eligible trial.
-        </li>
-        <%= if @status == "none" do %>
-          <li>
-            If you already pay for Frontman with another account,
-            <%= if @switch_account do %>
-              use the sign-out link below.
-            <% else %>
-              select <strong>Use a different account</strong> above.
-            <% end %>
-          </li>
-          <li>
-            If you do not have an active subscription or eligible trial, this connection is not available.
-            Contact Frontman support for account assistance.
-          </li>
-        <% else %>
-          <li>
-            <%= if @direct_link do %>
-              Open Frontman using the site link above. Then open <strong>Settings → Billing</strong>
-              to review this account.
-            <% else %>
-              Open <strong>WordPress Dashboard → Frontman → Settings → Billing</strong>
-              to review this account.
-            <% end %>
+      <details>
+        <summary class="cursor-pointer py-2 text-sm text-white/60">
+          Need help with this account?
+        </summary>
+        <div class="space-y-2 pt-3 text-sm leading-6 text-base-content/65">
+          <p>
+            Check that you are using the account with your existing active subscription or eligible trial.
             You do not need an AI provider key to view Billing.
-          </li>
-          <li>{billing_step(@status)}</li>
-          <li>
-            After your subscription or trial becomes eligible, return here and select <strong>{@retry_label}</strong>.
-          </li>
-        <% end %>
-      </ol>
+          </p>
+          <p>
+            <a
+              href="mailto:support@frontman.sh"
+              class="text-sm text-primary-200 underline-offset-4 transition-colors duration-250 ease-[cubic-bezier(0.32,0.72,0,1)] hover:text-white hover:underline motion-reduce:transition-none"
+            >Contact Frontman support</a>
+            for account assistance. Do not send passwords or card details.
+          </p>
+        </div>
+      </details>
     </div>
     """
   end
+
+  defp heading(status) when status in ["past_due", "unpaid"], do: "Update your payment to connect"
+  defp heading("none"), do: "This account needs a subscription"
+  defp heading("trialing"), do: "Review your trial to connect"
+  defp heading(_status), do: "Review your subscription to connect"
 
   defp reason("trialing"),
     do: "Your trial is canceled or otherwise ineligible for assistant access."
 
   defp reason("past_due"),
-    do:
-      "Your subscription payment failed. The connection stays blocked until your subscription is active again."
+    do: "Your subscription payment failed. Resolve it in Billing to continue."
 
   defp reason("unpaid"),
-    do:
-      "Your subscription has an unpaid invoice. The connection stays blocked until your subscription is active again."
+    do: "Your subscription has an unpaid invoice. Resolve it in Billing to continue."
 
   defp reason("canceled"),
-    do: "Your subscription has ended. This account cannot connect an AI assistant."
+    do: "Your subscription has ended. An active subscription or eligible trial is required."
 
   defp reason("paused"),
-    do: "Your subscription is paused. The connection is unavailable while it is paused."
+    do: "Your subscription is paused. Resume it before connecting your assistant."
 
   defp reason(status) when status in ["incomplete", "incomplete_expired"],
     do: "Billing setup did not produce an active subscription for this account."
@@ -197,18 +89,14 @@ defmodule FrontmanServerWeb.ConnectionAccessComponents do
   defp reason(_status), do: "Frontman cannot confirm an active subscription for this account."
 
   defp billing_step(status) when status in ["past_due", "unpaid"],
-    do:
-      "Select Manage in Stripe. Review your invoice and payment method to resolve the payment issue."
+    do: "Select Manage in Stripe to review your invoice and payment method."
 
   defp billing_step("trialing"),
-    do:
-      "Review your trial status in Billing. Contact Frontman support if the status is incorrect."
+    do: "Review your trial status. Contact support if it looks incorrect."
 
   defp billing_step(status) when status in ["incomplete", "incomplete_expired"],
-    do:
-      "If you recently finished billing setup, check its status again. Contact support if it stays inactive."
+    do: "Check whether billing setup has completed. Contact support if it stays inactive."
 
   defp billing_step(_status),
-    do:
-      "Review the subscription status in Billing. Contact Frontman support if the status is incorrect."
+    do: "Review your subscription status. Contact support if it looks incorrect."
 end

@@ -78,7 +78,6 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
       form: Phoenix.Component.to_form(%{"ref" => ref}),
       access_status: status,
       billing_status: billing_status(status),
-      site_links: [],
       page_title: "Confirm your Frontman account"
     )
   end
