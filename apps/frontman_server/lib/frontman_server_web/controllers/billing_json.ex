@@ -8,13 +8,13 @@ defmodule FrontmanServerWeb.BillingJSON do
   @moduledoc false
 
   alias FrontmanServer.Billing
-  alias FrontmanServer.Billing.{Subscription, Subscriptions}
+  alias FrontmanServer.Billing.Subscription
   alias FrontmanServer.Tasks
 
   @subscription_fields ~w(interval current_period_end trial_end cancel_at canceled_at)a
 
   def status(scope) do
-    subscription = Subscriptions.current(scope)
+    subscription = Billing.get_current_subscription(scope)
 
     {can_start_turn, remaining} =
       case Subscription.allow_access?(subscription) do
@@ -36,7 +36,7 @@ defmodule FrontmanServerWeb.BillingJSON do
       can_start_turn: can_start_turn,
       pretrial_runs_remaining: remaining,
       has_billing_customer: if(subscription, do: true, else: Billing.has_customer?(scope)),
-      trial_eligible: Subscriptions.trial_eligible?(scope),
+      trial_eligible: Billing.trial_eligible?(scope),
       trial_days: Application.fetch_env!(:frontman_server, :stripe) |> Keyword.fetch!(:trial_days)
     })
   end

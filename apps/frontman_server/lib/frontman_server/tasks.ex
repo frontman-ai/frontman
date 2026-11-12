@@ -45,7 +45,7 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Agents
-  alias FrontmanServer.Billing.{Subscription, Subscriptions}
+  alias FrontmanServer.Billing
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Protocols.MCP
@@ -553,18 +553,18 @@ defmodule FrontmanServer.Tasks do
   end
 
   def billing_inactive_message(%Scope{} = scope) do
-    case Subscriptions.current(scope) do
-      nil ->
+    case Billing.subscription_access(scope) do
+      :none ->
         "Keep going with a 7-day free Pro trial. Card required."
 
-      %Subscription{} ->
+      {_access, _status} ->
         "Your Frontman access has ended. Start a subscription to continue."
     end
   end
 
   @doc "Advisory eligibility for starting a new turn."
   def can_start_turn?(%Scope{} = scope) do
-    case Subscriptions.access(scope) do
+    case Billing.subscription_access(scope) do
       {:allowed, _status} -> true
       _inactive -> remaining_runs(scope) > 0
     end
@@ -587,7 +587,7 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp authorize_new_turn(%Scope{} = scope) do
-    case Subscriptions.access(scope) do
+    case Billing.subscription_access(scope) do
       {:allowed, _status} -> {:ok, :subscription}
       _inactive -> consume_pretrial_run(scope)
     end

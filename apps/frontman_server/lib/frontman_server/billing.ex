@@ -6,18 +6,29 @@
 
 defmodule FrontmanServer.Billing do
   @moduledoc """
-  Payment-provider checkout, customers, and event persistence.
+  Public API for billing customers, subscriptions, checkout, and provider events.
   """
 
   use Boundary,
     deps: [FrontmanServer, FrontmanServer.Accounts],
-    exports: [Client, Customer, StripeEvent, Subscription, Subscriptions]
+    exports: [Client, Customer, StripeEvent, Subscription]
 
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Billing.{Customer, StripeEvent}
+  alias FrontmanServer.Billing.{Customer, StripeEvent, Subscriptions}
   alias FrontmanServer.Repo
 
   @type interval :: :monthly | :yearly
+
+  defdelegate get_current_subscription(scope), to: Subscriptions, as: :current
+
+  @doc """
+  Returns `:none`, `{:allowed, status}`, or `{:inactive, status}` for subscription access.
+  """
+  defdelegate subscription_access(scope), to: Subscriptions, as: :access
+
+  defdelegate trial_eligible?(scope), to: Subscriptions
+  defdelegate start_checkout(scope, interval, return_urls), to: Subscriptions
+  defdelegate upsert_subscription(scope, customer, attrs), to: Subscriptions
 
   def start_checkout(%Scope{} = scope, interval, return_urls, trial_eligible: trial_eligible)
       when is_map(return_urls) do

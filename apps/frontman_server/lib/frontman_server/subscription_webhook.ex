@@ -14,7 +14,6 @@ defmodule FrontmanServer.SubscriptionWebhook do
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Billing
-  alias FrontmanServer.Billing.Subscriptions
   alias FrontmanServer.{Repo, Tasks}
 
   @doc """
@@ -97,7 +96,7 @@ defmodule FrontmanServer.SubscriptionWebhook do
         with {:ok, scope} <- user_scope(user_id),
              {:ok, customer} <- Billing.upsert_customer(scope, subscription["customer"]),
              {:ok, _subscription} <-
-               Subscriptions.upsert_subscription(
+               Billing.upsert_subscription(
                  scope,
                  customer,
                  subscription_attrs(subscription)

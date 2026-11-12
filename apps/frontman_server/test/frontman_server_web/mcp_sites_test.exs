@@ -7,7 +7,8 @@ defmodule FrontmanServerWeb.MCPSitesTest do
   alias Anubis.Server.Transport.StreamableHTTP.Plug, as: AnubisPlug
   alias Anubis.Server.Transport.StreamableHTTP.StatelessBinding
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Billing.{Subscription, Subscriptions}
+  alias FrontmanServer.Billing
+  alias FrontmanServer.Billing.Subscription
   alias FrontmanServer.BillingFixtures
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
@@ -604,7 +605,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     subscription = BillingFixtures.subscription_for_scope_fixture(scope, %{status: "trialing"})
     BillingFixtures.run_allowance_fixture(scope, 1)
 
-    assert Subscriptions.access(scope) == {:allowed, "trialing"}
+    assert Billing.subscription_access(scope) == {:allowed, "trialing"}
 
     assert %{"result" => %{"tools" => [%{"name" => "list_sites"}]}} =
              sdk_request(user, "tools/list")
@@ -623,13 +624,13 @@ defmodule FrontmanServerWeb.MCPSitesTest do
       |> Ecto.Changeset.change(%{field => ~U[2030-01-01 00:00:00Z]})
       |> Repo.update!()
 
-      assert Subscriptions.access(scope) == {:inactive, "trialing"}
+      assert Billing.subscription_access(scope) == {:inactive, "trialing"}
       assert %{"error" => %{"code" => -32_000}} = sdk_request(user, "tools/list")
       subscription |> Repo.reload!() |> Ecto.Changeset.change(%{field => nil}) |> Repo.update!()
     end
 
     subscription |> Repo.reload!() |> Ecto.Changeset.change(status: "canceled") |> Repo.update!()
-    assert Subscriptions.access(scope) == {:inactive, "canceled"}
+    assert Billing.subscription_access(scope) == {:inactive, "canceled"}
 
     assert %{"error" => %{"code" => -32_000}} =
              sdk_request(user, "tools/call", %{"name" => "list_sites", "arguments" => %{}})

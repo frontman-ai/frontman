@@ -4,7 +4,7 @@ defmodule FrontmanServer.BillingTest do
   import FrontmanServer.BillingFixtures
 
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Billing.Subscriptions
+  alias FrontmanServer.Billing
   alias FrontmanServer.SubscriptionWebhook
   alias FrontmanServer.Tasks
   alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
@@ -18,7 +18,7 @@ defmodule FrontmanServer.BillingTest do
         scope = scope_with_subscription_fixture(status)
 
         assert {:error, :subscription_already_active} =
-                 Subscriptions.start_checkout(scope, :monthly, %{
+                 Billing.start_checkout(scope, :monthly, %{
                    success_url: "https://frontman.test/success",
                    cancel_url: "https://frontman.test/cancel"
                  })
@@ -42,7 +42,7 @@ defmodule FrontmanServer.BillingTest do
       assert %{can_start_turn: true, pretrial_runs_remaining: 1} = BillingJSON.status(scope)
 
       assert {:ok, checkout} =
-               Subscriptions.start_checkout(scope, :yearly, %{
+               Billing.start_checkout(scope, :yearly, %{
                  success_url: "https://frontman.test/success",
                  cancel_url: "https://frontman.test/cancel"
                })
@@ -61,13 +61,13 @@ defmodule FrontmanServer.BillingTest do
   describe "trial_eligible?/1" do
     test "returns true when the user has never had a trial" do
       user = AccountsFixtures.user_fixture()
-      assert Subscriptions.trial_eligible?(Scope.for_user(user))
+      assert Billing.trial_eligible?(Scope.for_user(user))
     end
 
     test "returns false when the user has a trialing subscription" do
       scope = AccountsFixtures.user_scope_fixture()
       subscription_for_scope_fixture(scope, %{status: "trialing"})
-      refute Subscriptions.trial_eligible?(scope)
+      refute Billing.trial_eligible?(scope)
     end
 
     test "returns false when the user has any subscription with a trial end" do
@@ -78,7 +78,7 @@ defmodule FrontmanServer.BillingTest do
         trial_end: ~U[2026-01-01 00:00:00Z]
       })
 
-      refute Subscriptions.trial_eligible?(scope)
+      refute Billing.trial_eligible?(scope)
     end
   end
 
@@ -134,16 +134,16 @@ defmodule FrontmanServer.BillingTest do
     end
   end
 
-  describe "current/1" do
+  describe "get_current_subscription/1" do
     test "returns nil when the scoped user has no subscription" do
       scope = AccountsFixtures.user_scope_fixture()
-      assert Subscriptions.current(scope) == nil
+      assert Billing.get_current_subscription(scope) == nil
     end
 
     test "returns the scoped user's subscription" do
       scope = AccountsFixtures.user_scope_fixture()
       subscription = subscription_for_scope_fixture(scope)
-      assert Subscriptions.current(scope).id == subscription.id
+      assert Billing.get_current_subscription(scope).id == subscription.id
     end
   end
 
@@ -180,7 +180,7 @@ defmodule FrontmanServer.BillingTest do
       run_allowance_fixture(scope, 5)
       event = subscription_webhook_event(scope.user.id)
       assert {:ok, :processed} = SubscriptionWebhook.process_event(event)
-      assert {:allowed, "active"} = Subscriptions.access(scope)
+      assert {:allowed, "active"} = Billing.subscription_access(scope)
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.status_topic(scope))
 
       past_due_event =
@@ -191,7 +191,7 @@ defmodule FrontmanServer.BillingTest do
 
       assert {:ok, :processed} = SubscriptionWebhook.process_event(past_due_event)
       assert_receive :billing_status_changed
-      assert {:inactive, "past_due"} = Subscriptions.access(scope)
+      assert {:inactive, "past_due"} = Billing.subscription_access(scope)
       refute Tasks.can_start_turn?(scope)
 
       assert %{status: "past_due", can_start_turn: false, has_billing_customer: true} =
@@ -204,7 +204,7 @@ defmodule FrontmanServer.BillingTest do
 
       assert {:ok, :processed} = SubscriptionWebhook.process_event(recovered_event)
       assert_receive :billing_status_changed
-      assert {:allowed, "active"} = Subscriptions.access(scope)
+      assert {:allowed, "active"} = Billing.subscription_access(scope)
       assert %{status: "active", can_start_turn: true} = BillingJSON.status(scope)
     end
 
@@ -227,7 +227,7 @@ defmodule FrontmanServer.BillingTest do
           |> put_in(["data", "object", "trial_end"], 1_780_243_481)
 
         assert {:ok, :processed} = SubscriptionWebhook.process_event(event)
-        assert {:allowed, "trialing"} = Subscriptions.access(scope)
+        assert {:allowed, "trialing"} = Billing.subscription_access(scope)
         Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.status_topic(scope))
 
         canceled_event =
@@ -238,7 +238,7 @@ defmodule FrontmanServer.BillingTest do
 
         assert {:ok, :processed} = SubscriptionWebhook.process_event(canceled_event)
         assert_receive :billing_status_changed
-        assert {:inactive, "trialing"} = Subscriptions.access(scope)
+        assert {:inactive, "trialing"} = Billing.subscription_access(scope)
         refute Tasks.can_start_turn?(scope)
 
         assert %{
@@ -256,7 +256,7 @@ defmodule FrontmanServer.BillingTest do
 
         assert {:ok, :processed} = SubscriptionWebhook.process_event(resumed_event)
         assert_receive :billing_status_changed
-        assert {:allowed, "trialing"} = Subscriptions.access(scope)
+        assert {:allowed, "trialing"} = Billing.subscription_access(scope)
         assert %{can_start_turn: true, pretrial_runs_remaining: nil} = BillingJSON.status(scope)
       end
     end
@@ -274,7 +274,7 @@ defmodule FrontmanServer.BillingTest do
         |> put_in(["data", "object", "canceled_at"], 1_780_157_081)
 
       assert {:ok, :processed} = SubscriptionWebhook.process_event(event)
-      assert {:inactive, "trialing"} = Subscriptions.access(scope)
+      assert {:inactive, "trialing"} = Billing.subscription_access(scope)
       assert %{can_start_turn: true, pretrial_runs_remaining: 1} = BillingJSON.status(scope)
     end
 
@@ -291,7 +291,7 @@ defmodule FrontmanServer.BillingTest do
         |> put_in(["data", "object", "canceled_at"], 1_780_157_081)
 
       assert {:ok, :processed} = SubscriptionWebhook.process_event(event)
-      assert {:allowed, "active"} = Subscriptions.access(scope)
+      assert {:allowed, "active"} = Billing.subscription_access(scope)
       assert %{status: "active", can_start_turn: true} = BillingJSON.status(scope)
     end
 
