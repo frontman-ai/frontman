@@ -482,7 +482,9 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       conn = get(conn, redirected_to(conn))
       page = html_response(conn, 200)
       assert page =~ "This does not connect a new website"
+      assert page =~ "No active subscription is linked"
       assert page =~ user.email
+      refute page =~ "Continue to your assistant"
       assert get_session(conn, :connect_handoff)["ref"] == pending["ref"]
     end
 

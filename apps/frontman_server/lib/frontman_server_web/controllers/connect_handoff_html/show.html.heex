@@ -12,7 +12,7 @@
         <p class="font-semibold">One site. Two ways to work.</p>
         <p class="text-sm leading-6 text-base-content/70">
           Use Frontman's visual editor for hands-on changes, and your AI assistant for conversational updates.
-          <span>Continue to authorize assistant access to your connected sites.</span>
+          <span :if={match?({:allowed, _}, @access_status)}>Continue to authorize assistant access to your connected sites.</span>
         </p>
       </div>
     </div>
@@ -40,7 +40,25 @@
           </.form>
         </div>
 
-        <div class="space-y-2 border-t border-base-content/10 pt-5">
+        <div
+          :if={match?({:allowed, _}, @access_status)}
+          id="connect-access"
+          class="space-y-2 border-t border-base-content/10 pt-5"
+        >
+          <h2 class="font-semibold">Assistant access available</h2>
+          <p class="text-sm leading-6 text-base-content/70">
+            <%= if @billing_status == "trialing" do %>
+              Your Frontman trial includes assistant access.
+            <% else %>
+              Your active Frontman subscription includes assistant access.
+            <% end %>
+          </p>
+        </div>
+
+        <div
+          :if={match?({:allowed, _}, @access_status)}
+          class="space-y-2 border-t border-base-content/10 pt-5"
+        >
           <h2 class="font-semibold">What happens next</h2>
           <p class="text-sm leading-6 text-base-content/70">
             Continue to authorize your assistant to use the WordPress sites connected to this account. Depending on the tools available, it can read, change, and delete site content.
@@ -51,6 +69,7 @@
         </div>
 
         <.form
+          :if={match?({:allowed, _}, @access_status)}
           for={@form}
           action={~p"/auth/mcp/workos/pending"}
           method="post"
@@ -67,6 +86,35 @@
             Continue to your assistant <.icon name="hero-arrow-right" class="size-4" />
           </button>
         </.form>
+        <div :if={!match?({:allowed, _}, @access_status)} id="connect-access">
+          <FrontmanServerWeb.ConnectionAccessComponents.instructions
+            status={@billing_status}
+            retry_path={~p"/auth/mcp/workos/pending?#{%{ref: @form[:ref].value}}"}
+            retry_label="Check access again"
+            sites={@site_links}
+            switch_account={false}
+            restart_required
+            assistant_name="AI assistant"
+          >
+            <:retry>
+              <.form
+                for={@form}
+                action={~p"/auth/mcp/workos/pending"}
+                method="get"
+                id="connect-recheck-form"
+              >
+                <input type="hidden" name={@form[:ref].name} value={@form[:ref].value} />
+                <button
+                  type="submit"
+                  id="connect-recheck"
+                  class="btn btn-lg btn-block border border-base-content/20 bg-base-content/5 text-base-content hover:bg-base-content/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+                >
+                  Check access again
+                </button>
+              </.form>
+            </:retry>
+          </FrontmanServerWeb.ConnectionAccessComponents.instructions>
+        </div>
         <p id="connect-permissions" class="text-center text-sm leading-6 text-base-content/60">
           This does not connect a new website, start a subscription, or change your site content.
         </p>
