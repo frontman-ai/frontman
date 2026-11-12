@@ -25,11 +25,6 @@ defmodule FrontmanServer.Billing do
   @doc """
   Starts provider checkout for the scoped user.
   """
-  @spec start_checkout(Scope.t(), interval(), %{
-          success_url: String.t(),
-          cancel_url: String.t()
-        }) ::
-          {:ok, map()} | {:error, term()}
   def start_checkout(%Scope{} = scope, interval, return_urls)
       when is_map(return_urls) do
     case get_current_subscription(scope) do
@@ -49,10 +44,6 @@ defmodule FrontmanServer.Billing do
   @doc """
   Creates a Stripe Customer Portal URL for the scoped user's billing customer.
   """
-  @spec create_customer_portal_url(Scope.t(), String.t()) ::
-          {:ok, String.t()}
-          | {:error, :billing_customer_missing}
-          | {:error, {:customer_portal_url_failed, term()}}
   def create_customer_portal_url(%Scope{} = scope, return_url)
       when is_binary(return_url) do
     case Customer |> Customer.for_user(Accounts.scope_user_id(scope)) |> Repo.one() do
@@ -73,7 +64,6 @@ defmodule FrontmanServer.Billing do
   @doc """
   Returns whether checkout should include the configured trial period.
   """
-  @spec trial_eligible?(Scope.t()) :: boolean()
   def trial_eligible?(%Scope{} = scope) do
     scope
     |> trial_consumed_query()
@@ -84,19 +74,6 @@ defmodule FrontmanServer.Billing do
   @doc """
   Returns the current billing status payload for UI consumers.
   """
-  @spec status(Scope.t()) :: %{
-          status: String.t(),
-          can_start_turn: boolean(),
-          pretrial_runs_remaining: non_neg_integer() | nil,
-          has_billing_customer: boolean(),
-          trial_eligible: boolean(),
-          trial_days: pos_integer(),
-          interval: atom() | nil,
-          current_period_end: DateTime.t() | nil,
-          trial_end: DateTime.t() | nil,
-          cancel_at: DateTime.t() | nil,
-          canceled_at: DateTime.t() | nil
-        }
   def status(%Scope{} = scope) do
     subscription = get_current_subscription(scope)
 
@@ -111,13 +88,11 @@ defmodule FrontmanServer.Billing do
   @doc """
   Returns the PubSub topic for billing status updates for a user.
   """
-  @spec status_topic(String.t()) :: String.t()
   def status_topic(user_id) when is_binary(user_id), do: "billing_status:user:#{user_id}"
 
   @doc """
   Broadcasts that a user's billing status changed.
   """
-  @spec broadcast_status_changed(String.t()) :: :ok | {:error, term()}
   def broadcast_status_changed(user_id) when is_binary(user_id) do
     Phoenix.PubSub.broadcast(
       FrontmanServer.PubSub,
@@ -129,7 +104,6 @@ defmodule FrontmanServer.Billing do
   @doc """
   Returns whether the user's subscription permits new runs, excluding the BYOK allowance.
   """
-  @spec subscription_allows_runs?(Scope.t()) :: boolean()
   def subscription_allows_runs?(%Scope{} = scope) do
     scope
     |> get_current_subscription()
@@ -137,7 +111,6 @@ defmodule FrontmanServer.Billing do
   end
 
   @doc "Returns the subscription status used to determine hosted MCP access."
-  @spec mcp_access(Scope.t()) :: {:allowed, String.t()} | :none | {:inactive, String.t()}
   def mcp_access(%Scope{} = scope) do
     case get_current_subscription(scope) do
       %Subscription{status: status} = subscription ->
@@ -159,8 +132,6 @@ defmodule FrontmanServer.Billing do
   end
 
   @doc "Authorizes a new turn, consuming allowance when needed. Call inside the turn-claim transaction."
-  @spec authorize_new_turn(Scope.t()) ::
-          {:ok, :subscription | :pretrial} | {:error, :billing_inactive}
   def authorize_new_turn(%Scope{} = scope) do
     case subscription_allows_runs?(scope) do
       true -> {:ok, :subscription}
@@ -171,7 +142,6 @@ defmodule FrontmanServer.Billing do
   @doc """
   Returns the current billing subscription for the scoped user.
   """
-  @spec get_current_subscription(Scope.t()) :: Subscription.t() | nil
   def get_current_subscription(%Scope{} = scope) do
     user_id = Accounts.scope_user_id(scope)
 
