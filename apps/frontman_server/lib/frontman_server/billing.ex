@@ -139,7 +139,7 @@ defmodule FrontmanServer.Billing do
   @doc "Returns whether the scoped user can access hosted MCP tools."
   @spec mcp_access?(Scope.t()) :: boolean()
   def mcp_access?(%Scope{} = scope) do
-    match?({:allowed, _}, mcp_access_status(scope))
+    subscription_allows_runs?(scope)
   end
 
   @doc "Returns the subscription status used to determine hosted MCP access."
