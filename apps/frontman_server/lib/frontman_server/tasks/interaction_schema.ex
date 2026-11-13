@@ -93,6 +93,53 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     from(i in query, order_by: [asc: i.sequence, asc: i.inserted_at, asc: i.id])
   end
 
+  def history_page(task_id, page, page_size) do
+    from(i in for_task(task_id),
+      where: i.type in [:user_message, :agent_response, :tool_call, :tool_result],
+      order_by: [asc: i.sequence, asc: i.inserted_at, asc: i.id],
+      offset: ^(page * page_size),
+      limit: ^(page_size + 1),
+      select: %{
+        id: i.id,
+        type: i.type,
+        inserted_at: i.inserted_at,
+        tool_name: fragment("?->>'tool_name'", i.data),
+        is_error: fragment("?->>'is_error'", i.data)
+      }
+    )
+  end
+
+  def matching_history(task_ids, term) do
+    from(i in __MODULE__,
+      where: i.task_id in ^task_ids and i.type in [:user_message, :agent_response],
+      where:
+        fragment(
+          "strpos(lower(?->>'content'), lower(?)) > 0 OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(coalesce(?->'messages', '[]'::jsonb)) AS part(value) WHERE strpos(lower(part.value), lower(?)) > 0)",
+          i.data,
+          ^term,
+          i.data,
+          ^term
+        ),
+      distinct: i.task_id,
+      order_by: [asc: i.task_id, desc: i.sequence],
+      select: %{
+        task_id: i.task_id,
+        interaction_id: i.id,
+        text:
+          fragment(
+            "coalesce(?->>'content', (SELECT part.value FROM jsonb_array_elements_text(coalesce(?->'messages', '[]'::jsonb)) AS part(value) WHERE strpos(lower(part.value), lower(?)) > 0 LIMIT 1))",
+            i.data,
+            i.data,
+            ^term
+          )
+      }
+    )
+  end
+
+  def history_item(task_id, id) do
+    from(i in __MODULE__, where: i.task_id == ^task_id and i.id == ^id)
+  end
+
   def of_type(query \\ __MODULE__, type) when is_atom(type) do
     from(i in query, where: i.type == ^type)
   end

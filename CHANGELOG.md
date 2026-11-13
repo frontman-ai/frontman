@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Let agents find and read their own earlier conversations when resuming work across tasks or model providers.
 - Use a shared responsive layout for sign-in, email verification, account confirmation, and WordPress connection instructions, with solid cards and consistent controls.
 - Check subscription or eligible trial access before continuing AI assistant authorization.
 - Hosted MCP tool requests require an active subscription or eligible trial; free editor turns do not grant access.
