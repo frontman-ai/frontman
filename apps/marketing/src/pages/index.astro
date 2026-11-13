@@ -6,6 +6,24 @@ import gridNetBackground from '../assets/grid-net-background.svg'
 const pluginUrl = 'https://wordpress.org/plugins/frontman-agentic-ai-editor/'
 const setupGuideUrl = '/docs/integrations/wordpress/'
 
+const demoPreview = `
+	<style>
+		* { box-sizing: border-box; }
+		html, body { margin: 0; height: 100%; background: #180d2b; }
+		a { display: grid; place-items: center; height: 100%; position: relative; color: white; }
+		img { position: absolute; width: 100%; height: 100%; object-fit: cover; }
+		span { position: relative; display: grid; place-items: center; width: 80px; height: 80px; border-radius: 50%; background: #fff; color: #291344; box-shadow: 0 0 0 10px rgb(255 255 255 / .18); transition: transform 350ms cubic-bezier(.32,.72,0,1); }
+		a:hover span { transform: scale(1.08); }
+		a:focus-visible { outline: 4px solid white; outline-offset: -8px; }
+		a:active span { transform: scale(.98); }
+		@media (prefers-reduced-motion: reduce) { span { transition: none; } }
+	</style>
+	<a href="https://www.youtube-nocookie.com/embed/-4GD1GYwH8Y?autoplay=1&rel=0" aria-label="Play Frontman editing demo">
+		<img src="/images/home-demo-poster.webp" alt="Frontman conversation alongside the live storefront preview">
+		<span><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m9 5 11 7-11 7z"/></svg></span>
+	</a>
+`
+
 const SEO = {
 	title: 'Frontman — AI WordPress Editor for Existing Sites',
 	description:
@@ -116,6 +134,7 @@ const pageJsonLd = {
 					<div class="wp-video-wrapper">
 						<iframe
 							src="https://www.youtube-nocookie.com/embed/-4GD1GYwH8Y"
+							srcdoc={demoPreview}
 							title="Frontman WordPress editing demo"
 							width="960"
 							height="540"
@@ -274,9 +293,9 @@ const pageJsonLd = {
 	.wp-hero { position: relative; overflow: hidden; }
 	.wp-hero__bg { position: absolute; inset: 0; z-index: 0; opacity: 0.3; pointer-events: none; }
 	.wp-hero__bg-image { width: 100%; height: 100%; object-fit: cover; object-position: center; }
-	.wp-hero__grid { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr); gap: 3rem; align-items: center; padding-top: 6rem; padding-bottom: 3rem; }
+	.wp-hero__grid { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr); gap: 3rem; align-items: center; min-height: min(56rem, 100svh); padding-top: 10rem; padding-bottom: 7rem; }
 	.wp-hero__content { min-width: 0; }
-	.wp-hero h1 { font-size: clamp(2.75rem, 4.2vw, 3.75rem); line-height: 1.1; letter-spacing: -0.035em; text-wrap: balance; }
+	.wp-hero h1 { font-size: clamp(4rem, 5.7vw, 5.5rem); line-height: 1.02; letter-spacing: -0.045em; text-wrap: balance; }
 	h1 span { display: block; }
 	h1 span + span { color: var(--wp-subtle); }
 	.wp-lead { @apply mt-6 text-lg; color: var(--wp-muted); line-height: 1.7; max-width: 44ch; text-wrap: pretty; }
@@ -289,10 +308,10 @@ const pageJsonLd = {
 	.wp-workflow .wp-note { @apply mt-8 text-sm leading-6; color: var(--wp-muted); max-width: 95ch; }
 	.wp-workflow .wp-hero__frameworks { font-size: 0.875rem; line-height: 1.7; }
 	#demo, #install { scroll-margin-top: 6rem; }
-	.wp-demo { min-width: 0; }
+	.wp-demo { min-width: 0; padding: 0.5rem; border-radius: calc(var(--radius-panel) + 0.5rem); background: rgb(255 255 255 / 0.1); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2); }
 	.wp-video-wrapper { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid var(--color-surface-border); border-radius: var(--radius-panel); background: var(--color-surface-raised); }
 	.wp-video-wrapper iframe { position: absolute; inset: 0; display: block; width: 100%; height: 100%; border: 0; }
-	.wp-demo figcaption { margin-top: 0.75rem; font-size: 0.8125rem; line-height: 1.6; color: var(--wp-subtle); }
+	.wp-demo figcaption { margin: 1rem 0.75rem 0.5rem; font-size: 0.8125rem; line-height: 1.6; color: var(--wp-subtle); }
 	.wp-steps { list-style: none; margin: 2.5rem 0 0; padding: 0; counter-reset: step; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2rem; }
 	.wp-steps li { position: relative; padding-left: 2.5rem; counter-increment: step; }
 	.wp-steps li::before { content: counter(step, decimal-leading-zero); position: absolute; left: 0; top: 0.125rem; color: var(--wp-accent); font-size: 0.8125rem; line-height: 1.75; font-variant-numeric: tabular-nums; }
@@ -344,13 +363,13 @@ const pageJsonLd = {
 	.wp-final { text-align: center; padding: 5rem 0 6rem; }
 
 	@media (max-width: 1023px) {
-		.wp-hero__grid { grid-template-columns: 1fr; gap: 2rem; }
-		.wp-hero h1 { font-size: clamp(2.5rem, 6vw, 3.75rem); }
+		.wp-hero__grid { grid-template-columns: 1fr; gap: 3rem; min-height: auto; padding-top: 9rem; padding-bottom: 5rem; }
+		.wp-hero h1 { font-size: clamp(3rem, 7vw, 4.75rem); }
 	}
 
 	@media (max-width: 767px) {
 		.wp-split, .wp-steps { grid-template-columns: 1fr; gap: 2rem; }
-		.wp-hero__grid { padding-bottom: 2.5rem; }
+		.wp-hero__grid { padding-top: 8rem; padding-bottom: 3rem; }
 		.wp-section, .wp-final { padding: 3.5rem 0 4rem; }
 		.wp-quote { padding-left: 1.5rem; }
 		.wp-comparison, .wp-capability { grid-template-columns: 1fr; gap: 1.25rem; }
