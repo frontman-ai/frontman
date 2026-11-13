@@ -1,5 +1,8 @@
 <?php
 /** Integration contract against the official Redirection 5.10.0 package. */
+
+declare(strict_types=1);
+
 require '/var/www/html/wp-load.php';
 require_once __DIR__ . '/RuntimeTestSupport.php';
 require_once ABSPATH . 'wp-admin/includes/plugin.php';
@@ -35,6 +38,7 @@ PHP
 	exit( 0 );
 }
 
+frontman_runtime_inventory( 'redirection' );
 set_error_handler( static function ( int $severity, string $message, string $file, int $line ): bool {
 	if ( error_reporting() & $severity ) {
 		throw new ErrorException( $message, 0, $severity, $file, $line );

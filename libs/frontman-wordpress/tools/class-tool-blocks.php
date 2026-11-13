@@ -34,7 +34,8 @@ class Frontman_Tool_Blocks {
 				],
 				'required' => [ 'post_id' ],
 			],
-			[ $this, 'list_blocks' ]
+			[ $this, 'list_blocks' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -56,7 +57,8 @@ class Frontman_Tool_Blocks {
 				],
 				'required' => [ 'post_id' ],
 			],
-			[ $this, 'read_block' ]
+			[ $this, 'read_block' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -82,7 +84,8 @@ class Frontman_Tool_Blocks {
 				],
 				'required' => [ 'post_id', 'block_markup' ],
 			],
-			[ $this, 'update_block' ]
+			[ $this, 'update_block' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -108,7 +111,8 @@ class Frontman_Tool_Blocks {
 				],
 				'required' => [ 'post_id', 'block_markup' ],
 			],
-			[ $this, 'insert_block' ]
+			[ $this, 'insert_block' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -126,7 +130,8 @@ class Frontman_Tool_Blocks {
 				],
 				'required' => [ 'post_id', 'to_index' ],
 			],
-			[ $this, 'move_block' ]
+			[ $this, 'move_block' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -143,7 +148,8 @@ class Frontman_Tool_Blocks {
 				],
 				'required' => [ 'post_id', 'confirm' ],
 			],
-			[ $this, 'delete_block' ]
+			[ $this, 'delete_block' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 	}
 
@@ -362,6 +368,11 @@ class Frontman_Tool_Blocks {
 		return implode( "\n\n", array_map( 'serialize_block', $blocks ) );
 	}
 
+	/** Use the post writer for capability, content, and specialized post-type checks. */
+	private function save_post_content( int $post_id, string $content ): void {
+		( new Frontman_Tool_Posts() )->update_post( [ 'id' => $post_id, 'content' => $content ] );
+	}
+
 	/**
 	 * Summarize a block for listing.
 	 */
@@ -455,11 +466,7 @@ class Frontman_Tool_Blocks {
 		$this->replace_block_at_path( $all_blocks, $entry['path'], $new_block[0] );
 		$content = $this->serialize_blocks( $all_blocks );
 
-		$result = wp_update_post( wp_slash( [ 'ID' => $post_id, 'post_content' => $content ] ), true );
-
-		if ( is_wp_error( $result ) ) {
-			throw new Frontman_Tool_Error( $result->get_error_message() );
-		}
+		$this->save_post_content( $post_id, $content );
 
 		return [
 			'updated' => true,
@@ -514,11 +521,7 @@ class Frontman_Tool_Blocks {
 		$this->insert_block_at_path( $all_blocks, $parent_path, $raw_index, $new_block[0] );
 		$content = $this->serialize_blocks( $all_blocks );
 
-		$result = wp_update_post( wp_slash( [ 'ID' => $post_id, 'post_content' => $content ] ), true );
-
-		if ( is_wp_error( $result ) ) {
-			throw new Frontman_Tool_Error( $result->get_error_message() );
-		}
+		$this->save_post_content( $post_id, $content );
 
 		return [
 			'inserted' => true,
@@ -579,10 +582,7 @@ class Frontman_Tool_Blocks {
 		$this->insert_block_at_path( $all_blocks, $to_parent_path, $to_index, $block );
 		$content = $this->serialize_blocks( $all_blocks );
 
-		$result = wp_update_post( wp_slash( [ 'ID' => $post_id, 'post_content' => $content ] ), true );
-		if ( is_wp_error( $result ) ) {
-			throw new Frontman_Tool_Error( $result->get_error_message() );
-		}
+		$this->save_post_content( $post_id, $content );
 
 		return [
 			'moved'  => true,
@@ -624,10 +624,7 @@ class Frontman_Tool_Blocks {
 		$this->remove_block_at_path( $all_blocks, $entry['path'] );
 		$content = $this->serialize_blocks( $all_blocks );
 
-		$result = wp_update_post( wp_slash( [ 'ID' => $post_id, 'post_content' => $content ] ), true );
-		if ( is_wp_error( $result ) ) {
-			throw new Frontman_Tool_Error( $result->get_error_message() );
-		}
+		$this->save_post_content( $post_id, $content );
 
 		return [
 			'deleted' => true,

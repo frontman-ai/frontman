@@ -21,10 +21,12 @@ These changes require a breaking package release. The package version remains un
 
 ### Added
 
+- Add an optional per-runtime initializer for the runtime and its execution workers.
 - `Await.timeout_ms` accepts `:infinity`. Interactive waits create no timer and remain cancellable. The parked executor retains its history in memory.
 
 ### Fixed
 
+- Require `req_llm` 1.29.0 or later so installations do not resolve a version with unverified TLS certificates on OpenAI WebSocket sessions.
 - Finite timeouts and Sync crashes consume the error callback's canonical result instead of constructing a separate local error.
 - A Sync success persisted before a crash remains the canonical result after the task dies.
 - Finite Sync timeouts kill and monitor the affected task before the error callback runs. Timeout results no longer cancel sibling tools.

@@ -3,6 +3,17 @@ module SettingsModal = Client__SettingsModal
 @react.component
 let make = () => {
   let authRedirectUrl = Client__State.useSelector(Client__State.Selectors.getAuthRedirectUrl)
+  let framework = Client__RuntimeConfig.read().framework
+  let apiBaseUrl = Client__State.useSelector(Client__State.Selectors.apiBaseUrl)
+  let hasActiveSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
+
+  React.useEffect(() => {
+    switch (framework, apiBaseUrl, hasActiveSession) {
+    | (Wordpress, Some(_), true) => Client__State.Actions.fetchWordPressConnection()
+    | (Wordpress, None, _) | (Wordpress, Some(_), false) | (Nextjs | Vite | Astro, _, _) => ()
+    }
+    None
+  }, (framework, apiBaseUrl, hasActiveSession))
 
   let (chatboxWidth, isResizing, handleResizeMouseDown) = Client__UseResizableWidth.use()
 
@@ -48,13 +59,23 @@ let make = () => {
     None
   }, [billingStatus])
 
-  let providerSetupRequired = Client__State.useSelector(
-    Client__State.Selectors.providerSetupRequired,
+  let providerSetupRequired = Client__State.useSelector(state =>
+    Client__State.Selectors.providerSetupPromptRequired(state, framework)
   )
+  let wordPressWarningReady = Client__State.useSelector(state => state.wordPressWarningReady)
 
   let openSettingsProviders = () => Client__State.Actions.openSettingsModalOnProviders()
+  let onConnectAssistant = switch framework {
+  | Wordpress => Some(Client__State.Actions.openWordPressAssistantSetup)
+  | Nextjs | Vite | Astro => None
+  }
 
-  let showProviderSetupModal = providerSetupRequired && !settingsOpen && billingCanStartTurn
+  let warningReady = switch framework {
+  | Wordpress => wordPressWarningReady
+  | Nextjs | Vite | Astro => true
+  }
+  let showProviderSetupModal =
+    warningReady && providerSetupRequired && !settingsOpen && billingCanStartTurn
 
   let handleSettingsOpenChange = (value: bool) => {
     switch value {
@@ -68,7 +89,9 @@ let make = () => {
       open_={settingsOpen} onOpenChange={handleSettingsOpenChange} initialTab=?{settingsInitialTab}
     />
     <Client__ProviderSetupModal
-      open_={showProviderSetupModal} onOpenSettings=openSettingsProviders
+      open_={showProviderSetupModal}
+      onOpenSettings=openSettingsProviders
+      onConnectAssistant=?onConnectAssistant
     />
     {switch authRedirectUrl {
     | Some(loginUrl) =>

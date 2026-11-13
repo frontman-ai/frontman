@@ -10,10 +10,11 @@ defmodule FrontmanServer.BillingFixtures do
   alias FrontmanServer.Billing
   alias FrontmanServer.Billing.{Customer, StripeEvent, Subscription}
   alias FrontmanServer.Repo
+  alias FrontmanServer.Tasks.RunAllowance
   alias FrontmanServer.Test.Fixtures.Accounts
 
   def run_allowance_fixture(scope, used) do
-    Repo.insert!(%Billing.RunAllowance{user_id: scope.user.id, used: used})
+    Repo.insert!(%RunAllowance{user_id: scope.user.id, used: used})
   end
 
   @doc """

@@ -36,10 +36,15 @@ defmodule FrontmanServerWeb.UserAuthTest do
       conn =
         conn
         |> assign(:current_scope, Scope.for_user(user))
-        |> put_session(:to_be_removed, "value")
+        |> put_session(:embedded_client_auth_request, %{
+          "origin" => "https://customer.example",
+          "state" => "stale"
+        })
         |> UserAuth.log_in_user(user)
 
-      assert get_session(conn, :to_be_removed)
+      assert get_session(conn, :embedded_client_auth_request)
+      assert redirected_to(conn) == ~p"/"
+      refute FrontmanServer.Repo.get_by(Accounts.UserToken, context: "embedded_client")
     end
 
     test "clears session when user does not match when re-authenticating", %{

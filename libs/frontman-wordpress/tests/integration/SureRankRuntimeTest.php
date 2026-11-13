@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 frontman_runtime_assert( defined( 'SURERANK_VERSION' ) && '1.10.2' === SURERANK_VERSION, 'Real pinned SureRank must be loaded.' );
 wp_set_current_user( get_user_by( 'login', 'admin' )->ID );
 $tools = Frontman_Tools::instance();
@@ -12,7 +14,11 @@ frontman_runtime_assert( [
 	'provider' => 'surerank', 'read' => true, 'write' => false,
 	'supported_fields' => [ 'title', 'description', 'focus_keyphrase' ],
 	'read_unavailable_reason' => null, 'write_unavailable_reason' => $write_reason,
-] === $info['seo_capabilities'], 'Site info capability contract differs.' );
+] === array_diff_key( $info['seo_capabilities'], [ 'targets' => true ] ), 'Site info capability contract differs.' );
+foreach ( [ 'term', 'post_type_archive' ] as $target ) {
+	$cap = $info['seo_capabilities']['targets'][$target];
+	frontman_runtime_same( [ false, false, null, null ], [ $cap['read'], $cap['write'], $tools->get( "wp_read_{$target}_seo" ), $tools->get( "wp_update_{$target}_seo" ) ], 'SureRank must not advertise archive support.' );
+}
 frontman_runtime_assert( $write_reason === $info['seo_unavailable_reason'], 'Legacy reason must describe write eligibility.' );
 frontman_runtime_assert( null !== $tools->get( 'wp_read_seo' ) && null === $tools->get( 'wp_update_seo' ), 'SureRank must advertise only read.' );
 frontman_runtime_assert( '' !== SureRank\Inc\Functions\Settings::get( 'page_title' ), 'Real SureRank must have a nonempty global title template for default coverage.' );

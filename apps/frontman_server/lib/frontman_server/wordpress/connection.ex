@@ -9,6 +9,7 @@ defmodule FrontmanServer.WordPress.Connection do
 
   use Ecto.Schema
   import Ecto.Changeset
+  import Ecto.Query
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -21,6 +22,23 @@ defmodule FrontmanServer.WordPress.Connection do
 
     timestamps(type: :utc_datetime)
   end
+
+  def sites_for_user(user_id) do
+    from connection in __MODULE__,
+      where: connection.user_id == ^user_id,
+      order_by: connection.id,
+      select: %{id: connection.id, catalog_url: connection.catalog_url}
+  end
+
+  def owned(user_id) do
+    from connection in __MODULE__, where: connection.user_id == ^user_id, order_by: connection.id
+  end
+
+  def owned_catalog(user_id, catalog_url),
+    do: where(owned(user_id), catalog_url: ^catalog_url)
+
+  def owned_ids(user_id, ids),
+    do: where(owned(user_id), [connection], connection.id in ^ids)
 
   def changeset(connection, attrs) do
     connection

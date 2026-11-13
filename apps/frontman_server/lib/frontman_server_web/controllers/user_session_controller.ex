@@ -7,10 +7,16 @@
 defmodule FrontmanServerWeb.UserSessionController do
   use FrontmanServerWeb, :controller
 
+  require Logger
+
   alias FrontmanServer.Accounts
   alias FrontmanServer.Frameworks
+  alias FrontmanServerWeb.ConnectHandoff
   alias FrontmanServerWeb.EmbeddedClientAuth
   alias FrontmanServerWeb.UserAuth
+
+  plug(EmbeddedClientAuth when action in [:new, :create, :confirm])
+  plug(ConnectHandoff when action in [:new, :create, :confirm])
 
   def new(conn, params) do
     email = get_in(conn.assigns, [:current_scope, Access.key(:user), Access.key(:email)])
@@ -21,9 +27,22 @@ defmodule FrontmanServerWeb.UserSessionController do
       |> maybe_put_user_return_to(params["return_to"])
       |> maybe_put_signup_framework(params["framework"])
 
-    case EmbeddedClientAuth.put_pending_request(conn, params) do
-      {:ok, conn} -> render(conn, :new, form: form)
-      {:error, conn} -> conn
+    render(conn, :new,
+      form: form,
+      page_title:
+        if(conn.assigns.assistant_connection,
+          do: "Edit your WordPress site, your way",
+          else: "Sign in to Frontman"
+        )
+    )
+  end
+
+  def create(conn, %{"_action" => "connect"} = params) do
+    user_id = params["user_id"]
+
+    case {conn.assigns.current_scope, conn.assigns.embedded_request} do
+      {%{user: %{id: ^user_id} = user}, %{"origin" => _}} -> UserAuth.log_in_user(conn, user)
+      _ -> send_resp(conn, :unauthorized, "Sign in to connect this site")
     end
   end
 
@@ -53,7 +72,7 @@ defmodule FrontmanServerWeb.UserSessionController do
       |> put_flash(:info, "Welcome back!")
       |> UserAuth.log_in_user(user, user_params)
     else
-      form = Phoenix.Component.to_form(user_params, as: "user")
+      form = Phoenix.Component.to_form(Map.delete(user_params, "password"), as: "user")
 
       conn
       |> put_flash(:error, "Invalid email or password")
@@ -63,18 +82,30 @@ defmodule FrontmanServerWeb.UserSessionController do
 
   def create(conn, %{"user" => %{"email" => email}}) do
     if user = Accounts.get_user_by_email(email) do
-      Accounts.deliver_login_instructions(
-        user,
-        &url(~p"/users/log-in/#{&1}")
-      )
+      case Accounts.deliver_login_instructions(
+             user,
+             &url(~p"/users/log-in/#{&1}")
+           ) do
+        {:ok, _email} -> :ok
+        {:error, _reason} -> Logger.error("Login email delivery failed")
+      end
     end
 
     info =
-      "If your email is in our system, you will receive instructions for logging in shortly."
+      "If your email is in our system, check your inbox for sign-in instructions. If no email arrives, try again later."
+
+    redirect_path =
+      case conn.assigns.embedded_request do
+        %{"origin" => origin, "state" => state} ->
+          ~p"/users/log-in?#{%{embedded_origin: origin, embedded_state: state}}"
+
+        nil ->
+          ~p"/users/log-in"
+      end
 
     conn
     |> put_flash(:info, info)
-    |> redirect(to: ~p"/users/log-in")
+    |> redirect(to: redirect_path)
   end
 
   def confirm(conn, %{"token" => token}) do
@@ -100,6 +131,10 @@ defmodule FrontmanServerWeb.UserSessionController do
   """
   def confirm_logout(conn, params) do
     render(conn, :confirm_logout, return_to: params["return_to"])
+  end
+
+  def popup_complete(conn, _params) do
+    conn |> put_resp_header("cache-control", "no-store") |> render(:popup_missing)
   end
 
   def delete(conn, params) do

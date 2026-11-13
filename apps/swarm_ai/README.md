@@ -44,6 +44,10 @@ The LLM client implements `SwarmAi.LLM.stream/3`. The tool preparation callback 
 
 `run/3` accepts a binary registration key, unique within the runtime. The key controls duplicate execution and cancellation. It is separate from the generated `loop.id` and is not part of the loop or its telemetry.
 
+The optional `:initialize_process` function runs in the runtime and each execution worker before they handle work.
+The function must return `:ok`. The supervisor retains the function across restarts.
+It does not run automatically in tool tasks or other processes that callbacks start.
+
 ## Tool Execution
 
 `SwarmAi.Tool` contains only the name, description, access mode, and parameter schema for the LLM. Execution descriptors own deadlines and error callbacks.

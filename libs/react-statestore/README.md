@@ -59,8 +59,13 @@ let next = (state, action) => {
   | Reset => StateReducer.update({count: 0})
   }
 }
+```
 
-let handleEffect = (effect, _state, _dispatch) => {
+Implement the effect handler separately. It receives the effect, state, and dispatch function:
+
+```rescript
+// Counter__Effects.res
+let handleEffect = (effect: Counter__Types.effect, _state: Counter__Types.state, _dispatch) => {
   switch effect {
   | LogCount(n) => Console.log(`Count is now: ${n->Int.toString}`)
   }
@@ -71,7 +76,11 @@ let handleEffect = (effect, _state, _dispatch) => {
 
 ```rescript
 // Counter__Store.res
-let store = StateStore.make(module(Counter__Reducer), {count: 0})
+let store = StateStore.make(
+  module(Counter__Reducer),
+  ~handleEffect=Counter__Effects.handleEffect,
+  {count: 0},
+)
 let dispatch = action => store->StateStore.dispatch(action)
 
 module Selectors = {
@@ -100,7 +109,11 @@ let make = () => {
 // With local state
 @react.component
 let make = () => {
-  let (state, dispatch) = StateReducer.useReducer(module(Counter__Reducer), {count: 0})
+  let (state, dispatch) = StateReducer.useReducer(
+    module(Counter__Reducer),
+    ~handleEffect=Counter__Effects.handleEffect,
+    {count: 0},
+  )
 
   <div>
     <p>{React.string(`Count: ${state.count->Int.toString}`)}</p>
@@ -126,9 +139,14 @@ module type Interface = {
   type effect
   let name: string
   let next: (state, action) => (state, array<effect>)
-  let handleEffect: (effect, state, action => unit) => unit
 }
+
+type effectHandler<'state, 'action, 'effect> =
+  ('effect, 'state, 'action => unit) => unit
 ```
+
+Both constructors require a `~handleEffect` whose types match the reducer.
+Existing callers must pass the handler explicitly, even if it remains in the reducer module.
 
 #### `StateReducer.update(state, ~sideEffect=?, ~sideEffects=?)`
 
@@ -145,22 +163,30 @@ StateReducer.update(newState, ~sideEffect=MyEffect)
 StateReducer.update(newState, ~sideEffects=[Effect1, Effect2])
 ```
 
-#### `StateReducer.useReducer(module(Reducer), initialState)`
+#### `StateReducer.useReducer(module(Reducer), ~handleEffect, initialState)`
 
 React hook for local component state with managed side effects.
 
 ```rescript
-let (state, dispatch) = StateReducer.useReducer(module(MyReducer), initialState)
+let (state, dispatch) = StateReducer.useReducer(
+  module(MyReducer),
+  ~handleEffect=MyEffects.handleEffect,
+  initialState,
+)
 ```
 
 ### StateStore
 
-#### `StateStore.make(module(Reducer), initialState)`
+#### `StateStore.make(module(Reducer), ~handleEffect, initialState)`
 
 Create a global store instance:
 
 ```rescript
-let store = StateStore.make(module(MyReducer), {count: 0})
+let store = StateStore.make(
+  module(MyReducer),
+  ~handleEffect=MyEffects.handleEffect,
+  {count: 0},
+)
 ```
 
 #### `StateStore.dispatch(store, action)`
@@ -207,7 +233,7 @@ let items = StateStore.useSelector(
 
 ## Design Principles
 
-The `next` function is pure -- it computes new state and declares effects as data, with no side effects. Side effects are values returned from the reducer rather than callbacks; they run after the state update, so reducers stay testable without mocking.
+Keep `next` pure: compute new state and declare effects as data. The type interface does not enforce purity. The supplied handler runs effects after the state update.
 
 The global store uses React's `useSyncExternalStoreWithSelector` to prevent tearing in concurrent mode. Selectors use custom structural equality that skips deep object comparison (assumes immutable state) while still handling array comparison.
 

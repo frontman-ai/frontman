@@ -57,8 +57,9 @@ Only run credential-bearing workflows on trusted code.
 
 The WorkOS MCP test uses synthetic users in the development environment. A full
 run retains two public clients and three provider users. It also changes the email
-of one synthetic provider user. The test removes its local users. It does not log
-provider identifiers, delete provider accounts, or modify provider configuration.
+of one synthetic provider user. The test removes its local users and logs public
+client IDs and provider IDs when available. Early failures can leave unreported
+provider IDs. It does not delete provider accounts or modify provider configuration.
 
 Local run:
 

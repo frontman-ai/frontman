@@ -1,5 +1,37 @@
 # @frontman-ai/client
 
+## 1.6.1
+
+### Patch Changes
+
+- [#2166](https://github.com/frontman-ai/frontman/pull/2166) [`f019399`](https://github.com/frontman-ai/frontman/commit/f01939984972363c61313eab65858ec83d9d984e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Combine site authorization with Frontman sign-in. Remove the separate approval screen while preserving origin-bound access and protection against requests from other tabs.
+
+- [#2167](https://github.com/frontman-ai/frontman/pull/2167) [`f462e40`](https://github.com/frontman-ai/frontman/commit/f462e40fe51a7a51b94ab146c5a82573a615ba98) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Allow existing accounts to request an email sign-in link from the login page.
+
+- [#2165](https://github.com/frontman-ai/frontman/pull/2165) [`594238b`](https://github.com/frontman-ai/frontman/commit/594238bf45082b7e0d3fdcf34ba655e495222975) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add a dismissible WordPress activation notice and an Open Frontman plugin action. Simplify provider setup and add starter prompts to the composer for review before submission.
+
+- [#2164](https://github.com/frontman-ai/frontman/pull/2164) [`050a2ae`](https://github.com/frontman-ai/frontman/commit/050a2aeed433955309e26ef57518a368b2e9d977) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Use shared buttons in a consistent action row for WordPress connection and plugin settings. Keep MCP access as an Enable MCP or Disable MCP button after connecting, with specific pending labels. Remove redundant status text and group credential details under Permissions and revocation while keeping setup permission warnings visible.
+
+## 1.6.0
+
+### Minor Changes
+
+- [#2113](https://github.com/frontman-ai/frontman/pull/2113) [`166a7a6`](https://github.com/frontman-ai/frontman/commit/166a7a6c26da9f5df93ea8ffc4e1d8ccd7d6f5e4) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Connect WordPress to an authenticated Frontman account with verified, encrypted credentials.
+
+### Patch Changes
+
+- [#2124](https://github.com/frontman-ai/frontman/pull/2124) [`4c69ed2`](https://github.com/frontman-ai/frontman/commit/4c69ed220daeeaf1182596958c54f2341e4eb41e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Make the WordPress auto-update notice more compact with shorter copy, neutral colors, and an action below the text.
+
+- [#2112](https://github.com/frontman-ai/frontman/pull/2112) [`4eb2dbb`](https://github.com/frontman-ai/frontman/commit/4eb2dbb79016d09d7fa966fd0ec200096f92733f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep the standalone WordPress bundle available to the Vite development server.
+
+- [#2134](https://github.com/frontman-ai/frontman/pull/2134) [`7445bd8`](https://github.com/frontman-ai/frontman/commit/7445bd82d36c695175b1286761548183eb3f5aaa) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add a WordPress shortcut to AI assistant connection settings from the provider setup dialog.
+
+- [#2117](https://github.com/frontman-ai/frontman/pull/2117) [`f350392`](https://github.com/frontman-ai/frontman/commit/f350392148086cea25c954891bae84f3264aa397) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Enable MCP during WordPress connection approval and show actionable errors.
+
+- [#2114](https://github.com/frontman-ai/frontman/pull/2114) [`13318a2`](https://github.com/frontman-ai/frontman/commit/13318a24cce104c49ca63050578f3363a8a330b7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Support WordPress connections in the local development stack.
+
+- [#2128](https://github.com/frontman-ai/frontman/pull/2128) [`828fb32`](https://github.com/frontman-ai/frontman/commit/828fb3236b67c3b9b740a8ac3df32933770cb0c0) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Clarify MCP tool access and show the saved WordPress connection and site access settings.
+
 ## 1.5.2
 
 ### Patch Changes

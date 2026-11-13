@@ -1,9 +1,5 @@
 open Vitest
 
-@module("react-dom/client")
-external createRoot: WebAPI.DomTypes.element => ReactDOM.Client.Root.t = "createRoot"
-@module("react-dom") external flushSync: (unit => unit) => unit = "flushSync"
-
 let _setRuntime: JSON.t => unit = %raw(`function(value) { window.__frontmanRuntime = value }`)
 let _clearRuntime: unit => unit = %raw(`function() { delete window.__frontmanRuntime }`)
 
@@ -79,39 +75,24 @@ describe("Client__RuntimeConfig", _t => {
     )
   })
 
-  test("old WordPress bootstrap obtains the native login URL without leaking metadata", t => {
-    let loginUrl = "https://example.test/site/wp-login.php?redirect_to=https%3A%2F%2Fexample.test%2Fsite%2Findex.php%2Ffrontman&reauth=1"
-    setOldBootstrapRuntime("wordpress")
-    setNativeLoginUrl(loginUrl)
-    let config = Client__RuntimeConfig.read()
-    t->expect(config.wordpressLoginUrl)->Expect.toBe(Some(loginUrl))
-    t->expect(config.wpNonce)->Expect.toBe(Some("nonce-123"))
-    let original = StateStore.getState(Client__State__Store.store)
-    Client__State.Actions.wordPressAuthenticationRequired(config.wordpressLoginUrl)
-    let container = WebAPI.DomGlobal.document->WebAPI.Document.createElement("div")
-    let root = createRoot(container)
-    flushSync(() => root->ReactDOM.Client.Root.render(<Client__WordPressLoginBanner />))
-    let href =
-      container
-      ->WebAPI.Element.querySelector("a")
-      ->Null.toOption
-      ->Option.flatMap(element => element->WebAPI.Element.getAttribute("href")->Null.toOption)
-    flushSync(() => root->ReactDOM.Client.Root.unmount())
-    StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
-      Client__State__Store.store,
-      original,
-    )
-    t->expect(href)->Expect.toBe(Some(loginUrl))
-    t
-    ->expect(Client__RuntimeConfig.toMeta(config))
-    ->Expect.toEqual(JSON.Encode.object(dict{"framework": JSON.Encode.string("wordpress")}))
-  })
-
   test("old WordPress bootstrap permits missing native login URL", t => {
     setOldBootstrapRuntime("wordpress")
     t->expect(Client__RuntimeConfig.read().wordpressLoginUrl)->Expect.toBe(None)
     setNativeLoginUrl("")
     t->expect(Client__RuntimeConfig.read().wordpressLoginUrl)->Expect.toBe(None)
+  })
+
+  test("reads native plugin settings URL without exporting it as metadata", t => {
+    let url = "https://example.test/wordpress/wp-admin/options-general.php?page=frontman-diagnostics"
+    setOldBootstrapRuntime("wordpress")
+    setNativeRuntimeAttribute(~name="data-wordpress-settings-url", ~value=url)
+    let config = Client__RuntimeConfig.read()
+    t->expect(config.wordpressSettingsUrl)->Expect.toBe(Some(url))
+    t
+    ->expect(Client__RuntimeConfig.toMeta(config))
+    ->Expect.toEqual(JSON.Encode.object(dict{"framework": JSON.Encode.string("wordpress")}))
+    setOldBootstrapRuntime("nextjs")
+    t->expect(Client__RuntimeConfig.read().wordpressSettingsUrl)->Expect.toBe(None)
   })
 
   test("other frameworks ignore the native WordPress login URL", t => {
@@ -125,15 +106,10 @@ describe("Client__RuntimeConfig", _t => {
   })
 
   test("file changes are supported by project-backed frameworks", t => {
-    t
-    ->expect(Client__RuntimeConfig.supportsFileChanges(Client__RuntimeConfig.Nextjs))
-    ->Expect.toBe(true)
-    t
-    ->expect(Client__RuntimeConfig.supportsFileChanges(Client__RuntimeConfig.Vite))
-    ->Expect.toBe(true)
-    t
-    ->expect(Client__RuntimeConfig.supportsFileChanges(Client__RuntimeConfig.Astro))
-    ->Expect.toBe(true)
+    [Client__RuntimeConfig.Nextjs, Vite, Astro]->Array.forEach(
+      framework =>
+        t->expect(Client__RuntimeConfig.supportsFileChanges(framework))->Expect.toBe(true),
+    )
   })
 
   test("file changes are unsupported by WordPress", t => {
@@ -169,13 +145,11 @@ describe("Client__RuntimeConfig", _t => {
 
   test("read works without wpNonce for non-WordPress integrations", t => {
     _setRuntime(
-      JSON.Encode.object(
-        Dict.fromArray([
-          ("framework", JSON.Encode.string("nextjs")),
-          ("basePath", JSON.Encode.string("frontman")),
-          ("projectRoot", JSON.Encode.string("/test/project")),
-        ]),
-      ),
+      JSON.parseOrThrow(`{
+      "framework": "nextjs",
+      "basePath": "frontman",
+      "projectRoot": "/test/project"
+    }`),
     )
 
     let config = Client__RuntimeConfig.read()
@@ -191,53 +165,30 @@ describe("Client__RuntimeConfig", _t => {
   })
 
   test("read forwards runtime traits to ACP metadata", t => {
-    _setRuntime(
-      JSON.Encode.object(
-        Dict.fromArray([
-          ("framework", JSON.Encode.string("nextjs")),
-          (
-            "traits",
-            [JSON.Encode.string("react"), JSON.Encode.string("typescript")]->JSON.Encode.array,
-          ),
-        ]),
-      ),
-    )
+    let runtime = JSON.parseOrThrow(`{
+      "framework": "nextjs",
+      "traits": ["react", "typescript"]
+    }`)
+    _setRuntime(runtime)
 
     let config = Client__RuntimeConfig.read()
 
     t->expect(config.traits)->Expect.toEqual(Some(["react", "typescript"]))
 
-    t
-    ->expect(Client__RuntimeConfig.toMeta(config))
-    ->Expect.toEqual(
-      JSON.Encode.object(
-        Dict.fromArray([
-          ("framework", JSON.Encode.string("nextjs")),
-          (
-            "traits",
-            [JSON.Encode.string("react"), JSON.Encode.string("typescript")]->JSON.Encode.array,
-          ),
-        ]),
-      ),
-    )
+    t->expect(Client__RuntimeConfig.toMeta(config))->Expect.toEqual(runtime)
   })
 
   test("read preserves WordPress runtime values over native DOM values", t => {
     setNativeLoginUrl("https://example.test/ignored/wp-login.php")
     _setRuntime(
-      JSON.Encode.object(
-        Dict.fromArray([
-          ("framework", JSON.Encode.string("wordpress")),
-          ("basePath", JSON.Encode.string("frontman")),
-          ("relayBaseUrl", JSON.Encode.string("https://example.com/index.php")),
-          ("wpNonce", JSON.Encode.string("nonce-123")),
-          (
-            "wordpressLoginUrl",
-            JSON.Encode.string("https://example.com/wp-login.php?redirect_to=frontman"),
-          ),
-          ("wordpressPluginsUrl", JSON.Encode.string("https://example.com/wp-admin/plugins.php")),
-        ]),
-      ),
+      JSON.parseOrThrow(`{
+      "framework": "wordpress",
+      "basePath": "frontman",
+      "relayBaseUrl": "https://example.com/index.php",
+      "wpNonce": "nonce-123",
+      "wordpressLoginUrl": "https://example.com/wp-login.php?redirect_to=frontman",
+      "wordpressPluginsUrl": "https://example.com/wp-admin/plugins.php"
+    }`),
     )
 
     let config = Client__RuntimeConfig.read()
@@ -253,18 +204,14 @@ describe("Client__RuntimeConfig", _t => {
     ->Expect.toBe(Some("https://example.com/wp-admin/plugins.php"))
   })
 
-  test("toMeta does not leak wpNonce into ACP metadata", t => {
-    let meta = Client__RuntimeConfig.toMeta({
-      framework: Client__RuntimeConfig.Wordpress,
-      previewBridge: None,
-      basePath: "frontman",
-      relayBaseUrl: Some("https://example.com/index.php"),
-      wpNonce: Some("nonce-123"),
-      wordpressLoginUrl: Some("https://example.com/wp-login.php?redirect_to=frontman"),
-      wordpressPluginsUrl: Some("https://example.com/wp-admin/plugins.php"),
-      projectRoot: None,
-      traits: None,
-    })
+  test("old WordPress bootstrap reads the native login URL without leaking metadata", t => {
+    let loginUrl = "https://example.test/site/wp-login.php?redirect_to=https%3A%2F%2Fexample.test%2Fsite%2Findex.php%2Ffrontman&reauth=1"
+    setOldBootstrapRuntime("wordpress")
+    setNativeLoginUrl(loginUrl)
+    let config = Client__RuntimeConfig.read()
+    t->expect(config.wordpressLoginUrl)->Expect.toBe(Some(loginUrl))
+    t->expect(config.wpNonce)->Expect.toBe(Some("nonce-123"))
+    let meta = config->Client__RuntimeConfig.toMeta
 
     t
     ->expect(meta)
@@ -275,14 +222,12 @@ describe("Client__RuntimeConfig", _t => {
 
   test("toMeta excludes provider keys", t => {
     _setRuntime(
-      JSON.Encode.object(
-        Dict.fromArray([
-          ("framework", JSON.Encode.string("nextjs")),
-          ("basePath", JSON.Encode.string("frontman")),
-          ("fireworksKeyValue", JSON.Encode.string("fw-test-123")),
-          ("nvidiaKeyValue", JSON.Encode.string("nvapi-test-123")),
-        ]),
-      ),
+      JSON.parseOrThrow(`{
+      "framework": "nextjs",
+      "basePath": "frontman",
+      "fireworksKeyValue": "fw-test-123",
+      "nvidiaKeyValue": "nvapi-test-123"
+    }`),
     )
 
     let meta = Client__RuntimeConfig.read()->Client__RuntimeConfig.toMeta

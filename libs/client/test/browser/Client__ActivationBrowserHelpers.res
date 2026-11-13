@@ -1,5 +1,5 @@
 open WebAPI
-module Reducer = Client__State__StateReducer
+module Initialization = Client__State__Initialization
 module Billing = Client__Billing
 
 @module("../../dist/index.css?inline") external compiledCss: string = "default"
@@ -66,7 +66,7 @@ let render = element => {
 let setup = () => {
   Client__ActivationTestHelpers.setup()
   force({
-    ...Reducer.defaultState,
+    ...Initialization.defaultState,
     connection: Client__ConnectionTestHelpers.ready(),
     billingStatus: Loaded(loaded(false, true)),
   })

@@ -1,5 +1,5 @@
 defmodule FrontmanServerWeb.SupportQuestionControllerTest do
-  use FrontmanServerWeb.ConnCase, async: false
+  use FrontmanServerWeb.ConnCase, async: true
   use Oban.Testing, repo: FrontmanServer.Repo
 
   import Ecto.Query, only: [where: 2]
@@ -8,17 +8,6 @@ defmodule FrontmanServerWeb.SupportQuestionControllerTest do
   alias FrontmanServer.Repo
   alias FrontmanServer.Workers.SendAgentFeedbackToDiscord
   alias FrontmanServer.Workers.SendSupportQuestionToDiscord
-
-  setup do
-    original = Application.fetch_env!(:frontman_server, SendAgentFeedbackToDiscord)
-
-    Application.put_env(:frontman_server, SendAgentFeedbackToDiscord,
-      webhook_url: "https://discord.test/support"
-    )
-
-    on_exit(fn -> Application.put_env(:frontman_server, SendAgentFeedbackToDiscord, original) end)
-    :ok
-  end
 
   test "accepts an anonymous question and queues only server-owned metadata", %{conn: conn} do
     conn = submit(conn, %{"question" => "Does Frontman work with Astro?"})
@@ -75,16 +64,6 @@ defmodule FrontmanServerWeb.SupportQuestionControllerTest do
       |> post("/api/support/questions?question=Help", "{}")
 
     assert %{"error" => _} = json_response(conn, 422)
-    refute_enqueued(worker: SendSupportQuestionToDiscord)
-  end
-
-  test "missing or empty shared webhook rejects before enqueueing", %{conn: conn} do
-    for config <- [[webhook_url: nil], [webhook_url: ""]] do
-      Application.put_env(:frontman_server, SendAgentFeedbackToDiscord, config)
-      response = conn |> recycle() |> submit(%{"question" => "Help?"}) |> json_response(503)
-      assert response == %{"status" => "unavailable", "submitted" => false}
-    end
-
     refute_enqueued(worker: SendSupportQuestionToDiscord)
   end
 

@@ -28,15 +28,19 @@ It does not check vault authentication, browser-specific trust stores, or WorkOS
 It creates nothing.
 
 The executable `.agents/prepare` runs `make prepare-deps`, not the stack preflight.
+Dependency preparation supports Linux and macOS, including the system Bash 3.2 on macOS.
+The Podman stack commands described in this document require Linux.
 It fetches locked JS workspace and server dependencies without application builds, databases, secrets, or containers.
 Yarn uses a shared download cache and checkout-local dependencies.
 Mix uses its normal package cache and checkout-local server dependencies.
 Hex and Rebar install only when missing.
 Dependency install scripts can run, but the hook does not start services.
 
-The hook requires mise and the pinned Node, Yarn, Erlang, and Elixir tools.
+The hook requires Bash, Make, Git, mise, and the pinned Node, Yarn, Erlang, and Elixir tools.
 Before the first run, run `mise trust` for this checkout and install the missing pinned tools explicitly.
+Run `mise install node yarn erlang elixir` to install only the tools that dependency preparation requires.
 The hook does not install the toolchain or accept trust prompts.
+Both dependency steps run with standard input closed.
 Cold downloads take longer than repeat runs.
 Container setup still uses separate dependency volumes and requires `make delta-prepare`.
 

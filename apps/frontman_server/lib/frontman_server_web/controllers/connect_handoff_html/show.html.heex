@@ -1,5 +1,117 @@
-<p>Continue connecting your account. This does not grant access to a WordPress site.</p>
-<.form for={to_form(%{})} action={~p"/auth/mcp/workos/pending"} method="post" id="connect-handoff">
-  <input type="hidden" name="ref" value={@ref} />
-  <button type="submit">Continue</button>
-</.form>
+<Layouts.app flash={@flash} current_scope={@current_scope} focused>
+  <Layouts.connection title="Confirm your Frontman account" step={2}>
+    <:intro>
+      <div
+        id="connect-value"
+        class="mt-6 max-w-sm space-y-3 text-base leading-7 text-base-content/60"
+      >
+        <p class="text-lg text-base-content">One site. Two ways to work.</p>
+        <p>
+          Use Frontman's visual editor for hands-on changes, and your AI assistant for conversational updates.
+        </p>
+        <p :if={match?({:allowed, _}, @access_status)}>
+          Continue to authorize assistant access to your connected sites.
+        </p>
+      </div>
+    </:intro>
+    <div class="mb-7 border-b border-white/10 pb-7">
+      <div class="min-w-0">
+        <p class="text-xs uppercase tracking-[0.16em] text-base-content/50">Signed in as</p>
+        <p id="connect-account" class="mt-2 break-words text-lg font-medium">
+          {@current_scope.user.email}
+        </p>
+      </div>
+      <.form
+        for={@form}
+        action={~p"/auth/mcp/workos/switch-account"}
+        method="post"
+        id="connect-switch-account"
+      >
+        <input type="hidden" name={@form[:ref].name} value={@form[:ref].value} />
+        <button
+          type="submit"
+          class="mt-3 text-sm text-primary-200 underline-offset-4 transition-colors duration-250 ease-[cubic-bezier(0.32,0.72,0,1)] hover:text-white hover:underline motion-reduce:transition-none"
+        >Use a different account</button>
+      </.form>
+    </div>
+    <div :if={match?({:allowed, _}, @access_status)} id="connect-access" class="space-y-6">
+      <div>
+        <p class="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-[#acddc7] before:size-1.5 before:rounded-full before:bg-current">
+          Ready to connect
+        </p>
+        <h2 class="mt-4 text-3xl font-medium tracking-tight">Assistant access available</h2>
+        <p class="mt-3 text-sm leading-6 text-base-content/65">
+          <%= if @billing_status == "trialing" do %>
+            Your Frontman trial includes assistant access.
+          <% else %>
+            Your active Frontman subscription includes assistant access.
+          <% end %>
+        </p>
+      </div>
+      <p class="text-sm leading-6 text-base-content/65">
+        Your assistant can read, change, and delete site content using the available tools.
+        You will approve access separately for any site not yet connected.
+      </p>
+      <.form
+        for={@form}
+        action={~p"/auth/mcp/workos/pending"}
+        method="post"
+        id="connect-handoff"
+        aria-describedby="connect-permissions"
+      >
+        <input type="hidden" name={@form[:ref].name} value={@form[:ref].value} />
+        <button
+          type="submit"
+          id="connect-continue"
+          class="group flex min-h-14 w-full items-center justify-between gap-3 rounded-full bg-[#e4dbff] p-2 pl-6 text-left font-medium text-[#201532] transition-[transform,background-color] duration-350 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-[#f3eeff] motion-safe:active:scale-[0.98] motion-reduce:transition-none"
+        >
+          Continue to your assistant
+          <span
+            class="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#201532]/8 transition-transform duration-350 ease-[cubic-bezier(0.32,0.72,0,1)] motion-safe:group-hover:translate-x-0.5 motion-safe:group-hover:-translate-y-px motion-reduce:transition-none"
+            aria-hidden="true"
+          >
+            <.icon name="hero-arrow-up-right" class="size-4" />
+          </span>
+        </button>
+      </.form>
+    </div>
+    <div :if={!match?({:allowed, _}, @access_status)} id="connect-access">
+      <FrontmanServerWeb.ConnectionAccessComponents.instructions
+        status={@billing_status}
+        site_links={@site_links}
+      >
+        <:retry>
+          <.form
+            for={@form}
+            action={~p"/auth/mcp/workos/pending"}
+            method="get"
+            id="connect-recheck-form"
+          >
+            <input type="hidden" name={@form[:ref].name} value={@form[:ref].value} />
+            <button
+              type="submit"
+              id="connect-recheck"
+              class="group flex min-h-14 w-full items-center justify-between gap-3 rounded-full bg-[#e4dbff] p-2 pl-6 text-left font-medium text-[#201532] transition-[transform,background-color] duration-350 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-[#f3eeff] motion-safe:active:scale-[0.98] motion-reduce:transition-none"
+            >
+              Check access again
+              <span
+                class="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#201532]/8 transition-transform duration-350 ease-[cubic-bezier(0.32,0.72,0,1)] motion-safe:group-hover:translate-x-0.5 motion-safe:group-hover:-translate-y-px motion-reduce:transition-none"
+                aria-hidden="true"
+              >
+                <.icon name="hero-arrow-up-right" class="size-4" />
+              </span>
+            </button>
+          </.form>
+        </:retry>
+      </FrontmanServerWeb.ConnectionAccessComponents.instructions>
+    </div>
+    <p id="connect-permissions" class="text-xs leading-5 text-base-content/50">
+      This does not connect a new website, start a subscription, or change your site content.
+    </p>
+    <:footer>
+      <p>
+        This request expires after 15 minutes. If it expires, restart the connection from your original AI assistant conversation.
+      </p>
+    </:footer>
+  </Layouts.connection>
+</Layouts.app>

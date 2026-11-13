@@ -1,8 +1,12 @@
 defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
   @moduledoc false
 
-  use FrontmanServer.ExecutionCase
-  use FrontmanServerWeb.ChannelCase
+  use FrontmanServerWeb.ChannelCase, async: true
+
+  import FrontmanServer.ExecutionCase,
+    only: [submit_user_message_and_run: 3, refute_running_eventually: 2]
+
+  import FrontmanServer.Test.Fixtures.LLMProvider
 
   import FrontmanServer.InteractionCase.Helpers,
     only: [assert_receive_interaction: 3, swarm_tool_call: 2]
@@ -22,13 +26,13 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
   alias FrontmanServerWeb.UserSocket
 
   describe "ToolExecutor MCP tool routing" do
-    setup %{scope: scope} do
+    setup %{scope: scope, runtime: runtime} do
       allow_access_for_scope_fixture(scope)
       task_id = task_fixture(scope, framework: "nextjs").id
 
       {:ok, _reply, socket} =
         UserSocket
-        |> socket("user_id", %{scope: scope})
+        |> socket("user_id", %{scope: scope, agent_runtime: runtime})
         |> subscribe_and_join("task:#{task_id}", %{})
 
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
@@ -67,7 +71,8 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
     test "schema-validated structured-only output reaches the actual model request", %{
       socket: socket,
       task_id: task_id,
-      scope: scope
+      scope: scope,
+      runtime: runtime
     } do
       mcp_tool_call = swarm_tool_call("take_screenshot", ~s({"selector": "#content"}))
 
@@ -100,15 +105,16 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
         execution_request_fixture(
           mcp_tools: [mcp_tool_def],
           model: "openrouter:anthropic/claude-sonnet-4.6",
-          project_traits: []
+          project_traits: [],
+          message: user_content("Implement the component"),
+          runtime: runtime
         )
 
       {:ok, _interaction, _turn_number} =
         submit_user_message_and_run(
           scope,
           task_id,
-          execution_request,
-          user_content("Implement the component")
+          execution_request
         )
 
       assert_push(
@@ -130,6 +136,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
       push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, mcp_response))
 
       assert_receive_interaction(%Tasks.Interaction.AgentCompleted{}, _turn_number, 10_000)
+      refute_running_eventually(task_id, runtime)
 
       {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 

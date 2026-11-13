@@ -56,7 +56,8 @@ cd .worktrees/feature/my-feature
 
 - Route all API calls, state changes, and side effects through `Client__State.Actions` and the StateReducer.
 - Read state through `Client__State.useSelector` and selectors.
-- Add actions and effects in `Client__State__StateReducer.res`; expose action creators in `Client__State.res`.
+- Define actions and effect types in `Client__State__Protocol.res`, transitions in `Client__State__StateReducer.res`, and effect execution in `Client__State__Effects.res`.
+- Expose public action creators through `Client__State.Actions` in `Client__State.res`.
 - Bypass the reducer only with explicit user permission.
 
 ## Changelog & Releases

@@ -1,5 +1,8 @@
 <?php
 /** Read-only access to Angie's stored snippet files through its REST API. */
+
+declare(strict_types=1);
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -22,7 +25,8 @@ class Frontman_Tool_Angie {
 				],
 				'required' => [ 'id' ],
 			],
-			[ $this, 'read_snippet' ], 'read', true, true
+			[ $this, 'read_snippet' ],
+			new Frontman_Tool_Annotations( true, false, false, true ), 'read', true, true
 		) );
 	}
 

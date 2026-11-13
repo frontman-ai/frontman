@@ -7,7 +7,7 @@ import {
 	CustomProvidersSection,
 	requestSettingsOpenChange,
 } from "../src/Client__SettingsModal.res.mjs";
-import { defaultState } from "../src/state/Client__State__StateReducer.res.mjs";
+import { defaultState } from "../src/state/Client__State__Initialization.res.mjs";
 import { store } from "../src/state/Client__State__Store.res.mjs";
 import { ready } from "./Client__ConnectionTestHelpers.res.mjs";
 

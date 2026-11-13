@@ -100,6 +100,7 @@ export const footerNavigationData: FooterData = {
 					subCategory: 'WordPress Setup',
 					subCategoryLink: '/docs/integrations/wordpress/'
 				},
+				{ subCategory: 'WordPress in ChatGPT', subCategoryLink: '/chatgpt/' },
 				{ subCategory: 'For Frameworks', subCategoryLink: '/frameworks/' },
 				{ subCategory: 'Framework Teams', subCategoryLink: '/marketing-teams/' },
 				{

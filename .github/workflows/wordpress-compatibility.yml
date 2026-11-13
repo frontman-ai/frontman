@@ -6,11 +6,13 @@ on:
       - "libs/frontman-preview-bridge/**"
       - "libs/frontman-protocol/**"
       - "libs/frontman-astro-browser/**"
+      - "libs/client/**"
       - "libs/frontman-wordpress/**"
+      - "apps/frontman_server/**"
+      - "apps/swarm_ai/**"
       - "scripts/build-wordpress-dependencies.sh"
       - "scripts/wordpress-*.php"
       - "scripts/test-wordpress-plugin-runtime.sh"
-      - "scripts/test-wordpress-301-runtime.sh"
       - "scripts/package-wordpress-plugin.sh"
       - "scripts/validate-wordpress-plugin-release.sh"
       - ".github/workflows/wordpress-compatibility.yml"
@@ -25,11 +27,13 @@ on:
       - "libs/frontman-preview-bridge/**"
       - "libs/frontman-protocol/**"
       - "libs/frontman-astro-browser/**"
+      - "libs/client/**"
       - "libs/frontman-wordpress/**"
+      - "apps/frontman_server/**"
+      - "apps/swarm_ai/**"
       - "scripts/build-wordpress-dependencies.sh"
       - "scripts/wordpress-*.php"
       - "scripts/test-wordpress-plugin-runtime.sh"
-      - "scripts/test-wordpress-301-runtime.sh"
       - "scripts/package-wordpress-plugin.sh"
       - "scripts/validate-wordpress-plugin-release.sh"
       - ".github/workflows/wordpress-compatibility.yml"
@@ -43,7 +47,7 @@ permissions:
 
 jobs:
   wordpress-runtime:
-    name: WordPress ${{ matrix.wordpress }} / PHP ${{ matrix.php }} / Yoast ${{ matrix.yoast }}
+    name: WordPress ${{ matrix.wordpress }} / PHP ${{ matrix.php }} / Yoast ${{ matrix.yoast }} / WooCommerce ${{ matrix.woocommerce || 'auto' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -55,6 +59,9 @@ jobs:
             php: "7.4"
           - wordpress: "7.0.2"
             php: "8.4"
+          - wordpress: "7.0.2"
+            php: "8.4"
+            woocommerce: "11.2.2"
           - wordpress: "7.0.2"
             php: "7.4"
             yoast: "28.4"
@@ -71,26 +78,39 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: '24.4.1'
 
       - name: Install bridge build dependencies
         run: corepack enable && corepack install && yarn install --immutable
 
+      - name: Set up SDK integration toolchain
+        if: matrix.wordpress == '7.0.2' && matrix.php == '8.4' && !matrix.yoast
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca
+        with:
+          install: true
+          cache: true
+
+      - name: Prepare SDK integration dependencies
+        if: matrix.wordpress == '7.0.2' && matrix.php == '8.4' && !matrix.yoast
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          docker run -d --rm --name wp-sdk-postgres -p 127.0.0.1:5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16
+          timeout 60 bash -c 'until pg_isready -q -h 127.0.0.1; do sleep 1; done'
+          make setup-elixir-tools
+          make -C libs/frontman-preview-bridge install-browser
+          cd apps/frontman_server && mix deps.get
+
       - name: Package plugin and run WordPress runtime tests
         env:
           WORDPRESS_VERSION: ${{ matrix.wordpress }}
           PHP_VERSION: ${{ matrix.php }}
           YOAST_VERSION: ${{ matrix.yoast }}
+          WOOCOMMERCE_OVERRIDE: ${{ matrix.woocommerce }}
+          FRONTMAN_REQUIRE_WP_SDK: ${{ matrix.wordpress == '7.0.2' && matrix.php == '8.4' && !matrix.yoast && '1' || '0' }}
+          FRONTMAN_WP_DIAGNOSTICS: "1"
         run: make test-wordpress-runtime
-
-      - name: Run focused redirect coexistence tests
-        if: matrix.wordpress == '7.0.2' && matrix.php == '8.4' && !matrix.yoast
-        env:
-          WORDPRESS_VERSION: ${{ matrix.wordpress }}
-          PHP_VERSION: ${{ matrix.php }}
-        run: make test-wordpress-301-runtime
 
       - name: Run isolated PHP tests
         run: |

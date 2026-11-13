@@ -5,7 +5,7 @@ module Types = Client__State__Types
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
 let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Types.state => {
-  ...Reducer.defaultState,
+  ...Client__State__Initialization.defaultState,
   connection: Client__ConnectionTestHelpers.ready(),
   selectedModelValue,
   pendingProviderAutoSelect,
@@ -114,7 +114,7 @@ describe("Initiating actions set pendingProviderAutoSelect eagerly", () => {
   })
 
   test("SaveApiKey sets pendingProviderAutoSelect for each provider", t => {
-    let providerCases: array<(Reducer.apiKeyProvider, string)> = [
+    let providerCases: array<(Client__State__Protocol.apiKeyProvider, string)> = [
       (OpenRouter, "openrouter"),
       (Anthropic, "anthropic"),
       (Fireworks, "fireworks_ai"),
@@ -227,12 +227,15 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
     let storage = WebAPI.Window.current->WebAPI.Window.localStorage
     storage->WebAPI.Storage.setItem(~key="frontman:selectedModelValue", ~value=existingModel)
 
-    let (nextState, _effects) = Reducer.next(
+    let (nextState, effects) = Reducer.next(
       state,
       ConfigOptionsReceived({configOptions: SampleConfig.configWithOpenRouterOnly}),
     )
 
     let replacement = "openrouter:openai/gpt-5.6-terra"
+    effects->Array.forEach(effect =>
+      Client__State__Effects.handleEffect(effect, nextState, Client__State__Store.dispatch)
+    )
     t->expect(nextState.selectedModelValue)->Expect.toEqual(Some(replacement))
     t
     ->expect(storage->WebAPI.Storage.getItem("frontman:selectedModelValue")->Null.toOption)
@@ -246,11 +249,14 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
     let storage = WebAPI.Window.current->WebAPI.Window.localStorage
     storage->WebAPI.Storage.setItem(~key="frontman:selectedModelValue", ~value=existingModel)
 
-    let (nextState, _effects) = Reducer.next(
+    let (nextState, effects) = Reducer.next(
       state,
       ConfigOptionsReceived({configOptions: SampleConfig.configWithNoModels}),
     )
 
+    effects->Array.forEach(effect =>
+      Client__State__Effects.handleEffect(effect, nextState, Client__State__Store.dispatch)
+    )
     t->expect(nextState.selectedModelValue)->Expect.toEqual(None)
     t
     ->expect(storage->WebAPI.Storage.getItem("frontman:selectedModelValue")->Null.toOption)

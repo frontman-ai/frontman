@@ -1,67 +1,86 @@
-<Layouts.app flash={@flash} current_scope={@current_scope}>
-  <div class="space-y-8">
-    <div class="text-center space-y-2">
-      <h1 class="font-headings text-2xl font-semibold text-base-content tracking-tight">
-        Welcome back
-      </h1>
-      <p class="text-sm text-base-content/50">{@user.email}</p>
-    </div>
+<Layouts.app flash={@flash} current_scope={@current_scope} focused>
+  <Layouts.connection
+    title={if @assistant_connection, do: "Continue assistant setup", else: "Welcome back"}
+    step={1}
+    assistant={@assistant_connection}
+  >
+    <:intro>
+      <p :if={@assistant_connection} class="text-base leading-7 text-zinc-400">
+        Sign in with this email, then confirm the Frontman account you will connect to your AI assistant.
+        Website access is approved separately.
+      </p>
+    </:intro>
+    <div class="space-y-6">
+      <p class="break-all text-lg font-medium text-white">{@user.email}</p>
+      <p :if={@embedded_request} class="text-sm leading-6 text-zinc-400">
+        Continue to let <strong class="break-all">{@embedded_request["origin"]}</strong>
+        use your Frontman account.
+      </p>
 
-    <.form
-      :if={!@user.confirmed_at}
-      for={@form}
-      id="confirmation_form"
-      action={~p"/users/log-in?_action=confirmed"}
-      phx-mounted={JS.focus_first()}
-      class="space-y-3"
-    >
-      <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
-      <button
-        type="submit"
-        name={@form[:remember_me].name}
-        value="true"
-        class="btn btn-secondary btn-lg btn-block"
+      <.form
+        :if={!@user.confirmed_at}
+        for={@form}
+        id="confirmation_form"
+        action={~p"/users/log-in?_action=confirmed"}
+        phx-mounted={JS.focus_first()}
+        class="space-y-3"
       >
-        Confirm and stay logged in
-      </button>
-      <button type="submit" class="btn btn-ghost btn-lg btn-block">
-        Confirm and log in only this time
-      </button>
-    </.form>
-
-    <.form
-      :if={@user.confirmed_at}
-      for={@form}
-      id="login_form"
-      action={~p"/users/log-in"}
-      phx-mounted={JS.focus_first()}
-      class="space-y-3"
-    >
-      <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
-      <%= if @current_scope do %>
-        <button type="submit" class="btn btn-secondary btn-lg btn-block">
-          Log in
-        </button>
-      <% else %>
+        <.embedded_request request={@embedded_request} />
+        <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
         <button
           type="submit"
           name={@form[:remember_me].name}
           value="true"
-          class="btn btn-secondary btn-lg btn-block"
+          class={Layouts.connection_button_class()}
         >
-          Keep me logged in on this device
+          Confirm and stay logged in
         </button>
-        <button type="submit" class="btn btn-ghost btn-lg btn-block">
-          Log me in only this time
+        <button
+          type="submit"
+          class={Layouts.connection_secondary_button_class()}
+        >
+          Confirm and log in only this time
         </button>
-      <% end %>
-    </.form>
+      </.form>
 
-    <p
-      :if={!@user.confirmed_at}
-      class="rounded-lg border border-base-content/10 bg-base-content/[0.02] px-4 py-3 text-center text-xs leading-relaxed text-base-content/30"
-    >
-      Tip: If you prefer passwords, you can enable them in the user settings.
-    </p>
-  </div>
+      <.form
+        :if={@user.confirmed_at}
+        for={@form}
+        id="login_form"
+        action={~p"/users/log-in"}
+        phx-mounted={JS.focus_first()}
+        class="space-y-3"
+      >
+        <.embedded_request request={@embedded_request} />
+        <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
+        <%= if @current_scope do %>
+          <button type="submit" class={Layouts.connection_button_class()}>
+            Log in
+          </button>
+        <% else %>
+          <button
+            type="submit"
+            name={@form[:remember_me].name}
+            value="true"
+            class={Layouts.connection_button_class()}
+          >
+            Keep me logged in on this device
+          </button>
+          <button
+            type="submit"
+            class={Layouts.connection_secondary_button_class()}
+          >
+            Log me in only this time
+          </button>
+        <% end %>
+      </.form>
+
+      <p
+        :if={!@user.confirmed_at}
+        class="text-sm leading-6 text-zinc-400"
+      >
+        Tip: If you prefer passwords, you can enable them in the user settings.
+      </p>
+    </div>
+  </Layouts.connection>
 </Layouts.app>

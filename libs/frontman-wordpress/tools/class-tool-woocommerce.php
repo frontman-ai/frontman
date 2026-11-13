@@ -9,6 +9,8 @@
  * @package Frontman
  */
 
+declare(strict_types=1);
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -16,6 +18,113 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Frontman_Tool_WooCommerce {
 	private const REST_NAMESPACE = '/wc/v3';
+
+	/**
+	 * Reviewed effects, not name/HTTP-method inference or an exposure allowlist.
+	 * Tuple: read-only, destructive, open-world, idempotent.
+	 * Public catalog writes can publish/download images; order/customer writes can
+	 * send notifications or change payments/stock. No mutation promises safe retry.
+	 */
+	private const ANNOTATIONS = [
+		'get_products' => [ true, false, false, true ],
+		'get_product' => [ true, false, false, true ],
+		'create_product' => [ false, true, true, false ],
+		'update_product' => [ false, true, true, false ],
+		'delete_product' => [ false, true, true, false ],
+		'get_product_categories' => [ true, false, false, true ],
+		'get_product_category' => [ true, false, false, true ],
+		'create_product_category' => [ false, true, true, false ],
+		'update_product_category' => [ false, true, true, false ],
+		'delete_product_category' => [ false, true, true, false ],
+		'get_product_tags' => [ true, false, false, true ],
+		'get_product_tag' => [ true, false, false, true ],
+		'create_product_tag' => [ false, true, true, false ],
+		'update_product_tag' => [ false, true, true, false ],
+		'delete_product_tag' => [ false, true, true, false ],
+		'get_product_attributes' => [ true, false, false, true ],
+		'get_product_attribute' => [ true, false, false, true ],
+		'create_product_attribute' => [ false, true, true, false ],
+		'update_product_attribute' => [ false, true, true, false ],
+		'delete_product_attribute' => [ false, true, true, false ],
+		'get_attribute_terms' => [ true, false, false, true ],
+		'get_attribute_term' => [ true, false, false, true ],
+		'create_attribute_term' => [ false, true, true, false ],
+		'update_attribute_term' => [ false, true, true, false ],
+		'delete_attribute_term' => [ false, true, true, false ],
+		'get_product_variations' => [ true, false, false, true ],
+		'get_product_variation' => [ true, false, false, true ],
+		'create_product_variation' => [ false, true, true, false ],
+		'update_product_variation' => [ false, true, true, false ],
+		'delete_product_variation' => [ false, true, true, false ],
+		'get_product_reviews' => [ true, false, false, true ],
+		'get_product_review' => [ true, false, false, true ],
+		'create_product_review' => [ false, true, true, false ],
+		'update_product_review' => [ false, true, true, false ],
+		'delete_product_review' => [ false, true, true, false ],
+		'get_orders' => [ true, false, false, true ],
+		'get_order' => [ true, false, false, true ],
+		'create_order' => [ false, true, true, false ],
+		'update_order' => [ false, true, true, false ],
+		'delete_order' => [ false, true, true, false ],
+		'get_order_notes' => [ true, false, false, true ],
+		'get_order_note' => [ true, false, false, true ],
+		'create_order_note' => [ false, true, true, false ],
+		'delete_order_note' => [ false, true, true, false ],
+		'get_order_refunds' => [ true, false, false, true ],
+		'get_order_refund' => [ true, false, false, true ],
+		'create_order_refund' => [ false, true, true, false ],
+		'delete_order_refund' => [ false, true, true, false ],
+		'get_customers' => [ true, false, false, true ],
+		'get_customer' => [ true, false, false, true ],
+		'create_customer' => [ false, true, true, false ],
+		'update_customer' => [ false, true, true, false ],
+		'delete_customer' => [ false, true, true, false ],
+		'get_shipping_zones' => [ true, false, false, true ],
+		'get_shipping_zone' => [ true, false, false, true ],
+		'create_shipping_zone' => [ false, true, true, false ],
+		'update_shipping_zone' => [ false, true, true, false ],
+		'delete_shipping_zone' => [ false, true, true, false ],
+		'get_shipping_methods' => [ true, false, false, true ],
+		'get_shipping_zone_methods' => [ true, false, false, true ],
+		'create_shipping_zone_method' => [ false, true, true, false ],
+		'update_shipping_zone_method' => [ false, true, true, false ],
+		'delete_shipping_zone_method' => [ false, true, true, false ],
+		'get_shipping_zone_locations' => [ true, false, false, true ],
+		'update_shipping_zone_locations' => [ false, true, true, false ],
+		'get_tax_classes' => [ true, false, false, true ],
+		'create_tax_class' => [ false, true, false, false ],
+		'delete_tax_class' => [ false, true, true, false ],
+		'get_tax_rates' => [ true, false, false, true ],
+		'get_tax_rate' => [ true, false, false, true ],
+		'create_tax_rate' => [ false, true, true, false ],
+		'update_tax_rate' => [ false, true, true, false ],
+		'delete_tax_rate' => [ false, true, true, false ],
+		'get_coupons' => [ true, false, false, true ],
+		'get_coupon' => [ true, false, false, true ],
+		'create_coupon' => [ false, true, true, false ],
+		'update_coupon' => [ false, true, true, false ],
+		'delete_coupon' => [ false, true, true, false ],
+		'get_payment_gateways' => [ true, false, false, true ],
+		'get_payment_gateway' => [ true, false, false, true ],
+		'update_payment_gateway' => [ false, true, true, false ],
+		'get_sales_report' => [ true, false, false, true ],
+		'get_products_report' => [ true, false, false, true ],
+		'get_orders_report' => [ true, false, false, true ],
+		'get_categories_report' => [ true, false, false, true ],
+		'get_customers_report' => [ true, false, false, true ],
+		'get_stock_report' => [ true, false, false, true ],
+		'get_coupons_report' => [ true, false, false, true ],
+		'get_taxes_report' => [ true, false, false, true ],
+		'get_settings' => [ true, false, false, true ],
+		'get_setting_options' => [ true, false, false, true ],
+		'update_setting_option' => [ false, true, true, false ],
+		'get_system_status' => [ false, true, true, false ],
+		'get_data' => [ true, false, false, true ],
+		'get_continents' => [ true, false, false, true ],
+		'get_countries' => [ true, false, false, true ],
+		'get_currencies' => [ true, false, false, true ],
+		'get_current_currency' => [ true, false, false, true ],
+	];
 
 	/**
 	 * Register all WooCommerce tools.
@@ -43,7 +152,7 @@ class Frontman_Tool_WooCommerce {
 	private function register_products( Frontman_Tools $tools ): void {
 		$this->add_endpoint_tool( $tools, 'get_products', 'Retrieves WooCommerce products with pagination and filters.', 'GET', '/products', $this->list_schema(), [ 'paged' => true, 'filters' => true ] );
 		$this->add_endpoint_tool( $tools, 'get_product', 'Gets one WooCommerce product by ID.', 'GET', '/products/{productId}', $this->id_schema( 'productId', 'The product ID.' ) );
-		$this->add_endpoint_tool( $tools, 'create_product', 'Creates a WooCommerce product.', 'POST', '/products', $this->data_schema( 'productData', 'WooCommerce product fields to create.', [ 'productData' ] ), [ 'body' => 'productData' ] );
+		$this->add_endpoint_tool( $tools, 'create_product', 'Creates a WooCommerce product. Can publish immediately and download supplied image URLs. Repeated calls can create additional products.', 'POST', '/products', $this->data_schema( 'productData', 'WooCommerce product fields to create.', [ 'productData' ] ), [ 'body' => 'productData' ] );
 		$this->add_endpoint_tool( $tools, 'update_product', 'Updates a WooCommerce product.', 'PUT', '/products/{productId}', $this->data_schema( 'productData', 'WooCommerce product fields to update.', [ 'productId', 'productData' ], [ 'productId' => $this->integer_prop( 'The product ID.' ) ] ), [ 'body' => 'productData' ] );
 		$this->add_endpoint_tool( $tools, 'delete_product', 'Deletes a WooCommerce product. Ask the user for confirmation before calling with confirm=true.', 'DELETE', '/products/{productId}', $this->delete_schema( 'productId', 'The product ID.' ), [ 'confirm' => true, 'force_default' => false ] );
 
@@ -127,7 +236,7 @@ class Frontman_Tool_WooCommerce {
 
 		$this->add_endpoint_tool( $tools, 'get_order_notes', 'Retrieves notes for a WooCommerce order.', 'GET', '/orders/{orderId}/notes', $this->object_schema( [ 'orderId' => $ids['orderId'], 'perPage' => $this->integer_prop( 'Number of results per page.' ), 'page' => $this->integer_prop( 'Page number.' ), 'filters' => $this->dynamic_object_prop( 'WooCommerce REST API filters.' ) ], [ 'orderId' ] ), [ 'paged' => true, 'filters' => true ] );
 		$this->add_endpoint_tool( $tools, 'get_order_note', 'Gets one note for a WooCommerce order.', 'GET', '/orders/{orderId}/notes/{noteId}', $this->object_schema( $ids, [ 'orderId', 'noteId' ] ) );
-		$this->add_endpoint_tool( $tools, 'create_order_note', 'Creates a note for a WooCommerce order.', 'POST', '/orders/{orderId}/notes', $this->data_schema( 'noteData', 'Order note fields to create.', [ 'orderId', 'noteData' ], [ 'orderId' => $ids['orderId'] ] ), [ 'body' => 'noteData' ] );
+		$this->add_endpoint_tool( $tools, 'create_order_note', 'Creates a note for a WooCommerce order. A customer_note can notify the customer. Repeated calls can create additional notes and notifications.', 'POST', '/orders/{orderId}/notes', $this->data_schema( 'noteData', 'Order note fields to create.', [ 'orderId', 'noteData' ], [ 'orderId' => $ids['orderId'] ] ), [ 'body' => 'noteData' ] );
 		$this->add_endpoint_tool( $tools, 'delete_order_note', 'Deletes a note from a WooCommerce order. Ask the user for confirmation before calling with confirm=true.', 'DELETE', '/orders/{orderId}/notes/{noteId}', $this->delete_schema_with_ids( $ids, [ 'orderId', 'noteId' ] ), [ 'confirm' => true, 'force_default' => true ] );
 	}
 
@@ -139,8 +248,8 @@ class Frontman_Tool_WooCommerce {
 
 		$this->add_endpoint_tool( $tools, 'get_order_refunds', 'Retrieves refunds for a WooCommerce order.', 'GET', '/orders/{orderId}/refunds', $this->object_schema( [ 'orderId' => $ids['orderId'], 'perPage' => $this->integer_prop( 'Number of results per page.' ), 'page' => $this->integer_prop( 'Page number.' ), 'filters' => $this->dynamic_object_prop( 'WooCommerce REST API filters.' ) ], [ 'orderId' ] ), [ 'paged' => true, 'filters' => true ] );
 		$this->add_endpoint_tool( $tools, 'get_order_refund', 'Gets one WooCommerce order refund.', 'GET', '/orders/{orderId}/refunds/{refundId}', $this->object_schema( $ids, [ 'orderId', 'refundId' ] ) );
-		$this->add_endpoint_tool( $tools, 'create_order_refund', 'Creates a refund for a WooCommerce order.', 'POST', '/orders/{orderId}/refunds', $this->data_schema( 'refundData', 'Refund fields to create.', [ 'orderId', 'refundData' ], [ 'orderId' => $ids['orderId'] ] ), [ 'body' => 'refundData' ] );
-		$this->add_endpoint_tool( $tools, 'delete_order_refund', 'Deletes a WooCommerce order refund. Ask the user for confirmation before calling with confirm=true.', 'DELETE', '/orders/{orderId}/refunds/{refundId}', $this->delete_schema_with_ids( $ids, [ 'orderId', 'refundId' ] ), [ 'confirm' => true, 'force_default' => true ] );
+		$this->add_endpoint_tool( $tools, 'create_order_refund', 'Creates a refund for a WooCommerce order. api_refund can request a payment-gateway refund and api_restock can change stock. Do not retry blindly after failure or a lost response; inspect the order and refunds first.', 'POST', '/orders/{orderId}/refunds', $this->data_schema( 'refundData', 'Refund fields to create.', [ 'orderId', 'refundData' ], [ 'orderId' => $ids['orderId'] ] ), [ 'body' => 'refundData' ] );
+		$this->add_endpoint_tool( $tools, 'delete_order_refund', 'Deletes a WooCommerce refund record, not a reversal of a gateway payment. Ask the user for confirmation before calling with confirm=true.', 'DELETE', '/orders/{orderId}/refunds/{refundId}', $this->delete_schema_with_ids( $ids, [ 'orderId', 'refundId' ] ), [ 'confirm' => true, 'force_default' => true ] );
 	}
 
 	private function register_customers( Frontman_Tools $tools ): void {
@@ -220,7 +329,8 @@ class Frontman_Tool_WooCommerce {
 			],
 		], [ 'name' ] );
 		$this->add_custom_tool( $tools, 'get_catalog_display', 'Reads a WooCommerce catalog display setting. Empty string means products; subcategories means categories; both means categories and products.', $catalog,
-			function( array $input ) { return $this->catalog_display( $input, false ); }, false
+			function( array $input ) { return $this->catalog_display( $input, false ); },
+			new Frontman_Tool_Annotations( true, false, false, true ), false
 		);
 		$catalog['properties']['value'] = [
 			'type' => 'string',
@@ -229,7 +339,8 @@ class Frontman_Tool_WooCommerce {
 		];
 		$catalog['required'][] = 'value';
 		$this->add_custom_tool( $tools, 'update_catalog_display', 'Updates only a WooCommerce catalog display setting through its native Customizer save path. Ask the user for confirmation before calling with confirm=true.', $this->with_confirm( $catalog ),
-			function( array $input ) { return $this->catalog_display( $input, true ); }, false
+			function( array $input ) { return $this->catalog_display( $input, true ); },
+			new Frontman_Tool_Annotations( false, true, true, false ), false
 		);
 		$this->add_endpoint_tool( $tools, 'get_settings', 'Retrieves WooCommerce setting groups.', 'GET', '/settings', $this->empty_schema() );
 		$this->add_endpoint_tool( $tools, 'get_setting_options', 'Retrieves options in one WooCommerce setting group.', 'GET', '/settings/{group}', $this->object_schema( [ 'group' => $this->string_prop( 'The WooCommerce setting group ID.' ) ], [ 'group' ] ) );
@@ -300,9 +411,98 @@ class Frontman_Tool_WooCommerce {
 	}
 
 	private function register_system_status( Frontman_Tools $tools ): void {
-		$this->add_endpoint_tool( $tools, 'get_system_status', 'Retrieves WooCommerce system status.', 'GET', '/system_status', $this->empty_schema() );
-		$this->add_endpoint_tool( $tools, 'get_system_status_tools', 'Retrieves WooCommerce system status tools.', 'GET', '/system_status/tools', $this->empty_schema() );
-		$this->add_endpoint_tool( $tools, 'run_system_status_tool', 'Runs one WooCommerce system status tool.', 'PUT', '/system_status/tools/{toolId}', $this->object_schema( [ 'toolId' => $this->string_prop( 'The system status tool ID.' ) ], [ 'toolId' ] ), [ 'read_before_write' => '/system_status/tools' ] );
+		$this->add_endpoint_tool( $tools, 'get_system_status', 'Collects WooCommerce system status, including external GET/POST connectivity diagnostics and cached results. This is not a read-only operation.', 'GET', '/system_status', $this->empty_schema() );
+		if ( did_action( 'wp_loaded' ) ) {
+			$this->register_maintenance_tools( $tools );
+		} else {
+			add_action( 'wp_loaded', function() use ( $tools ) {
+				$this->register_maintenance_tools( $tools );
+			} );
+		}
+	}
+
+	/**
+	 * Reviewed against WooCommerce 10.4.3's v2 system status controller.
+	 * Tuples are description, read-only, destructive, open-world, idempotent.
+	 * Background operations and callbacks are not safe to retry blindly.
+	 */
+	private const MAINTENANCE_DESCRIPTORS = [
+		'clear_transients' => [ 'Clear WooCommerce product, order, shipping and related transient caches.', false, true, false, false ],
+		'clear_expired_transients' => [ 'Delete expired WordPress transients across the site.', false, true, false, false ],
+		'delete_orphaned_variations' => [ 'Delete product variations whose parent no longer exists.', false, true, false, false ],
+		'clear_expired_download_permissions' => [ 'Delete expired or exhausted download permissions and their download logs.', false, true, false, false ],
+		'regenerate_product_lookup_tables' => [ 'Start or continue background regeneration of product lookup table data; completion is not immediate.', false, true, false, false ],
+		'repair_coupons_lookup_table' => [ 'Repair missing discount amounts in the coupons lookup table; this may take time.', false, true, false, false ],
+		'recount_terms' => [ 'Recalculate product term counts.', false, true, false, false ],
+		'reset_roles' => [ 'Reset WooCommerce roles and capabilities, replacing existing role configuration.', false, true, false, false ],
+		'clear_sessions' => [ 'Delete all customer sessions, including current and saved carts, and flush the object cache.', false, true, false, false ],
+		'clear_template_cache' => [ 'Clear the WooCommerce template cache.', false, true, false, false ],
+		'clear_system_status_theme_info_cache' => [ 'Clear the system status theme information cache.', false, true, false, false ],
+		'install_pages' => [ 'Create or reuse missing WooCommerce pages, update page assignments, and potentially restore and publish matching trashed pages.', false, true, true, false ],
+		'delete_taxes' => [ 'Permanently delete all WooCommerce tax rates and their locations.', false, true, false, false ],
+		'regenerate_thumbnails' => [ 'Schedule shop thumbnail regeneration in the background; scheduling does not mean completion.', false, true, false, false ],
+		'db_update_routine' => [ 'Trigger the WooCommerce database upgrade routine in the background; back up first and do not assume completion.', false, true, false, false ],
+		'recreate_order_address_fts_index' => [ 'Recreate or create the order address full-text search index.', false, true, false, false ],
+		'verify_db_tables' => [ 'Verify WooCommerce base database tables and attempt to recreate missing tables.', false, true, false, false ],
+	];
+
+	private function register_maintenance_tools( Frontman_Tools $tools ): void {
+		if ( ! class_exists( 'WC_REST_System_Status_Tools_Controller' ) ) {
+			return;
+		}
+
+		$native_tools = ( new \WC_REST_System_Status_Tools_Controller() )->get_tools();
+		if ( ! is_array( $native_tools ) ) {
+			throw new \LogicException( 'WooCommerce maintenance catalog must be an array.' );
+		}
+		foreach ( $native_tools as $id => $entry ) {
+			$has_metadata = is_array( $entry ) && array_key_exists( 'frontman', $entry );
+			if ( ! $has_metadata && ! isset( self::MAINTENANCE_DESCRIPTORS[ $id ] ) ) {
+				continue;
+			}
+			if ( ! is_string( $id ) || ! preg_match( '/\A[a-z0-9_-]+\z/', $id ) || strlen( 'wc_maint_' . $id ) > 64 ) {
+				throw new \LogicException( 'Invalid WooCommerce maintenance action ID: ' . (string) $id );
+			}
+
+			if ( $has_metadata ) {
+				$descriptor = $entry['frontman'];
+				if ( ! is_array( $descriptor ) || ! isset( $descriptor['description'], $descriptor['annotations'] )
+					|| ! is_string( $descriptor['description'] ) || '' === trim( $descriptor['description'] )
+					|| strip_tags( $descriptor['description'] ) !== $descriptor['description']
+					|| preg_match( '/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/', $descriptor['description'] )
+					|| ! ( $descriptor['annotations'] instanceof Frontman_Tool_Annotations ) ) {
+					throw new \LogicException( 'Invalid Frontman metadata for WooCommerce maintenance action: ' . $id );
+				}
+				$description = $descriptor['description'];
+				$annotations = $descriptor['annotations'];
+			} else {
+				[ $description, $read_only, $destructive, $open_world, $idempotent ] = self::MAINTENANCE_DESCRIPTORS[ $id ];
+				$annotations = new Frontman_Tool_Annotations( $read_only, $destructive, $open_world, $idempotent );
+			}
+			$tools->add( new Frontman_Tool_Definition(
+				'wc_maint_' . $id,
+				$description . ' Ask the user for confirmation before calling with confirm=true.',
+				$this->object_schema( [ 'confirm' => $this->boolean_prop( 'Must be true only after explicit user confirmation.' ) ], [ 'confirm' ] ),
+				function( array $input ) use ( $id ) {
+					if ( true !== ( $input['confirm'] ?? false ) ) {
+						throw new Frontman_Tool_Error( 'This WooCommerce maintenance action requires confirm=true after user approval.' );
+					}
+					$current = ( new \WC_REST_System_Status_Tools_Controller() )->get_tools();
+					if ( ! is_array( $current ) ) {
+						throw new \LogicException( 'WooCommerce maintenance catalog must be an array.' );
+					}
+					if ( empty( $current[ $id ] ) || ! empty( $current[ $id ]['disabled'] ) ) {
+						throw new Frontman_Tool_Error( 'This WooCommerce maintenance action is unavailable or disabled.' );
+					}
+					$result = $this->handle_endpoint_tool( 'PUT', '/system_status/tools/' . rawurlencode( $id ), [ 'confirm' => true ], $input );
+					if ( isset( $result['success'] ) && false === $result['success'] ) {
+						throw new Frontman_Tool_Error( (string) ( $result['message'] ?? 'WooCommerce maintenance action failed.' ) );
+					}
+					return $result;
+				},
+				$annotations, 'read-write', true, true
+			) );
+		}
 	}
 
 	private function register_data( Frontman_Tools $tools ): void {
@@ -314,6 +514,9 @@ class Frontman_Tool_WooCommerce {
 	}
 
 	private function add_endpoint_tool( Frontman_Tools $tools, string $source_method, string $description, string $http_method, string $path_template, array $schema, array $options = [] ): void {
+		if ( ! isset( self::ANNOTATIONS[ $source_method ] ) ) {
+			throw new \LogicException( 'WooCommerce tool requires reviewed safety hints: ' . $source_method );
+		}
 		if ( in_array( strtoupper( $http_method ), [ 'PUT', 'DELETE' ], true ) ) {
 			$schema             = $this->with_confirm( $schema );
 			$options['confirm'] = true;
@@ -329,19 +532,18 @@ class Frontman_Tool_WooCommerce {
 			$schema,
 			function( array $input ) use ( $http_method, $path_template, $options ) {
 				return $this->handle_endpoint_tool( $http_method, $path_template, $options, $input );
-			}
+			},
+			new Frontman_Tool_Annotations( ...self::ANNOTATIONS[ $source_method ] )
 		);
 	}
 
-	private function add_custom_tool( Frontman_Tools $tools, string $source_method, string $description, array $schema, callable $handler, bool $mirrors_rest = true ): void {
+	private function add_custom_tool( Frontman_Tools $tools, string $source_method, string $description, array $schema, callable $handler, Frontman_Tool_Annotations $annotations, bool $mirrors_rest = true ): void {
 		$tools->add( new Frontman_Tool_Definition(
 			'wc_' . $source_method,
 			$description . ( $mirrors_rest ? ' Mirrors woocommerce-mcp-server method `' . $source_method . '`' : ' Uses the native WooCommerce Customizer setting' ) . ' using local WordPress authentication; no WooCommerce REST API keys are required.',
 			$schema,
 			$handler,
-			null,
-			true,
-			true
+			$annotations, null, true, true
 		) );
 	}
 
@@ -354,25 +556,26 @@ class Frontman_Tool_WooCommerce {
 			'get_' . $entity . '_meta',
 			'Retrieves WooCommerce ' . $entity . ' metadata, optionally filtered by meta key.',
 			$this->object_schema( array_merge( $id_prop, [ 'metaKey' => $this->string_prop( 'Optional metadata key to filter by.' ) ] ), [ $id_key ] ),
-			function( array $input ) use ( $path_template ) { return $this->get_meta( $path_template, $input ); }
+			function( array $input ) use ( $path_template ) { return $this->get_meta( $path_template, $input ); },
+			new Frontman_Tool_Annotations( true, false, false, true )
 		);
 
-		foreach ( [ 'create', 'update' ] as $operation ) {
-			$this->add_custom_tool(
-				$tools,
-				$operation . '_' . $entity . '_meta',
-				$entity_label . ' metadata upsert. Creates the key when missing and updates the first matching key when present. Ask the user for confirmation before calling with confirm=true.',
-				$this->with_confirm( $this->object_schema( array_merge( $id_prop, [ 'metaKey' => $this->string_prop( 'The metadata key.' ), 'metaValue' => [ 'type' => [ 'string', 'number', 'boolean', 'object', 'array', 'null' ], 'properties' => (object) [], 'description' => 'The metadata value. Can be a scalar, object, array, or null.' ] ] ), [ $id_key, 'metaKey', 'metaValue' ] ) ),
-				function( array $input ) use ( $path_template ) { return $this->upsert_meta( $path_template, $input ); }
-			);
-		}
+		$this->add_custom_tool(
+			$tools,
+			'update_' . $entity . '_meta',
+			$entity_label . ' metadata upsert. Creates the key when missing and updates the first matching key when present. Ask the user for confirmation before calling with confirm=true.',
+			$this->with_confirm( $this->object_schema( array_merge( $id_prop, [ 'metaKey' => $this->string_prop( 'The metadata key.' ), 'metaValue' => [ 'type' => [ 'string', 'number', 'boolean', 'object', 'array', 'null' ], 'properties' => (object) [], 'description' => 'The metadata value. Can be a scalar, object, array, or null.' ] ] ), [ $id_key, 'metaKey', 'metaValue' ] ) ),
+			function( array $input ) use ( $path_template ) { return $this->upsert_meta( $path_template, $input ); },
+			new Frontman_Tool_Annotations( false, true, true, false )
+		);
 
 		$this->add_custom_tool(
 			$tools,
 			'delete_' . $entity . '_meta',
 			'Deletes WooCommerce ' . $entity . ' metadata by key. Ask the user for confirmation before calling with confirm=true.',
 			$this->object_schema( array_merge( $id_prop, [ 'metaKey' => $this->string_prop( 'The metadata key to delete.' ), 'confirm' => $this->boolean_prop( 'Must be true only after the user explicitly confirms deletion.' ) ] ), [ $id_key, 'metaKey', 'confirm' ] ),
-			function( array $input ) use ( $entity, $id_key, $path_template ) { return $this->delete_meta( $entity, $id_key, $path_template, $input ); }
+			function( array $input ) use ( $entity, $id_key, $path_template ) { return $this->delete_meta( $entity, $id_key, $path_template, $input ); },
+			new Frontman_Tool_Annotations( false, true, true, false )
 		);
 	}
 
@@ -612,7 +815,7 @@ class Frontman_Tool_WooCommerce {
 	}
 
 	private function is_integer_path_field( string $field ): bool {
-		return ! in_array( $field, [ 'gatewayId', 'id', 'toolId' ], true ) && substr( $field, -2 ) === 'Id';
+		return ! in_array( $field, [ 'gatewayId', 'id' ], true ) && substr( $field, -2 ) === 'Id';
 	}
 
 	private function require_string_field( array $input, string $field ): void {

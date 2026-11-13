@@ -28,6 +28,9 @@
 	--color-border: var(--border);
 	--color-input: var(--input);
 	--color-ring: var(--ring);
+	--color-onboarding-body: var(--onboarding-body);
+	--color-onboarding-accent: var(--onboarding-accent);
+	--color-onboarding-primary-hover: var(--onboarding-primary-hover);
 }
 
 :root {
@@ -71,6 +74,22 @@
 	--border: oklch(1 0 0 / 10%);
 	--input: oklch(1 0 0 / 15%);
 	--ring: oklch(0.556 0 0);
+}
+
+.frontman-onboarding {
+	--background: #020617;
+	--foreground: #f8fafc;
+	--card: #0f172a;
+	--primary: #8847d9;
+	--primary-foreground: #f8fafc;
+	--secondary: #1e293b;
+	--secondary-foreground: #f8fafc;
+	--muted-foreground: #94a3b8;
+	--border: #1e293b;
+	--ring: #a259ff;
+	--onboarding-body: #cbd5e1;
+	--onboarding-accent: #d8b4ff;
+	--onboarding-primary-hover: #6e38b3;
 }
 
 @layer base {

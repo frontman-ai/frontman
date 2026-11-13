@@ -7,7 +7,7 @@ external createRoot: WebAPI.DomTypes.element => ReactDOM.Client.Root.t = "create
 @module("react-dom") external flushSync: (unit => unit) => unit = "flushSync"
 
 test("WordPress login recovery is deduplicated and independent of Frontman authentication", t => {
-  let initial = {...Reducer.defaultState, connection: Client__ConnectionTestHelpers.ready()}
+  let initial = {...Client__State__Initialization.defaultState, connection: Client__ConnectionTestHelpers.ready()}
   let loginUrl = Some("https://example.test/subdir/wp-login.php?redirect_to=frontman")
   let (state, effects) = Reducer.next(initial, WordPressAuthenticationRequired(loginUrl))
   t->expect(state.wordPressLoginRecovery)->Expect.toEqual(Some({loginUrl: loginUrl}))
@@ -22,7 +22,7 @@ test("WordPress login recovery is deduplicated and independent of Frontman authe
   t->expect(afterSuccess.wordPressLoginRecovery)->Expect.toEqual(state.wordPressLoginRecovery)
   let (reloaded, reloadEffects) = Reducer.next(state, ReloadAfterWordPressLogin)
   t->expect(reloaded == state)->Expect.toBe(true)
-  t->expect(reloadEffects)->Expect.toEqual([Reducer.ReloadFrontman])
+  t->expect(reloadEffects)->Expect.toEqual([Client__State__Protocol.ReloadFrontman])
 })
 
 test("login recovery banner has an accessible native link and explicit reload", t => {

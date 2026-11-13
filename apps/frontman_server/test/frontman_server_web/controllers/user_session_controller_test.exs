@@ -3,19 +3,28 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
 
   import FrontmanServer.Test.Fixtures.Accounts
   alias FrontmanServer.Accounts
-  alias FrontmanServerWeb.EmbeddedClientAuth
+  alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.BillingFixtures
 
   setup do
     %{unconfirmed_user: unconfirmed_user_fixture(), user: user_fixture()}
   end
 
   describe "GET /users/log-in" do
-    test "renders login page with OAuth options", %{conn: conn} do
+    test "renders login page with OAuth, email-link, and password options", %{conn: conn} do
       conn = get(conn, ~p"/users/log-in")
       response = html_response(conn, 200)
       assert response =~ "Sign in to Frontman"
       assert response =~ "Login with GitHub"
       assert response =~ "Login with Google"
+      assert response =~ ~s(id="email-link-form")
+      assert response =~ "Send sign-in link"
+      assert response =~ ~s(id="login-form")
+      assert response =~ ~s(type="password")
+      assert response =~ "Sign in with password"
+      form = response |> LazyHTML.from_document() |> LazyHTML.query("#login-form")
+      assert LazyHTML.attribute(form, "action") == ["/users/log-in"]
+      assert LazyHTML.attribute(form, "method") == ["post"]
     end
 
     test "stores canonical signup framework in session", %{conn: conn} do
@@ -94,31 +103,21 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
   end
 
   describe "embedded authorization request" do
-    test "stores normalized pending embedded auth request", %{conn: conn} do
+    test "displays the normalized request without storing it or issuing a token", %{conn: conn} do
       conn =
         get(
           conn,
           ~p"/users/log-in?#{%{"embedded_state" => "state-123", "embedded_origin" => "https://Customer.Example:443"}}"
         )
 
-      assert get_session(conn, EmbeddedClientAuth.pending_session_key()) == %{
-               "origin" => "https://customer.example",
-               "state" => "state-123"
-             }
+      response = html_response(conn, 200)
+      assert response =~ ~s(name="embedded_origin" value="https://customer.example")
+      assert response =~ ~s(name="embedded_state" value="state-123")
+      refute get_session(conn, :embedded_client_auth_request)
+      refute FrontmanServer.Repo.get_by(Accounts.UserToken, context: "embedded_client")
     end
 
-    test "rejects invalid pending embedded auth origin", %{conn: conn} do
-      conn =
-        get(
-          conn,
-          ~p"/users/log-in?#{%{"embedded_state" => "state-123", "embedded_origin" => "https://customer.example/path"}}"
-        )
-
-      assert text_response(conn, 400) == "Invalid embedded origin"
-      assert conn.halted
-    end
-
-    test "already-authenticated users keep embedded auth request before redirect", %{
+    test "already-authenticated users see the connect form without issuing a token", %{
       conn: conn,
       user: user
     } do
@@ -129,37 +128,44 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
           ~p"/users/log-in?#{%{"return_to" => "/users/popup-complete", "embedded_state" => "state-123", "embedded_origin" => "https://Customer.Example:443"}}"
         )
 
-      assert redirected_to(conn) == ~p"/users/popup-complete"
-
-      assert get_session(conn, EmbeddedClientAuth.pending_session_key()) == %{
-               "origin" => "https://customer.example",
-               "state" => "state-123"
-             }
+      response = html_response(conn, 200)
+      assert response =~ "embedded-connect-form"
+      assert response =~ "https://customer.example"
+      refute response =~ ~s(id="email-link-form")
+      refute response =~ ~s(id="login-form")
+      refute FrontmanServer.Repo.get_by(Accounts.UserToken, context: "embedded_client")
     end
 
-    test "already-authenticated users get bad request for invalid embedded auth origin", %{
-      conn: conn,
-      user: user
-    } do
-      conn =
-        conn
-        |> log_in_user(user)
-        |> get(
-          ~p"/users/log-in?#{%{"return_to" => "/users/popup-complete", "embedded_state" => "state-123", "embedded_origin" => "https://customer.example/path"}}"
-        )
+    test "rejects invalid origins before or after sign-in", %{conn: conn, user: user} do
+      for conn <- [conn, log_in_user(conn, user)] do
+        conn =
+          get(
+            conn,
+            ~p"/users/log-in?#{%{"embedded_state" => "state-123", "embedded_origin" => "https://customer.example/path"}}"
+          )
 
-      assert text_response(conn, 400) == "Invalid embedded origin"
-      assert conn.halted
-      refute get_session(conn, EmbeddedClientAuth.pending_session_key())
+        assert text_response(conn, 400) == "Invalid embedded origin"
+        assert conn.halted
+      end
+
+      refute FrontmanServer.Repo.get_by(Accounts.UserToken, context: "embedded_client")
     end
   end
 
   describe "POST /users/log-in - email and password" do
-    test "logs the user in", %{conn: conn, user: user} do
+    test "logs the user in through the default password form", %{conn: conn, user: user} do
       user = set_password(user)
+      conn = get(conn, ~p"/users/log-in")
+
+      form =
+        conn |> html_response(200) |> LazyHTML.from_document() |> LazyHTML.query("#login-form")
+
+      [action] = LazyHTML.attribute(form, "action")
+      [csrf_token] = LazyHTML.attribute(LazyHTML.query(form, "input[name=_csrf_token]"), "value")
 
       conn =
-        post(conn, ~p"/users/log-in", %{
+        post(conn, action, %{
+          "_csrf_token" => csrf_token,
           "user" => %{"email" => user.email, "password" => valid_user_password()}
         })
 
@@ -213,39 +219,280 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       assert redirected_to(conn) == ~p"/users/popup-complete"
     end
 
-    test "preserves pending embedded auth request", %{conn: conn, user: user} do
+    test "completes the submitted embedded request, not an unrelated tab", %{
+      conn: conn,
+      user: user
+    } do
       user = set_password(user)
 
       conn =
         conn
         |> get(
-          ~p"/users/log-in?#{%{"return_to" => "/users/popup-complete", "embedded_state" => "state-123", "embedded_origin" => "https://customer.example"}}"
+          ~p"/users/log-in?#{%{"embedded_state" => "other-state", "embedded_origin" => "https://other.example"}}"
         )
         |> post(~p"/users/log-in", %{
-          "user" => %{"email" => user.email, "password" => valid_user_password()}
-        })
-
-      assert redirected_to(conn) == ~p"/users/popup-complete"
-
-      assert get_session(conn, EmbeddedClientAuth.pending_session_key()) == %{
-               "origin" => "https://customer.example",
-               "state" => "state-123"
-             }
-    end
-
-    test "emits error message with invalid credentials", %{conn: conn, user: user} do
-      conn =
-        post(conn, ~p"/users/log-in?mode=password", %{
-          "user" => %{"email" => user.email, "password" => "invalid_password"}
+          "user" => %{"email" => user.email, "password" => valid_user_password()},
+          "embedded_origin" => "https://customer.example",
+          "embedded_state" => "state-123"
         })
 
       response = html_response(conn, 200)
+      assert response =~ ~s(data-origin="https://customer.example")
+      assert response =~ ~s(data-state="state-123")
+      assert get_session(conn, :user_token)
+
+      assert FrontmanServer.Repo.get_by!(Accounts.UserToken, context: "embedded_client").approved_origin ==
+               "https://customer.example"
+    end
+
+    test "password retry preserves the embedded request", %{conn: conn, user: user} do
+      user = set_password(user)
+      params = %{"embedded_origin" => "https://customer.example", "embedded_state" => "state-123"}
+      conn = get(conn, ~p"/users/log-in?#{params}")
+      document = conn |> html_response(200) |> LazyHTML.from_document()
+      form = LazyHTML.query(document, "#login-form")
+
+      assert LazyHTML.attribute(LazyHTML.query(form, "input[name=embedded_origin]"), "value") ==
+               [params["embedded_origin"]]
+
+      conn =
+        post(
+          conn,
+          ~p"/users/log-in",
+          Map.put(params, "user", %{
+            "email" => user.email,
+            "password" => "incorrect"
+          })
+        )
+
+      document = conn |> html_response(200) |> LazyHTML.from_document()
+      form = LazyHTML.query(document, "#login-form")
+
+      assert LazyHTML.attribute(LazyHTML.query(form, "input[name=embedded_state]"), "value") ==
+               [params["embedded_state"]]
+
+      assert conn.resp_body =~ "Invalid email or password"
+
+      conn =
+        post(
+          conn,
+          ~p"/users/log-in",
+          Map.put(params, "user", %{
+            "email" => user.email,
+            "password" => valid_user_password()
+          })
+        )
+
+      assert html_response(conn, 200) =~ ~s(data-origin="https://customer.example")
+      assert conn.resp_body =~ ~s(data-state="state-123")
+      assert get_session(conn, :user_token)
+    end
+
+    test "emits error message with invalid credentials", %{conn: conn, user: user} do
+      password = "unique-incorrect-password-492371"
+
+      conn =
+        post(conn, ~p"/users/log-in", %{
+          "user" => %{"email" => user.email, "password" => password}
+        })
+
+      response = html_response(conn, 200)
+      form = response |> LazyHTML.from_document() |> LazyHTML.query("#login-form")
+      password_input = LazyHTML.query(form, "input[name='user[password]']")
+      assert LazyHTML.attribute(password_input, "value") in [[], [""]]
+
+      assert LazyHTML.attribute(LazyHTML.query(form, "input[name='user[email]']"), "value") ==
+               [user.email]
+
+      refute response =~ password
       assert response =~ "Sign in to Frontman"
       assert response =~ "Invalid email or password"
+      assert response =~ ~s(id="login-form")
+      assert response =~ ~s(action="/users/log-in")
+      refute get_session(conn, :user_token)
+    end
+
+    test "password form retains an MCP handoff through a failed attempt", %{
+      conn: conn,
+      user: user
+    } do
+      user = set_password(user)
+
+      BillingFixtures.subscription_for_scope_fixture(Scope.for_user(user))
+
+      conn = get(conn, "/auth/mcp/workos?external_auth_id=unverified-request")
+      pending = get_session(conn, :connect_handoff)
+      conn = get(conn, ~p"/users/log-in")
+      assert html_response(conn, 200) =~ ~s(id="login-form")
+
+      conn =
+        post(conn, ~p"/users/log-in", %{
+          "user" => %{"email" => user.email, "password" => "incorrect"}
+        })
+
+      assert html_response(conn, 200) =~ "Invalid email or password"
+      assert conn.resp_body =~ ~s(id="login-form")
+      assert get_session(conn, :connect_handoff) == pending
+
+      conn =
+        post(conn, ~p"/users/log-in", %{
+          "user" => %{"email" => user.email, "password" => valid_user_password()}
+        })
+
+      assert get_session(conn, :user_token)
+      assert get_session(conn, :connect_handoff)["user_id"] == user.id
+      assert redirected_to(conn) == "/auth/mcp/workos/pending?ref=#{pending["ref"]}"
+
+      document =
+        conn |> get(redirected_to(conn)) |> html_response(200) |> LazyHTML.from_document()
+
+      assert LazyHTML.text(LazyHTML.query(document, "#connect-account")) =~ user.email
+      form = LazyHTML.query(document, "#connect-handoff")
+      assert LazyHTML.attribute(form, "action") == ["/auth/mcp/workos/pending"]
+
+      assert LazyHTML.attribute(LazyHTML.query(form, "input[name=ref]"), "value") ==
+               [pending["ref"]]
     end
   end
 
   describe "POST /users/log-in - magic link" do
+    test "unknown accounts receive the same response without creating an account", %{
+      conn: conn,
+      user: user
+    } do
+      known = post(conn, ~p"/users/log-in", %{"user" => %{"email" => user.email}})
+      unknown = post(conn, ~p"/users/log-in", %{"user" => %{"email" => "unknown@example.com"}})
+
+      assert Phoenix.Flash.get(known.assigns.flash, :info) ==
+               Phoenix.Flash.get(unknown.assigns.flash, :info)
+
+      refute Accounts.get_user_by_email("unknown@example.com")
+    end
+
+    test "email sign-in completes embedded authorization only from the original window", %{
+      conn: conn,
+      user: user
+    } do
+      params = %{"embedded_origin" => "https://customer.example", "embedded_state" => "state-123"}
+
+      conn =
+        conn
+        |> get(~p"/users/log-in?#{params}")
+        |> post(~p"/users/log-in", Map.put(params, "user", %{"email" => user.email}))
+
+      popup = get(conn, redirected_to(conn))
+      document = popup |> html_response(200) |> LazyHTML.from_document()
+
+      [continue_path] =
+        LazyHTML.attribute(LazyHTML.query(document, "#embedded-email-continue"), "href")
+
+      assert popup.resp_body =~ "return to this window"
+
+      assert_receive {:email, %{subject: "Log in instructions"} = email}
+      [url] = Regex.run(~r{https?://\S+/users/log-in/\S+}, email.text_body)
+      uri = URI.parse(url)
+      token = uri.path |> String.split("/") |> List.last()
+      refute uri.query
+
+      email_tab = get(conn, uri.path)
+      refute html_response(email_tab, 200) =~ ~s(name="embedded_state")
+      email_tab = post(email_tab, ~p"/users/log-in", %{"user" => %{"token" => token}})
+      assert get_session(email_tab, :user_token)
+      refute FrontmanServer.Repo.get_by(Accounts.UserToken, context: "embedded_client")
+
+      popup = get(email_tab, continue_path)
+      assert html_response(popup, 200) =~ "embedded-connect-form"
+
+      popup =
+        post(
+          popup,
+          ~p"/users/log-in",
+          Map.merge(params, %{"_action" => "connect", "user_id" => user.id})
+        )
+
+      assert html_response(popup, 200) =~ ~s(data-origin="https://customer.example")
+      assert popup.resp_body =~ ~s(data-state="state-123")
+    end
+
+    test "retrying an unknown email preserves the embedded request", %{conn: conn, user: user} do
+      params = %{"embedded_origin" => "https://customer.example", "embedded_state" => "state-123"}
+
+      conn =
+        post(
+          conn,
+          ~p"/users/log-in",
+          Map.put(params, "user", %{"email" => "unknown@example.com"})
+        )
+
+      conn = get(conn, redirected_to(conn))
+      document = conn |> html_response(200) |> LazyHTML.from_document()
+      form = LazyHTML.query(document, "#email-link-form")
+      [origin] = LazyHTML.attribute(LazyHTML.query(form, "input[name=embedded_origin]"), "value")
+      [state] = LazyHTML.attribute(LazyHTML.query(form, "input[name=embedded_state]"), "value")
+
+      conn =
+        post(conn, ~p"/users/log-in", %{
+          "embedded_origin" => origin,
+          "embedded_state" => state,
+          "user" => %{"email" => user.email}
+        })
+
+      assert_receive {:email, %{subject: "Log in instructions"} = email}
+      [url] = Regex.run(~r{https?://\S+/users/log-in/\S+}, email.text_body)
+      uri = URI.parse(url)
+      token = uri.path |> String.split("/") |> List.last()
+      refute uri.query
+      conn = get(conn, uri.path)
+      refute html_response(conn, 200) =~ ~s(name="embedded_state")
+      conn = post(conn, ~p"/users/log-in", %{"user" => %{"token" => token}})
+      assert get_session(conn, :user_token)
+      refute FrontmanServer.Repo.get_by(Accounts.UserToken, context: "embedded_client")
+    end
+
+    test "unconfirmed account email link preserves the MCP return path", %{
+      conn: conn,
+      unconfirmed_user: user
+    } do
+      conn =
+        conn
+        |> get("/auth/mcp/workos?external_auth_id=unverified-request")
+
+      pending = get_session(conn, :connect_handoff)
+      assert pending["external_auth_id"] == "unverified-request"
+      assert pending["user_id"] == nil
+      assert redirected_to(conn) == ~p"/users/log-in"
+
+      conn = post(conn, ~p"/users/log-in", %{"user" => %{"email" => user.email}})
+
+      assert_receive {:email,
+                      %{subject: "Confirmation instructions", to: [{_, email_address}]} = email}
+                     when email_address == user.email
+
+      [url] = Regex.run(~r{https?://\S+/users/log-in/\S+}, email.text_body)
+      uri = URI.parse(url)
+      token = uri.path |> String.split("/") |> List.last()
+      conn = get(conn, uri.path)
+      html = html_response(conn, 200)
+      assert html =~ "Confirm and stay logged in"
+      assert html =~ "Continue assistant setup"
+      assert html =~ "Website access is approved separately"
+
+      conn =
+        post(conn, ~p"/users/log-in", %{"user" => %{"token" => token}, "_action" => "confirmed"})
+
+      assert redirected_to(conn) == "/auth/mcp/workos/pending?ref=#{pending["ref"]}"
+      assert get_session(conn, :connect_handoff)["user_id"] == user.id
+      assert Accounts.get_user!(user.id).confirmed_at
+
+      conn = get(conn, redirected_to(conn))
+      page = html_response(conn, 200)
+      assert page =~ "This does not connect a new website"
+      assert page =~ "No active subscription is linked"
+      assert page =~ user.email
+      refute page =~ "Continue to your assistant"
+      assert get_session(conn, :connect_handoff)["ref"] == pending["ref"]
+    end
+
     test "sends magic link email when user exists", %{conn: conn, user: user} do
       conn =
         post(conn, ~p"/users/log-in", %{
@@ -270,28 +517,24 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       assert redirected_to(conn) == ~p"/users/popup-complete"
     end
 
-    test "preserves pending embedded auth request", %{conn: conn, user: user} do
+    test "completes the submitted embedded request", %{conn: conn, user: user} do
       {token, _hashed_token} = generate_user_magic_link_token(user)
 
       conn =
         conn
-        |> init_test_session(%{
-          :user_return_to => "/users/popup-complete",
-          EmbeddedClientAuth.pending_session_key() => %{
-            "origin" => "https://customer.example",
-            "state" => "state-123"
-          }
-        })
         |> post(~p"/users/log-in", %{
-          "user" => %{"token" => token}
+          "user" => %{"token" => token},
+          "embedded_origin" => "https://customer.example",
+          "embedded_state" => "state-123"
         })
 
-      assert redirected_to(conn) == ~p"/users/popup-complete"
+      response = html_response(conn, 200)
+      assert response =~ ~s(data-origin="https://customer.example")
+      assert response =~ ~s(data-state="state-123")
+      assert get_session(conn, :user_token)
 
-      assert get_session(conn, EmbeddedClientAuth.pending_session_key()) == %{
-               "origin" => "https://customer.example",
-               "state" => "state-123"
-             }
+      assert FrontmanServer.Repo.get_by!(Accounts.UserToken, context: "embedded_client").approved_origin ==
+               "https://customer.example"
     end
 
     test "confirms unconfirmed user", %{conn: conn, unconfirmed_user: user} do

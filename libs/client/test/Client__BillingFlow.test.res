@@ -19,7 +19,7 @@ external makeTab: (
 @get external opener: WebAPI.Window.t => Null.t<WebAPI.Window.t> = "opener"
 @new external headers: WebAPI.FetchTypes.headersInit => WebAPI.FetchTypes.headers = "Headers"
 
-let state = ref(Reducer.defaultState)
+let state = ref(Client__State__Initialization.defaultState)
 let tab = ref(WebAPI.Window.current)
 let calls = ref([])
 let navigations = ref([])
@@ -31,12 +31,12 @@ let response = (status, body) => WebAPI.Response.fromString(body, ~init={status:
 let pending = ref(Promise.withResolvers())
 let rec dispatch = action => {
   switch action {
-  | Reducer.ConnectionAction(RequireAuthentication) => authenticated := authenticated.contents + 1
+  | Client__State__Protocol.ConnectionAction(RequireAuthentication) => authenticated := authenticated.contents + 1
   | _ => ()
   }
   let (updated, effects) = Reducer.next(state.contents, action)
   state := updated
-  effects->Array.forEach(effect => Reducer.handleEffect(effect, updated, dispatch))
+  effects->Array.forEach(effect => Client__State__Effects.handleEffect(effect, updated, dispatch))
 }
 let request = operation => dispatch(RequestBilling(operation))
 let flush = () => Promise.make((resolve, _) => {setTimeout(() => resolve(), 0)->ignore})
@@ -75,7 +75,7 @@ beforeEach(() => {
       },
     )
   state := {
-      ...Reducer.defaultState,
+      ...Client__State__Initialization.defaultState,
       connection: Client__ConnectionTestHelpers.ready(~apiBaseUrl="https://api.example"),
     }
   spyOn(WebAPI.Window.current, "open")->mockImplementation((url: string, target: string) => {
@@ -176,14 +176,14 @@ testAsync("launch effects report URLs without navigating", async t => {
   let (opening, effects) = Reducer.next(state.contents, RequestBilling(CustomerPortal))
   let actions = []
   effects->Array.forEach(effect =>
-    Reducer.handleEffect(effect, opening, action => actions->Array.push(action))
+    Client__State__Effects.handleEffect(effect, opening, action => actions->Array.push(action))
   )
   pending.contents.resolve(urlResponse())
   await waitFor(() =>
     t
     ->expect(actions)
     ->Expect.toEqual([
-      Reducer.BillingUrlReceived({
+      Client__State__Protocol.BillingUrlReceived({
         tab: tab.contents,
         url: "https://billing.stripe.test/session",
         request: CustomerPortal,
@@ -315,7 +315,7 @@ test("blocked popups do not create unused checkout", t => {
       request(Status)
       pending.contents.resolve(response(200, statusJson("active", true)))
       await waitFor(
-        () => t->expect(Reducer.Selectors.billingCanStartTurn(state.contents))->Expect.toBe(true),
+        () => t->expect(Client__State__Selectors.billingCanStartTurn(state.contents))->Expect.toBe(true),
       )
     | _ =>
       dispatch(
@@ -353,7 +353,7 @@ testAsync("status refresh uses same bearer without opening tab", async t => {
   request(Status)
   pending.contents.resolve(response(200, statusJson("trialing", true)))
   await waitFor(() =>
-    t->expect(Reducer.Selectors.billingCanStartTurn(state.contents))->Expect.toBe(true)
+    t->expect(Client__State__Selectors.billingCanStartTurn(state.contents))->Expect.toBe(true)
   )
   t->expect(opened.contents)->Expect.toBe(0)
   let (url, init) = calls.contents->Array.get(0)->Option.getOrThrow

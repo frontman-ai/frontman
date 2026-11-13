@@ -40,11 +40,12 @@
 		"cookie": "^2.0.1",
 		"rescript": "catalog:"
 	},
-	"resolutions_comment": "Minimal security overrides for transitive deps whose upstream ranges still resolve vulnerable versions.",
+	"resolutions_comment": "Minimal security overrides for transitive deps whose upstream ranges still resolve vulnerable versions. Keep rescript-vitest/vitest aligned with the Vitest catalog.",
 	"resolutions": {
 		"draft-js/immutable": "3.8.4",
 		"satori/fflate": "0.7.5",
-		"qs": "^6.16.0",
+		"rescript-vitest/vitest": "5.0.5",
+		"qs": "^6.16.1",
 		"glob": ">=13.0.5",
 		"yaml": ">=2.8.3",
 		"esbuild": ">=0.28.1",
@@ -58,6 +59,7 @@
 		"@changesets/changelog-github": "^1.0.1",
 		"@changesets/cli": "^3.0.2",
 		"@vitest/coverage-v8": "catalog:",
+		"ajv": "^8.20.0",
 		"vite": "catalog:",
 		"vitest": "catalog:"
 	},

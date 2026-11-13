@@ -1,6 +1,10 @@
 <?php
 /** Contract against the pinned official WebFactory 301 Redirects 1.05 package. */
+
+declare(strict_types=1);
+
 require '/var/www/html/wp-load.php';
+require_once __DIR__ . '/RuntimeTestSupport.php';
 require_once ABSPATH . 'wp-admin/includes/plugin.php';
 
 function redirects301_check( bool $ok, string $message ): void {
@@ -11,6 +15,7 @@ function redirects301_check( bool $ok, string $message ): void {
 
 wp_set_current_user( get_user_by( 'login', 'admin' )->ID );
 $tools = Frontman_Tools::instance();
+frontman_runtime_inventory( '301-redirects' . ( $argv[1] ?? '' ) );
 if ( in_array( '--coexist', $argv, true ) ) {
 	redirects301_check( Frontman_Tool_301_Redirects::is_available() && Frontman_Tool_Redirection::is_available(), 'Both plugins must be active.' );
 	$registry = new Frontman_Tools();

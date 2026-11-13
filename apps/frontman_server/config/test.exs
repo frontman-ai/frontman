@@ -2,6 +2,10 @@ import Config
 
 config :bcrypt_elixir, :log_rounds, 1
 
+if System.get_env("FRONTMAN_WP_RUNTIME_URL") do
+  config :frontman_server, FrontmanServer.WordPress, plugins: [FrontmanServerWeb.WordPressRuntime]
+end
+
 config :frontman_server, FrontmanServer.Repo,
   username: "postgres",
   password: "postgres",
@@ -100,7 +104,7 @@ config :frontman_server, FrontmanServer.Workers.SendAgentFeedbackToDiscord,
 
 config :swoosh, :api_client, false
 
-config :logger, level: :warning
+config :logger, level: :info
 
 config :phoenix, :plug_init_mode, :runtime
 

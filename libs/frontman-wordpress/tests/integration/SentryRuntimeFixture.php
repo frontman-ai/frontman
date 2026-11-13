@@ -1,5 +1,19 @@
 <?php
 
+add_action( 'plugin_loaded', static function ( string $plugin ): void {
+	if ( 'frontman.php' !== basename( $plugin ) ) {
+		return;
+	}
+	$GLOBALS['frontman_auth_load_state'] = [ did_action( 'init' ), did_action( 'set_current_user' ), has_action( 'init', 'frontman_init' ) ];
+	foreach ( [ 'malformed', 'expired', 'bad_username', 'bad_hash', 'bad_session_token' ] as $reason ) {
+		$callbacks = $GLOBALS['wp_filter'][ 'auth_cookie_' . $reason ]->callbacks[10] ?? [];
+		$GLOBALS['frontman_auth_load_state'][] = array_filter( $callbacks, static function ( $entry ): bool {
+			$scope = $entry['function'] instanceof Closure ? ( new ReflectionFunction( $entry['function'] ) )->getClosureScopeClass() : null;
+			return $scope && 'Frontman_Auth' === $scope->getName();
+		} );
+	}
+} );
+
 add_action( 'init', static function (): void {
 	if ( ! defined( 'FRONTMAN_PLUGIN_DIR' ) ) {
 		return;
@@ -21,6 +35,7 @@ add_action( 'init', static function (): void {
 				throw new Frontman_Tool_Error( 'Expected tool failure.' );
 			}
 			throw new RuntimeException( 'Unexpected tool failure.' );
-		}
+		},
+		new Frontman_Tool_Annotations( false, true, true, false )
 	) );
 }, 20 );

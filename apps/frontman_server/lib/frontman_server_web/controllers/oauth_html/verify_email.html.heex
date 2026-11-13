@@ -1,52 +1,51 @@
-<Layouts.app flash={@flash} current_scope={@current_scope}>
-  <div class="mx-auto w-full max-w-md">
-    <div class="card card-border bg-base-200 text-base-content shadow-xl">
-      <div class="card-body gap-6">
-        <div class="space-y-2 text-center">
-          <div class="badge badge-primary badge-soft mx-auto">Almost there</div>
-          <h1 class="card-title justify-center font-headings text-2xl tracking-tight">
-            Verify your email
-          </h1>
-          <p class="text-sm leading-6 text-base-content/60">
-            <%= if @email do %>
-              We sent a verification code to <span class="font-medium text-base-content/80"><%= @email %></span>.
-            <% else %>
-              We sent a verification code to your email address.
-            <% end %>
-            <br /> Enter the code below to complete sign in.
-          </p>
-        </div>
+<Layouts.app flash={@flash} current_scope={@current_scope} focused>
+  <Layouts.connection title="Verify your email" step={1} assistant={@assistant_connection}>
+    <:intro>
+      <p class="text-base leading-7 text-zinc-400">
+        <%= if @email do %>
+          We sent a verification code to <span class="break-all font-medium text-white">{@email}</span>.
+        <% else %>
+          We sent a verification code to your email address.
+        <% end %>
+        <br /> Enter the code below to complete sign in.
+      </p>
+      <p :if={@assistant_connection} class="mt-4 text-sm leading-6 text-zinc-400">
+        Next, confirm the Frontman account you will connect to your AI assistant.
+        This does not connect a new website or start a subscription.
+      </p>
+    </:intro>
+    <div class="space-y-6">
+      <.form for={%{}} action={~p"/auth/verify-email"} method="post" class="space-y-4">
+        <input type="hidden" name="state" value={@state} />
+        <.input
+          id="code"
+          name="code"
+          label="Verification code"
+          type="text"
+          value=""
+          placeholder="Enter 6-digit code"
+          required
+          autofocus
+          autocomplete="one-time-code"
+          inputmode="numeric"
+          pattern="[0-9]*"
+          maxlength="6"
+          class={Layouts.connection_input_class()}
+        />
 
-        <.form for={%{}} action={~p"/auth/verify-email"} method="post" class="space-y-4">
-          <fieldset class="fieldset">
-            <label for="code" class="label">Verification code</label>
-            <input
-              id="code"
-              name="code"
-              type="text"
-              value=""
-              placeholder="Enter 6-digit code"
-              required
-              autofocus
-              autocomplete="one-time-code"
-              inputmode="numeric"
-              pattern="[0-9]*"
-              maxlength="6"
-              class="input input-lg w-full"
-            />
-          </fieldset>
+        <button type="submit" class={Layouts.connection_button_class()}>
+          Verify and sign in
+        </button>
+      </.form>
 
-          <button type="submit" class="btn btn-secondary btn-lg btn-block">
-            Verify and sign in
-          </button>
-        </.form>
-
-        <div class="text-center">
-          <.link href={~p"/users/log-in"} class="link link-hover text-sm text-base-content/60">
-            &larr; Back to sign in
-          </.link>
-        </div>
+      <div class="text-center">
+        <.link
+          href={~p"/users/log-in"}
+          class="text-sm text-zinc-400 underline underline-offset-4 transition hover:text-white"
+        >
+          &larr; Back to sign in
+        </.link>
       </div>
     </div>
-  </div>
+  </Layouts.connection>
 </Layouts.app>

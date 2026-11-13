@@ -27,6 +27,27 @@ defmodule FrontmanServerWeb.UserSettingsControllerTest do
       assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
                "You must re-authenticate to access this page."
     end
+
+    @tag token_authenticated_at: DateTime.add(DateTime.utc_now(:second), -11, :minute)
+    test "reauthenticates with an email link and returns to settings", %{conn: conn, user: user} do
+      conn = get(conn, ~p"/users/settings")
+      assert redirected_to(conn) == ~p"/users/log-in"
+
+      conn = get(conn, ~p"/users/log-in")
+      assert html_response(conn, 200) =~ ~s(id="email-link-form")
+
+      conn = post(conn, ~p"/users/log-in", %{"user" => %{"email" => user.email}})
+      assert_receive {:email, %{subject: "Log in instructions"} = email}
+      [url] = Regex.run(~r{https?://\S+/users/log-in/\S+}, email.text_body)
+      uri = URI.parse(url)
+      token = uri.path |> String.split("/") |> List.last()
+
+      conn = get(conn, uri.path)
+      assert html_response(conn, 200) =~ "Log in"
+      conn = post(conn, ~p"/users/log-in", %{"user" => %{"token" => token}})
+      assert redirected_to(conn) == ~p"/users/settings"
+      assert conn |> get(~p"/users/settings") |> html_response(200) =~ "Settings"
+    end
   end
 
   describe "PUT /users/settings (change password form)" do
@@ -70,7 +91,6 @@ defmodule FrontmanServerWeb.UserSettingsControllerTest do
   end
 
   describe "PUT /users/settings (change email form)" do
-    @tag :capture_log
     test "updates the user email", %{conn: conn, user: user} do
       conn =
         put(conn, ~p"/users/settings", %{

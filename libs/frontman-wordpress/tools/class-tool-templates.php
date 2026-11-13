@@ -9,6 +9,8 @@
  * @package Frontman
  */
 
+declare(strict_types=1);
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -21,7 +23,7 @@ class Frontman_Tool_Templates {
 	public function register( Frontman_Tools $tools ): void {
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_get_site_info',
-			'Returns site information including WordPress version, active theme, active plugins, public post types with archive URLs and rewrite settings, and taxonomies. CPT archives are generated routes, not backing pages/posts. Set include_installation_paths to true only for a user-requested installation-location check. Paths describe the PHP runtime, not a unique site identity or necessarily the public document root.',
+			'Returns site information including WordPress version, active theme, active plugins, public post types with archive URLs and rewrite settings, taxonomies, and SEO capabilities. CPT archives are generated routes, not backing pages/posts. Inspect seo_capabilities.targets and the advertised tools before selecting archive SEO tools. If the target is unsupported, use authorized admin forms instead; do not write arbitrary Yoast options. Set include_installation_paths to true only for a user-requested installation-location check. Paths describe the PHP runtime, not a unique site identity or necessarily the public document root.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -33,7 +35,8 @@ class Frontman_Tool_Templates {
 					],
 				],
 			],
-			[ $this, 'get_site_info' ]
+			[ $this, 'get_site_info' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -51,7 +54,8 @@ class Frontman_Tool_Templates {
 					],
 				],
 			],
-			[ $this, 'list_templates' ]
+			[ $this, 'list_templates' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -71,7 +75,8 @@ class Frontman_Tool_Templates {
 				],
 				'required' => [ 'slug' ],
 			],
-			[ $this, 'read_template' ]
+			[ $this, 'read_template' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -89,7 +94,8 @@ class Frontman_Tool_Templates {
 				],
 				'required' => [ 'slug', 'type', 'title', 'content' ],
 			],
-			[ $this, 'create_template' ]
+			[ $this, 'create_template' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -111,7 +117,8 @@ class Frontman_Tool_Templates {
 				],
 				'required' => [ 'slug', 'content' ],
 			],
-			[ $this, 'update_template' ]
+			[ $this, 'update_template' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 	}
 

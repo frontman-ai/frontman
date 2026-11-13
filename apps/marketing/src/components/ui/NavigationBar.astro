@@ -6,7 +6,9 @@ import { navigationBarData } from '../../config/navigationBar'
 const { logo, navItems } = navigationBarData
 
 const path = new URL(Astro.request.url).pathname
-const navActions = path.startsWith('/frameworks') || path.startsWith('/marketing-teams') || path.startsWith('/use-cases')
+const navActions = path.startsWith('/chatgpt')
+	? [{ name: 'Connect your site', link: '/chatgpt/#connect' }]
+	: path.startsWith('/frameworks') || path.startsWith('/marketing-teams') || path.startsWith('/use-cases')
 	? [{ name: 'Framework setup', link: '/frameworks/#install' }]
 	: navigationBarData.navActions
 function isActivePath(currentPath: string | undefined): boolean {
@@ -23,9 +25,11 @@ function isActivePath(currentPath: string | undefined): boolean {
 			</a>
 
 			<button
+				type="button"
 				id="header-toggle"
 				class="header__toggle"
 				aria-expanded="false"
+				aria-controls="header-menu"
 				aria-label="Toggle navigation"
 			>
 				<div class="header__toggle-inner">
@@ -35,40 +39,32 @@ function isActivePath(currentPath: string | undefined): boolean {
 				</div>
 			</button>
 
-			<ul class="header__menu">
+			<ul id="header-menu" class="header__menu">
 				{
-					navItems.map((item) => (
+					navItems.map((item, index) => (
 						<li class="header__menu-item">
 							{!item.submenu && !item.megaMenu ? (
 								<a
 									href={item.link}
 									class={`header__menu-link ${isActivePath(item.link) ? 'active' : ''}`}
+									aria-current={isActivePath(item.link) ? 'page' : undefined}
 								>
 									{item.name}
-								</a>
-							) : item.link ? (
-								<a
-									href={item.link}
-									aria-haspopup="true"
-									aria-expanded="false"
-									class={`header__menu-link ${isActivePath(item.link) ? 'active' : ''}`}
-								>
-									{item.name}
-									<Icon name="chevron-down" class="header__menu-chevron" aria-hidden="true" />
 								</a>
 							) : (
-								<button type="button" aria-expanded="false" class="header__menu-link">
+								<button type="button" aria-expanded="false" aria-controls={`header-submenu-${index}`} class={`header__menu-link ${isActivePath(item.link) ? 'active' : ''}`}>
 									{item.name}
 									<Icon name="chevron-down" class="header__menu-chevron" aria-hidden="true" />
 								</button>
 							)}
 							{item.submenu && (
-								<ul class="header__submenu">
+								<ul id={`header-submenu-${index}`} class="header__submenu">
 									{item.submenu.map((subItem) => (
 										<li class="header__submenu-item">
 											<a
 												href={subItem.link}
 												class={`header__submenu-link ${isActivePath(subItem.link) ? 'active' : ''}`}
+												aria-current={isActivePath(subItem.link) ? 'page' : undefined}
 											>
 												{subItem.name}
 											</a>
@@ -77,7 +73,7 @@ function isActivePath(currentPath: string | undefined): boolean {
 								</ul>
 							)}
 							{item.megaMenu && (
-								<div class="header__mega-menu">
+								<div id={`header-submenu-${index}`} class="header__mega-menu">
 									{item.megaMenu.columns.map((column) => (
 										<section class="header__mega-menu-column">
 											<h2 class="header__mega-menu-label">{column.label}</h2>
@@ -87,6 +83,7 @@ function isActivePath(currentPath: string | undefined): boolean {
 														<a
 															href={subItem.link}
 															class={`header__mega-menu-link ${isActivePath(subItem.link) ? 'active' : ''}`}
+															aria-current={isActivePath(subItem.link) ? 'page' : undefined}
 														>
 															{subItem.name}
 														</a>
@@ -122,20 +119,19 @@ function isActivePath(currentPath: string | undefined): boolean {
 
 	.header {
 		@apply fixed top-0 left-0 right-0 z-[999] w-full;
-		padding: 12px 16px 0;
+		padding: 12px 0 0;
 	}
 	@media (min-width: 1024px) {
 		.header {
-			padding: 14px 24px 0;
+			padding: 14px 0 0;
 		}
 	}
 	.header__container {
-		max-width: 1100px;
-		margin: 0 auto;
+		@apply mx-auto max-w-marketing px-page-gutter;
 	}
 	.header__nav {
 		@apply flex items-center;
-		font-family: "SF Pro Display", system-ui, helvetica, sans-serif;
+		font-family: var(--font-sans);
 		height: 56px;
 		padding: 0 8px 0 16px;
 		border-radius: 16px;
@@ -172,9 +168,9 @@ function isActivePath(currentPath: string | undefined): boolean {
 		z-index: 998;
 		background: rgba(10, 10, 10, 0.97);
 		list-style: none;
-		margin: 12px 16px 0;
+		margin: 12px var(--spacing-page-gutter) 0;
 		padding: 5rem 2rem 2rem;
-		width: calc(100% - 32px);
+		width: calc(100% - 2 * var(--spacing-page-gutter));
 		height: calc(100dvh - 12px);
 		border-radius: 16px;
 	}
@@ -217,11 +213,8 @@ function isActivePath(currentPath: string | undefined): boolean {
 		@apply h-3.5 w-3.5 transition-transform;
 		opacity: 0.5;
 	}
-	@media (min-width: 1024px) {
-		.header__menu-item:hover > .header__menu-link .header__menu-chevron,
-		.header__menu-item:focus-within > .header__menu-link .header__menu-chevron {
-			transform: rotate(180deg);
-		}
+	.header__menu-link[aria-expanded="true"] .header__menu-chevron {
+		transform: rotate(180deg);
 	}
 
 	.header__submenu {
@@ -237,6 +230,12 @@ function isActivePath(currentPath: string | undefined): boolean {
 	.header__mega-menu {
 		display: none;
 		list-style: none;
+	}
+	.header__menu-link[aria-expanded="true"] + .header__submenu {
+		display: block;
+	}
+	.header__menu-link[aria-expanded="true"] + .header__mega-menu {
+		display: grid;
 	}
 	.header__mega-menu-column {
 		min-width: 0;
@@ -296,34 +295,15 @@ function isActivePath(currentPath: string | undefined): boolean {
 		}
 	}
 	@media (max-width: 1023px) {
-		.header__menu-item:hover > .header__submenu,
-		.header__menu-item:hover > .header__mega-menu {
-			display: none;
-		}
-		.header__menu-item.open > .header__submenu {
-			display: block;
-		}
-		.header__menu-item.open > .header__mega-menu {
-			display: grid;
+		.header__menu-link[aria-expanded="true"] + .header__mega-menu {
 		gap: 24px;
 		padding: 12px 16px 0;
 		}
 		.header__mega-menu-feature {
 			display: none;
 		}
-		.header__menu-item.open > .header__menu-link .header__menu-chevron {
-			transform: rotate(180deg);
-		}
 	}
 	@media (min-width: 1024px) {
-		.header__menu-item:hover > .header__submenu,
-		.header__menu-item:focus-within > .header__submenu {
-			display: block;
-		}
-		.header__menu-item:hover > .header__mega-menu,
-		.header__menu-item:focus-within > .header__mega-menu {
-			display: grid;
-		}
 		.header__mega-menu {
 			position: fixed;
 			top: 70px;
@@ -409,7 +389,7 @@ function isActivePath(currentPath: string | undefined): boolean {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		font-family: "SF Pro Display", system-ui, helvetica, sans-serif;
+		font-family: var(--font-sans);
 		font-size: 13px;
 		font-weight: 550;
 		line-height: 1;
@@ -429,5 +409,13 @@ function isActivePath(currentPath: string | undefined): boolean {
 	}
 	.header__cta:hover {
 		opacity: 0.88;
+	}
+
+	@media (prefers-reduced-transparency: reduce) {
+		.header__nav::before, .header__submenu, .header__mega-menu {
+			background: var(--color-neutral-950);
+			backdrop-filter: none;
+			-webkit-backdrop-filter: none;
+		}
 	}
 </style>

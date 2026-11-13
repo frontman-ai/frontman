@@ -1,5 +1,5 @@
 defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
-  use FrontmanServer.DataCase, async: false
+  use FrontmanServer.DataCase, async: true
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
@@ -40,7 +40,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
   end
 
   describe "canonical backend results" do
-    @tag :capture_log
     test "completion and timeout return the persisted winner in either ordering", context do
       %{scope: scope, task_id: task_id, turn_number: turn_number} = context
 
@@ -70,7 +69,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
     end
   end
 
-  @tag :capture_log
   test "a malformed backend return becomes a canonical error", context do
     %{scope: scope, task_id: task_id, turn_number: turn_number} = context
 

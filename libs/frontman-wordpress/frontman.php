@@ -3,7 +3,7 @@
  * Plugin Name:       Frontman - AI Website Editor
  * Plugin URI:        https://frontman.sh
  * Description:       Edit WordPress with AI beside a live preview. Update pages, posts, Elementor layouts, WooCommerce data, menus, and settings faster.
- * Version:           5.6.0
+ * Version:           5.9.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Frontman AI
@@ -13,39 +13,15 @@
  * Text Domain:       frontman-agentic-ai-editor
  */
 
+declare(strict_types=1);
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! function_exists( 'frontman_plugin_dir_path' ) ) {
-	/**
-	 * Resolve the plugin directory path.
-	 */
-	function frontman_plugin_dir_path( string $file ): string {
-		if ( function_exists( 'plugin_dir_path' ) ) {
-			return call_user_func( 'plugin_dir_path', $file );
-		}
-
-		return dirname( $file ) . '/';
-	}
-}
-
-if ( ! function_exists( 'frontman_plugin_dir_url' ) ) {
-	/**
-	 * Resolve the plugin directory URL.
-	 */
-	function frontman_plugin_dir_url( string $file ): string {
-		if ( function_exists( 'plugin_dir_url' ) ) {
-			return call_user_func( 'plugin_dir_url', $file );
-		}
-
-		return '';
-	}
-}
-
-define( 'FRONTMAN_VERSION', '5.6.0' );
-define( 'FRONTMAN_PLUGIN_DIR', frontman_plugin_dir_path( __FILE__ ) );
-define( 'FRONTMAN_PLUGIN_URL', frontman_plugin_dir_url( __FILE__ ) );
+define( 'FRONTMAN_VERSION', '5.9.0' );
+define( 'FRONTMAN_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+define( 'FRONTMAN_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'FRONTMAN_PLUGIN_FILE', __FILE__ );
 
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-auth.php';
@@ -56,6 +32,8 @@ require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-sentry.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-settings.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-router.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-ui.php';
+
+register_activation_hook( FRONTMAN_PLUGIN_FILE, [ 'Frontman_UI', 'activate' ] );
 
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-posts.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-users.php';
@@ -75,6 +53,7 @@ require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-seo.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-redirection.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-301-redirects.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-angie.php';
+require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-code-snippets.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-directorist.php';
 
 /**
@@ -103,6 +82,10 @@ function frontman_bootstrap(): void {
 
 	if ( Frontman_Tool_Angie::is_available() ) {
 		( new Frontman_Tool_Angie() )->register( $tools );
+	}
+
+	if ( Frontman_Tool_Code_Snippets::is_available() ) {
+		( new Frontman_Tool_Code_Snippets() )->register( $tools );
 	}
 
 	if ( Frontman_Tool_Directorist::is_available() ) {
@@ -146,6 +129,4 @@ function frontman_deactivate(): void {
 	delete_transient( 'frontman_file_tracker_' . (int) get_current_user_id() );
 }
 
-if ( function_exists( 'register_deactivation_hook' ) ) {
-	call_user_func( 'register_deactivation_hook', FRONTMAN_PLUGIN_FILE, 'frontman_deactivate' );
-}
+register_deactivation_hook( FRONTMAN_PLUGIN_FILE, 'frontman_deactivate' );

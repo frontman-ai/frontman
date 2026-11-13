@@ -1,5 +1,5 @@
 defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   import FrontmanServer.ProvidersFixtures, only: [png_fixture: 2]
 
@@ -41,7 +41,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
       assert LLMRequestPreflight.run(messages) == messages
     end
 
-    @tag :capture_log
     test "removes oversized images for constrained providers" do
       Sentry.Test.setup_sentry(dedup_events: false)
 
@@ -70,7 +69,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
       assert [] = Sentry.Test.pop_sentry_reports()
     end
 
-    @tag :capture_log
     test "limits OpenRouter Anthropic requests with more than 20 images" do
       model = %LLMDB.Model{provider: :openrouter, id: "anthropic/claude-sonnet-5"}
       [result] = LLMRequestPreflight.run(many_image_messages(3000), model: model)

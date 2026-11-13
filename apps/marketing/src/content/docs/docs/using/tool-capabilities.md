@@ -118,9 +118,17 @@ A successful click also does not prove that an asynchronous save completed.
 Use the application's save control and wait for save confirmation. Then reopen or reload the target and read the saved value.
 Do not reload or navigate away between fill and save: this can discard unsaved edits.
 
-For WordPress SEO, first inspect `wp_get_site_info.seo_unavailable_reason` and the advertised tools.
-Prefer `wp_read_seo` and `wp_update_seo` when available. If compatibility prevents those tools, use an authorized admin form instead.
-The browser workflow does not bypass authentication or post/meta permissions.
+For WordPress SEO, inspect `wp_get_site_info.seo_capabilities` and the advertised tools.
+Use `wp_read_seo`/`wp_update_seo` for posts, pages, and individual CPT items.
+With Yoast Free, use `wp_read_term_seo`/`wp_update_term_seo` for public taxonomy terms.
+The term reader accepts `taxonomy` and exactly one of `term_id` or `slug`. Updates require `taxonomy` and the resolved `term_id`.
+Use `wp_read_post_type_archive_seo`/`wp_update_post_type_archive_seo` with `post_type` for public CPT archives.
+Discover post types and archive URLs through `wp_get_site_info`. Archives are not backing pages.
+Both archive update tools accept `title`, `description`, or both. Omitted fields stay unchanged.
+Empty term overrides restore inheritance. Empty CPT archive values restore Yoast defaults, including nonempty title templates.
+`seo_capabilities.targets` reports separate term and CPT archive availability. SureRank supports only the existing post-level reader.
+If the target is unsupported, use an authorized admin form instead.
+The browser workflow does not bypass authentication or target permissions.
 Stored overrides do not prove rendered titles, descriptions, social tags, or schema. Inspect the requested rendered output separately.
 If save or readback fails, report the remaining work instead of claiming completion.
 

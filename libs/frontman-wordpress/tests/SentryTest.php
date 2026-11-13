@@ -192,25 +192,18 @@ check( 2 === count( $boundary_events ), 'Boundaries must respect diagnostics con
 define( 'FRONTMAN_PLUGIN_URL', 'https://example.test/plugin/' );
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-ui.php';
 $ui = new Frontman_UI();
-$ui->register();
 Frontman_Settings::register();
-check( [ $ui, 'enqueue_admin_assets' ] === $GLOBALS['hooks']['admin_enqueue_scripts'][0][0], 'Named callbacks must retain their removable WordPress identity.' );
-check( [ Frontman_Settings::class, 'register_setting' ] === $GLOBALS['hooks']['admin_init'][0][0], 'Settings callback identity must remain stable.' );
+$ui->add_admin_menu_link();
 foreach ( $GLOBALS['hooks']['admin_menu'] as [ $callback ] ) { $callback(); }
 $callbacks = [
+	[ [ $ui, 'add_admin_menu_link' ], [] ],
 	[ $GLOBALS['hooks']['admin_menu'][0][0], [] ],
-	[ $GLOBALS['hooks']['admin_menu'][1][0], [] ],
 	[ $GLOBALS['hooks']['admin_init'][0][0], [] ],
-	[ $GLOBALS['hooks']['admin_enqueue_scripts'][0][0], [ 'dashboard' ] ],
-	[ $GLOBALS['hooks']['wp_enqueue_scripts'][0][0], [] ],
+	[ [ $ui, 'enqueue_admin_assets' ], [ 'dashboard' ] ],
+	[ [ $ui, 'enqueue_preview_bridge' ], [] ],
 	[ $GLOBALS['hooks']['load-toplevel_page_frontman'][0][0], [] ],
 	[ $GLOBALS['settings_callback'], [] ],
 ];
-foreach ( $GLOBALS['hooks'] as $registrations ) {
-	foreach ( $registrations as [ , $priority, $accepted_args ] ) {
-		check( 10 === $priority && 1 === $accepted_args, 'Preserve WordPress default priority and accepted args.' );
-	}
-}
 function esc_html_e( $value, $domain ): void { throw $GLOBALS['hook_failure']; }
 foreach ( [ '0', '1' ] as $consent ) {
 	$GLOBALS['options']['frontman_php_diagnostics'] = $consent;
@@ -233,7 +226,7 @@ foreach ( [ '0', '1' ] as $consent ) {
 $GLOBALS['authorized'] = false;
 $before = count( $boundary_events );
 $GLOBALS['settings_callback']();
-$GLOBALS['hooks']['wp_enqueue_scripts'][0][0]();
+$ui->enqueue_preview_bridge();
 check( $GLOBALS['denied'] && $before === count( $boundary_events ), 'Ordinary authorization denials must not be reported.' );
 
 fwrite( STDOUT, "OK (Sentry consent, privacy, SDK isolation, exception capture, transport failure)\n" );

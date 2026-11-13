@@ -188,7 +188,16 @@ defmodule FrontmanServerWeb.ChannelCase do
   defmacro join_task_channel(scope, opts \\ []) do
     quote do
       scope = unquote(scope)
-      framework = unquote(opts) |> Keyword.get(:framework, "nextjs")
+      opts = unquote(opts)
+      framework = Keyword.get(opts, :framework, "nextjs")
+      assigns = %{scope: scope}
+
+      assigns =
+        case Keyword.fetch(opts, :runtime) do
+          {:ok, runtime} -> Map.put(assigns, :agent_runtime, runtime)
+          :error -> assigns
+        end
+
       task_id = Ecto.UUID.generate()
 
       {:ok, %FrontmanServer.Tasks.TaskSchema{id: ^task_id}} =
@@ -196,7 +205,7 @@ defmodule FrontmanServerWeb.ChannelCase do
 
       {:ok, _reply, socket} =
         FrontmanServerWeb.UserSocket
-        |> socket("user_id", %{scope: scope})
+        |> socket("user_id", assigns)
         |> subscribe_and_join("task:#{task_id}", %{})
 
       Mox.allow(FrontmanServer.Tasks.Execution.LLMProviderMock, self(), socket.channel_pid)
@@ -276,16 +285,20 @@ defmodule FrontmanServerWeb.ChannelCase do
       raise "Cannot combine shared_sandbox: true with async: true - shared sandbox requires synchronous execution"
     end
 
-    shared = tags[:shared_sandbox] || not tags[:async]
+    shared = tags[:shared_sandbox] || !tags[:async]
 
-    if shared do
-      Mox.set_mox_global()
-    end
+    Mox.set_mox_from_context(tags)
+    if tags[:async], do: Req.Test.set_req_test_from_context(tags)
 
     LLMProvider.stub_llm_response("Test response")
 
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: shared)
     on_exit(fn -> Sandbox.stop_owner(pid) end)
+
+    runtime =
+      if tags[:async] do
+        FrontmanServer.PrivateExecutionRuntime.start!(tags.module, pid)
+      end
 
     {:ok, user} =
       Accounts.register_user(%{
@@ -297,6 +310,6 @@ defmodule FrontmanServerWeb.ChannelCase do
     scope = Scope.for_user(user)
     :ok = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
 
-    {:ok, scope: scope, user: user}
+    {:ok, scope: scope, user: user, runtime: runtime}
   end
 end

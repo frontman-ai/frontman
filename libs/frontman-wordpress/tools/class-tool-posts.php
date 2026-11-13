@@ -18,6 +18,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Frontman_Tool_Posts {
 	private const TAXONOMIES = [ 'categories' => 'category', 'tags' => 'post_tag' ];
 
+	/** Keep dedicated creation paths; retain ID-based recovery for existing templates. */
+	private static function require_general_post_type( string $type, bool $creating = false ): void {
+		$tool = [
+			'custom_css' => 'wp_update_custom_css',
+			'wp_navigation' => $creating ? 'wp_create_navigation_menu' : 'wp_update_navigation_menu',
+			'wp_template' => $creating ? 'wp_create_template' : null,
+			'wp_template_part' => $creating ? 'wp_create_template' : null,
+		][ $type ] ?? null;
+		if ( null !== $tool ) {
+			throw new Frontman_Tool_Error( "Use {$tool} for {$type} instead of the generic post writer." );
+		}
+	}
+
 	/**
 	 * Register all post tools.
 	 */
@@ -86,7 +99,8 @@ class Frontman_Tool_Posts {
 					],
 				],
 			],
-			[ $this, 'list_posts' ]
+			[ $this, 'list_posts' ],
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -105,10 +119,7 @@ class Frontman_Tool_Posts {
 				'required' => [ 'id' ],
 			],
 			[ $this, 'read_post' ],
-			null,
-			true,
-			false,
-			static fn( \stdClass $input ): bool => true
+			new Frontman_Tool_Annotations( true, false, false, true )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -152,7 +163,8 @@ class Frontman_Tool_Posts {
 				],
 				'required' => [ 'title', 'content' ],
 			],
-			[ $this, 'create_post' ]
+			[ $this, 'create_post' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -173,12 +185,13 @@ class Frontman_Tool_Posts {
 				],
 				'required' => [ 'source_id' ],
 			],
-			[ $this, 'duplicate_post' ]
+			[ $this, 'duplicate_post' ],
+			new Frontman_Tool_Annotations( false, true, false, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_update_post',
-			'Updates an existing post or page. For a user-requested author task, resolve the account with wp_find_users; never guess IDs or choose an ambiguous match. Read back successful author assignment with wp_read_post. Only the fields you provide will be changed. Do not use content on Elementor-managed pages; use wp_elementor_* tools for Elementor content/layout changes.',
+			'Updates an existing post or page. For one or more specific content fragments, prefer edit_many: read the post first, dry-run the proposed edits, then save with the same content hash. edit_many changes content only and returns a compact receipt; update titles, status, and other fields in a separate call. For a user-requested author task, resolve the account with wp_find_users; never guess IDs or choose an ambiguous match. Read back successful author assignment with wp_read_post. Only the fields you provide will be changed. Do not use content on Elementor-managed pages; use wp_elementor_* tools for Elementor content/layout changes.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -201,9 +214,9 @@ class Frontman_Tool_Posts {
 					],
 					'mode' => [
 						'type' => 'string',
-						'enum' => [ 'replace', 'edit' ],
+						'enum' => [ 'replace', 'edit', 'edit_many' ],
 						'default' => 'replace',
-						'description' => 'replace accepts full content. For user-authorized fragment changes, use edit after a fresh wp_read_post: supply oldText, newText and content_sha256 as expected_current_sha256, never content. Requires exactly one exact byte match. Supports drafts, freeform HTML and block HTML without parsing or reserializing blocks. Conflict detection is best-effort, not an atomic lock. Elementor content is not supported.',
+						'description' => 'replace accepts full content. edit changes one unique exact fragment and retains full before/after snapshots. edit_many changes one or more distinct, non-overlapping exact content fragments in one post and returns a compact receipt. Do not combine edit_many with title, status, or other post fields. Both edit modes require a fresh wp_read_post.content_sha256 as expected_current_sha256. Conflict detection is best-effort, not an atomic lock. Elementor content is not supported.',
 					],
 					'oldText' => [
 						'type' => 'string',
@@ -216,7 +229,26 @@ class Frontman_Tool_Posts {
 					'expected_current_sha256' => [
 						'type' => 'string',
 						'pattern' => '^[a-f0-9]{64}$',
-						'description' => 'Required in edit mode only: lowercase SHA256 from the fresh wp_read_post.content_sha256. Any content change requires reading again.',
+						'description' => 'Required in edit and edit_many modes: lowercase SHA256 from a fresh wp_read_post.content_sha256. Any content change requires reading again.',
+					],
+					'edits' => [
+						'type' => 'array',
+						'minItems' => 1,
+						'maxItems' => 50,
+						'description' => 'edit_many only: distinct exact fragments from the original content. Each must occur exactly once, and matches must not overlap.',
+						'items' => [
+							'type' => 'object',
+							'additionalProperties' => false,
+							'properties' => [
+								'oldText' => [ 'type' => 'string' ],
+								'newText' => [ 'type' => 'string' ],
+							],
+							'required' => [ 'oldText', 'newText' ],
+						],
+					],
+					'dryRun' => [
+						'type' => 'boolean',
+						'description' => 'edit_many only: validate and report exact match offsets and proposed hash without saving. Defaults to false; a later save rechecks the original content hash.',
 					],
 					'status'  => [
 						'type'        => 'string',
@@ -238,7 +270,8 @@ class Frontman_Tool_Posts {
 				],
 				'required' => [ 'id' ],
 			],
-			[ $this, 'update_post' ]
+			[ $this, 'update_post' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -254,14 +287,12 @@ class Frontman_Tool_Posts {
 				'required' => [ 'id', 'content' ],
 			],
 			[ $this, 'save_post_preview' ],
-			'read-write',
-			true,
-			true
+			new Frontman_Tool_Annotations( false, true, false, false ), 'read-write', true, true
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_delete_post',
-			'Deletes a post or page. Ask the user for confirmation first and only call this tool with confirm=true after they approve. By default moves to trash; set force=true to permanently delete.',
+			'Deletes a post or page after explicit user confirmation. Check the post type first. Standard posts move to trash by default. Deleting a theme template or part is permanent and requires force=true plus approval for permanent deletion. Use wp_delete_navigation_menu for block navigation. To clear Additional CSS, use wp_update_custom_css.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -272,7 +303,7 @@ class Frontman_Tool_Posts {
 					],
 					'force' => [
 						'type'        => 'boolean',
-						'description' => 'If true, permanently delete instead of moving to trash.',
+						'description' => 'If true, permanently delete instead of moving to trash. Required for theme templates and parts.',
 						'default'     => false,
 					],
 					'confirm' => [
@@ -282,7 +313,8 @@ class Frontman_Tool_Posts {
 				],
 				'required' => [ 'id', 'confirm' ],
 			],
-			[ $this, 'delete_post' ]
+			[ $this, 'delete_post' ],
+			new Frontman_Tool_Annotations( false, true, true, false )
 		) );
 	}
 
@@ -622,9 +654,7 @@ class Frontman_Tool_Posts {
 	 * wp_create_post handler.
 	 */
 	public function create_post( array $input ): array {
-		if ( in_array( sanitize_key( $input['post_type'] ?? 'post' ), [ 'wp_template', 'wp_template_part' ], true ) ) {
-			throw new Frontman_Tool_Error( 'Use wp_create_template to create theme-linked templates or parts.' );
-		}
+		self::require_general_post_type( sanitize_key( $input['post_type'] ?? 'post' ), true );
 		self::validate_taxonomy_input( $input );
 		$this->check_write_permissions( $input, sanitize_key( $input['post_type'] ?? 'post' ) );
 		if ( ! array_key_exists( 'content', $input ) ) {
@@ -684,9 +714,11 @@ class Frontman_Tool_Posts {
 			throw new Frontman_Tool_Error( "Post not found: {$source_id}" );
 		}
 
-		if ( in_array( $source->post_type, [ 'wp_template', 'wp_template_part' ], true ) ) {
-			throw new Frontman_Tool_Error( 'Use wp_create_template instead of duplicating templates or parts.' );
+		self::require_general_post_type( $source->post_type, true );
+		if ( ! current_user_can( 'read_post', $source_id ) ) {
+			throw new Frontman_Tool_Error( 'Insufficient permission to read the source post.' );
 		}
+		$this->check_write_permissions( [], $source->post_type );
 		$title  = isset( $input['title'] ) ? sanitize_text_field( $input['title'] ) : trim( (string) $source->post_title ) . ' Copy';
 
 		$post_data = [
@@ -730,8 +762,10 @@ class Frontman_Tool_Posts {
 			throw new Frontman_Tool_Error( "Post not found: {$id}" );
 		}
 
+		self::require_general_post_type( $post->post_type );
 		$this->check_write_permissions( $input, $post->post_type, $post );
-		$input = $this->prepare_content_edit( $input, $post );
+		$edit_plan = ( $input['mode'] ?? null ) === 'edit_many' ? $this->prepare_multiple_content_edits( $input, $post ) : null;
+		$input = null === $edit_plan ? $this->prepare_content_edit( $input, $post ) : $input + [ 'content' => $edit_plan['content'] ];
 		$this->check_content( $input + [ 'content' => $post->post_content ] );
 		$this->check_page_template( $input, $post->post_type, $post );
 		$assignments = $this->check_taxonomies( $input, $post->post_type, sanitize_key( $input['status'] ?? $post->post_status ) );
@@ -749,6 +783,16 @@ class Frontman_Tool_Posts {
 		}
 		if ( isset( $input['content'] ) && class_exists( 'Frontman_Elementor_Data' ) && Frontman_Elementor_Data::post_uses_elementor( $id ) ) {
 			throw new Frontman_Tool_Error( 'Refusing to update post_content for Elementor-managed page ' . $id . '. Use wp_elementor_update_element, wp_elementor_save_page_data, or wp_elementor_restore_rollback for Elementor content/layout changes. wp_update_post may still update title, status, or excerpt without content.' );
+		}
+		if ( null !== $edit_plan && $edit_plan['dry_run'] ) {
+			return [
+				'id' => $id,
+				'dry_run' => true,
+				'edit_count' => count( $edit_plan['offsets'] ),
+				'match_offsets' => $edit_plan['offsets'],
+				'before_sha256' => $before['content_sha256'],
+				'proposed_sha256' => hash( 'sha256', $edit_plan['content'] ),
+			];
 		}
 
 		if ( isset( $input['title'] ) ) {
@@ -778,9 +822,74 @@ class Frontman_Tool_Posts {
 		}
 		$this->verify_content( $id, $input['content'] ?? $before['content'] );
 
+		$after = $this->assign_and_read( $id, $assignments );
+		if ( null !== $edit_plan ) {
+			return [
+				'id' => $id,
+				'dry_run' => false,
+				'edit_count' => count( $edit_plan['offsets'] ),
+				'before_sha256' => $before['content_sha256'],
+				'after_sha256' => $after['content_sha256'],
+			];
+		}
 		return [
 			'before' => $before,
-			'after'  => $this->assign_and_read( $id, $assignments ),
+			'after'  => $after,
+		];
+	}
+
+	/** Match every requested fragment against the original bytes before proposing any write. */
+	private function prepare_multiple_content_edits( array $input, \WP_Post $post ): array {
+		foreach ( $input as $field => $_value ) {
+			if ( ! in_array( $field, [ 'id', 'mode', 'edits', 'dryRun', 'expected_current_sha256' ], true ) ) {
+				throw new Frontman_Tool_Error( "{$field} is not allowed in edit_many mode." );
+			}
+		}
+		if ( ! isset( $input['expected_current_sha256'] ) || ! is_string( $input['expected_current_sha256'] )
+			|| ! preg_match( '/\A[a-f0-9]{64}\z/', $input['expected_current_sha256'] ) ) {
+			throw new Frontman_Tool_Error( 'expected_current_sha256 must be a lowercase SHA256 hash.' );
+		}
+		if ( hash( 'sha256', $post->post_content ) !== $input['expected_current_sha256'] ) {
+			throw new Frontman_Tool_Error( 'Stale content hash. Read wp_read_post before retrying; no changes were saved.' );
+		}
+		if ( ! isset( $input['edits'] ) || ! is_array( $input['edits'] )
+			|| count( $input['edits'] ) < 1 || count( $input['edits'] ) > 50
+			|| array_keys( $input['edits'] ) !== range( 0, count( $input['edits'] ) - 1 ) ) {
+			throw new Frontman_Tool_Error( 'edits must contain 1 to 50 fragment pairs.' );
+		}
+		if ( array_key_exists( 'dryRun', $input ) && ! is_bool( $input['dryRun'] ) ) {
+			throw new Frontman_Tool_Error( 'dryRun must be a boolean.' );
+		}
+		$matches = [];
+		foreach ( $input['edits'] as $index => $edit ) {
+			if ( ! is_array( $edit ) || count( $edit ) !== 2 || ! array_key_exists( 'oldText', $edit ) || ! array_key_exists( 'newText', $edit )
+				|| ! is_string( $edit['oldText'] ) || ! is_string( $edit['newText'] )
+				|| '' === $edit['oldText'] || $edit['oldText'] === $edit['newText'] ) {
+				throw new Frontman_Tool_Error( "edits[{$index}] must have nonempty oldText and a different newText." );
+			}
+			$offset = strpos( $post->post_content, $edit['oldText'] );
+			if ( false === $offset || false !== strpos( $post->post_content, $edit['oldText'], $offset + 1 ) ) {
+				throw new Frontman_Tool_Error( "edits[{$index}].oldText must match exactly once. No changes were saved." );
+			}
+			$matches[] = [ 'index' => $index, 'offset' => $offset, 'length' => strlen( $edit['oldText'] ), 'newText' => $edit['newText'] ];
+		}
+		usort( $matches, static fn( array $left, array $right ): int => $left['offset'] <=> $right['offset'] );
+		$content = '';
+		$cursor = 0;
+		foreach ( $matches as $match ) {
+			if ( $match['offset'] < $cursor ) {
+				throw new Frontman_Tool_Error( 'edits must not overlap in the original content. No changes were saved.' );
+			}
+			$content .= substr( $post->post_content, $cursor, $match['offset'] - $cursor ) . $match['newText'];
+			$cursor = $match['offset'] + $match['length'];
+		}
+		$content .= substr( $post->post_content, $cursor );
+		$offsets = array_column( $matches, 'offset', 'index' );
+		ksort( $offsets );
+		return [
+			'content' => $content,
+			'offsets' => $offsets,
+			'dry_run' => $input['dryRun'] ?? false,
 		];
 	}
 
@@ -788,7 +897,12 @@ class Frontman_Tool_Posts {
 	private function prepare_content_edit( array $input, \WP_Post $post ): array {
 		$mode = array_key_exists( 'mode', $input ) ? $input['mode'] : 'replace';
 		if ( ! is_string( $mode ) || ! in_array( $mode, [ 'replace', 'edit' ], true ) ) {
-			throw new Frontman_Tool_Error( 'mode must be replace or edit.' );
+			throw new Frontman_Tool_Error( 'mode must be replace, edit or edit_many.' );
+		}
+		foreach ( [ 'edits', 'dryRun' ] as $field ) {
+			if ( array_key_exists( $field, $input ) ) {
+				throw new Frontman_Tool_Error( "{$field} is only allowed in edit_many mode." );
+			}
 		}
 		$fields = [ 'oldText', 'newText', 'expected_current_sha256' ];
 		if ( 'replace' === $mode ) {
@@ -829,15 +943,35 @@ class Frontman_Tool_Posts {
 	 */
 	public function delete_post( array $input ): array {
 		$id    = absint( $input['id'] ?? 0 );
-		$force = (bool) ( $input['force'] ?? false );
+		if ( array_key_exists( 'force', $input ) && ! is_bool( $input['force'] ) ) {
+			throw new Frontman_Tool_Error( 'force must be a boolean.' );
+		}
+		$force = $input['force'] ?? false;
 		$post  = get_post( $id );
 
-		if ( empty( $input['confirm'] ) ) {
+		if ( true !== ( $input['confirm'] ?? null ) ) {
 			throw new Frontman_Tool_Error( 'Deletion requires explicit confirmation. Ask the user first, then call again with confirm=true.' );
 		}
 
 		if ( ! $post ) {
 			throw new Frontman_Tool_Error( "Post not found: {$id}" );
+		}
+		if ( ! current_user_can( 'delete_post', $id ) ) {
+			throw new Frontman_Tool_Error( 'Insufficient permission to delete this post.' );
+		}
+		if ( 'wp_navigation' === $post->post_type ) {
+			throw new Frontman_Tool_Error( 'Use wp_delete_navigation_menu for block navigation.' );
+		}
+		if ( 'custom_css' === $post->post_type ) {
+			throw new Frontman_Tool_Error( 'Use wp_update_custom_css to clear Additional CSS; do not delete its post.' );
+		}
+		if ( in_array( $post->post_type, [ 'wp_template', 'wp_template_part' ], true ) ) {
+			if ( ! current_user_can( 'edit_theme_options' ) ) {
+				throw new Frontman_Tool_Error( 'Deleting a theme template requires edit_theme_options.' );
+			}
+			if ( ! $force ) {
+				throw new Frontman_Tool_Error( 'Theme template deletion is permanent. Ask the user to approve permanent deletion, then pass force=true.' );
+			}
 		}
 
 		$before = $this->read_post( [ 'id' => $id ] );
@@ -848,12 +982,13 @@ class Frontman_Tool_Posts {
 			throw new Frontman_Tool_Error( "Failed to delete post: {$id}" );
 		}
 
+		$observed = get_post( $id );
 		return [
 			'before'  => $before,
 			'deleted' => true,
 			'id'      => $id,
 			'title'   => $post->post_title,
-			'trashed' => ! $force,
+			'trashed' => $observed && 'trash' === $observed->post_status,
 		];
 	}
 

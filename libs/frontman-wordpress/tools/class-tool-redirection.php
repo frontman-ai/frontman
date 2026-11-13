@@ -4,6 +4,9 @@
  *
  * @package Frontman
  */
+
+declare(strict_types=1);
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -20,23 +23,26 @@ class Frontman_Tool_Redirection {
 			'wp_list_redirects' => [
 				'Lists Redirection rules and enabled WordPress groups. Page is zero-based; each page contains up to 100 rules and 100 groups. Optional source filters source URLs by substring. Inspect existing rules before creating one, including regex rules that may overlap. If WebFactory 301 Redirects is installed, inspect its separate store too and ask the user about ownership/conflicts; never automatically choose a provider.',
 				[ 'page' => [ 'type' => 'integer', 'minimum' => 0 ], 'source' => $path ], [], 'list_redirects', 'read',
+				new Frontman_Tool_Annotations( true, false, false, true ),
 			],
 			'wp_create_redirect' => [
 				'Creates one literal-path Redirection rule: 301/302 to a same-site target path, or 404/410 without a target. Requires an enabled WordPress group ID from wp_list_redirects and confirm=true. Matches both trailing-slash variants, case-sensitively; ignores and drops query strings. Does not cover child paths (pagination, feeds, individual CPT entries), disable CPT archives, or edit PHP. Rejects duplicate literal sources and direct self-redirects, but does not detect redirect chains or regex overlap. Verify the public HTTP result and clear relevant caches afterward. Never retry a failed write blindly; list rules first.',
 				[ 'source' => $path, 'target' => $path, 'code' => [ 'type' => 'integer', 'enum' => [ 301, 302, 404, 410 ] ], 'group_id' => [ 'type' => 'integer', 'minimum' => 1 ], 'confirm' => $confirm ],
 				[ 'source', 'code', 'group_id', 'confirm' ], 'create_redirect', 'read-write',
+				new Frontman_Tool_Annotations( false, true, true, false ),
 			],
 			'wp_delete_redirect' => [
 				'Deletes one Redirection rule by ID after user approval (confirm=true). Supply its exact source URL from wp_list_redirects as expected_source to guard against deleting the wrong rule. Returns the deleted rule for reference.',
 				[ 'id' => [ 'type' => 'integer', 'minimum' => 1 ], 'expected_source' => [ 'type' => 'string' ], 'confirm' => $confirm ],
 				[ 'id', 'expected_source', 'confirm' ], 'delete_redirect', 'read-write',
+				new Frontman_Tool_Annotations( false, true, true, false ),
 			],
 		];
-		foreach ( $definitions as $name => [ $description, $properties, $required, $handler, $access ] ) {
+		foreach ( $definitions as $name => [ $description, $properties, $required, $handler, $access, $annotations ] ) {
 			$tools->add( new Frontman_Tool_Definition(
 				$name, $description,
 				[ 'type' => 'object', 'additionalProperties' => false, 'properties' => $properties, 'required' => $required ],
-				[ $this, $handler ], $access, true, true
+				[ $this, $handler ], $annotations, $access, true, true
 			) );
 		}
 	}

@@ -1,5 +1,26 @@
 <?php
 
+require_once __DIR__ . '/ToolAnnotationExpectations.php';
+
+function frontman_runtime_inventory( string $checkpoint ): void {
+	require_once ABSPATH . 'wp-admin/includes/plugin.php';
+	$names = array_column( Frontman_Tools::instance()->all_definitions(), 'name' );
+	sort( $names );
+	$plugins = [];
+	foreach ( get_plugins() as $file => $plugin ) {
+		if ( is_plugin_active( $file ) ) {
+			$plugins[ $file ] = $plugin['Version'];
+		}
+	}
+	fwrite( STDOUT, 'FRONTMAN_INVENTORY ' . wp_json_encode( [
+		'checkpoint' => $checkpoint,
+		'wordpress' => get_bloginfo( 'version' ),
+		'php' => PHP_VERSION,
+		'plugins' => $plugins,
+		'names' => $names,
+	] ) . "\n" );
+}
+
 function frontman_runtime_assert( bool $condition, string $message ): void {
 	if ( ! $condition ) {
 		throw new RuntimeException( $message );
@@ -8,6 +29,20 @@ function frontman_runtime_assert( bool $condition, string $message ): void {
 
 function frontman_runtime_same( $expected, $actual, string $message ): void {
 	frontman_runtime_assert( $expected === $actual, $message . "\nExpected: " . wp_json_encode( $expected ) . "\nActual: " . wp_json_encode( $actual ) );
+}
+
+/** Review oracle tuples: read-only, destructive, open-world, idempotent. */
+function frontman_runtime_assert_annotations( Frontman_Tools $tools, array $expected ): void {
+	$definitions = array_column( json_decode( wp_json_encode( $tools->all_definitions() ), true, 512, JSON_THROW_ON_ERROR ), null, 'name' );
+	$names = array_keys( $definitions );
+	$reviewed = array_keys( $expected );
+	sort( $names );
+	sort( $reviewed );
+	frontman_runtime_same( $reviewed, $names, 'Every actual registration requires a reviewed classification.' );
+	foreach ( $expected as $name => $tuple ) {
+		$hints = array_combine( [ 'readOnlyHint', 'destructiveHint', 'openWorldHint', 'idempotentHint' ], $tuple );
+		frontman_runtime_same( $hints, $definitions[ $name ]['annotations'] ?? null, 'Reviewed annotations survive JSON serialization: ' . $name );
+	}
 }
 
 function frontman_runtime_call( Frontman_Tools $tools, string $name, array $input ): array {
@@ -24,7 +59,7 @@ function frontman_runtime_saved_id( string $message ): int {
 	return (int) $match[1];
 }
 
-function frontman_runtime_http( string $method, string $path, string $cookie = '', ?string $nonce = null, ?string $body = null, string $test = '', string $authorization = '', ?string $cookie_name = null, bool $tls = false ): array {
+function frontman_runtime_http( string $method, string $path, string $cookie = '', ?string $nonce = null, ?string $body = null, string $test = '', string $authorization = '', ?string $cookie_name = null, bool $tls = false, string $content_type = 'application/json' ): array {
 	$headers = [ 'Host: frontman-runtime.example.test' ];
 	$headers[] = '' === $authorization ? '' : 'Authorization: Basic ' . base64_encode( $authorization );
 	$headers[] = '' === $test ? '' : 'X-Frontman-Seo-Test: ' . $test;
@@ -39,10 +74,10 @@ function frontman_runtime_http( string $method, string $path, string $cookie = '
 		false,
 		stream_context_create( [ 'http' => [
 			'content' => $body ?? '',
-			'header' => implode( "\r\n", array_filter( $headers ) ) . "\r\nContent-Type: application/json\r\n",
+			'header' => implode( "\r\n", array_filter( $headers ) ) . ( null === $body ? '' : "\r\nContent-Type: " . $content_type ) . "\r\n",
 			'ignore_errors' => true, 'follow_location' => 0,
 			'method' => $method,
-		], 'ssl' => [ 'cafile' => '/tmp/frontman-test.crt' ] ] )
+		], 'ssl' => [ 'cafile' => '/tmp/ca.crt' ] ] )
 	);
 	preg_match_all( '/^HTTP\/\S+\s+(\d{3})/m', implode( "\n", $http_response_header ?? [] ), $status );
 	preg_match( '/<title[^>]*>(.*?)<\/title>/is', (string) $response, $title );
@@ -83,15 +118,20 @@ function frontman_runtime_tool( string $cookie, ?string $nonce, array $request, 
 
 function frontman_runtime_isolated_cases(): array {
 	return [
+		'integration-annotations' => [ 'file' => 'IntegrationToolAnnotationsRuntimeCases.php', 'root_alias' => false ],
+		'woocommerce-annotations' => [ 'file' => 'WooCommerceAnnotationsRuntimeCases.php', 'root_alias' => false ],
 		'installation-paths' => [ 'file' => 'InstallationPathsRuntimeTest.php', 'root_alias' => true ],
 		'seo-coexistence' => [ 'file' => 'SeoCoexistenceRuntimeTest.php', 'root_alias' => false ],
 		'surerank' => [ 'file' => 'SureRankRuntimeTest.php', 'root_alias' => false ],
 		'directorist' => [ 'file' => 'DirectoristRuntimeTest.php', 'root_alias' => false ],
 		'super-cache' => [ 'file' => 'SuperCacheRuntimeTest.php', 'root_alias' => false ],
+		'woocommerce-meta' => [ 'file' => 'WooCommerceMetaRuntimeTest.php', 'root_alias' => false ],
+		'code-snippets' => [ 'file' => 'CodeSnippetsRuntimeTest.php', 'root_alias' => false ],
 		'polylang' => [ 'file' => 'PolylangRuntimeTest.php', 'root_alias' => false ],
 		'polylang-setup' => [ 'file' => 'PolylangSetupRuntimeTest.php', 'root_alias' => false ],
 		'polylang-cleanup' => [ 'file' => 'PolylangCleanupRuntimeTest.php', 'root_alias' => false ],
 		'polylang-cleanup-verify' => [ 'file' => 'PolylangCleanupVerifyRuntimeTest.php', 'root_alias' => false ],
+		'client-setup' => [ 'file' => 'ClientRuntimeCase.php', 'root_alias' => false ],
 	];
 }
 

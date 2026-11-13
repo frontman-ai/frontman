@@ -23,6 +23,8 @@
  * @package Frontman
  */
 
+declare(strict_types=1);
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -58,7 +60,7 @@ class Frontman_Router {
 				'methods' => 'GET',
 				'permission_callback' => $permission,
 				'callback' => static function() {
-					return [ 'tools' => Frontman_Tools::instance()->all_definitions( true ) ];
+					return [ 'tools' => Frontman_Tools::instance()->all_definitions() ];
 				},
 			] );
 			register_rest_route( 'frontman/v1', '/tools/call', [
@@ -68,12 +70,11 @@ class Frontman_Router {
 					$tools = Frontman_Tools::instance();
 					$name = $request->get_param( 'name' );
 					$tool = is_string( $name ) ? $tools->get( $name ) : null;
-					if ( ! $tool || null === $tool->remote_validator ) {
+					if ( ! $tool ) {
 						return new WP_Error( 'frontman_mcp_forbidden', 'MCP access denied.', [ 'status' => 403 ] );
 					}
 					$body = json_decode( $request->get_body() );
-					if ( ! is_object( $body ) || ! isset( $body->arguments ) || ! is_object( $body->arguments )
-						|| ! ( $tool->remote_validator )( $body->arguments ) ) {
+					if ( ! is_object( $body ) || ! isset( $body->arguments ) || ! is_object( $body->arguments ) ) {
 						return new WP_Error( 'frontman_mcp_arguments', 'Invalid tool arguments.', [ 'status' => 400 ] );
 					}
 					try {
@@ -125,12 +126,28 @@ class Frontman_Router {
 					$this->handle_get_update();
 					exit;
 
+				case $method === 'GET' && $sub_path === 'mcp/status':
+					header( 'Cache-Control: no-store, private' );
+					wp_send_json( [ 'catalog_url' => get_rest_url( null, 'frontman/v1/tools' ), 'enabled' => Frontman_Sentry::sanitize_enabled( get_option( 'frontman_mcp_enabled', false ) ) ] );
+					exit;
+
 				case $method === 'POST' && $sub_path === 'tools/call':
 					$this->handle_tool_call( $body );
 					exit;
 
 				case $method === 'POST' && $sub_path === 'mcp/connect':
 					$this->handle_mcp_connect();
+					exit;
+
+				case $method === 'POST' && in_array( $sub_path, [ 'mcp/enable', 'mcp/disable' ], true ):
+					$enabled = 'mcp/enable' === $sub_path;
+					update_option( 'frontman_mcp_enabled', $enabled );
+					$saved = Frontman_Sentry::sanitize_enabled( get_option( 'frontman_mcp_enabled', false ) );
+					header( 'Cache-Control: no-store, private' );
+					if ( $saved !== $enabled ) {
+						wp_send_json( [ 'error' => 'Could not save MCP access. Check your WordPress settings and try again.' ], 500 );
+					}
+					wp_send_json( [ 'enabled' => $saved ] );
 					exit;
 
 				case $method === 'POST' && $sub_path === 'resolve-source-location':
@@ -261,7 +278,7 @@ class Frontman_Router {
 		if ( $home_path !== '' && $home_path !== '/' ) {
 			$home_path = rtrim( $home_path, '/' );
 			if ( strpos( $path, $home_path ) === 0 ) {
-				$path = substr( $path, strlen( $home_path ) );
+				$path = (string) substr( $path, strlen( $home_path ) );
 			}
 		}
 
@@ -315,10 +332,10 @@ class Frontman_Router {
 
 		$data = json_decode( $raw, true );
 		if ( ! is_array( $data ) ) {
-			$raw  = wp_check_invalid_utf8( $raw, true );
+			$raw  = (string) wp_check_invalid_utf8( $raw, true );
 			$data = json_decode( $raw, true );
 			if ( is_array( $data ) && isset( $data['name'] ) && is_string( $data['name'] )
-				&& in_array( sanitize_key( $data['name'] ), [ 'wp_read_seo', 'wp_update_seo', 'wp_read_public_file', 'wp_write_public_file' ], true ) ) {
+				&& in_array( sanitize_key( $data['name'] ), array_merge( [ 'wp_read_seo', 'wp_update_seo', 'wp_read_public_file', 'wp_write_public_file' ], Frontman_Tool_Seo::ARCHIVE_TOOLS ), true ) ) {
 				return [];
 			}
 		}

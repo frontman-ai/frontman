@@ -8,7 +8,7 @@ defmodule FrontmanServer.Workers.SyncResendContact do
   @moduledoc """
   Synchronizes signup contacts and activation exits under the integration contact lock.
   Jobs commit with signup or first-message transitions; uniqueness cannot prevent repeated writes.
-  Writes omit preferences, but duplicate-create preservation remains provider-unverified.
+  Writes omit preferences and reconcile before creating missing contacts.
   Projection requires a UTC cutoff and registered state property, including while entry is paused.
   Never writes inactive or emits entry. Provider writes may outlive timeouts.
   Backfilled milestones exclude users; they are not conversion evidence.

@@ -19,7 +19,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7.0.0
+        uses: actions/setup-node@v7.1.0
         with:
           node-version: '24.4.1'
 
@@ -68,6 +68,7 @@ jobs:
 
           declare -A CHANGED_PKGS
           while IFS= read -r file; do
+            if [[ "$file" == libs/frontman-wordpress/tests/* ]]; then continue; fi
             for dir in "${!DIR_TO_PKG[@]}"; do
               if [[ "$file" == "$dir/"* ]]; then
                 pkg="${DIR_TO_PKG[$dir]}"

@@ -9,20 +9,31 @@ defmodule FrontmanServerWeb.OAuthController do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.WorkOS.AuthError
+  alias FrontmanServerWeb.EmbeddedClientAuth
   alias FrontmanServerWeb.UserAuth
 
   import FrontmanServerWeb.UserAuth, only: [require_sudo_mode: 2]
 
   plug(:require_sudo_mode when action in [:link_request, :link_callback, :unlink])
+  plug(EmbeddedClientAuth when action == :request)
+  plug(FrontmanServerWeb.ConnectHandoff)
 
   def request(conn, %{"provider" => provider}) do
     authorize(conn, provider, url(~p"/auth/callback"), :oauth_signin_state)
   end
 
   def callback(conn, params) do
-    if valid_state?(conn, params, :oauth_signin_state),
-      do: complete_sign_in(delete_session(conn, :oauth_signin_state), params),
-      else: complete_sign_in(conn, %{})
+    if valid_state?(conn, params, :oauth_signin_state) do
+      request = get_session(conn, :oauth_signin_state)["embedded_request"]
+
+      conn
+      |> delete_session(:oauth_signin_state)
+      |> assign(:embedded_request, request)
+      |> assign(:oauth_signin_state, params["state"])
+      |> complete_sign_in(params)
+    else
+      complete_sign_in(conn, %{})
+    end
   end
 
   defp complete_sign_in(conn, %{"code" => code}) do
@@ -40,8 +51,12 @@ defmodule FrontmanServerWeb.OAuthController do
         Logger.info("Email verification required, redirecting to verify-email page")
 
         conn
-        |> put_session(:pending_auth_token, error.pending_authentication_token)
-        |> put_session(:pending_auth_email, error.email)
+        |> put_session(:pending_auth, %{
+          "token" => error.pending_authentication_token,
+          "email" => error.email,
+          "request" => conn.assigns.embedded_request,
+          "state" => conn.assigns.oauth_signin_state
+        })
         |> redirect(to: ~p"/auth/verify-email")
 
       {:error, reason} ->
@@ -50,58 +65,70 @@ defmodule FrontmanServerWeb.OAuthController do
     end
   end
 
-  defp complete_sign_in(conn, %{"error" => "access_denied"}) do
-    conn
-    |> put_flash(:error, "Sign in was cancelled.")
-    |> redirect(to: ~p"/users/log-in")
-  end
+  defp complete_sign_in(conn, params) do
+    message =
+      if params["error"] == "access_denied",
+        do: "Sign in was cancelled.",
+        else: "Authentication failed. Please try again."
 
-  defp complete_sign_in(conn, _params) do
+    query =
+      case conn.assigns[:embedded_request] do
+        %{"origin" => origin, "state" => state} ->
+          [embedded_origin: origin, embedded_state: state]
+
+        nil ->
+          []
+      end
+
     conn
-    |> put_flash(:error, "Authentication failed. Please try again.")
-    |> redirect(to: ~p"/users/log-in")
+    |> put_flash(:error, message)
+    |> redirect(to: ~p"/users/log-in?#{query}")
   end
 
   def verify_email_form(conn, _params) do
-    case get_session(conn, :pending_auth_token) do
+    case get_session(conn, :pending_auth) do
       nil ->
         conn
         |> put_flash(:error, "No pending verification. Please sign in again.")
         |> redirect(to: ~p"/users/log-in")
 
-      _token ->
-        email = get_session(conn, :pending_auth_email)
-        render(conn, :verify_email, email: email)
+      pending ->
+        conn
+        |> assign(:embedded_request, pending["request"])
+        |> FrontmanServerWeb.ConnectHandoff.call([])
+        |> render(:verify_email, email: pending["email"], state: pending["state"])
     end
   end
 
-  def verify_email(conn, %{"code" => code}) do
-    token = get_session(conn, :pending_auth_token)
+  def verify_email(conn, %{"code" => code} = params) do
+    state = params["state"]
     signup_framework = get_session(conn, :signup_framework)
 
-    if is_nil(token) do
-      conn
-      |> put_flash(:error, "No pending verification. Please sign in again.")
-      |> redirect(to: ~p"/users/log-in")
-    else
-      case Accounts.authenticate_with_email_verification(code, token, signup_framework) do
-        {:ok, user} ->
-          conn
-          |> delete_session(:pending_auth_token)
-          |> delete_session(:pending_auth_email)
-          |> put_flash(:info, "Email verified. Welcome!")
-          |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
+    case get_session(conn, :pending_auth) do
+      %{"state" => ^state, "token" => token, "request" => request} when is_binary(state) ->
+        case Accounts.authenticate_with_email_verification(code, token, signup_framework) do
+          {:ok, user} ->
+            conn
+            |> assign(:embedded_request, request)
+            |> delete_session(:pending_auth)
+            |> put_flash(:info, "Email verified. Welcome!")
+            |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
 
-        {:error, %AuthError{message: message}} ->
-          conn
-          |> put_flash(:error, message || "Invalid verification code. Please try again.")
-          |> redirect(to: ~p"/auth/verify-email")
+          {:error, %AuthError{message: message}} ->
+            conn
+            |> put_flash(:error, message || "Invalid verification code. Please try again.")
+            |> redirect(to: ~p"/auth/verify-email")
 
-        {:error, _reason} ->
-          conn
-          |> put_flash(:error, "Verification failed. Please try again.")
-          |> redirect(to: ~p"/auth/verify-email")
-      end
+          {:error, _reason} ->
+            conn
+            |> put_flash(:error, "Verification failed. Please try again.")
+            |> redirect(to: ~p"/auth/verify-email")
+        end
+
+      _ ->
+        conn
+        |> put_flash(:error, "No pending verification. Please sign in again.")
+        |> redirect(to: ~p"/users/log-in")
     end
   end
 
@@ -169,7 +196,12 @@ defmodule FrontmanServerWeb.OAuthController do
 
     case Accounts.get_oauth_authorization_url(provider, redirect_uri, state) do
       {:ok, url} ->
-        conn |> put_session(key, state) |> redirect(external: url)
+        conn
+        |> put_session(key, %{
+          "state" => state,
+          "embedded_request" => conn.assigns[:embedded_request]
+        })
+        |> redirect(external: url)
 
       {:error, :unsupported_provider} ->
         send_resp(conn, :not_found, "Not Found")
@@ -178,8 +210,12 @@ defmodule FrontmanServerWeb.OAuthController do
 
   defp valid_state?(_conn, %{"state" => ""}, _key), do: false
 
-  defp valid_state?(conn, %{"state" => state}, key) when is_binary(state),
-    do: state == get_session(conn, key)
+  defp valid_state?(conn, %{"state" => state}, key) when is_binary(state) do
+    case get_session(conn, key) do
+      %{"state" => ^state} -> true
+      _ -> false
+    end
+  end
 
   defp valid_state?(_conn, _params, _key), do: false
 

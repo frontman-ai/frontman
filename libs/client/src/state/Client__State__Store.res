@@ -1,6 +1,7 @@
 let store = StateStore.make(
   module(Client__State__StateReducer),
-  Client__State__StateReducer.defaultState,
+  ~handleEffect=Client__State__Effects.handleEffect,
+  Client__State__Initialization.defaultState,
 )
 
 let dispatch = action => {

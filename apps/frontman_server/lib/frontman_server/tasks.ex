@@ -28,6 +28,7 @@ defmodule FrontmanServer.Tasks do
     Interaction.ToolCall,
     Interaction.ToolResult,
     RetryCoordinator,
+    RunAllowance,
     Todos.Todo
   ]
 
@@ -59,17 +60,19 @@ defmodule FrontmanServer.Tasks do
     History,
     Interaction,
     InteractionSchema,
+    RunAllowance,
     TaskSchema,
     Todos
   }
 
   alias FrontmanServer.Tools
   alias FrontmanServer.Workers.GenerateTitle
-  alias FrontmanServer.Workers.SyncResendContact
   alias SwarmAi.{Loop, Message}
   alias SwarmAi.Message.ContentPart
   alias SwarmAi.Message.Tool
   require Logger
+
+  @pretrial_run_limit 5
 
   @doc "Gets task metadata by ID without loading its interaction history."
   def get_task(scope, task_id) do
@@ -632,11 +635,7 @@ defmodule FrontmanServer.Tasks do
 
   defp accept_user_message(scope, task, attrs) do
     Repo.transact(fn ->
-      if Accounts.record_first_message(scope) do
-        %{user_id: Accounts.scope_user_id(scope), activation: true}
-        |> SyncResendContact.new()
-        |> Oban.insert!()
-      end
+      {:ok, :ok} = Accounts.record_activation(scope)
 
       insert_interaction_row(task, attrs)
     end)
@@ -651,19 +650,60 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp guard_billing_access(scope) do
-    case Billing.can_start_turn?(scope) do
+    case can_start_turn?(scope) do
       true -> :ok
       false -> {:error, :billing_inactive}
     end
   end
 
   def billing_inactive_message(%Scope{} = scope) do
-    case Billing.get_current_subscription(scope) do
-      nil ->
+    case Billing.subscription_access(scope) do
+      :none ->
         "Keep going with a 7-day free Pro trial. Card required."
 
-      %Billing.Subscription{} ->
+      {_access, _status} ->
         "Your Frontman access has ended. Start a subscription to continue."
+    end
+  end
+
+  @doc "Advisory eligibility for starting a new turn."
+  def can_start_turn?(%Scope{} = scope) do
+    case Billing.subscription_access(scope) do
+      {:allowed, _status} -> true
+      _inactive -> remaining_runs(scope) > 0
+    end
+  end
+
+  @doc "Returns the remaining lifetime pretrial runs."
+  def remaining_runs(%Scope{} = scope) do
+    case Repo.get(RunAllowance, Accounts.scope_user_id(scope)) do
+      nil -> @pretrial_run_limit
+      %RunAllowance{used: used} -> @pretrial_run_limit - used
+    end
+  end
+
+  @doc "Returns the PubSub topic for access status updates."
+  def status_topic(%Scope{} = scope), do: "billing_status:user:#{Scope.user_id(scope)}"
+
+  @doc "Broadcasts that a user's access status changed."
+  def broadcast_status_changed(%Scope{} = scope) do
+    Phoenix.PubSub.broadcast(FrontmanServer.PubSub, status_topic(scope), :billing_status_changed)
+  end
+
+  defp authorize_new_turn(%Scope{} = scope) do
+    case Billing.subscription_access(scope) do
+      {:allowed, _status} -> {:ok, :subscription}
+      _inactive -> consume_pretrial_run(scope)
+    end
+  end
+
+  defp consume_pretrial_run(scope) do
+    case Repo.insert_all(RunAllowance, [%{user_id: Accounts.scope_user_id(scope), used: 1}],
+           conflict_target: :user_id,
+           on_conflict: RunAllowance.increment_below(@pretrial_run_limit)
+         ) do
+      {1, _} -> {:ok, :pretrial}
+      {0, _} -> {:error, :billing_inactive}
     end
   end
 
@@ -723,7 +763,7 @@ defmodule FrontmanServer.Tasks do
         broadcast_task(task_id, {:interaction, turn_started_row})
 
         case billing_authorization do
-          :pretrial -> Billing.broadcast_status_changed(Accounts.scope_user_id(scope))
+          :pretrial -> broadcast_status_changed(scope)
           :subscription -> :ok
         end
 
@@ -767,7 +807,7 @@ defmodule FrontmanServer.Tasks do
          user_message_ids = Enum.map(accepted_messages, & &1.id),
          {:ok, agent} <- Agents.get_agent(scope, agent_id),
          {:ok, _access} <- Providers.resolve_model_access(scope, turn_model),
-         {:ok, billing_authorization} <- Billing.authorize_new_turn(scope),
+         {:ok, billing_authorization} <- authorize_new_turn(scope),
          {:ok, turn_started_row} <-
            insert_interaction_row(task_schema, %{
              id: Ecto.UUID.generate(),
@@ -1142,7 +1182,11 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc "Retries an already-authorized turn without charging or rechecking billing."
-  def retry_execution(scope, task_id, retried_error_id, execution) do
+  def retry_execution(
+        scope,
+        task_id,
+        %{retried_error_id: retried_error_id, runtime: _} = execution
+      ) do
     with {:ok, schema} <- get_task(scope, task_id),
          {:ok, history} = load_history(task_id),
          {:ok, turn_number} <- retry_turn_number(history.rows, retried_error_id),
@@ -1151,16 +1195,26 @@ defmodule FrontmanServer.Tasks do
          {:ok, agent} <- turn_agent(scope, history, turn_number),
          retry_attrs = %{retried_error_id: retried_error_id},
          {:ok, _retry} <- record_interaction(schema, :agent_retry, retry_attrs, turn_number) do
-      start_execution(scope, schema, turn_number, agent, execution)
+      start_execution(scope, schema, %{
+        turn_number: turn_number,
+        agent: agent,
+        execution: execution
+      })
     end
   end
 
   @doc "Executes the next accepted-message turn when work is available."
-  def execute_next_turn(%Scope{} = scope, task_id, execution) when is_binary(task_id) do
+  def execute_next_turn(%Scope{} = scope, task_id, %{runtime: _} = execution)
+      when is_binary(task_id) do
     case start_next_turn(scope, task_id) do
       {:ok, task, turn_number, turn_model, agent} ->
         execution = Map.put(execution, :model, turn_model)
-        start_execution(scope, task, turn_number, agent, execution)
+
+        start_execution(scope, task, %{
+          turn_number: turn_number,
+          agent: agent,
+          execution: execution
+        })
 
       stop when stop in [:already_running, :no_accepted_messages] ->
         stop
@@ -1208,13 +1262,17 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc "Resumes an already-authorized active turn without charging or rechecking billing."
-  def resume_execution(scope, task_id, execution) do
+  def resume_execution(scope, task_id, %{runtime: _} = execution) do
     with {:ok, task} <- get_task(scope, task_id),
          {:ok, history} <- load_history(task.id),
          turn_number when is_integer(turn_number) <- History.active_turn_number(history),
          {:ok, agent} <- turn_agent(scope, history, turn_number),
          {:ok, execution} <- ensure_execution_model(history, turn_number, execution) do
-      start_execution(scope, task, turn_number, agent, execution)
+      start_execution(scope, task, %{
+        turn_number: turn_number,
+        agent: agent,
+        execution: execution
+      })
     else
       nil -> {:error, :not_running}
       {:error, reason} -> {:error, reason}
@@ -1238,18 +1296,21 @@ defmodule FrontmanServer.Tasks do
 
   Verifies the task exists and belongs to the user before cancelling.
   """
-  def cancel_execution(scope, task_id) do
+  def cancel_execution(scope, task_id, runtime \\ FrontmanServer.AgentRuntime) do
     with {:ok, _schema} <- get_task(scope, task_id) do
-      SwarmAi.cancel(FrontmanServer.AgentRuntime, task_id)
+      SwarmAi.cancel(runtime, task_id)
     end
   end
 
   defp start_execution(
          %Scope{} = scope,
          %TaskSchema{} = task,
-         turn_number,
-         agent,
-         %{model: requested_model, mcp_tools: mcp_tools} = execution
+         %{
+           turn_number: turn_number,
+           agent: agent,
+           execution:
+             %{model: requested_model, mcp_tools: mcp_tools, runtime: runtime} = execution
+         }
        )
        when is_integer(turn_number) and turn_number > 0 and is_list(mcp_tools) do
     {:ok, history} = load_history(task.id)
@@ -1277,7 +1338,7 @@ defmodule FrontmanServer.Tasks do
             &dispatch_execution_event(scope, task.id, turn_number, response_context, &1)
         })
 
-      SwarmAi.run(FrontmanServer.AgentRuntime, task.id, loop)
+      SwarmAi.run(runtime, task.id, loop)
     end
     |> case do
       {:ok, _pid} -> :ok

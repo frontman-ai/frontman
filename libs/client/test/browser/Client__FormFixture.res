@@ -16,7 +16,7 @@ let originalState = StateStore.getState(Client__State__Store.store)
 
 let preview = (~doc, ~win) => {
   let task =
-    Task.makeNew(~previewUrl="about:blank")->Client__Task__Reducer.Lens.setPreviewFrame(
+    Task.makeNew(~previewUrl="about:blank", ~clientId="form")->Client__Task__Reducer.Lens.setPreviewFrame(
       ~contentDocument=Some(doc),
       ~contentWindow=Some({window: win}),
     )

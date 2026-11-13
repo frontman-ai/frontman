@@ -1,5 +1,71 @@
 # @frontman-ai/frontman-wordpress
 
+## 5.9.0
+
+### Minor Changes
+
+- [#2169](https://github.com/frontman-ai/frontman/pull/2169) [`d326d4b`](https://github.com/frontman-ai/frontman/commit/d326d4b0816739fdb38b7a87044930afdd59762a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add Yoast Free SEO tools for taxonomy terms and custom post type archives. Preserve unrelated SEO settings, refresh native indexables, and report observed save results.
+
+### Patch Changes
+
+- [#2175](https://github.com/frontman-ai/frontman/pull/2175) [`ccdaf9e`](https://github.com/frontman-ai/frontman/commit/ccdaf9e240f9c6def9a3b33f9a1de9ed2157d9b5) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Replace the generic WooCommerce maintenance executor with individually described, confirmation-gated tools.
+
+- [#2165](https://github.com/frontman-ai/frontman/pull/2165) [`594238b`](https://github.com/frontman-ai/frontman/commit/594238bf45082b7e0d3fdcf34ba655e495222975) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add a dismissible WordPress activation notice and an Open Frontman plugin action. Simplify provider setup and add starter prompts to the composer for review before submission.
+
+- [#2170](https://github.com/frontman-ai/frontman/pull/2170) [`328cdf7`](https://github.com/frontman-ai/frontman/commit/328cdf7bf344ec162440430850ecaf986107882c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Document taxonomy and CPT archive SEO tools, permissions, reset behavior, and indexable readback. Keep SEO target selection and verification guidance in tool descriptions rather than the system prompt.
+
+## Unreleased
+
+- Add a dismissible activation welcome notice and a permanent Open Frontman plugin action.
+
+## 5.7.1
+
+### Patch Changes
+
+- [#2145](https://github.com/frontman-ai/frontman/pull/2145) [`e620170`](https://github.com/frontman-ai/frontman/commit/e620170c5f623ff6b786c679802db49e363475d2) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Return an error instead of a partial MCP tool list when a connected WordPress site's catalog is unavailable or invalid. Load owned connections before parallel HTTP requests so discovery cancellation cannot interrupt a database checkout.
+
+- [#2145](https://github.com/frontman-ai/frontman/pull/2145) [`e620170`](https://github.com/frontman-ai/frontman/commit/e620170c5f623ff6b786c679802db49e363475d2) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Discover tools only on the selected WordPress site when executing MCP calls, so unrelated sites cannot block calls through conflicting schemas or outages.
+
+- [#2140](https://github.com/frontman-ai/frontman/pull/2140) [`6d49f60`](https://github.com/frontman-ai/frontman/commit/6d49f60c10a7bde0b5b15f0c878145abe83aacb6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Declare explicit safety and retry hints for every core WordPress tool. Classifications cover publication, persisted previews, destructive changes, public HTTP inspection, and repeated writes without changing tool inputs or execution.
+
+- [#2138](https://github.com/frontman-ai/frontman/pull/2138) [`b35a555`](https://github.com/frontman-ai/frontman/commit/b35a555b7b5c5d628828d61befb5f03a64da9b4c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Declare explicit safety and retry hints for non-commerce integrations, including conditional SEO tools, Elementor generation and public mutations, translation changes, and both redirect providers. Preserve existing catalogs and execution contracts.
+
+- [#2138](https://github.com/frontman-ai/frontman/pull/2138) [`b35a555`](https://github.com/frontman-ai/frontman/commit/b35a555b7b5c5d628828d61befb5f03a64da9b4c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Require explicit safety annotations when constructing WordPress tools. Remove the optional migration path and check the complete registered catalog against reviewed classifications and both authenticated discovery transports.
+
+- [#2145](https://github.com/frontman-ai/frontman/pull/2145) [`e620170`](https://github.com/frontman-ai/frontman/commit/e620170c5f623ff6b786c679802db49e363475d2) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Make runtime dependency checksum checks portable and record tool inventories across real WordPress integrations. Exercise hosted discovery, selected-site execution, outages, and recovery with and without WooCommerce.
+
+- [#2139](https://github.com/frontman-ai/frontman/pull/2139) [`02d9132`](https://github.com/frontman-ai/frontman/commit/02d91325153db1cbeeec37efcc24eff4a2473a59) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Enable strict PHP typing in the core WordPress tools and their runtime tests while preserving existing input validation and tool behavior.
+
+- [#2139](https://github.com/frontman-ai/frontman/pull/2139) [`02d9132`](https://github.com/frontman-ai/frontman/commit/02d91325153db1cbeeec37efcc24eff4a2473a59) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Enable strict PHP typing in the WordPress integration tools and their real-plugin runtime tests.
+
+- [#2140](https://github.com/frontman-ai/frontman/pull/2140) [`6d49f60`](https://github.com/frontman-ai/frontman/commit/6d49f60c10a7bde0b5b15f0c878145abe83aacb6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add a validated tool annotation value type and preserve explicit safety hints in WordPress catalogs. Existing tools remain available without inferred annotations during migration.
+
+- [#2140](https://github.com/frontman-ai/frontman/pull/2140) [`6d49f60`](https://github.com/frontman-ai/frontman/commit/6d49f60c10a7bde0b5b15f0c878145abe83aacb6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Declare reviewed safety and retry hints for the full WooCommerce catalog, including generated metadata upserts, public catalog changes, notifications, refunds, external diagnostics, and maintenance actions. Preserve existing inputs and execution.
+
+## 5.7.0
+
+### Minor Changes
+
+- [#2125](https://github.com/frontman-ai/frontman/pull/2125) [`4ef3465`](https://github.com/frontman-ai/frontman/commit/4ef34650a00031ebe845ca5e63bb37db2fe7dc8d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add `edit_many` to `wp_update_post`. It checks several exact text edits against one post, supports a dry run, and returns a short receipt after one save.
+
+- [#2127](https://github.com/frontman-ai/frontman/pull/2127) [`0ac95d8`](https://github.com/frontman-ai/frontman/commit/0ac95d8d69a2abbf59e87adcb739534c153bb609) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Expose registered WordPress tools automatically to connected MCP accounts. Preserve object property-count constraints in the relay.
+
+- [`d4e4563`](https://github.com/frontman-ai/frontman/commit/d4e4563544cd6952ca014765958c3f5ed3237803) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add read-only Code Snippets search and detail tools with scoped permission checks, bounded results, and stored activation and error-state reporting.
+
+- [#2125](https://github.com/frontman-ai/frontman/pull/2125) [`4ef3465`](https://github.com/frontman-ai/frontman/commit/4ef34650a00031ebe845ca5e63bb37db2fe7dc8d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove the WooCommerce metadata create aliases. Use `wc_update_product_meta`, `wc_update_order_meta`, and `wc_update_customer_meta` to create or update metadata.
+
+- [#2113](https://github.com/frontman-ai/frontman/pull/2113) [`166a7a6`](https://github.com/frontman-ai/frontman/commit/166a7a6c26da9f5df93ea8ffc4e1d8ccd7d6f5e4) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Connect WordPress to an authenticated Frontman account with verified, encrypted credentials.
+
+### Patch Changes
+
+- [#2125](https://github.com/frontman-ai/frontman/pull/2125) [`4ef3465`](https://github.com/frontman-ai/frontman/commit/4ef34650a00031ebe845ca5e63bb37db2fe7dc8d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reject generic creation and duplication of Additional CSS, block navigation, and theme templates. Route Additional CSS and block navigation updates through their dedicated tools. Block edits use post permissions, and post deletion checks permissions and reports permanent template removal accurately.
+
+- [#2117](https://github.com/frontman-ai/frontman/pull/2117) [`f350392`](https://github.com/frontman-ai/frontman/commit/f350392148086cea25c954891bae84f3264aa397) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Enable MCP during WordPress connection approval and show actionable errors.
+
+- [#2128](https://github.com/frontman-ai/frontman/pull/2128) [`828fb32`](https://github.com/frontman-ai/frontman/commit/828fb3236b67c3b9b740a8ac3df32933770cb0c0) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Clarify MCP tool access and show the saved WordPress connection and site access settings.
+
+- [#2132](https://github.com/frontman-ai/frontman/pull/2132) [`ce01fee`](https://github.com/frontman-ai/frontman/commit/ce01feed5981b90d1e1627a792d576f2b129e79b) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Enable strict PHP typing in the WordPress bootstrap, tool registry, and request infrastructure while preserving explicit input validation and stored settings compatibility.
+
 ## 5.6.0
 
 ### Minor Changes
@@ -51,6 +117,7 @@
 
 ## Unreleased
 
+- Simplify WordPress onboarding and let users review starter suggestions before sending.
 - Add default-off MCP post reads with native WordPress Application Password authentication and administrator permission checks.
 
 ## 5.5.0

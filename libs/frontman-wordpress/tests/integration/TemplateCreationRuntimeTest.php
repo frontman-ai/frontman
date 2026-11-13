@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 $base = [ 'title' => 'Layout É 日本語', 'content' => '<!-- wp:paragraph --><p>Layout \\path</p><!-- /wp:paragraph -->' ];
 foreach ( [ 'wp_template', 'wp_template_part' ] as $type ) {
 	$input = $base + [ 'slug' => 'landing-' . $type, 'type' => $type ];

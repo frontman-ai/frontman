@@ -7,6 +7,12 @@ To start your Phoenix server:
 
 Now you can visit [`frontman.local:4000`](https://frontman.local:4000) from your browser.
 
+## Hosted MCP access
+
+Hosted MCP tool listing and calls require a current subscription with status
+`active` or an eligible `trialing` subscription. Canceled trials and free agent turns do not grant MCP access.
+Scheduled cancellation does not remove access while the status remains active.
+
 ## Local Stripe webhooks
 
 Stripe cannot call `localhost` directly. Use the Stripe CLI listener to create a temporary tunnel and forward events to Phoenix.
@@ -70,6 +76,18 @@ Execution admission, retries, cancellation, and reconnect decisions retain their
 Cancellation without a live worker and concurrent continuation admission remain unresolved.
 Reconnect still redispatches unresolved synchronous calls. Abrupt process loss can therefore repeat external writes.
 The client still supports one pending question form.
+
+## Private execution tests
+
+Async `ExecutionCase` and `ChannelCase` tests start a private Swarm runtime per test.
+The SQL owner remains alive until the test supervisor stops the runtime.
+Channel tests start channels after the runtime, so the supervisor stops channels first.
+The runtime initializer grants SQL access and sets the caller chain for existing test expectations.
+The production runtime remains the default. Only trusted server code can select another runtime.
+
+`GlobalStateTest` stays serial because its tests change application configuration or restart the application.
+`PromptCacheTest` stays serial and uses the shared runtime.
+An abrupt process exit during an active SQL query can invalidate that connection.
 
 ## Restart test isolation
 

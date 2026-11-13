@@ -33,15 +33,16 @@ let make:
       and type action = action
       and type effect = effect
     ),
+    ~handleEffect: StateReducer.effectHandler<state, action, effect>,
     state,
   ) => t<state, action, effect> =
-  (module(Reducer), initialState) => {
+  (module(Reducer), ~handleEffect, initialState) => {
     let storeCreator = (next, initialState) => {
       subscriptions: ref([]),
       state: ref(initialState),
       next,
       effects: ref([]),
-      handleEffect: Reducer.handleEffect,
+      handleEffect,
     }
     storeCreator(Reducer.next, initialState)
   }

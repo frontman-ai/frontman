@@ -554,5 +554,12 @@ frontman_characterize_preprocessor_custom_css_restore();
 frontman_characterize_custom_css_save_transformation();
 frontman_characterize_custom_css_conflicts();
 frontman_test_custom_css_read_tools();
-frontman_test_custom_css_edit_tool();
-frontman_test_custom_css_restore_tool();
+
+$original_actor = get_current_user_id();
+wp_set_current_user( get_user_by( 'login', 'admin' )->ID );
+try {
+	frontman_test_custom_css_edit_tool();
+	frontman_test_custom_css_restore_tool();
+} finally {
+	wp_set_current_user( $original_actor );
+}

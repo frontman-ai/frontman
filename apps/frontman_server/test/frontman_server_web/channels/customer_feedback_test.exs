@@ -1,8 +1,8 @@
 defmodule FrontmanServerWeb.CustomerFeedbackTest do
-  use FrontmanServerWeb.ChannelCase, async: false
+  use FrontmanServerWeb.ChannelCase, async: true
   import FrontmanServer.Test.Fixtures.Tasks
   import FrontmanServer.Test.Fixtures.Tools, only: [mcp_tool: 2]
-  import FrontmanServer.ExecutionCase, only: [refute_running_eventually: 1]
+  import FrontmanServer.ExecutionCase, only: [refute_running_eventually: 2]
 
   alias FrontmanServer.Protocols.{JsonRpc, MCP}
   alias FrontmanServer.Repo
@@ -14,10 +14,12 @@ defmodule FrontmanServerWeb.CustomerFeedbackTest do
   alias FrontmanServerWeb.UserSocket
 
   @name "request_customer_feedback"
-  @moduletag :capture_log
 
   for output <- [%{"outcome" => "answered", "score" => 0}, %{"outcome" => "skipped"}] do
-    test "persists #{output["outcome"]} through the normal MCP tool result path", %{scope: scope} do
+    test "persists #{output["outcome"]} through the normal MCP tool result path", %{
+      scope: scope,
+      runtime: runtime
+    } do
       output = unquote(Macro.escape(output))
       task = task_fixture(scope)
       turn = start_turn_fixture(scope, task.id)
@@ -26,7 +28,7 @@ defmodule FrontmanServerWeb.CustomerFeedbackTest do
 
       {:ok, _, socket} =
         UserSocket
-        |> socket("user_id", %{scope: scope})
+        |> socket("user_id", %{scope: scope, agent_runtime: runtime})
         |> subscribe_and_join("task:#{task.id}", %{})
 
       complete_mcp_handshake(socket, tools: [mcp_tool(@name, %{})])
@@ -77,7 +79,7 @@ defmodule FrontmanServerWeb.CustomerFeedbackTest do
         ReqLLMResponses.response("Done")
       end)
 
-      {socket, task_id} = join_task_channel(scope)
+      {socket, task_id} = join_task_channel(scope, runtime: context.runtime)
       complete_mcp_handshake(socket, tools: [mcp_tool(@name, %{}), mcp_tool("question", %{})])
       push(socket, "acp:message", build_prompt_request())
       assert_receive {:execution_tools, names}, 1_000
@@ -88,7 +90,7 @@ defmodule FrontmanServerWeb.CustomerFeedbackTest do
       channel_socket = :sys.get_state(socket.channel_pid)
       assert Enum.any?(channel_socket.assigns.mcp_tools, &(&1.name == @name))
       assert Map.has_key?(Tools.resolve(:all, channel_socket.assigns.mcp_tools), @name)
-      refute_running_eventually(task_id)
+      refute_running_eventually(task_id, context.runtime)
     end
   end
 end

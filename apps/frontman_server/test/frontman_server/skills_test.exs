@@ -1,5 +1,5 @@
 defmodule FrontmanServer.SkillsTest do
-  use FrontmanServer.DataCase
+  use FrontmanServer.DataCase, async: true
 
   alias FrontmanServer.Skills
   alias FrontmanServer.Skills.Skill

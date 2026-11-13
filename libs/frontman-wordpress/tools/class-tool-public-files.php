@@ -1,5 +1,8 @@
 <?php
 /** Guarded physical public text files. @package Frontman */
+
+declare(strict_types=1);
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -11,14 +14,14 @@ class Frontman_Tool_Public_Files {
 			'type' => 'object', 'additionalProperties' => false,
 			'properties' => [ 'name' => [ 'type' => 'string', 'enum' => self::NAMES ] ], 'required' => [ 'name' ],
 		];
-		$tools->add( new Frontman_Tool_Definition( 'wp_read_public_file', 'Inspect one allowlisted physical public text file and observed public output; read before writing.', $schema, [ $this, 'read_public_file' ], 'read' ) );
+		$tools->add( new Frontman_Tool_Definition( 'wp_read_public_file', 'Inspect one allowlisted physical public text file and observed public output; read before writing.', $schema, [ $this, 'read_public_file' ], new Frontman_Tool_Annotations( true, false, true, true ), 'read' ) );
 		$schema['properties'] += [
 			'content' => [ 'type' => 'string', 'description' => 'Exact replacement UTF-8 text, at most 128 KiB.' ],
 			'expected_revision' => [ 'type' => 'string', 'pattern' => '^[a-f0-9]{64}$' ],
 			'confirm' => [ 'type' => 'boolean', 'enum' => [ true ], 'description' => 'True only after user approval of the diff and takeover warning.' ],
 		];
 		$schema['required'] = [ 'name', 'content', 'expected_revision', 'confirm' ];
-		$tools->add( new Frontman_Tool_Definition( 'wp_write_public_file', 'Replace allowlisted public text after approval. Physical creation stops generated updates; manual removal restores generation. Saved and publicly verified are separate; never retry automatically.', $schema, [ $this, 'write_public_file' ], 'read-write' ) );
+		$tools->add( new Frontman_Tool_Definition( 'wp_write_public_file', 'Replace allowlisted public text after approval. Physical creation stops generated updates; manual removal restores generation. Saved and publicly verified are separate; never retry automatically.', $schema, [ $this, 'write_public_file' ], new Frontman_Tool_Annotations( false, true, true, false ), 'read-write' ) );
 	}
 	public static function validate_input( string $tool, array $input ): array {
 		$fields = 'wp_read_public_file' === $tool ? [ 'name' ] : [ 'name', 'content', 'expected_revision', 'confirm' ];

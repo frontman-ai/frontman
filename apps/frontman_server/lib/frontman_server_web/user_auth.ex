@@ -16,7 +16,6 @@ defmodule FrontmanServerWeb.UserAuth do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServerWeb.EmbeddedClientAuth
   alias FrontmanServerWeb.EmbeddedClientOrigin
 
   @max_cookie_age_in_days 14
@@ -39,9 +38,6 @@ defmodule FrontmanServerWeb.UserAuth do
   def log_in_user(conn, user, params \\ %{}) do
     user_return_to = get_session(conn, :user_return_to)
 
-    pending_embedded_client_auth_request =
-      get_session(conn, EmbeddedClientAuth.pending_session_key())
-
     pending_connect_handoff =
       case get_session(conn, :connect_handoff) do
         %{"user_id" => nil} = pending -> Map.put(pending, "user_id", user.id)
@@ -51,10 +47,26 @@ defmodule FrontmanServerWeb.UserAuth do
 
     conn
     |> create_or_extend_session(user, params)
-    |> maybe_restore_embedded_client_auth_request(pending_embedded_client_auth_request)
     |> put_session(:connect_handoff, pending_connect_handoff)
-    |> redirect_to_return_path(user_return_to)
+    |> complete_login(user, user_return_to)
   end
+
+  defp complete_login(
+         %{assigns: %{embedded_request: %{"origin" => origin, "state" => state}}} = conn,
+         user,
+         _return_to
+       ) do
+    conn
+    |> put_resp_header("cache-control", "no-store")
+    |> put_view(FrontmanServerWeb.UserSessionHTML)
+    |> render(:popup_complete,
+      origin: origin,
+      state: state,
+      token: Accounts.generate_embedded_client_token(user, origin)
+    )
+  end
+
+  defp complete_login(conn, _user, return_to), do: redirect_to_return_path(conn, return_to)
 
   defp redirect_to_return_path(conn, nil) do
     redirect(conn, to: signed_in_path(conn))
@@ -69,16 +81,6 @@ defmodule FrontmanServerWeb.UserAuth do
         false -> redirect(conn, to: signed_in_path(conn))
       end
     end
-  end
-
-  defp maybe_restore_embedded_client_auth_request(conn, nil), do: conn
-
-  defp maybe_restore_embedded_client_auth_request(conn, %{"origin" => origin, "state" => state})
-       when is_binary(origin) and is_binary(state) do
-    put_session(conn, EmbeddedClientAuth.pending_session_key(), %{
-      "origin" => origin,
-      "state" => state
-    })
   end
 
   defp safe_return_url?(url) do
@@ -112,13 +114,6 @@ defmodule FrontmanServerWeb.UserAuth do
   so the user is redirected back after re-authenticating.
   """
   def log_out_user(conn, return_to \\ nil) do
-    user_token = get_session(conn, :user_token)
-    user_token && Accounts.delete_user_session_token(user_token)
-
-    if live_socket_id = get_session(conn, :live_socket_id) do
-      FrontmanServerWeb.Endpoint.broadcast(live_socket_id, "disconnect", %{})
-    end
-
     redirect_url =
       case return_to do
         "/users/popup-complete" -> ~p"/users/popup-complete"
@@ -127,9 +122,22 @@ defmodule FrontmanServerWeb.UserAuth do
       end
 
     conn
+    |> end_user_session()
+    |> redirect(to: redirect_url)
+  end
+
+  @doc "Revokes the current browser session without redirecting."
+  def end_user_session(conn) do
+    user_token = get_session(conn, :user_token)
+    user_token && Accounts.delete_user_session_token(user_token)
+
+    if live_socket_id = get_session(conn, :live_socket_id) do
+      FrontmanServerWeb.Endpoint.broadcast(live_socket_id, "disconnect", %{})
+    end
+
+    conn
     |> renew_session(nil)
     |> delete_resp_cookie(@remember_me_cookie)
-    |> redirect(to: redirect_url)
   end
 
   @doc """
@@ -332,19 +340,25 @@ defmodule FrontmanServerWeb.UserAuth do
   If a `return_to` query parameter is present and the user is authenticated,
   redirects to that URL instead of the default signed-in path.
   """
+  def redirect_if_user_is_authenticated(%{params: %{"embedded_origin" => _}} = conn, _opts),
+    do: conn
+
+  def redirect_if_user_is_authenticated(
+        %{request_path: "/users/log-in" <> _, assigns: %{current_scope: %{user: user}}} = conn,
+        _opts
+      ) do
+    if Accounts.sudo_mode?(user, -10) do
+      conn |> redirect_to_return_path(conn.params["return_to"]) |> halt()
+    else
+      conn
+    end
+  end
+
   def redirect_if_user_is_authenticated(conn, _opts) do
     if conn.assigns.current_scope do
-      case EmbeddedClientAuth.put_pending_request(conn, conn.params) do
-        {:ok, conn} ->
-          return_to = conn.params["return_to"]
-
-          conn
-          |> redirect_to_return_path(return_to)
-          |> halt()
-
-        {:error, conn} ->
-          conn
-      end
+      conn
+      |> redirect_to_return_path(conn.params["return_to"])
+      |> halt()
     else
       conn
     end

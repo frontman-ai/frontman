@@ -1,74 +1,72 @@
 <script is:inline>
 	function initNavigation() {
-		const menuItems = document.querySelectorAll('.header__menu-item')
-		menuItems.forEach((menuItem) => {
-			const submenu = menuItem.querySelector('.header__submenu, .header__mega-menu')
-			const link = menuItem.querySelector('.header__menu-link')
+		const nav = document.querySelector('.header__nav')
+		if (!nav || nav.dataset.navigationInitialized) return
+		window.frontmanNavigationCleanup?.()
+		nav.dataset.navigationInitialized = 'true'
 
-			if (submenu && link) {
-				link.addEventListener('click', function (event) {
-					if (!window.matchMedia('(max-width: 1023px)').matches) return
-					const isOpen = menuItem.classList.contains('open')
-					if (isOpen) return
+		const controller = new AbortController()
+		const options = { signal: controller.signal }
+		const headerToggle = nav.querySelector('.header__toggle')
+		const headerMenu = nav.querySelector('.header__menu')
+		const disclosures = nav.querySelectorAll('.header__menu-link[aria-controls]')
+		const desktop = window.matchMedia('(min-width: 1024px)')
 
-					event.preventDefault()
-					menuItems.forEach((otherItem) => {
-						if (otherItem !== menuItem && otherItem.classList.contains('open')) {
-							otherItem.classList.remove('open')
-							const otherLink = otherItem.querySelector('.header__menu-link')
-							if (otherLink) otherLink.setAttribute('aria-expanded', 'false')
-						}
-					})
-					menuItem.classList.add('open')
-					link.setAttribute('aria-expanded', 'true')
-				})
-			}
-		})
-		document.addEventListener('click', function (event) {
-			const target = event.target
-
-			menuItems.forEach((menuItem) => {
-				const submenu = menuItem.querySelector('.header__submenu, .header__mega-menu')
-				if (submenu && !menuItem.contains(target)) {
-					menuItem.classList.remove('open')
-					const link = menuItem.querySelector('.header__menu-link')
-					if (link) link.setAttribute('aria-expanded', 'false')
-				}
-			})
-		})
-
-		const headerToggle = document.querySelector('.header__toggle')
-		const headerMenu = document.querySelector('.header__menu')
-
-		function closeMobileMenu() {
-			if (headerToggle && headerMenu) {
-				headerToggle.classList.remove('header__toggle--open')
-				headerToggle.setAttribute('aria-expanded', 'false')
-				headerMenu.classList.remove('header__menu--open')
-			}
+		function closeSubmenus() {
+			disclosures.forEach((button) => button.setAttribute('aria-expanded', 'false'))
 		}
 
-		if (headerToggle && headerMenu) {
-			headerToggle.addEventListener('click', () => {
-				headerToggle.classList.toggle('header__toggle--open')
-				const isExpanded = headerToggle.getAttribute('aria-expanded') === 'true'
-				const newExpandedValue = isExpanded ? 'false' : 'true'
-				headerToggle.setAttribute('aria-expanded', newExpandedValue)
-				headerMenu.classList.toggle('header__menu--open')
-			})
+		function closeMobileMenu() {
+			closeSubmenus()
+			headerToggle.classList.remove('header__toggle--open')
+			headerToggle.setAttribute('aria-expanded', 'false')
+			headerMenu.classList.remove('header__menu--open')
+		}
 
-			headerMenu.querySelectorAll('a').forEach((link) => {
-				link.addEventListener('click', () => {
-					const parentMenuItem = link.closest('.header__menu-item')
-					const isSubmenuParent =
-						window.matchMedia('(max-width: 1023px)').matches
-						&& link.classList.contains('header__menu-link')
-						&& parentMenuItem?.querySelector('.header__submenu, .header__mega-menu')
+		disclosures.forEach((button) => {
+			button.addEventListener('click', () => {
+				const wasOpen = button.getAttribute('aria-expanded') === 'true'
+				closeSubmenus()
+				button.setAttribute('aria-expanded', String(!wasOpen))
+			}, options)
+		})
 
-					if (isSubmenuParent) return
-					closeMobileMenu()
-				})
-			})
+		headerToggle.addEventListener('click', () => {
+			const opening = headerToggle.getAttribute('aria-expanded') !== 'true'
+			closeMobileMenu()
+			headerToggle.setAttribute('aria-expanded', String(opening))
+			headerToggle.classList.toggle('header__toggle--open', opening)
+			headerMenu.classList.toggle('header__menu--open', opening)
+		}, options)
+
+		headerMenu.addEventListener('click', (event) => {
+			if (event.target.closest('a')) closeMobileMenu()
+		}, options)
+		document.addEventListener('click', (event) => {
+			if (!nav.contains(event.target)) closeMobileMenu()
+			else if (!event.target.closest('.header__menu-item')) closeSubmenus()
+		}, options)
+		nav.addEventListener('focusout', (event) => {
+			if (!nav.contains(event.relatedTarget)) closeMobileMenu()
+		}, options)
+		document.addEventListener('keydown', (event) => {
+			if (event.key !== 'Escape') return
+			const open = nav.querySelector('.header__menu-link[aria-expanded="true"]')
+			if (open) {
+				closeSubmenus()
+				open.focus()
+				event.preventDefault()
+			} else if (headerToggle.getAttribute('aria-expanded') === 'true') {
+				closeMobileMenu()
+				headerToggle.focus()
+				event.preventDefault()
+			}
+		}, options)
+		desktop.addEventListener('change', closeMobileMenu, options)
+		window.frontmanNavigationCleanup = () => {
+			closeMobileMenu()
+			controller.abort()
+			delete nav.dataset.navigationInitialized
 		}
 
 		function openModal(modal) {
@@ -106,18 +104,16 @@
 		})
 	}
 
-	document.addEventListener('DOMContentLoaded', initNavigation)
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', initNavigation)
+	} else {
+		initNavigation()
+	}
 
 	document.addEventListener('astro:page-load', initNavigation)
 
 	document.addEventListener('astro:before-swap', () => {
-		const toggle = document.querySelector('.header__toggle')
-		const menu = document.querySelector('.header__menu')
-		if (toggle && menu) {
-			toggle.classList.remove('header__toggle--open')
-			toggle.setAttribute('aria-expanded', 'false')
-			menu.classList.remove('header__menu--open')
-		}
+		window.frontmanNavigationCleanup?.()
 	})
 </script>
 

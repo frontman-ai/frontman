@@ -1,259 +1,12 @@
-module Log = FrontmanLogs.Logs.Make({
-  let component = #StateReducer
-})
-module Sentry = FrontmanAiFrontmanClient.FrontmanClient__Sentry
-
 let name = "Client::StateReducer"
 
-let plannerAgentName = "planner"
-let executorAgentName = "executor"
-let executePlanPrompt = "Execute the plan above."
+include Client__State__Protocol
 
-module UserContentPart = Client__State__Types.UserContentPart
-module Message = Client__State__Types.Message
 module Task = Client__State__Types.Task
-module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
-type state = Client__State__Types.state
-
-module TaskReducer = Client__Task__Reducer
-module Connection = Client__ConnectionReducer
-
-type taskTarget = CurrentTask | ForTask(string)
-
-type apiKeyProvider = OpenRouter | Anthropic | Fireworks | Nvidia
-
-type pendingPlanHandoff = {taskId: string, executorAgentId: string}
-
-type promptInput = {
-  content: array<UserContentPart.t>,
-  annotationId: option<string>,
-  onComplete: result<unit, string> => unit,
-}
-
-type rec action =
-  | InitializeConnection(Connection.config)
-  | WordPressAuthenticationRequired(option<string>)
-  | ReloadAfterWordPressLogin
-  | ConnectWordPress
-  | WordPressConnectionFinished(string)
-  | ConnectionAction(Connection.action)
-  | ConnectionEvent({signal: WebAPI.EventTypes.abortSignal, action: action})
-  | SessionEvent({requestId: Connection.sessionRequestId, action: action})
-  | AddUserMessage(promptInput)
-  | PromptFailed({
-      requestId: Connection.sessionRequestId,
-      taskId: string,
-      id: Message.UserMessageId.t,
-      error: Connection.ACP.requestError,
-    })
-  | AcpSessionUpdateReceived({taskId: string, update: ACP.sessionUpdate})
-  | TaskAction({target: taskTarget, action: TaskReducer.action})
-  | PreviewAction({clientId: string, navigationKey: int, action: TaskReducer.action})
-  | CancelTurn
-  | ExecutePendingPlan({id: Message.UserMessageId.t})
-  | TaskLoadFinished({taskId: string, result: result<Connection.sessionRequestId, string>})
-  | SwitchTask({taskId: string})
-  | DeleteTask({taskId: string})
-  | ClearCurrentTask
-  | UpdateTaskTitle({taskId: string, title: string})
-  | SetSettingsModalTab({tab: option<Client__State__Types.settingsTab>})
-  | BillingStatusReceived(Client__Billing.status)
-  | BillingStatusError({error: string})
-  | RequestBilling(Client__Billing.request)
-  | BillingUrlReceived({tab: WebAPI.Window.t, url: string, request: Client__Billing.request})
-  | BillingCheckoutDismissed
-  | BillingLaunchFailed({tab: option<WebAPI.Window.t>, error: string})
-  | BillingAuthRequired({tab: option<WebAPI.Window.t>})
-  | BillingRequestCancelled({tab: option<WebAPI.Window.t>})
-  | FetchUserProfile({apiBaseUrl: string})
-  | FetchApiKeySettings
-  | ApiKeySettingsReceived({provider: apiKeyProvider, source: Client__State__Types.apiKeySource})
-  | SaveApiKey({provider: apiKeyProvider, key: string})
-  | ApiKeySaveStarted({provider: apiKeyProvider})
-  | ApiKeySaved({provider: apiKeyProvider})
-  | ApiKeySaveError({provider: apiKeyProvider, error: string})
-  | ResetApiKeySaveStatus({provider: apiKeyProvider})
-  | ConfigOptionsReceived({
-      configOptions: array<Client__State__Types.ACPConfig.sessionConfigOption>,
-    })
-  | SetSelectedModelValue({value: Client__State__Types.ACPConfig.sessionConfigValueId})
-  | AgentAttributionConfigured({agentCatalog: array<ACP.agentCatalogEntry>, defaultAgentId: string})
-  | SetSelectedAgentId(string)
-  | FetchAnthropicOAuthStatus
-  | AnthropicOAuthStatusReceived({connected: bool, expiresAt: option<string>})
-  | InitiateAnthropicOAuth
-  | AnthropicOAuthUrlReceived({authorizeUrl: string, verifier: string})
-  | ExchangeAnthropicOAuthCode({code: string, verifier: string})
-  | AnthropicOAuthConnected({expiresAt: string})
-  | AnthropicOAuthError({error: string})
-  | DisconnectAnthropicOAuth
-  | AnthropicOAuthDisconnected
-  | ResetAnthropicOAuthError
-  | CancelAnthropicOAuth
-  | FetchOpenAIOAuthStatus
-  | OpenAIOAuthStatusReceived({connected: bool, expiresAt: option<string>})
-  | InitiateOpenAIOAuth
-  | OpenAIDeviceCodeReceived({deviceAuthId: string, userCode: string, verificationUrl: string})
-  | OpenAIOAuthConnected({deviceAuthId: string, expiresAt: string})
-  | OpenAIOAuthError({deviceAuthId: option<string>, error: string})
-  | DisconnectOpenAIOAuth
-  | OpenAIOAuthDisconnected
-  | ResetOpenAIOAuthError
-  | UserProfileReceived({userProfile: Client__State__Types.userProfile})
-  | SessionsLoadStarted
-  | SessionsLoadSuccess({
-      sessions: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionSummary>,
-    })
-  | SessionsLoadError({error: string})
-  | CheckForUpdate({
-      apiBaseUrl: string,
-      installedVersion: string,
-      target: Client__State__Types.updateTarget,
-    })
-  | UpdateInfoChecked(option<Client__State__Types.updateInfo>)
-  | WordPressUpdatesChecked(option<Client__WordPressUpdates.response>)
-  | DismissUpdateBanner
-  | HighlightAnnotation({annotationId: string, selector: string})
-  | FetchCustomProviders
-  | CustomProvidersReceived({providers: array<Client__State__Types.customProvider>})
-  | SaveCustomProvider(Client__State__Types.customProviderDraft)
-  | DeleteCustomProvider(string, int)
-  | AcknowledgeCustomProviderMutation
-  | CustomProviderMutationSucceeded({
-      operation: Client__State__Types.customProviderMutationOperation,
-      provider: option<Client__State__Types.customProvider>,
-    })
-  | CustomProviderMutationFailed({
-      operation: Client__State__Types.customProviderMutationOperation,
-      error: Client__State__Types.customProviderMutationError,
-    })
-
-type customProviderMutationRequest =
-  | SaveCustomProviderRequest(Client__State__Types.customProviderDraft)
-  | DeleteCustomProviderRequest({id: string, lockVersion: int})
-
-type effect =
-  | ReloadFrontman
-  | ConnectionEffect(Connection.effect)
-  | CreateSession({taskId: string, input: promptInput})
-  | SendMessage({taskId: string, submission: Client__State__Types.submission})
-  | SubmissionCompleted({onComplete: result<unit, string> => unit, result: result<unit, string>})
-  | AbortBillingRequest(option<WebAPI.EventTypes.abortController>)
-  | FetchBillingStatus({signal: WebAPI.EventTypes.abortSignal, apiBaseUrl: string})
-  | OpenBillingTabAndFetchUrl({
-      signal: WebAPI.EventTypes.abortSignal,
-      request: Client__Billing.request,
-      apiBaseUrl: string,
-    })
-  | NavigateBillingTab({tab: WebAPI.Window.t, url: string})
-  | CloseBillingTab(option<WebAPI.Window.t>)
-  | RequireBillingAuthentication
-  | BufferAssistantText({taskId: string, messageId: string, text: string, agentId: string})
-  | BufferUserBlock({
-      taskId: string,
-      messageId: string,
-      block: FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock.t,
-      agentId: string,
-    })
-  | FlushSessionActions(array<action>)
-  | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
-  | FetchApiKeySettingsEffect({apiBaseUrl: string})
-  | ConnectWordPressEffect({apiBaseUrl: string})
-  | SaveApiKeyEffect({apiBaseUrl: string, provider: apiKeyProvider, key: string})
-  | FetchAnthropicOAuthStatusEffect({apiBaseUrl: string})
-  | GetAnthropicOAuthUrlEffect({apiBaseUrl: string})
-  | ExchangeAnthropicOAuthCodeEffect({apiBaseUrl: string, code: string, verifier: string})
-  | DisconnectAnthropicOAuthEffect({apiBaseUrl: string})
-  | FetchOpenAIOAuthStatusEffect({apiBaseUrl: string})
-  | InitiateOpenAIDeviceAuthEffect({apiBaseUrl: string})
-  | DisconnectOpenAIOAuthEffect({apiBaseUrl: string})
-  | PollOpenAIDeviceAuthEffect({apiBaseUrl: string, deviceAuthId: string, userCode: string})
-  | FetchUserProfileEffect({apiBaseUrl: string})
-  | CheckForUpdateEffect({
-      apiBaseUrl: string,
-      installedVersion: string,
-      target: Client__State__Types.updateTarget,
-    })
-  | FetchCustomProvidersEffect({apiBaseUrl: string})
-  | CustomProviderMutationEffect({apiBaseUrl: string, request: customProviderMutationRequest})
-
-module Lens = {
-  let updateTask = (state: state, taskId: string, fn: Task.t => Task.t): state => {
-    let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
-    let updated = fn(task)
-    let tasks = state.tasks->Dict.copy
-    tasks->Dict.set(taskId, updated)
-    {...state, tasks}
-  }
-
-  let delegateToNewTask = (state: state, task: Task.t, taskAction: TaskReducer.action) => {
-    let (updated, taskEffects) = TaskReducer.next(task, taskAction)
-    let wrappedEffects =
-      taskEffects->Array.map(eff => TaskEffect({target: CurrentTask, effect: eff}))
-    {...state, currentTask: Task.New(updated)}->StateReducer.update(~sideEffects=wrappedEffects)
-  }
-
-  let delegateToTaskId = (state: state, taskId: string, taskAction: TaskReducer.action) => {
-    let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
-    let (updated, taskEffects) = TaskReducer.next(task, taskAction)
-    let wrappedEffects =
-      taskEffects->Array.map(eff => TaskEffect({target: ForTask(taskId), effect: eff}))
-    let tasks = state.tasks->Dict.copy
-    tasks->Dict.set(taskId, updated)
-    {...state, tasks}->StateReducer.update(~sideEffects=wrappedEffects)
-  }
-
-  let delegateToTask = (state: state, target: taskTarget, taskAction: TaskReducer.action) => {
-    switch (target, state.currentTask) {
-    | (CurrentTask, Task.New(task)) => delegateToNewTask(state, task, taskAction)
-    | (CurrentTask, Task.Selected(taskId)) | (ForTask(taskId), _) =>
-      delegateToTaskId(state, taskId, taskAction)
-    }
-  }
-}
+module Lens = Client__State__TaskUpdates.Lens
+let addUserMessageToState = Client__State__TaskUpdates.addUserMessageToState
 
 let getInitialUrl = Client__BrowserUrl.getInitialUrl
-let selectedModelStorageKey = "frontman:selectedModelValue"
-
-let migrateOpenAIModelValue = value =>
-  switch value->String.startsWith("openai:") {
-  | true => "openai_codex:" ++ value->String.slice(~start=7, ~end=String.length(value))
-  | false => value
-  }
-
-let loadSelectedModelValueFromStorage = (): option<string> => {
-  try {
-    WebAPI.Window.current
-    ->WebAPI.Window.localStorage
-    ->WebAPI.Storage.getItem(selectedModelStorageKey)
-    ->Null.toOption
-    ->Option.map(migrateOpenAIModelValue)
-  } catch {
-  | _ => None
-  }
-}
-
-let syncSelectedModelValueToStorage = (value: option<string>): unit => {
-  try {
-    let storage = WebAPI.Window.current->WebAPI.Window.localStorage
-    switch value {
-    | Some(value) => storage->WebAPI.Storage.setItem(~key=selectedModelStorageKey, ~value)
-    | None => storage->WebAPI.Storage.removeItem(selectedModelStorageKey)
-    }
-  } catch {
-  | exn => Log.error(~error=JsExn.fromException(exn), "syncSelectedModelValueToStorage failed")
-  }
-}
-
-let apiKeyProviderId = provider =>
-  switch provider {
-  | OpenRouter => "openrouter"
-  | Anthropic => "anthropic"
-  | Fireworks => "fireworks_ai"
-  | Nvidia => "nvidia"
-  }
-
-let apiKeyProviders: array<apiKeyProvider> = [OpenRouter, Anthropic, Fireworks, Nvidia]
 
 let updateApiKeySettings = (state: state, provider, update) =>
   switch provider {
@@ -280,1805 +33,10 @@ let setAllApiKeySources = (state: state, source) => {
   nvidiaKeySettings: {...state.nvidiaKeySettings, source},
 }
 
-let defaultState: state = {
-  tasks: Dict.make(),
-  currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
-  connection: None,
-  wordPressLoginRecovery: None,
-  wordPressConnectionStatus: None,
-  userProfile: None,
-  settingsModalTab: None,
-  billingStatus: Client__Billing.NotLoaded,
-  billingFlow: Client__Billing.Idle,
-  billingAbortController: None,
-  billingStatusAbortController: None,
-  openrouterKeySettings: {
-    source: Client__State__Types.None,
-    saveStatus: Client__State__Types.Idle,
-  },
-  anthropicKeySettings: {
-    source: Client__State__Types.None,
-    saveStatus: Client__State__Types.Idle,
-  },
-  fireworksKeySettings: {
-    source: Client__State__Types.None,
-    saveStatus: Client__State__Types.Idle,
-  },
-  nvidiaKeySettings: {
-    source: Client__State__Types.None,
-    saveStatus: Client__State__Types.Idle,
-  },
-  anthropicOAuthStatus: Client__State__Types.NotConnected,
-  openaiOAuthStatus: Client__State__Types.OpenAINotConnected,
-  configOptions: None,
-  selectedModelValue: loadSelectedModelValueFromStorage(),
-  agentCatalog: None,
-  selectedAgentId: None,
-  pendingProviderAutoSelect: None,
-  sessionsLoadState: Client__State__Types.SessionsNotLoaded,
-  customProviders: None,
-  customProviderMutation: Client__State__Types.CustomProviderMutationIdle,
-  updateInfo: None,
-  wordpressUpdates: NotChecked,
-  updateBannerDismissed: false,
-  highlightedAnnotation: None,
-}
+module Selectors = Client__State__Selectors
 
-module Selectors = {
-  let wordPressLoginRecovery = (state: state) => state.wordPressLoginRecovery
-  let wordPressConnectionStatus = (state: state) => state.wordPressConnectionStatus
-  let getSession = (state: state) =>
-    state.connection->Option.flatMap(Connection.Selectors.getSession)
-  let getRelay = (state: state) => state.connection->Option.flatMap(Connection.Selectors.getRelay)
-  let getSessionError = (state: state) =>
-    state.connection->Option.flatMap(Connection.Selectors.getSessionError)
-  let getAuthRedirectUrl = (state: state) =>
-    state.connection->Option.flatMap(Connection.Selectors.getAuthRedirectUrl)
-  let getConnectionStatus = (state: state) =>
-    state.connection->Option.mapOr(
-      Connection.Selectors.Disconnected,
-      Connection.Selectors.getConnectionStatus,
-    )
-  let apiBaseUrl = (state: state) =>
-    switch state.connection {
-    | Some({config, connection: Ok(Some({phase: Ready(_)}))}) =>
-      Some(Connection.apiBaseUrlFromLoginUrl(config.acp.loginUrl))
-    | _ => None
-    }
-  let hasActiveACPSession = (state: state) => apiBaseUrl(state)->Option.isSome
-  let isSubmitting = (state: state) =>
-    switch state.connection {
-    | Some({
-        connection: Ok(Some({phase: Ready({session: SessionCreating({onComplete: Some(_)})})})),
-      }) => true
-    | _ => false
-    }
-
-  let getMessageId = Message.getId
-
-  let currentTask = (state: state): Task.t => {
-    switch state.currentTask {
-    | Task.New(task) => task
-    | Task.Selected(id) =>
-      state.tasks
-      ->Dict.get(id)
-      ->Option.getOrThrow(~message=`[Selectors.currentTask] Selected task ${id} not found in dict`)
-    }
-  }
-
-  let currentTaskId = (state: state): option<string> => {
-    switch state.currentTask {
-    | Task.New(_) => None
-    | Task.Selected(id) => Some(id)
-    }
-  }
-
-  let currentTaskClientId = (state: state): string => {
-    Task.getClientId(currentTask(state))
-  }
-
-  let isNewTask = (state: state): bool => Task.isNew(currentTask(state))
-
-  let messages = (state: state): array<Message.t> => {
-    Task.getMessages(currentTask(state))
-  }
-
-  let isStreaming = (state: state): bool => {
-    TaskReducer.Selectors.isStreaming(currentTask(state))->Option.getOr(false)
-  }
-
-  let previewFrame = (state: state): Task.previewFrame => {
-    Task.getPreviewFrame(currentTask(state), ~defaultUrl=getInitialUrl())
-  }
-
-  let annotations = (state: state): array<Client__Annotation__Types.t> => {
-    Task.getAnnotations(currentTask(state))
-  }
-
-  let webPreviewIsSelecting = (state: state): bool => {
-    !isSubmitting(state) && Task.getWebPreviewIsSelecting(currentTask(state))
-  }
-
-  let hasEnrichingAnnotations = (state: state): bool => {
-    TaskReducer.Selectors.hasEnrichingAnnotations(currentTask(state))->Option.getOr(false)
-  }
-
-  let activePopupAnnotationId = (state: state): option<string> => {
-    Task.getActivePopupAnnotationId(currentTask(state))
-  }
-
-  let isAgentRunning = (state: state): bool => {
-    TaskReducer.Selectors.isAgentRunning(currentTask(state))->Option.getOr(false)
-  }
-
-  let currentPlanEntries = (state: state): array<Client__State__Types.ACPTypes.planEntry> => {
-    TaskReducer.Selectors.planEntries(currentTask(state))->Option.getOr([])
-  }
-
-  let completedFileChanges = (state: state): Client__FileChanges.snapshot =>
-    TaskReducer.Selectors.completedFileChanges(currentTask(state))
-
-  let queuedUserMessages = (state: state): array<Message.t> => {
-    TaskReducer.Selectors.queuedUserMessages(currentTask(state))->Option.getOr([])
-  }
-
-  let turnError = (state: state): option<Task.turnErrorInfo> => {
-    TaskReducer.Selectors.turnError(currentTask(state))
-  }
-
-  let retryStatus = (state: state): option<Task.retryStatus> => {
-    TaskReducer.Selectors.retryStatus(currentTask(state))
-  }
-
-  let resolveImageRef = (state: state, ~taskId: string, ~uri: string): option<
-    Message.resolvedImageData,
-  > => {
-    state.tasks
-    ->Dict.get(taskId)
-    ->Option.flatMap(task => Task.getImageAttachments(task)->Dict.get(uri))
-    ->Option.map(Message.resolveAttachmentImage)
-  }
-
-  let previewUrl = (state: state): string => {
-    Task.getPreviewFrame(currentTask(state), ~defaultUrl=getInitialUrl()).url
-  }
-
-  let deviceMode = (state: state): Client__DeviceMode.deviceMode => {
-    TaskReducer.Selectors.deviceMode(currentTask(state))
-  }
-
-  let deviceOrientation = (state: state): Client__DeviceMode.orientation => {
-    TaskReducer.Selectors.orientation(currentTask(state))
-  }
-
-  let getTaskSortTime = (task: Task.t): float => Task.getUpdatedAt(task)->Option.getOr(0.0)
-
-  let tasks = (state: state): array<Task.t> => {
-    state.tasks
-    ->Dict.valuesToArray
-    ->Array.toSorted((a, b) => {
-      let aTime = getTaskSortTime(a)
-      let bTime = getTaskSortTime(b)
-      bTime -. aTime
-    })
-  }
-
-  let userProfile = (state: state): option<Client__State__Types.userProfile> => {
-    state.userProfile
-  }
-
-  let openrouterKeySettings = (state: state): Client__State__Types.apiKeySettings => {
-    state.openrouterKeySettings
-  }
-
-  let anthropicKeySettings = (state: state): Client__State__Types.apiKeySettings => {
-    state.anthropicKeySettings
-  }
-
-  let fireworksKeySettings = (state: state): Client__State__Types.apiKeySettings => {
-    state.fireworksKeySettings
-  }
-
-  let nvidiaKeySettings = (state: state): Client__State__Types.apiKeySettings => {
-    state.nvidiaKeySettings
-  }
-
-  let configOptions = (state: state): option<
-    array<Client__State__Types.ACPConfig.sessionConfigOption>,
-  > => {
-    state.configOptions
-  }
-
-  let agentCatalog = (state: state) => state.agentCatalog
-
-  let selectedAgentId = (state: state) => state.selectedAgentId
-
-  let selectedModelValue = (state: state): option<
-    Client__State__Types.ACPConfig.sessionConfigValueId,
-  > => {
-    state.selectedModelValue
-  }
-
-  let anthropicOAuthStatus = (state: state): Client__State__Types.anthropicOAuthStatus => {
-    state.anthropicOAuthStatus
-  }
-
-  let openaiOAuthStatus = (state: state): Client__State__Types.openaiOAuthStatus => {
-    state.openaiOAuthStatus
-  }
-
-  let updateInfo = (state: state): option<Client__State__Types.updateInfo> => {
-    state.updateInfo
-  }
-
-  let wordpressUpdates = (state: state): Client__WordPressUpdates.t => state.wordpressUpdates
-
-  let updateBannerDismissed = (state: state): bool => {
-    state.updateBannerDismissed
-  }
-
-  let highlightedAnnotation = (state: state): option<
-    Client__State__Types.highlightedAnnotation,
-  > => {
-    switch state.highlightedAnnotation {
-    | Some(highlighted) if highlighted.taskId == currentTaskClientId(state) => Some(highlighted)
-    | Some(_) | None => None
-    }
-  }
-
-  let customProviders = (state: state): option<array<Client__State__Types.customProvider>> => {
-    state.customProviders
-  }
-
-  let customProviderMutation = (state: state): Client__State__Types.customProviderMutation => {
-    state.customProviderMutation
-  }
-
-  let pendingQuestion = (state: state): option<Client__Question__Types.pendingQuestion> => {
-    switch state.currentTask {
-    | Task.Selected(id) =>
-      state.tasks->Dict.get(id)->Option.flatMap(TaskReducer.Selectors.pendingQuestion)
-    | Task.New(_) => None
-    }
-  }
-
-  let pendingPlanHandoff = (state: state): option<pendingPlanHandoff> => {
-    let findAgent = name =>
-      state.agentCatalog->Option.flatMap(catalog =>
-        catalog->Array.find(agent => agent.name == name)
-      )
-    switch (
-      getSession(state),
-      findAgent(plannerAgentName),
-      findAgent(executorAgentName),
-      TaskReducer.Selectors.completedIdleTurn(currentTask(state)),
-    ) {
-    | (Some({sessionId}), Some(planner), Some(executor), Some({taskId, agentId}))
-      if agentId == planner.id && sessionId == taskId =>
-      Some({taskId, executorAgentId: executor.id})
-    | _ => None
-    }
-  }
-
-  let settingsModalTab = (state: state) => state.settingsModalTab
-  let billingStatus = (state: state) => state.billingStatus
-  let billingFlow = (state: state) => state.billingFlow
-  let billingCanStartTurn = (state: state) =>
-    Client__Billing.canStartTurnFromState(state.billingStatus)
-
-  let providerSetupRequired = (state: state): bool => {
-    switch (apiBaseUrl(state), state.configOptions) {
-    | (Some(_), Some(configOptions)) =>
-      switch configOptions->ACP.findConfigOptionByCategory(ACP.Model) {
-      | Some(modelConfig) => ACP.sessionConfigOptionFirstOption(modelConfig)->Option.isNone
-      | None => false
-      }
-    | _ => false
-    }
-  }
-}
-
-let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttachmentData>): array<
-  Client__State__Types.ContentBlock.t,
-> => {
-  attachments->Array.map(att => {
-    let base64Data = switch att.dataUrl->String.indexOf(";base64,") {
-    | -1 => att.dataUrl
-    | idx => att.dataUrl->String.slice(~start=idx + 8, ~end=String.length(att.dataUrl))
-    }
-
-    let metaObj = Dict.make()
-    metaObj->Dict.set("user_image", JSON.Encode.bool(true))
-    metaObj->Dict.set("filename", JSON.Encode.string(att.filename))
-    let meta = JSON.Encode.object(metaObj)
-
-    Client__State__Types.ContentBlock.EmbeddedResource({
-      resource: Client__State__Types.ContentBlock.BlobResourceContents({
-        uri: `attachment://${att.id}/${att.filename}`,
-        mimeType: Some(att.mediaType),
-        blob: base64Data,
-      }),
-      _meta: Some(meta),
-      annotations: None,
-    })
-  })
-}
-
-let buildPrompt = (state: state, ~messageId, ~attachments, ~annotations, ~task, ~agentId) => {
-  let runtimeConfig = Client__RuntimeConfig.read()
-  let pageContextBlocks = Client__State__Types.taskToPageContextBlocks(
-    task,
-    ~isAstro=runtimeConfig.framework == Astro,
-  )
-
-  let annotationBlocks = Client__State__Types.messageAnnotationsToContentBlocks(annotations)
-
-  let attachmentBlocks = buildAttachmentContentBlocks(attachments)
-  let additionalBlocks =
-    Array.concat(pageContextBlocks, annotationBlocks)->Array.concat(attachmentBlocks)
-
-  let baseMeta = Client__RuntimeConfig.toMeta(runtimeConfig)
-  let metadata = baseMeta->JSON.Decode.object->Option.getOrThrow->Dict.copy
-  state.selectedModelValue->Option.forEach(modelValue =>
-    metadata->Dict.set("model", JSON.Encode.string(modelValue))
-  )
-  metadata->Dict.set(
-    "frontman.dev/messageId",
-    JSON.Encode.string(Message.UserMessageId.toString(messageId)),
-  )
-  metadata->Dict.set("agent", JSON.Encode.string(agentId))
-  (additionalBlocks, Some(JSON.Encode.object(metadata)))
-}
-
-let validatePrompt = FrontmanAiFrontmanClient.FrontmanClient__ACP__Protocol.validatePrompt
-
-let validateSubmission = (state: state, submission: Client__State__Types.submission) => {
-  let {id: messageId, content, annotations, agentId} = submission
-  let text = TaskReducer.extractTextFromUserContent(content)
-  let attachments = TaskReducer.extractAttachmentsFromUserContent(content)
-  let (additionalBlocks, _meta) = buildPrompt(
-    state,
-    ~messageId,
-    ~attachments,
-    ~annotations,
-    ~task=Selectors.currentTask(state),
-    ~agentId,
-  )
-  switch state.selectedModelValue {
-  | None => Error("Select a model before sending.")
-  | Some(_) => validatePrompt(~text, ~additionalBlocks, ~_meta)
-  }
-}
-
-let updateInfoForVersions = (~target, ~installedVersion, ~latestVersion): option<
-  Client__State__Types.updateInfo,
-> =>
-  switch (Client__Semver.parse(installedVersion), Client__Semver.parse(latestVersion)) {
-  | (Some(installed), Some(latest)) if Client__Semver.isBehind(installed, latest) =>
-    Some({target, installedVersion, latestVersion})
-  | _ => None
-  }
-
-let targetIsCurrent = (state: state, target: taskTarget): bool =>
-  switch target {
-  | CurrentTask => true
-  | ForTask(taskId) => Selectors.currentTaskId(state) == Some(taskId)
-  }
-
-let addUserMessageToState = (
-  state: state,
-  ~sessionId,
-  submission: Client__State__Types.submission,
-) => {
-  let {id, content, annotations, agentId} = submission
-  let handoff = Selectors.pendingPlanHandoff(state)->Option.isSome
-  let (state, taskId) = switch state.currentTask {
-  | Task.New(task) =>
-    let tasks = state.tasks->Dict.copy
-    tasks->Dict.set(
-      sessionId,
-      Task.newToLoaded(task, ~id=sessionId, ~title=TaskReducer.extractTextFromUserContent(content)),
-    )
-    ({...state, tasks, currentTask: Task.Selected(sessionId)}, sessionId)
-  | Task.Selected(taskId) => (state, taskId)
-  }
-  let (state, effects) =
-    state->Lens.delegateToTask(
-      ForTask(taskId),
-      TaskReducer.AddUserMessage({id, content, annotations, agentId}),
-    )
-  let (state, runningEffects) = switch handoff {
-  | true => state->Lens.delegateToTask(ForTask(taskId), TaskReducer.ExecutionStateRunning([]))
-  | false => (state, [])
-  }
-  state->StateReducer.update(
-    ~sideEffects=Array.concat(effects, runningEffects)->Array.concat([
-      SendMessage({taskId, submission}),
-    ]),
-  )
-}
-
-let requireEmbeddedAuthentication = dispatch => {
-  Client__EmbeddedAuth.clearToken()
-  dispatch(ConnectionAction(RequireAuthentication))
-}
-
-let embeddedAuthRequiredError = "Frontman authorization is required"
-
-type billingRequestError = Unauthorized | Cancelled | RequestFailed(string)
-
-let fetchBilling = async (
-  ~request,
-  ~apiBaseUrl,
-  ~signal: WebAPI.EventTypes.abortSignal,
-  ~schema,
-  ~onResult,
-) => {
-  let token = Client__EmbeddedAuth.loadToken()
-  let isCurrent = () => !signal.aborted && token === Client__EmbeddedAuth.loadToken()
-  switch Client__EmbeddedAuth.jsonHeaders() {
-  | None => Unauthorized->Error->onResult
-  | Some(headers) =>
-    try {
-      let body = switch request {
-      | Client__Billing.Checkout(interval) =>
-        {Client__Billing.interval: interval}
-        ->S.decodeOrThrow(
-          ~from=Client__Billing.checkoutRequestSchema,
-          ~to=S.json->S.noValidation(true),
-        )
-        ->JSON.stringify
-        ->WebAPI.BodyInit.fromString
-        ->Some
-      | Status | CustomerPortal => None
-      }
-      let response = await `${apiBaseUrl}${Client__Billing.requestPath(
-          request,
-        )}`->WebAPI.Fetch.fetch(
-        ~init={
-          method: switch request {
-          | Status => "GET"
-          | _ => "POST"
-          },
-          headers,
-          credentials: Omit,
-          cache: NoStore,
-          ?body,
-          signal: [signal, WebAPI.AbortSignal.timeout(30000)]->WebAPI.AbortSignal.any->Null.make,
-        },
-      )
-      let json = await response->WebAPI.Response.json
-      switch (isCurrent(), response.status, response.ok) {
-      | (false, _, _) => Error(Cancelled)
-      | (true, 401, _) => Error(Unauthorized)
-      | (true, _, false) =>
-        let error = json->S.parseOrThrow(~to=Client__Billing.errorResponseSchema)
-        switch error.requestId {
-        | Some(id) => `${error.error} Request reference: ${id}`
-        | None => error.error
-        }
-        ->RequestFailed
-        ->Error
-      | (true, _, true) => json->S.parseOrThrow(~to=schema)->Ok
-      }->onResult
-    } catch {
-    | exn =>
-      switch isCurrent() {
-      | false => Cancelled
-      | true =>
-        Log.error(~error=JsExn.fromException(exn), "Billing request failed")
-        RequestFailed("Could not contact billing. Please try again.")
-      }
-      ->Error
-      ->onResult
-    }
-  }
-}
-
-let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
-  let fetch = async () => {
-    let url = `${apiBaseUrl}/api/user/me`
-
-    try {
-      switch Client__EmbeddedAuth.headers() {
-      | Some(headers) =>
-        let response = await WebAPI.Fetch.fetch(url, ~init={headers: headers})
-        Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
-        switch response.ok {
-        | true =>
-          let json = await response->WebAPI.Response.json
-          let userProfile =
-            json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.userProfileSchema)
-          dispatch(UserProfileReceived({userProfile: userProfile}))
-          Client__Heap.identify(userProfile.id)
-        | false => ()
-        }
-      | None => ()
-      }
-    } catch {
-    | exn => Log.error(~error=JsExn.fromException(exn), "FetchUserProfile failed")
-    }
-  }
-  fetch()->ignore
-}
-
-let encodeUserApiKeySaveRequest = (~provider, ~key) => {
-  let payload: Client__State__Types.userApiKeySaveRequest = {provider, key}
-  payload
-  ->S.decodeOrThrow(
-    ~from=Client__State__Types.userApiKeySaveRequestSchema,
-    ~to=S.json->S.noValidation(true),
-  )
-  ->JSON.stringify
-}
-
-let fetchApiKeySettingsImpl = (dispatch, ~apiBaseUrl) => {
-  let fetch = async () => {
-    let url = `${apiBaseUrl}/api/user/api-keys`
-
-    try {
-      switch Client__EmbeddedAuth.headers() {
-      | Some(headers) =>
-        let response = await WebAPI.Fetch.fetch(url, ~init={headers: headers})
-        Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
-        switch response.ok {
-        | true =>
-          let json = await response->WebAPI.Response.json
-          let apiKeysResponse =
-            json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.userApiKeysResponseSchema)
-          apiKeyProviders->Array.forEach(provider => {
-            let providerId = apiKeyProviderId(provider)
-            let hasUserKey = apiKeysResponse.providers->Array.includes(providerId)
-            let source = switch hasUserKey {
-            | true => Client__State__Types.UserOverride
-            | false => Client__State__Types.None
-            }
-
-            dispatch(ApiKeySettingsReceived({provider, source}))
-          })
-        | false => ()
-        }
-      | None => ()
-      }
-    } catch {
-    | exn => Log.error(~error=JsExn.fromException(exn), "FetchApiKeySettings failed")
-    }
-  }
-  fetch()->ignore
-}
-
-let saveApiKeyImpl = (dispatch, ~apiBaseUrl, ~provider: apiKeyProvider, ~key) => {
-  let save = async () => {
-    dispatch(ApiKeySaveStarted({provider: provider}))
-    let url = `${apiBaseUrl}/api/user/api-keys`
-
-    try {
-      switch Client__EmbeddedAuth.jsonHeaders() {
-      | Some(headers) =>
-        let response = await WebAPI.Fetch.fetch(
-          url,
-          ~init={
-            method: "POST",
-            headers,
-            body: WebAPI.BodyInit.fromString(
-              encodeUserApiKeySaveRequest(~provider=apiKeyProviderId(provider), ~key),
-            ),
-          },
-        )
-        Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
-
-        switch response.ok {
-        | false =>
-          dispatch(
-            ApiKeySaveError({
-              provider,
-              error: `HTTP ${response.status->Int.toString}: ${response.statusText}`,
-            }),
-          )
-        | true => dispatch(ApiKeySaved({provider: provider}))
-        }
-      | None => dispatch(ApiKeySaveError({provider, error: embeddedAuthRequiredError}))
-      }
-    } catch {
-    | exn =>
-      let msg =
-        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      dispatch(ApiKeySaveError({provider, error: `Failed to save API key: ${msg}`}))
-    }
-  }
-  save()->ignore
-}
-
-let fetchCustomProvidersImpl = (dispatch, ~apiBaseUrl) => {
-  let fetch = async () => {
-    let url = `${apiBaseUrl}/api/user/custom-providers`
-
-    try {
-      switch Client__EmbeddedAuth.headers() {
-      | Some(headers) =>
-        let response = await WebAPI.Fetch.fetch(url, ~init={headers: headers})
-        Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
-        switch response.ok {
-        | true =>
-          let json = await response->WebAPI.Response.json
-          let providersResponse =
-            json->S.decodeOrThrow(
-              ~from=S.json,
-              ~to=Client__State__Types.customProvidersResponseSchema,
-            )
-          dispatch(CustomProvidersReceived({providers: providersResponse.providers}))
-        | false =>
-          switch response.status {
-          | 401 => dispatch(ConnectionAction(RequireAuthentication))
-          | _ =>
-            Log.error(
-              `Custom Provider request failed: HTTP ${response.status->Int.toString}: ${response.statusText}`,
-            )
-          }
-        }
-      | None => dispatch(ConnectionAction(RequireAuthentication))
-      }
-    } catch {
-    | exn =>
-      let msg =
-        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      Log.error(`Failed to fetch custom providers: ${msg}`)
-    }
-  }
-  fetch()->ignore
-}
-
-let customProviderCreateRequestSchema = S.object(s => (
-  s.field("name", S.string),
-  s.field("base_url", S.string),
-  s.field("models", S.array(S.string)),
-  s.field("api_key", S.option(S.string)),
-))
-let customProviderApiKeyChangeRequestSchema = S.object(s => (
-  s.field("action", S.string),
-  s.field("value", S.option(S.string)),
-))
-let customProviderUpdateRequestSchema = S.object(s => (
-  s.field("name", S.string),
-  s.field("base_url", S.string),
-  s.field("models", S.array(S.string)),
-  s.field("lock_version", S.int),
-  s.field("api_key_change", customProviderApiKeyChangeRequestSchema),
-))
-
-let jsonString = (value, schema) =>
-  value
-  ->S.decodeOrThrow(~from=schema, ~to=S.json)
-  ->JSON.stringifyAny
-  ->Option.getOrThrow(~message="Expected schema output to be JSON")
-
-let encodeCustomProviderSaveRequest = (draft: Client__State__Types.customProviderDraft) =>
-  switch draft.id {
-  | None =>
-    let apiKey = switch draft.apiKeyChange {
-    | ReplaceCustomProviderApiKey(value) => Some(value)
-    | KeepCustomProviderApiKey | ClearCustomProviderApiKey => None
-    }
-    jsonString((draft.name, draft.baseUrl, draft.models, apiKey), customProviderCreateRequestSchema)
-  | Some(_) =>
-    let apiKeyChange = switch draft.apiKeyChange {
-    | KeepCustomProviderApiKey => ("keep", None)
-    | ClearCustomProviderApiKey => ("clear", None)
-    | ReplaceCustomProviderApiKey(value) => ("replace", Some(value))
-    }
-    jsonString(
-      (draft.name, draft.baseUrl, draft.models, draft.lockVersion->Option.getOrThrow, apiKeyChange),
-      customProviderUpdateRequestSchema,
-    )
-  }
-
-let customProviderValidationErrorsSchema = S.object(s =>
-  s.field("errors", S.dict(S.array(S.string)))
-)
-let customProviderConflictSchema = S.object(s =>
-  s.field("current_provider", Client__State__Types.customProviderSchema)
-)
-
-let decodeCustomProviderMutationError = (~status, ~json) =>
-  switch status {
-  | 404 => Client__State__Types.CustomProviderNotFound
-  | 409 =>
-    let provider = json->S.decodeOrThrow(~from=S.json, ~to=customProviderConflictSchema)
-    Client__State__Types.CustomProviderConflict(provider)
-  | 422 =>
-    let errors = json->S.decodeOrThrow(~from=S.json, ~to=customProviderValidationErrorsSchema)
-    Client__State__Types.CustomProviderValidationError(errors)
-  | _ =>
-    Client__State__Types.CustomProviderNetworkError(
-      json->JSON.stringifyAny->Option.getOr(`HTTP ${status->Int.toString}`),
-    )
-  }
-
-let customProviderSaveTarget = (~apiBaseUrl, draft: Client__State__Types.customProviderDraft) =>
-  switch draft.id {
-  | Some(providerId) => (`${apiBaseUrl}/api/user/custom-providers/${providerId}`, "PUT")
-  | None => (`${apiBaseUrl}/api/user/custom-providers`, "POST")
-  }
-
-let customProviderDeleteUrl = (~apiBaseUrl, ~id, ~lockVersion) =>
-  `${apiBaseUrl}/api/user/custom-providers/${id}?lock_version=${lockVersion->Int.toString}`
-
-let customProviderMutationOperation = request =>
-  switch request {
-  | SaveCustomProviderRequest(draft) => Client__State__Types.SavingCustomProvider(draft.id)
-  | DeleteCustomProviderRequest({id}) => Client__State__Types.DeletingCustomProvider(id)
-  }
-
-let dispatchCustomProviderAuthRequired = (dispatch, ~operation) => {
-  dispatch(ConnectionAction(RequireAuthentication))
-  dispatch(
-    CustomProviderMutationFailed({
-      operation,
-      error: Client__State__Types.CustomProviderNetworkError(embeddedAuthRequiredError),
-    }),
-  )
-}
-
-let handleCustomProviderMutationError = async (dispatch, response, ~operation) =>
-  switch response.WebAPI.Response.status {
-  | 401 => dispatchCustomProviderAuthRequired(dispatch, ~operation)
-  | _ =>
-    let json = await response->WebAPI.Response.json
-    dispatch(
-      CustomProviderMutationFailed({
-        operation,
-        error: decodeCustomProviderMutationError(~status=response.status, ~json),
-      }),
-    )
-  }
-
-let customProviderMutationImpl = (dispatch, ~apiBaseUrl, ~request) => {
-  let run = async () => {
-    let operation = customProviderMutationOperation(request)
-    try {
-      switch request {
-      | SaveCustomProviderRequest(draft) =>
-        switch Client__EmbeddedAuth.jsonHeaders() {
-        | Some(headers) =>
-          let (url, method) = customProviderSaveTarget(~apiBaseUrl, draft)
-          let response = await WebAPI.Fetch.fetch(
-            url,
-            ~init={
-              method,
-              headers,
-              body: WebAPI.BodyInit.fromString(encodeCustomProviderSaveRequest(draft)),
-            },
-          )
-          Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
-          switch response.ok {
-          | true =>
-            let json = await response->WebAPI.Response.json
-            let {provider} =
-              json->S.decodeOrThrow(
-                ~from=S.json,
-                ~to=Client__State__Types.customProviderResponseSchema,
-              )
-            dispatch(CustomProviderMutationSucceeded({operation, provider: Some(provider)}))
-          | false => await handleCustomProviderMutationError(dispatch, response, ~operation)
-          }
-        | None => dispatchCustomProviderAuthRequired(dispatch, ~operation)
-        }
-      | DeleteCustomProviderRequest({id, lockVersion}) =>
-        switch Client__EmbeddedAuth.headers() {
-        | Some(headers) =>
-          let response = await WebAPI.Fetch.fetch(
-            customProviderDeleteUrl(~apiBaseUrl, ~id, ~lockVersion),
-            ~init={headers, method: "DELETE"},
-          )
-          Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
-          switch response.ok {
-          | true => dispatch(CustomProviderMutationSucceeded({operation, provider: None}))
-          | false => await handleCustomProviderMutationError(dispatch, response, ~operation)
-          }
-        | None => dispatchCustomProviderAuthRequired(dispatch, ~operation)
-        }
-      }
-    } catch {
-    | exn =>
-      let msg =
-        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      let action = switch request {
-      | SaveCustomProviderRequest(_) => "save"
-      | DeleteCustomProviderRequest(_) => "delete"
-      }
-      dispatch(
-        CustomProviderMutationFailed({
-          operation,
-          error: Client__State__Types.CustomProviderNetworkError(
-            `Failed to ${action} custom provider: ${msg}`,
-          ),
-        }),
-      )
-    }
-  }
-  run()->ignore
-}
-
-let getSessionTextBuffer = dispatch =>
-  switch Client__TextDeltaBuffer.active.contents {
-  | Some(buffer) => buffer
-  | None =>
-    let dispatchTask = (taskId, action) => dispatch(TaskAction({target: ForTask(taskId), action}))
-    let buffer = Client__TextDeltaBuffer.make(
-      ~onFlush=(~taskId, ~messageId, ~text, ~agentId) =>
-        dispatchTask(taskId, TextDeltaReceived({messageId, text, agentId})),
-      ~onUserFlush=(~taskId, ~messageId, ~blocks, ~agentId) => {
-        let (content, annotations) = Client__ACP__MessageCodec.parseUserMessageBlocks(blocks)
-        dispatchTask(taskId, UserMessageReceived({id: messageId, content, annotations, agentId}))
-      },
-    )
-    Client__TextDeltaBuffer.active := Some(buffer)
-    buffer
-  }
-
-module ConnectionEffects = {
-  type appAction = action
-  open! Client__ConnectionReducer
-  let relayFailureReason = message =>
-    switch message {
-    | message if message->String.startsWith("HTTP ") => Client__Analytics.HttpError
-    | message if message->String.startsWith("Invalid tools response: ") =>
-      Client__Analytics.InvalidResponse
-    | _ => Client__Analytics.NetworkError
-    }
-
-  let revokeEmbeddedClientToken = async (
-    ~apiBaseUrl: string,
-    ~signal: WebAPI.EventTypes.abortSignal,
-  ) => {
-    switch Client__EmbeddedAuth.headers() {
-    | Some(headers) =>
-      try {
-        let response = await WebAPI.Fetch.fetch(
-          `${apiBaseUrl}/api/client-token`,
-          ~init={method: "DELETE", headers, signal: Null.make(signal)},
-        )
-        switch response.status {
-        | 204 | 401 => ()
-        | status => Log.error(`Embedded token revocation failed: HTTP ${status->Int.toString}`)
-        }
-      } catch {
-      | exn =>
-        switch exn->JsExn.fromException->Option.map(FrontmanBindings.JsException.name) {
-        | Some("AbortError") | Some("TypeError") => ()
-        | _ => throw(exn)
-        }
-      }
-    | None => ()
-    }
-    Client__EmbeddedAuth.clearToken()
-    WebAPI.Window.current->WebAPI.Window.location->WebAPI.Location.reload
-  }
-
-  let connectRuntime = async (
-    ~config: config,
-    ~signal: WebAPI.EventTypes.abortSignal,
-    ~onConnectionLost,
-  ): result<readyState, connectError> => {
-    let attempt = WebAPI.AbortController.make()
-    let attemptSignal = WebAPI.AbortSignal.any([signal, attempt.signal])
-    let failure = ref(None)
-    let connection = ref(None)
-    let relay = ref(None)
-    let fail = error => {
-      switch failure.contents {
-      | None => failure := Some(error)
-      | Some(_) => ()
-      }
-      WebAPI.AbortController.abort(attempt)
-    }
-    let release = () => {
-      connection.contents->Option.forEach(conn => ACP.disconnect(conn))
-      connection := None
-    }
-    let acpError = error =>
-      switch error {
-      | ACP.AuthRequired({loginUrl}) =>
-        let framework = config.acp.clientInfo._meta->Option.flatMap(frameworkFromClientInfoMeta)
-        AuthenticationRequired({loginUrl: enrichLoginUrl(~loginUrl, ~framework)})
-      | ACP.ConnectionFailed(message) => ConnectionFailed(ACPError(message))
-      }
-    let validateConnection = result =>
-      result
-      ->Result.mapError(acpError)
-      ->Result.flatMap(conn =>
-        switch (ACP.isInitialized(conn), ACP.getAgentAttributionConfiguration(conn)) {
-        | (true, Some(_)) => Ok(conn)
-        | (false, _) => Error(ConnectionFailed(ACPError("Connection lost")))
-        | (true, None) =>
-          Error(ConnectionFailed(ACPError("Frontman requires agent attribution v1")))
-        }
-      )
-    let connectACP = async () => {
-      let result = await ACP.connect(
-        config.acp,
-        ~signal=attemptSignal,
-        ~onConnectionCreated=conn => connection := Some(conn),
-        ~onConnectionLost=message => {
-          let error = ConnectionFailed(ACPError(message))
-          fail(error)
-          onConnectionLost(error)
-        },
-      )
-      switch validateConnection(result) {
-      | Ok(conn) =>
-        switch attemptSignal.aborted {
-        | true =>
-          ACP.disconnect(conn)
-          connection := None
-        | false => ()
-        }
-      | Error(error) => fail(error)
-      }
-    }
-    let connectRelay = async () => {
-      let result = await Relay.connect(config.relay, ~signal=attemptSignal)
-      switch attemptSignal.aborted {
-      | true => ()
-      | false =>
-        switch result {
-        | Ok(connected) =>
-          relay := Some(connected)
-          Client__Analytics.track(RelayConnectionCompleted(Success))
-        | Error(message) =>
-          Client__Analytics.track(RelayConnectionCompleted(Failure(relayFailureReason(message))))
-          fail(ConnectionFailed(RelayError(message)))
-        }
-      }
-    }
-    try {
-      let _ = await Promise.all([connectACP(), connectRelay()])
-      switch (signal.aborted, failure.contents) {
-      | (true, _) =>
-        release()
-        Error(ConnectionFailed(ACPError("Connection aborted")))
-      | (false, Some(error)) =>
-        release()
-        Error(error)
-      | (false, None) =>
-        let relay = relay.contents->Option.getOrThrow
-        Ok({
-          connection: connection.contents->Option.getOrThrow,
-          relay,
-          mcpServer: MCPServer.make(config.mcp, ~relay),
-          session: NoSession,
-        })
-      }
-    } catch {
-    | exn =>
-      WebAPI.AbortController.abort(attempt)
-      release()
-      throw(exn)
-    }
-  }
-
-  let billingRequestErrorMessage = (error, dispatchApp: appAction => unit) => {
-    switch ACP.requestErrorIsBillingInactive(error) {
-    | true => dispatchApp(SetSettingsModalTab({tab: Some(Billing)}))
-    | false => ()
-    }
-    ACP.requestErrorMessage(error)
-  }
-
-  let rec handleEffect = (
-    effect: effect,
-    state: state,
-    dispatch: action => unit,
-    ~dispatchApp: appAction => unit,
-  ) => {
-    let activateSession = async (~requestId, ~sessionId, activate) => {
-      switch isCurrentSessionRequest(state, requestId) {
-      | false => ()
-      | true =>
-        Client__TextDeltaBuffer.reset()
-        let pending = ref(true)
-        let creationError = ref(None)
-        let result = await activate(
-          (sessionId, update) =>
-            dispatchApp(
-              SessionEvent({
-                requestId,
-                action: AcpSessionUpdateReceived({taskId: sessionId, update}),
-              }),
-            ),
-          (sessionId, title) =>
-            dispatchApp(
-              SessionEvent({requestId, action: UpdateTaskTitle({taskId: sessionId, title})}),
-            ),
-          error => {
-            Client__TextDeltaBuffer.flush()
-            switch pending.contents {
-            | true => creationError := Some(error)
-            | false =>
-              dispatch(
-                SessionResultReceived({
-                  requestId,
-                  sessionId,
-                  result: Error(ACP.requestErrorFromMessage(error)),
-                }),
-              )
-            }
-          },
-        )
-        let result = result->Result.flatMap(((session, configOptions)) =>
-          switch creationError.contents {
-          | Some(error) =>
-            ACP.cleanupSessionChannel(session)
-            Error(ACP.requestErrorFromMessage(error))
-          | None => Ok((session, configOptions))
-          }
-        )
-        pending := false
-        dispatch(SessionResultReceived({requestId, sessionId, result}))
-      }
-    }
-
-    switch effect {
-    | LogError(msg) => Log.error(msg)
-    | LogInfo(msg) => Log.info(msg)
-    | NotifyRequestRejected(notify) => notify()
-    | SessionCompletionEffect({sessionId, ready, result, onComplete}) =>
-      let complete = result =>
-        switch (onComplete, result) {
-        | (Some(onComplete), _) => onComplete(result)
-        | (None, Ok(_)) =>
-          Client__TextDeltaBuffer.flush()
-          switch ready.session {
-          | SessionActive({requestId}) =>
-            dispatchApp(TaskLoadFinished({taskId: sessionId, result: Ok(requestId)}))
-          | _ => failwith("Loaded session must be active")
-          }
-        | (None, Error(error)) =>
-          dispatchApp(TaskLoadFinished({taskId: sessionId, result: Error(error)}))
-        }
-      switch state.connection {
-      | Ok(Some({phase: Ready(current), lifetimeAbortController}))
-        if current === ready &&
-        !lifetimeAbortController.signal.aborted &&
-        ACP.isInitialized(current.connection) =>
-        switch result {
-        | Ok(_) => complete(Ok(sessionId))
-        | Error(error) =>
-          Client__TextDeltaBuffer.flush()
-          complete(Error(billingRequestErrorMessage(error, dispatchApp)))
-        }
-      | Ok(Some({phase: Ready(current)})) if current.session === ready.session =>
-        complete(Error("Connection changed before submission completed; send again when ready"))
-      | Ok(_) | Error(_) => complete(Error("Conversation changed. Your message was not sent."))
-      }
-    | TaskLoadFailed({taskId, error}) =>
-      dispatchApp(TaskLoadFinished({taskId, result: Error(error)}))
-    | CleanupEffect(runtime) =>
-      WebAPI.AbortController.abort(runtime.lifetimeAbortController)
-      switch runtime.phase {
-      | Ready({connection, session}) =>
-        ACP.disconnect(connection)
-        releaseSession(session)->Array.forEach(effect =>
-          handleEffect(effect, state, dispatch, ~dispatchApp)
-        )
-      | _ => ()
-      }
-    | CleanupConnectionEffect(connection) => ACP.disconnect(connection)
-    | ConnectRuntime({config, signal}) =>
-      let connect = async () => {
-        let result = await connectRuntime(~config, ~signal, ~onConnectionLost=error => {
-          Client__TextDeltaBuffer.flush()
-          dispatch(ConnectionResultReceived({signal, result: Error(error)}))
-        })
-        switch (signal.aborted, result) {
-        | (true, Ok(ready)) => ACP.disconnect(ready.connection)
-        | (true, Error(_)) => ()
-        | (false, _) => dispatch(ConnectionResultReceived({signal, result}))
-        }
-      }
-      connect()->ignore
-    | ScheduleAuthRetry({signal}) =>
-      let _ = WebAPI.Window.setTimeout(WebAPI.Window.current, ~timeout=2000, ~handler=() => {
-        switch signal.aborted {
-        | true => ()
-        | false => dispatch(RetryAuthentication)
-        }
-      })
-    | LogoutEffect({apiBaseUrl, signal}) => revokeEmbeddedClientToken(~apiBaseUrl, ~signal)->ignore
-    | SessionCommandEffect({session, command}) => ACP.sendSessionCommand(session, command)
-    | FetchSessionsEffect({connection, signal}) =>
-      let fetch = async () => {
-        let {agents, defaultAgentId} =
-          ACP.getAgentAttributionConfiguration(connection)->Option.getOrThrow
-        dispatchApp(AgentAttributionConfigured({agentCatalog: agents, defaultAgentId}))
-        dispatchApp(SessionsLoadStarted)
-        let result = await ACP.listSessions(connection)
-        dispatchApp(
-          ConnectionEvent({
-            signal,
-            action: switch result {
-            | Ok(sessions) => SessionsLoadSuccess({sessions: sessions})
-            | Error(error) => SessionsLoadError({error: error})
-            },
-          }),
-        )
-      }
-      switch isCurrentConnection(state, signal) {
-      | true => fetch()->ignore
-      | false => ()
-      }
-    | ActivateSessionEffect({requestId, connection, mcpServer, operation}) =>
-      let sessionId = switch operation {
-      | #load(sessionId) | #create(sessionId) => sessionId
-      }
-      activateSession(~requestId, ~sessionId, async (onUpdate, onTitleUpdated, onParseError) => {
-        let mcpServerInterface = MCPServer.toInterface(mcpServer)
-        switch operation {
-        | #create(_) =>
-          let result = await ACP.createSession(
-            connection,
-            ~sessionId,
-            ~onUpdate,
-            ~onTitleUpdated,
-            ~onParseError,
-            ~mcpServerInterface,
-          )
-          result->Result.map(((session, result)) => (session, result.configOptions))
-        | #load(_) =>
-          let result = await ACP.loadSession(
-            connection,
-            sessionId,
-            ~onLoadResult=_ => (),
-            ~onUpdate,
-            ~onTitleUpdated,
-            ~onParseError,
-            ~mcpServerInterface,
-          )
-          result
-          ->Result.map(((session, result)) => (session, result.configOptions))
-          ->Result.mapError(ACP.requestErrorFromMessage)
-        }
-      })->ignore
-    | DeleteSessionEffect({signal, connection, taskId}) =>
-      let delete = async () => {
-        switch await ACP.deleteSession(connection, taskId) {
-        | Ok() => Log.info(~ctx={"taskId": taskId}, "Session deleted")
-        | Error(error) =>
-          Log.error(~ctx={"taskId": taskId, "error": error}, "Failed to delete session")
-        }
-      }
-      switch isCurrentConnection(state, signal) {
-      | true => delete()->ignore
-      | false => ()
-      }
-    | CleanupSessionEffect({session}) =>
-      ACP.cleanupSessionChannel(session)
-      Log.debug(~ctx={"sessionId": session.sessionId}, "Cleaned up session channel")
-    }
-  }
-}
-
-let handleEffect = (effect, state: state, dispatch: action => unit) => {
-  switch effect {
-  | ReloadFrontman => WebAPI.Window.current->WebAPI.Window.location->WebAPI.Location.reload
-  | BufferAssistantText({taskId, messageId, text, agentId}) =>
-    getSessionTextBuffer(dispatch).add(~taskId, ~messageId, ~text, ~agentId)
-  | BufferUserBlock({taskId, messageId, block, agentId}) =>
-    getSessionTextBuffer(dispatch).addUserBlock(~taskId, ~messageId, ~block, ~agentId)
-  | FlushSessionActions(actions) =>
-    Client__TextDeltaBuffer.flush()
-    actions->Array.forEach(action => dispatch(action))
-  | AbortBillingRequest(controller) =>
-    controller->Option.forEach(controller => WebAPI.AbortController.abort(controller))
-  | FetchBillingStatus({apiBaseUrl, signal}) =>
-    fetchBilling(
-      ~request=Status,
-      ~apiBaseUrl,
-      ~signal,
-      ~schema=Client__Billing.statusSchema,
-      ~onResult=result => {
-        switch result {
-        | Ok(status) => dispatch(BillingStatusReceived(status))
-        | Error(RequestFailed(error)) => dispatch(BillingStatusError({error: error}))
-        | Error(Unauthorized) => dispatch(BillingAuthRequired({tab: None}))
-        | Error(Cancelled) => ()
-        }
-      },
-    )->ignore
-  | OpenBillingTabAndFetchUrl({request, apiBaseUrl, signal}) =>
-    switch Client__EmbeddedAuth.loadToken() {
-    | None => dispatch(BillingAuthRequired({tab: None}))
-    | Some(_) =>
-      switch Client__HostNavigation.openManagedTab(~url="about:blank") {
-      | None => dispatch(BillingLaunchFailed({tab: None, error: "Allow popups, then try again."}))
-      | Some(tab) =>
-        fetchBilling(
-          ~request,
-          ~apiBaseUrl,
-          ~signal,
-          ~schema=Client__Billing.urlResponseSchema,
-          ~onResult=result => {
-            switch result {
-            | Ok({url}) =>
-              switch WebAPI.URL.make(~url).protocol {
-              | "https:" => dispatch(BillingUrlReceived({tab, url, request}))
-              | _ => failwith("Invalid Stripe URL")
-              }
-            | Error(RequestFailed(error)) => dispatch(BillingLaunchFailed({tab: Some(tab), error}))
-            | Error(Unauthorized) => dispatch(BillingAuthRequired({tab: Some(tab)}))
-            | Error(Cancelled) => dispatch(BillingRequestCancelled({tab: Some(tab)}))
-            }
-          },
-        )->ignore
-      }
-    }
-  | CloseBillingTab(tab) => tab->Option.forEach(WebAPI.Window.close)
-  | RequireBillingAuthentication => requireEmbeddedAuthentication(dispatch)
-  | NavigateBillingTab({tab, url}) =>
-    try {
-      switch WebAPI.Window.closed(tab) {
-      | true =>
-        dispatch(
-          BillingLaunchFailed({tab: Some(tab), error: "Stripe tab was closed. Please try again."}),
-        )
-      | false => tab->WebAPI.Window.location->WebAPI.Location.assign(url)
-      }
-    } catch {
-    | exn =>
-      Log.error(~error=JsExn.fromException(exn), "Billing navigation failed")
-      dispatch(
-        BillingLaunchFailed({tab: Some(tab), error: "Could not open Stripe. Please try again."}),
-      )
-    }
-  | FetchUserProfileEffect({apiBaseUrl}) => fetchUserProfileImpl(dispatch, ~apiBaseUrl)
-  | SubmissionCompleted({onComplete, result}) => onComplete(result)
-  | ConnectionEffect(effect) =>
-    ConnectionEffects.handleEffect(
-      effect,
-      state.connection->Option.getOrThrow,
-      action => dispatch(ConnectionAction(action)),
-      ~dispatchApp=dispatch,
-    )
-  | CreateSession({taskId, input}) =>
-    dispatch(
-      ConnectionAction(
-        CreateSession({
-          sessionId: taskId,
-          onComplete: result =>
-            switch result {
-            | Ok(_) => dispatch(AddUserMessage(input))
-            | Error(error) => input.onComplete(Error(error))
-            },
-        }),
-      ),
-    )
-  | SendMessage({taskId, submission: {id, content, annotations, agentId, onComplete}}) =>
-    let text = TaskReducer.extractTextFromUserContent(content)
-    let attachments = TaskReducer.extractAttachmentsFromUserContent(content)
-    let (additionalBlocks, _meta) = buildPrompt(
-      state,
-      ~messageId=id,
-      ~attachments,
-      ~annotations,
-      ~task=state.tasks->Dict.get(taskId)->Option.getOrThrow,
-      ~agentId,
-    )
-    let result = switch validatePrompt(~text, ~additionalBlocks, ~_meta) {
-    | Error(error) => Error(error)
-    | Ok() =>
-      switch state.connection {
-      | Some(
-          {
-            connection: Ok(Some({phase: Ready({session: SessionActive({session, requestId})})})),
-          } as connection,
-        )
-        if session.sessionId == taskId &&
-          Connection.isCurrentSessionRequest(connection, requestId) =>
-        let fail = error => dispatch(PromptFailed({requestId, taskId, id, error}))
-        let send = async () => {
-          try {
-            switch await Connection.ACP.sendPrompt(session, text, ~additionalBlocks, ~_meta) {
-            | Ok(_) => ()
-            | Error(error) => fail(error)
-            }
-          } catch {
-          | exn =>
-            fail(Connection.ACP.requestErrorFromMessage("sendPrompt exception"))
-            throw(exn)
-          }
-        }
-        send()->ignore
-        Ok()
-      | _ => Error("Cannot send message: no active ACP session")
-      }
-    }
-    switch result {
-    | Error(error) =>
-      dispatch(TaskAction({target: ForTask(taskId), action: UserMessageSendFailed({id, error})}))
-    | Ok() => ()
-    }
-    onComplete(result)
-  | TaskEffect({target, effect: taskEffect}) => {
-      let taskDispatch = (taskAction: TaskReducer.action) => {
-        dispatch(TaskAction({target, action: taskAction}))
-      }
-
-      let delegate = (delegated: TaskReducer.delegated) => {
-        switch delegated {
-        | NeedSessionCommand(command) => dispatch(ConnectionAction(SessionCommand(command)))
-        | NeedSyncBrowserUrl(url) =>
-          switch targetIsCurrent(state, target) {
-          | true => Client__BrowserUrl.syncBrowserUrl(~previewUrl=url)
-          | false => ()
-          }
-        }
-      }
-
-      TaskReducer.handleEffect(taskEffect, ~dispatch=taskDispatch, ~delegate)
-    }
-  | FetchApiKeySettingsEffect({apiBaseUrl}) => fetchApiKeySettingsImpl(dispatch, ~apiBaseUrl)
-  | ConnectWordPressEffect({apiBaseUrl}) =>
-    let connect = async () => {
-      let credentialCreated = ref(false)
-      let cleanup = ` Remove the "Frontman MCP" Application Password in your WordPress profile before retrying.`
-      try {
-        switch (
-          Client__EmbeddedAuth.loadToken()->Option.filter(token => token->String.trim != ""),
-          Client__EmbeddedAuth.jsonHeaders(),
-        ) {
-        | (None, _) | (_, None) =>
-          dispatch(WordPressConnectionFinished("Reload Frontman and sign in, then try again."))
-        | (Some(_), Some(headers)) =>
-          let runtime = Client__RuntimeConfig.read()
-          let relay = Client__WordPressRelay.makeConfig(
-            ~baseUrl=Client__RelayBaseUrl.current(),
-            ~nonce=runtime.wpNonce,
-          )
-          let response = await relay.fetch(
-            `${relay.baseUrl}/frontman/mcp/connect`,
-            {method: "POST", signal: Null.make(WebAPI.AbortSignal.timeout(30000))},
-          )
-          switch response.ok {
-          | false =>
-            let message = switch response.status {
-            | 401 => "Your WordPress session expired. Sign in to WordPress and reload Frontman."
-            | _ =>
-              let json = await response->WebAPI.Response.json
-              let error =
-                json->S.decodeOrThrow(
-                  ~from=S.json,
-                  ~to=Client__State__Types.wordPressConnectionErrorSchema,
-                )
-              credentialCreated := error.credential_created == Some(true)
-              error.error
-            }
-            dispatch(
-              WordPressConnectionFinished(message ++ (credentialCreated.contents ? cleanup : "")),
-            )
-          | true =>
-            credentialCreated := true
-            let body = await response->WebAPI.Response.text
-            let saved = await WebAPI.Fetch.fetch(
-              `${apiBaseUrl}/api/wordpress/connections`,
-              ~init={
-                method: "POST",
-                headers,
-                body: WebAPI.BodyInit.fromString(body),
-                redirect: WebAPI.FetchTypes.Error,
-                cache: WebAPI.FetchTypes.NoStore,
-                signal: Null.make(WebAPI.AbortSignal.timeout(30000)),
-              },
-            )
-            Client__EmbeddedAuth.clearTokenOnUnauthorized(saved)
-            switch (saved.ok, saved.status) {
-            | (true, _) =>
-              let json = await saved->WebAPI.Response.json
-              let result =
-                json->S.decodeOrThrow(
-                  ~from=S.json,
-                  ~to=Client__State__Types.wordPressConnectionResponseSchema,
-                )
-              dispatch(
-                WordPressConnectionFinished(`WordPress connected. Connection ID: ${result.id}`),
-              )
-            | (_, 401) =>
-              dispatch(
-                WordPressConnectionFinished(
-                  "Your Frontman session expired. Sign in again." ++ cleanup,
-                ),
-              )
-            | _ =>
-              dispatch(
-                WordPressConnectionFinished(
-                  "WordPress approved access, but Frontman could not verify and save the connection." ++
-                  cleanup,
-                ),
-              )
-            }
-          }
-        }
-      } catch {
-      | _ =>
-        dispatch(
-          WordPressConnectionFinished(
-            credentialCreated.contents
-              ? "Connection interrupted after WordPress approved access." ++ cleanup
-              : `WordPress did not confirm approval. Check your connection and reload Frontman. If the request reached WordPress, check your profile for a "Frontman MCP" Application Password before retrying.`,
-          ),
-        )
-      }
-    }
-    connect()->ignore
-  | SaveApiKeyEffect({apiBaseUrl, provider, key}) =>
-    saveApiKeyImpl(dispatch, ~apiBaseUrl, ~provider, ~key)
-  | FetchAnthropicOAuthStatusEffect({apiBaseUrl}) =>
-    let fetch = async () => {
-      let url = `${apiBaseUrl}/api/oauth/anthropic/status`
-
-      try {
-        switch Client__EmbeddedAuth.headers() {
-        | Some(headers) =>
-          let response = await WebAPI.Fetch.fetch(url, ~init={headers: headers})
-          Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
-          switch response.ok {
-          | true =>
-            let json = await response->WebAPI.Response.json
-            let {connected, expiresAt} =
-              json->S.decodeOrThrow(
-                ~from=S.json,
-                ~to=Client__State__Types.oauthStatusResponseSchema,
-              )
-            dispatch(AnthropicOAuthStatusReceived({connected, expiresAt}))
-          | false =>
-            switch response.status {
-            | 401 => requireEmbeddedAuthentication(dispatch)
-            | _ => ()
-            }
-          }
-        | None => requireEmbeddedAuthentication(dispatch)
-        }
-      } catch {
-      | _ => dispatch(AnthropicOAuthError({error: "Failed to fetch OAuth status"}))
-      }
-    }
-    fetch()->ignore
-
-  | GetAnthropicOAuthUrlEffect({apiBaseUrl}) =>
-    let fetch = async () => {
-      let url = `${apiBaseUrl}/api/oauth/anthropic/authorize-url`
-
-      try {
-        switch Client__EmbeddedAuth.headers() {
-        | Some(headers) =>
-          let response = await WebAPI.Fetch.fetch(url, ~init={headers: headers})
-          Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
-          switch response.ok {
-          | true =>
-            let json = await response->WebAPI.Response.json
-            let {authorizeUrl, verifier} =
-              json->S.decodeOrThrow(
-                ~from=S.json,
-                ~to=Client__State__Types.anthropicOAuthAuthorizeUrlResponseSchema,
-              )
-            dispatch(AnthropicOAuthUrlReceived({authorizeUrl, verifier}))
-          | false =>
-            switch response.status {
-            | 401 => requireEmbeddedAuthentication(dispatch)
-            | _ => dispatch(AnthropicOAuthError({error: "Failed to get authorization URL"}))
-            }
-          }
-        | None => requireEmbeddedAuthentication(dispatch)
-        }
-      } catch {
-      | _ => dispatch(AnthropicOAuthError({error: "Failed to get authorization URL"}))
-      }
-    }
-    fetch()->ignore
-
-  | ExchangeAnthropicOAuthCodeEffect({apiBaseUrl, code, verifier}) =>
-    let exchange = async () => {
-      let url = `${apiBaseUrl}/api/oauth/anthropic/exchange`
-
-      try {
-        let body = JSON.Encode.object(
-          Dict.fromArray([
-            ("code", JSON.Encode.string(code)),
-            ("verifier", JSON.Encode.string(verifier)),
-          ]),
-        )
-        switch Client__EmbeddedAuth.jsonHeaders() {
-        | Some(headers) =>
-          let response = await WebAPI.Fetch.fetch(
-            url,
-            ~init={
-              method: "POST",
-              headers,
-              body: WebAPI.BodyInit.fromString(JSON.stringify(body)),
-            },
-          )
-          Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
-          switch response.ok {
-          | true =>
-            let json = await response->WebAPI.Response.json
-            let {expiresAt} =
-              json->S.decodeOrThrow(
-                ~from=S.json,
-                ~to=Client__State__Types.anthropicOAuthExchangeResponseSchema,
-              )
-            dispatch(AnthropicOAuthConnected({expiresAt: expiresAt}))
-          | false =>
-            switch response.status {
-            | 401 => requireEmbeddedAuthentication(dispatch)
-            | _ =>
-              let json = await response->WebAPI.Response.json
-              let {error} =
-                json->S.decodeOrThrow(
-                  ~from=S.json,
-                  ~to=Client__State__Types.anthropicOAuthErrorResponseSchema,
-                )
-              dispatch(AnthropicOAuthError({error: error}))
-            }
-          }
-        | None => requireEmbeddedAuthentication(dispatch)
-        }
-      } catch {
-      | _ => dispatch(AnthropicOAuthError({error: "Failed to exchange authorization code"}))
-      }
-    }
-    exchange()->ignore
-
-  | DisconnectAnthropicOAuthEffect({apiBaseUrl}) =>
-    let disconnect = async () => {
-      let url = `${apiBaseUrl}/api/oauth/anthropic/disconnect`
-
-      try {
-        switch Client__EmbeddedAuth.headers() {
-        | Some(headers) =>
-          let response = await WebAPI.Fetch.fetch(url, ~init={method: "DELETE", headers})
-          Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
-          switch response.ok {
-          | true => dispatch(AnthropicOAuthDisconnected)
-          | false =>
-            switch response.status {
-            | 401 => requireEmbeddedAuthentication(dispatch)
-            | _ => dispatch(AnthropicOAuthError({error: "Failed to disconnect"}))
-            }
-          }
-        | None => requireEmbeddedAuthentication(dispatch)
-        }
-      } catch {
-      | _ => dispatch(AnthropicOAuthError({error: "Failed to disconnect"}))
-      }
-    }
-    disconnect()->ignore
-
-  | FetchOpenAIOAuthStatusEffect({apiBaseUrl}) =>
-    let fetch = async () => {
-      let url = `${apiBaseUrl}/api/oauth/openai/status`
-
-      try {
-        switch Client__EmbeddedAuth.headers() {
-        | Some(headers) =>
-          let response = await WebAPI.Fetch.fetch(url, ~init={headers: headers})
-          Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
-          switch response.ok {
-          | true =>
-            let json = await response->WebAPI.Response.json
-            let {connected, expiresAt} =
-              json->S.decodeOrThrow(
-                ~from=S.json,
-                ~to=Client__State__Types.oauthStatusResponseSchema,
-              )
-            dispatch(OpenAIOAuthStatusReceived({connected, expiresAt}))
-          | false =>
-            switch response.status {
-            | 401 => requireEmbeddedAuthentication(dispatch)
-            | _ => ()
-            }
-          }
-        | None => requireEmbeddedAuthentication(dispatch)
-        }
-      } catch {
-      | _ =>
-        dispatch(
-          OpenAIOAuthError({deviceAuthId: None, error: "Failed to fetch OpenAI OAuth status"}),
-        )
-      }
-    }
-    fetch()->ignore
-
-  | InitiateOpenAIDeviceAuthEffect({apiBaseUrl}) =>
-    let fetch = async () => {
-      let url = `${apiBaseUrl}/api/oauth/openai/initiate`
-
-      try {
-        switch Client__EmbeddedAuth.jsonHeaders() {
-        | Some(headers) =>
-          let response = await WebAPI.Fetch.fetch(url, ~init={method: "POST", headers})
-          Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
-          switch response.ok {
-          | true =>
-            let json = await response->WebAPI.Response.json
-            let {deviceAuthId, userCode, verificationUrl} =
-              json->S.decodeOrThrow(
-                ~from=S.json,
-                ~to=Client__State__Types.openAIDeviceAuthResponseSchema,
-              )
-            dispatch(OpenAIDeviceCodeReceived({deviceAuthId, userCode, verificationUrl}))
-          | false =>
-            switch response.status {
-            | 401 => requireEmbeddedAuthentication(dispatch)
-            | _ =>
-              dispatch(
-                OpenAIOAuthError({deviceAuthId: None, error: "Failed to initiate authentication"}),
-              )
-            }
-          }
-        | None => requireEmbeddedAuthentication(dispatch)
-        }
-      } catch {
-      | _ =>
-        dispatch(OpenAIOAuthError({deviceAuthId: None, error: "Failed to initiate authentication"}))
-      }
-    }
-    fetch()->ignore
-
-  | PollOpenAIDeviceAuthEffect({apiBaseUrl, deviceAuthId, userCode}) =>
-    let poll = async () => {
-      let maxAttempts = 180
-      let intervalMs = 5000
-      let body = JSON.stringifyAny(
-        dict{
-          "device_auth_id": deviceAuthId,
-          "user_code": userCode,
-        },
-      )->Option.getOr("{}")
-      let waitForNextPoll = () =>
-        Promise.make((resolve, _) => {
-          let _ = setTimeout(() => resolve(), intervalMs)
-        })
-      let rec pollLoop = async attempt => {
-        switch attempt < maxAttempts {
-        | false =>
-          dispatch(
-            OpenAIOAuthError({
-              deviceAuthId: Some(deviceAuthId),
-              error: "Authorization timed out. Please try again.",
-            }),
-          )
-        | true =>
-          try {
-            let url = `${apiBaseUrl}/api/oauth/openai/poll`
-            switch Client__EmbeddedAuth.jsonHeaders() {
-            | Some(headers) =>
-              let response = await WebAPI.Fetch.fetch(
-                url,
-                ~init={
-                  method: "POST",
-                  headers,
-                  body: WebAPI.BodyInit.fromString(body),
-                },
-              )
-              Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
-              switch (response.ok, response.status) {
-              | (true, _) =>
-                let json = await response->WebAPI.Response.json
-                let {status, expiresAt} =
-                  json->S.decodeOrThrow(
-                    ~from=S.json,
-                    ~to=Client__State__Types.openAIDeviceAuthPollResponseSchema,
-                  )
-                switch status {
-                | Client__State__Types.DeviceAuthConnected =>
-                  let expiresAt = expiresAt->Option.getOrThrow
-                  dispatch(OpenAIOAuthConnected({deviceAuthId, expiresAt}))
-                | Client__State__Types.DeviceAuthPending =>
-                  await waitForNextPoll()
-                  await pollLoop(attempt + 1)
-                }
-              | (false, 401) => requireEmbeddedAuthentication(dispatch)
-              | (false, 403) =>
-                dispatch(
-                  OpenAIOAuthError({
-                    deviceAuthId: Some(deviceAuthId),
-                    error: "Authorization was declined.",
-                  }),
-                )
-              | (false, _) =>
-                await waitForNextPoll()
-                await pollLoop(attempt + 1)
-              }
-            | None => requireEmbeddedAuthentication(dispatch)
-            }
-          } catch {
-          | _ =>
-            await waitForNextPoll()
-            await pollLoop(attempt + 1)
-          }
-        }
-      }
-      await pollLoop(0)
-    }
-    poll()->ignore
-
-  | DisconnectOpenAIOAuthEffect({apiBaseUrl}) =>
-    let disconnect = async () => {
-      let url = `${apiBaseUrl}/api/oauth/openai/disconnect`
-
-      try {
-        switch Client__EmbeddedAuth.headers() {
-        | Some(headers) =>
-          let response = await WebAPI.Fetch.fetch(url, ~init={method: "DELETE", headers})
-          Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
-          switch response.ok {
-          | true => dispatch(OpenAIOAuthDisconnected)
-          | false =>
-            switch response.status {
-            | 401 => requireEmbeddedAuthentication(dispatch)
-            | _ => dispatch(OpenAIOAuthError({deviceAuthId: None, error: "Failed to disconnect"}))
-            }
-          }
-        | None => requireEmbeddedAuthentication(dispatch)
-        }
-      } catch {
-      | _ => dispatch(OpenAIOAuthError({deviceAuthId: None, error: "Failed to disconnect"}))
-      }
-    }
-    disconnect()->ignore
-
-  | CheckForUpdateEffect({apiBaseUrl, installedVersion, target}) =>
-    let fetch = async () => {
-      try {
-        let url = switch target {
-        | NpmPackage(_) => `${apiBaseUrl}/api/integrations/latest-versions`
-        | WordPressPlugin => `${Client__RelayBaseUrl.current()}/frontman/plugin-update`
-        }
-        let response = await WebAPI.Fetch.fetch(url)
-        switch (target, response.status, response.ok) {
-        | (WordPressPlugin, 404, _) => dispatch(WordPressUpdatesChecked(None))
-        | (_, _, false) =>
-          Sentry.captureConnectionError(
-            `CheckForUpdate: HTTP ${response.status->Int.toString} ${response.statusText}`,
-            ~endpoint=url,
-          )
-        | (_, _, true) =>
-          let json = await response->WebAPI.Response.json
-          switch target {
-          | WordPressPlugin =>
-            let data =
-              json->S.decodeOrThrow(~from=S.json, ~to=Client__WordPressUpdates.responseSchema)
-            dispatch(WordPressUpdatesChecked(Some(data)))
-          | NpmPackage(npmPackage) =>
-            let {versions} =
-              json->S.decodeOrThrow(
-                ~from=S.json,
-                ~to=Client__State__Types.latestVersionsResponseSchema,
-              )
-            switch versions->Dict.get(npmPackage)->Option.flatMap(version => version) {
-            | Some(latestVersion) =>
-              dispatch(
-                UpdateInfoChecked(
-                  updateInfoForVersions(~target, ~installedVersion, ~latestVersion),
-                ),
-              )
-            | None =>
-              Sentry.captureConnectionError(
-                `CheckForUpdate: package "${npmPackage}" not found or null in registry response`,
-                ~endpoint=url,
-              )
-            }
-          }
-        }
-      } catch {
-      | exn => Sentry.captureException(exn, ~operation="CheckForUpdate")
-      }
-    }
-    fetch()->ignore
-  | FetchCustomProvidersEffect({apiBaseUrl}) => fetchCustomProvidersImpl(dispatch, ~apiBaseUrl)
-  | CustomProviderMutationEffect({apiBaseUrl, request}) =>
-    customProviderMutationImpl(dispatch, ~apiBaseUrl, ~request)
-  }
-}
+let validateSubmission = Client__State__Prompt.validateSubmission
+let updateInfoForVersions = Client__State__UpdateInfo.updateInfoForVersions
 
 let upsertCustomProvider = (
   existing: option<array<Client__State__Types.customProvider>>,
@@ -2094,12 +52,15 @@ let upsertCustomProvider = (
   }
 }
 
-let clearSelectedModelValue = (state: state): state => {
-  syncSelectedModelValueToStorage(None)
-  {...state, selectedModelValue: None}
-}
+let selectModel = (state: state, value: option<string>): (state, array<effect>) => (
+  {...state, selectedModelValue: value},
+  [PersistSelectedModel(value)],
+)
 
-let applyCustomProvider = (state: state, provider: Client__State__Types.customProvider): state => {
+let applyCustomProvider = (state: state, provider: Client__State__Types.customProvider): (
+  state,
+  array<effect>,
+) => {
   let state = {
     ...state,
     customProviders: Some(upsertCustomProvider(state.customProviders, provider)),
@@ -2107,10 +68,10 @@ let applyCustomProvider = (state: state, provider: Client__State__Types.customPr
   switch state.selectedModelValue {
   | Some(value) if value->String.startsWith(`custom:${provider.id}:`) =>
     switch provider.models->Array.some(model => value == `custom:${provider.id}:${model}`) {
-    | true => state
-    | false => clearSelectedModelValue(state)
+    | true => (state, [])
+    | false => selectModel(state, None)
     }
-  | _ => state
+  | _ => (state, [])
   }
 }
 
@@ -2140,13 +101,10 @@ let startCustomProviderMutation = (state: state, request) => {
 let clearPendingQuestions = (state: state) => {
   let updatedTasks = state.tasks->Dict.copy
   updatedTasks->Dict.forEachWithKey((task, taskId) => {
-    switch task {
-    | Task.Loaded(data) =>
-      updatedTasks->Dict.set(taskId, Task.Loaded({...data, pendingQuestion: None}))
-    | Task.Loading(data) =>
-      updatedTasks->Dict.set(taskId, Task.Loading({...data, pendingQuestion: None}))
-    | Task.New(_) | Task.Unloaded(_) => ()
-    }
+    updatedTasks->Dict.set(
+      taskId,
+      Task.updateConversation(task, data => {...data, pendingQuestion: None}),
+    )
   })
   {...state, tasks: updatedTasks}
 }
@@ -2154,6 +112,9 @@ let clearPendingQuestions = (state: state) => {
 let clearConnectionState = (state: state) => {
   {
     ...clearPendingQuestions(state),
+    wordPressConnectionStatus: WordPressNotChecked,
+    wordPressConnectionRequestId: state.wordPressConnectionRequestId + 1,
+    wordPressAssistantSetupSelected: false,
     billingStatus: Client__Billing.NotLoaded,
     billingFlow: Client__Billing.Idle,
     billingAbortController: None,
@@ -2175,9 +136,16 @@ let rec next = (state: state, action) => {
     | None => {...state, wordPressLoginRecovery: Some({loginUrl: loginUrl})}->StateReducer.update
     }
   | ReloadAfterWordPressLogin => state->StateReducer.update(~sideEffects=[ReloadFrontman])
+  | WordPressWarningCleared(signal) =>
+    switch state.connection {
+    | Some({connection: Ok(Some({lifetimeAbortController}))})
+      if signal === lifetimeAbortController.signal && !signal.aborted =>
+      {...state, wordPressWarningReady: true}->StateReducer.update
+    | _ => state->StateReducer.update
+    }
   | InitializeConnection(config) =>
     next(
-      {...state, connection: Some(Connection.initialState(config))},
+      {...state, connection: Some(Connection.initialState(config)), wordPressWarningReady: false},
       ConnectionAction(Initialize),
     )
   | ConnectionEvent({signal, action}) =>
@@ -2203,12 +171,33 @@ let rec next = (state: state, action) => {
     | Some(previous) =>
       let (connection, effects) = Connection.next(previous, action)
       let updated = {...state, connection: Some(connection)}
+      let warningEffects = switch (
+        state.wordPressWarningReady,
+        connection.config.acp.clientInfo._meta->Option.flatMap(
+          Connection.frameworkFromClientInfoMeta,
+        ),
+        connection.connection,
+      ) {
+      | (false, Some("wordpress"), Ok(Some({lifetimeAbortController}))) =>
+        switch previous.connection {
+        | Ok(Some({lifetimeAbortController: oldController}))
+          if oldController === lifetimeAbortController => []
+        | _ => [ObserveWordPressWarning]
+        }
+      | _ => []
+      }
       let (updated, configEffects) = switch action {
       | SessionResultReceived({result: Ok((_, Some(configOptions)))}) if connection !== previous =>
         next(updated, ConfigOptionsReceived({configOptions: configOptions}))
       | _ => (updated, [])
       }
-      (updated, Array.concat(configEffects, effects->Array.map(effect => ConnectionEffect(effect))))
+      (
+        updated,
+        Array.concat(
+          warningEffects,
+          Array.concat(configEffects, effects->Array.map(effect => ConnectionEffect(effect))),
+        ),
+      )
     }
     switch (
       action,
@@ -2235,7 +224,7 @@ let rec next = (state: state, action) => {
   | SetSelectedModelValue(_)
   | ExecutePendingPlan(_) if Selectors.isSubmitting(state) =>
     state->StateReducer.update
-  | AcpSessionUpdateReceived({taskId, update}) =>
+  | AcpSessionUpdateReceived({taskId, update, errorDisplayId}) =>
     let task = action => TaskAction({target: ForTask(taskId), action})
     let flush = actions => state->StateReducer.update(~sideEffect=FlushSessionActions(actions))
     switch update {
@@ -2343,7 +332,8 @@ let rec next = (state: state, action) => {
         })
       | None =>
         TaskReducer.AgentError({
-          id: Client__ACP__MessageCodec.agentErrorId(_meta),
+          id: errorDisplayId->Option.getOrThrow,
+          retryErrorId: Client__ACP__MessageCodec.agentErrorId(_meta),
           error: message,
           category: Client__ErrorCategory.fromAcpCategory(category),
         })
@@ -2412,7 +402,7 @@ let rec next = (state: state, action) => {
     )
   | ExecutePendingPlan(_) if Client__Billing.turnStartBlocked(state.billingStatus) =>
     {...state, settingsModalTab: Some(Billing)}->StateReducer.update
-  | AddUserMessage({content, annotationId, onComplete} as input) =>
+  | AddUserMessage({id, timestamp, content, annotationId, onComplete} as input) =>
     let reject = error =>
       state->StateReducer.update(
         ~sideEffect=SubmissionCompleted({onComplete, result: Error(error)}),
@@ -2425,7 +415,8 @@ let rec next = (state: state, action) => {
       | Some(id) => [annotations->Array.find(annotation => annotation.id == id)->Option.getOrThrow]
       }
       let submission: Client__State__Types.submission = {
-        id: Message.UserMessageId.make(),
+        id,
+        timestamp,
         content,
         annotations: annotations->Array.map(Message.MessageAnnotation.fromAnnotation),
         agentId,
@@ -2466,7 +457,7 @@ let rec next = (state: state, action) => {
     | Task.New(_) => state->StateReducer.update
     }
 
-  | ExecutePendingPlan({id}) =>
+  | ExecutePendingPlan({id, timestamp}) =>
     switch (state.selectedModelValue, Selectors.pendingPlanHandoff(state)) {
     | (Some(_), Some({taskId, executorAgentId})) =>
       addUserMessageToState(
@@ -2474,6 +465,7 @@ let rec next = (state: state, action) => {
         ~sessionId=taskId,
         {
           id,
+          timestamp,
           content: [UserContentPart.Text({text: executePlanPrompt})],
           annotations: [],
           agentId: executorAgentId,
@@ -2546,7 +538,7 @@ let rec next = (state: state, action) => {
       )
     }
 
-  | DeleteTask({taskId}) => {
+  | DeleteTask({taskId, replacementClientId}) => {
       let (state, effects) = switch state.connection->Option.flatMap(
         Connection.Selectors.sessionTaskId,
       ) == Some(taskId) {
@@ -2569,7 +561,7 @@ let rec next = (state: state, action) => {
           ->Array.get(0)
         switch mostRecent {
         | Some(task) => Task.Selected(Task.getId(task)->Option.getOrThrow)
-        | None => Task.New(Task.makeNew(~previewUrl=getInitialUrl()))
+        | None => Task.New(Task.makeNew(~previewUrl=getInitialUrl(), ~clientId=replacementClientId))
         }
       | other => other
       }
@@ -2586,12 +578,12 @@ let rec next = (state: state, action) => {
       state->StateReducer.update(~sideEffects=Array.concat(effects, deleteEffects))
     }
 
-  | ClearCurrentTask =>
+  | ClearCurrentTask({replacementClientId}) =>
     let (state, effects) = next(state, ConnectionAction(ClearSession))
     let previewUrl = Selectors.previewUrl(state)
     {
       ...state,
-      currentTask: Task.New(Task.makeNew(~previewUrl)),
+      currentTask: Task.New(Task.makeNew(~previewUrl, ~clientId=replacementClientId)),
       highlightedAnnotation: None,
     }->StateReducer.update(~sideEffects=effects)
 
@@ -2605,6 +597,12 @@ let rec next = (state: state, action) => {
     }
 
   | SetSettingsModalTab({tab}) => {...state, settingsModalTab: tab}->StateReducer.update
+  | OpenWordPressAssistantSetup =>
+    {
+      ...state,
+      wordPressAssistantSetupSelected: true,
+      settingsModalTab: Some(General),
+    }->StateReducer.update
   | RequestBilling(request) =>
     switch (Selectors.apiBaseUrl(state), request, state.billingFlow) {
     | (None, _, _) | (_, Checkout(_) | CustomerPortal, Opening | AwaitingCheckout) =>
@@ -2704,21 +702,54 @@ let rec next = (state: state, action) => {
       ->StateReducer.update(~sideEffects=[FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl})])
     | None => state->StateReducer.update
     }
-  | ConnectWordPress =>
-    switch (Selectors.apiBaseUrl(state), state.wordPressConnectionStatus) {
-    | (_, Some("Connecting...")) => state->StateReducer.update
-    | (Some(apiBaseUrl), _) =>
-      {...state, wordPressConnectionStatus: Some("Connecting...")}->StateReducer.update(
-        ~sideEffects=[ConnectWordPressEffect({apiBaseUrl: apiBaseUrl})],
-      )
-    | (None, _) =>
+  | ConnectWordPress | FetchWordPressConnection | SetWordPressAccess(_) =>
+    let operation = switch (action, state.wordPressConnectionStatus) {
+    | (ConnectWordPress, WordPressUnlinked) =>
+      Some((ApproveConnection, Client__State__Types.WordPressLinking))
+    | (FetchWordPressConnection, _) =>
+      Some((CheckConnection, Client__State__Types.WordPressChecking))
+    | (SetWordPressAccess(enabled), WordPressLinked({enabled: current})) if current != enabled =>
+      Some((
+        UpdateAccess(enabled),
+        Client__State__Types.WordPressUpdatingAccess({enabled: current}),
+      ))
+    | _ => None
+    }
+    switch (state.wordPressPendingMutation, Selectors.apiBaseUrl(state), operation) {
+    | (None, Some(apiBaseUrl), Some((operation, status))) =>
+      let requestId = state.wordPressConnectionRequestId + 1
       {
         ...state,
-        wordPressConnectionStatus: Some("Reload Frontman and sign in, then try again."),
-      }->StateReducer.update
+        wordPressConnectionStatus: status,
+        wordPressConnectionRequestId: requestId,
+        wordPressPendingMutation: operation == CheckConnection ? None : Some(requestId),
+      }->StateReducer.update(
+        ~sideEffects=[WordPressConnectionEffect({apiBaseUrl, requestId, operation})],
+      )
+    | _ => state->StateReducer.update
     }
-  | WordPressConnectionFinished(message) =>
-    {...state, wordPressConnectionStatus: Some(message)}->StateReducer.update
+  | WordPressConnectionCompletion({requestId, result, credentialRisk}) =>
+    let current = requestId == state.wordPressConnectionRequestId
+    let mutationFinished = state.wordPressPendingMutation == Some(requestId)
+    let status: Client__State__Types.wordPressConnectionStatus = switch result {
+    | Ok({connected, enabled}) =>
+      connected ? WordPressLinked({enabled: enabled}) : WordPressUnlinked
+    | Error(WordPressRequestFailed(message)) => WordPressConnectionFailed(message)
+    | Error(WordPressAuthRequired) =>
+      WordPressConnectionFailed("Your Frontman session expired. Sign in again.")
+    }
+    let state = {
+      ...state,
+      wordPressPendingMutation: mutationFinished ? None : state.wordPressPendingMutation,
+      wordPressCredentialWarning: state.wordPressCredentialWarning ||
+      (credentialRisk && (!current || result->Result.isError)),
+    }
+    switch (current, mutationFinished) {
+    | (true, _) => {...state, wordPressConnectionStatus: status}->StateReducer.update
+    | (false, true) =>
+      next({...state, wordPressConnectionStatus: WordPressNotChecked}, FetchWordPressConnection)
+    | (false, false) => state->StateReducer.update
+    }
 
   | ApiKeySettingsReceived({provider, source}) =>
     state->setApiKeySource(provider, source)->StateReducer.update
@@ -2784,21 +815,21 @@ let rec next = (state: state, action) => {
       }
     | None => currentOrFirstModelValue
     }
-    switch (state.selectedModelValue, selectedModelValue) {
-    | (Some(current), Some(next)) if current == next => ()
-    | (None, None) => ()
-    | _ => syncSelectedModelValueToStorage(selectedModelValue)
+    let (state, effects) = switch (state.selectedModelValue, selectedModelValue) {
+    | (Some(current), Some(next)) if current == next => (state, [])
+    | (None, None) => (state, [])
+    | _ => selectModel(state, selectedModelValue)
     }
     {
       ...state,
       configOptions: Some(configOptions),
       selectedModelValue,
       pendingProviderAutoSelect: None,
-    }->StateReducer.update
+    }->StateReducer.update(~sideEffects=effects)
 
   | SetSelectedModelValue({value}) =>
-    syncSelectedModelValueToStorage(Some(value))
-    {...state, selectedModelValue: Some(value)}->StateReducer.update
+    let (state, effects) = selectModel(state, Some(value))
+    state->StateReducer.update(~sideEffects=effects)
 
   | AgentAttributionConfigured({agentCatalog, defaultAgentId}) =>
     Client__Agent.findOrThrow(Some(agentCatalog), defaultAgentId)->ignore
@@ -3128,10 +1159,11 @@ let rec next = (state: state, action) => {
   | AcknowledgeCustomProviderMutation =>
     switch state.customProviderMutation {
     | CustomProviderMutationFailed({error: CustomProviderConflict(provider), _}) =>
+      let (state, effects) = applyCustomProvider(state, provider)
       {
-        ...applyCustomProvider(state, provider),
+        ...state,
         customProviderMutation: CustomProviderMutationIdle,
-      }->StateReducer.update
+      }->StateReducer.update(~sideEffects=effects)
     | CustomProviderMutationSucceeded(_) | CustomProviderMutationFailed(_) =>
       {...state, customProviderMutation: CustomProviderMutationIdle}->StateReducer.update
     | CustomProviderMutationIdle | CustomProviderMutationPending(_) => state->StateReducer.update
@@ -3140,7 +1172,7 @@ let rec next = (state: state, action) => {
   | CustomProviderMutationSucceeded({operation, provider}) =>
     switch state.customProviderMutation {
     | CustomProviderMutationPending(pending) if pending == operation =>
-      let state = switch operation {
+      let (state, effects) = switch operation {
       | SavingCustomProvider(_) =>
         let provider = provider->Option.getOrThrow
         applyCustomProvider(state, provider)
@@ -3152,14 +1184,14 @@ let rec next = (state: state, action) => {
           ),
         }
         switch state.selectedModelValue {
-        | Some(value) if value->String.startsWith(`custom:${id}:`) => clearSelectedModelValue(state)
-        | _ => state
+        | Some(value) if value->String.startsWith(`custom:${id}:`) => selectModel(state, None)
+        | _ => (state, [])
         }
       }
       {
         ...state,
         customProviderMutation: CustomProviderMutationSucceeded(operation),
-      }->StateReducer.update
+      }->StateReducer.update(~sideEffects=effects)
     | _ => state->StateReducer.update
     }
 

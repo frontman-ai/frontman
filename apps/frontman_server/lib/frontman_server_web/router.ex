@@ -41,6 +41,7 @@ defmodule FrontmanServerWeb.Router do
   scope "/", FrontmanServerWeb do
     get("/.well-known/oauth-protected-resource/mcp", McpServerController, :metadata)
     get("/.well-known/oauth-protected-resource", McpServerController, :metadata)
+    get("/.well-known/openai-apps-challenge", DomainVerificationController, :openai)
   end
 
   scope "/auth/mcp/workos", FrontmanServerWeb do
@@ -52,6 +53,7 @@ defmodule FrontmanServerWeb.Router do
   scope "/auth/mcp/workos", FrontmanServerWeb do
     pipe_through([:connect_handoff, :browser, :require_authenticated_user])
     post("/pending", ConnectHandoffController, :complete, log: false)
+    post("/switch-account", ConnectHandoffController, :switch_account, log: false)
   end
 
   scope "/", FrontmanServerWeb do
@@ -69,8 +71,7 @@ defmodule FrontmanServerWeb.Router do
 
     delete("/users/log-out", UserSessionController, :delete)
     get("/users/log-out", UserSessionController, :confirm_logout)
-    get("/users/popup-complete", EmbeddedClientAuthController, :show)
-    post("/users/popup-complete", EmbeddedClientAuthController, :approve)
+    get("/users/popup-complete", UserSessionController, :popup_complete)
   end
 
   scope "/health", FrontmanServerWeb do
@@ -86,7 +87,7 @@ defmodule FrontmanServerWeb.Router do
     get("/callback", OAuthController, :callback)
     get("/verify-email", OAuthController, :verify_email_form)
     post("/verify-email", OAuthController, :verify_email)
-    get("/:provider", OAuthController, :request)
+    post("/:provider", OAuthController, :request)
   end
 
   scope "/auth", FrontmanServerWeb do
@@ -110,6 +111,8 @@ defmodule FrontmanServerWeb.Router do
   scope "/", FrontmanServerWeb do
     pipe_through([:browser, :require_authenticated_user])
 
+    get("/wordpress/connect", WordPressOnboardingController, :show)
+    post("/wordpress/connect", WordPressOnboardingController, :verify)
     get("/users/settings", UserSettingsController, :edit)
     put("/users/settings", UserSettingsController, :update)
     get("/users/settings/confirm-email/:token", UserSettingsController, :confirm_email)
@@ -128,6 +131,7 @@ defmodule FrontmanServerWeb.Router do
 
     delete("/client-token", ClientTokenController, :delete)
     post("/wordpress/connections", WordPressConnectionController, :create, log: false)
+    get("/wordpress/connections/status", WordPressConnectionController, :status, log: false)
 
     get("/billing/status", BillingController, :status)
     post("/billing/checkout", BillingController, :checkout)

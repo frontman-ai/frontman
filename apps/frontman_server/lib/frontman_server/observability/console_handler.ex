@@ -20,6 +20,55 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
 
   @table :frontman_console_timing
 
+  def setup_wordpress do
+    events =
+      for kind <- [:catalog, :call, :discovery], do: [:frontman_server, :wordpress, kind, :stop]
+
+    case :telemetry.attach_many(
+           "frontman_console_wordpress",
+           events,
+           &__MODULE__.handle_wordpress/4,
+           nil
+         ) do
+      :ok -> :ok
+      {:error, :already_exists} -> :ok
+    end
+  end
+
+  def handle_wordpress(
+        [:frontman_server, :wordpress, kind, :stop],
+        measurements,
+        metadata,
+        _config
+      )
+      when kind in [:catalog, :call, :discovery] do
+    outcomes = ~w(ok invalid_json oversized_result non_200 timeout transport task_exit
+                  incomplete paginated bounds deadline_expired schema request_failed)a
+    outcome = if metadata[:outcome] in outcomes, do: metadata[:outcome], else: :unknown
+    duration = safe_count(measurements[:duration_ms])
+
+    counts =
+      if kind == :discovery do
+        " validated=#{safe_count(measurements[:validated])} total=#{safe_count(measurements[:total])}"
+      else
+        " status_code=#{safe_count(measurements[:status_code])}"
+      end
+
+    previous = Logger.metadata()
+    Logger.reset_metadata([])
+
+    try do
+      Logger.info(
+        "WordPress #{kind} diagnostic category=#{outcome} elapsed_ms=#{duration}#{counts}"
+      )
+    after
+      Logger.reset_metadata(previous)
+    end
+  end
+
+  defp safe_count(value) when is_integer(value) and value >= 0, do: value
+  defp safe_count(_value), do: 0
+
   def setup do
     :ets.new(@table, [:named_table, :public, :set])
     attach_handlers()

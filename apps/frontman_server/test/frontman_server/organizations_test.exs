@@ -1,5 +1,5 @@
 defmodule FrontmanServer.OrganizationsTest do
-  use FrontmanServer.DataCase
+  use FrontmanServer.DataCase, async: true
 
   alias FrontmanServer.Organizations
 

@@ -11,7 +11,7 @@ Application.put_env(
   Keyword.put(stripe_config, :api_base_url, PaperTiger.Test.base_url("/v1"))
 )
 
-ExUnit.start(exclude: [:application_restart])
+ExUnit.start(exclude: [:application_restart], capture_log: true)
 
 Mox.defmock(
   FrontmanServer.Tasks.Execution.LLMProviderMock,
@@ -19,3 +19,5 @@ Mox.defmock(
 )
 
 Ecto.Adapters.SQL.Sandbox.mode(FrontmanServer.Repo, :manual)
+
+:ok = LLMDB.Catalog.ensure_loaded!()

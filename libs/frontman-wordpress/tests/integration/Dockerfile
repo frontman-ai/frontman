@@ -7,6 +7,8 @@ RUN if grep -q '^VERSION_CODENAME=bullseye$' /etc/os-release; then \
   && apt-get update && apt-get install -y --no-install-recommends libpng-dev \
   && rm -rf /var/lib/apt/lists/* \
   && docker-php-ext-install mysqli gd \
+  && printf '%s\n' 'opcache.validate_timestamps=1' 'opcache.revalidate_freq=0' \
+    > /usr/local/etc/php/conf.d/frontman-runtime.ini \
   && a2enmod rewrite ssl \
   && printf '%s\n' \
     '<Directory /var/www/html/>' \
@@ -20,7 +22,7 @@ RUN if grep -q '^VERSION_CODENAME=bullseye$' /etc/os-release; then \
     '</VirtualHost>' > /etc/apache2/conf-available/frontman-test-ssl.conf \
   && a2enconf frontman-test-ssl
 
-COPY frontman-test.key frontman-test.crt /tmp/
+COPY frontman-test.key frontman-test.crt ca.crt /tmp/
 COPY wordpress.tar.gz /tmp/wordpress.tar.gz
 RUN tar -xzf /tmp/wordpress.tar.gz --strip-components=1 -C /var/www/html \
   && rm /tmp/wordpress.tar.gz \

@@ -8,6 +8,7 @@ open Vitest
  */
 module StateReducer = Client__State__StateReducer
 module Task = Client__State__Types.Task
+module Message = Client__State__Types.Message
 
 module TestSetup = {
   let createStateWithLoadedTasks = (
@@ -16,27 +17,28 @@ module TestSetup = {
   ): StateReducer.state => {
     let tasks = Dict.make()
     taskIds->Array.forEach(id => {
-      let task =
-        Task.makeNew(~previewUrl="http://localhost:3000")
-        ->Task.newToLoaded(~id, ~title=`Task ${id}`)
-        ->Task.updateLoadedData(data => {...data, isAgentRunning})
+      let task = switch Task.makeNew(~previewUrl="http://localhost:3000", ~clientId=id) {
+      | Task.New(draft) =>
+        Task.Loaded(Task.promoteDraft(draft, ~id, ~title=`Task ${id}`, ~timestamp=0.0))
+      | _ => failwith("Expected a draft")
+      }->Task.updateConversation(data => {...data, isAgentRunning})
       tasks->Dict.set(id, task)
     })
 
     let currentTask = switch taskIds->Array.get(0) {
     | Some(id) => Task.Selected(id)
-    | None => Task.New(Task.makeNew(~previewUrl="http://localhost:3000"))
+    | None => Task.New(Task.makeNew(~previewUrl="http://localhost:3000", ~clientId="new"))
     }
 
     {
-      ...StateReducer.defaultState,
+      ...Client__State__Initialization.defaultState,
       tasks,
       currentTask,
     }
   }
 }
 
-let textDeltaAction = (~taskId, ~messageId, ~text) => StateReducer.TaskAction({
+let textDeltaAction = (~taskId, ~messageId, ~text) => Client__State__Protocol.TaskAction({
   target: ForTask(taskId),
   action: TextDeltaReceived({
     messageId,
@@ -76,9 +78,9 @@ describe("Concurrent Tasks Event Routing", () => {
     t->expect(Task.getMessages(taskB)->Array.length)->Expect.toBe(1)
     t->expect(Task.getMessages(taskC)->Array.length)->Expect.toBe(1)
 
-    let getStreamingText = (task: StateReducer.Task.t) => {
+    let getStreamingText = (task: Task.t) => {
       switch Client__Task__Reducer.Selectors.streamingMessage(task) {
-      | Some(StateReducer.Message.Streaming({textBuffer})) => textBuffer
+      | Some(Message.Streaming({textBuffer})) => textBuffer
       | _ => ""
       }
     }
@@ -97,7 +99,7 @@ describe("Concurrent Tasks Event Routing", () => {
     )
 
     let (stateWithB, _) = StateReducer.next(state, SwitchTask({taskId: taskBId}))
-    t->expect(StateReducer.Selectors.currentTaskId(stateWithB))->Expect.toEqual(Some(taskBId))
+    t->expect(Client__State__Selectors.currentTaskId(stateWithB))->Expect.toEqual(Some(taskBId))
 
     let (stateWithText, _) = StateReducer.next(
       stateWithB,
@@ -145,10 +147,10 @@ describe("Concurrent Tasks Event Routing", () => {
 
     let (stateWithB, _) = StateReducer.next(state, SwitchTask({taskId: taskBId}))
 
-    let toolCall: StateReducer.Message.toolCall = {
+    let toolCall: Message.toolCall = {
       id: "tool-1",
       toolName: "ReadFile",
-      state: StateReducer.Message.InputAvailable,
+      state: Message.InputAvailable,
       inputBuffer: "",
       input: Some(JSON.parseOrThrow(`{"path": "file.txt"}`)),
       result: None,
@@ -178,7 +180,7 @@ describe("Concurrent Tasks Event Routing", () => {
     let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
     let toolMessage =
       Task.getMessages(taskA)
-      ->Array.find(msg => StateReducer.Message.getId(msg) == "tool-1")
+      ->Array.find(msg => Message.getId(msg) == "tool-1")
       ->Option.getOrThrow
 
     switch toolMessage {
@@ -204,7 +206,7 @@ describe("Concurrent Tasks Event Routing", () => {
     )
 
     let (stateWithB, _) = StateReducer.next(stateWithText1, SwitchTask({taskId: taskBId}))
-    t->expect(StateReducer.Selectors.currentTaskId(stateWithB))->Expect.toEqual(Some(taskBId))
+    t->expect(Client__State__Selectors.currentTaskId(stateWithB))->Expect.toEqual(Some(taskBId))
 
     let (finalState, _) = StateReducer.next(
       stateWithB,
@@ -215,8 +217,7 @@ describe("Concurrent Tasks Event Routing", () => {
     let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
 
     switch Client__Task__Reducer.Selectors.streamingMessage(taskA) {
-    | Some(StateReducer.Message.Streaming({textBuffer})) =>
-      t->expect(textBuffer)->Expect.toBe("Part 1. Part 2.")
+    | Some(Message.Streaming({textBuffer})) => t->expect(textBuffer)->Expect.toBe("Part 1. Part 2.")
     | _ => t->expect(false)->Expect.toBe(true)
     }
 
