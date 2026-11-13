@@ -159,7 +159,12 @@ defmodule FrontmanServer.Tasks do
         |> Repo.all()
 
       page = Enum.take(rows, @history_page_size)
-      next_page = if length(rows) > @history_page_size, do: page_number + 1, else: nil
+
+      next_page =
+        if length(rows) > @history_page_size and page_number < 100,
+          do: page_number + 1,
+          else: nil
+
       {:ok, %{interactions: page, next_page: next_page}}
     end
   end
