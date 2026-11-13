@@ -1,7 +1,7 @@
 defmodule FrontmanServer.Tasks.PretrialRunsTest do
-  use FrontmanServerWeb.ChannelCase, async: false
+  use FrontmanServerWeb.ChannelCase, async: true
 
-  import FrontmanServer.ExecutionCase, only: [refute_running_eventually: 1]
+  import FrontmanServer.ExecutionCase, only: [refute_running_eventually: 2]
   import FrontmanServer.Test.Fixtures.Accounts, only: [user_fixture: 0]
   import FrontmanServer.Test.Fixtures.Tasks, only: [task_topic: 1]
 
@@ -10,9 +10,10 @@ defmodule FrontmanServer.Tasks.PretrialRunsTest do
   alias FrontmanServer.Test.Fixtures.LLMProvider
 
   test "subscription webhook starts the exact message queued before allowance exhaustion", %{
-    scope: scope
+    scope: scope,
+    runtime: runtime
   } do
-    {socket, task_id} = join_task_channel(scope)
+    {socket, task_id} = join_task_channel(scope, runtime: runtime)
     Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
     message_id = Ecto.UUID.generate()
     ref = push(socket, "acp:message", build_prompt_request(message_id: message_id))
@@ -54,12 +55,13 @@ defmodule FrontmanServer.Tasks.PretrialRunsTest do
                }
              })
 
-    assert_turn_completed(task_id, message_id)
+    assert_turn_completed(task_id, message_id, runtime)
   end
 
-  test "saving provider credentials starts the exact queued message without offering turn retry" do
+  test "saving provider credentials starts the exact queued message without offering turn retry",
+       %{runtime: runtime} do
     scope = Accounts.Scope.for_user(user_fixture())
-    {socket, task_id} = join_task_channel(scope)
+    {socket, task_id} = join_task_channel(scope, runtime: runtime)
     Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
     message_id = Ecto.UUID.generate()
     ref = push(socket, "acp:message", build_prompt_request(message_id: message_id))
@@ -85,11 +87,11 @@ defmodule FrontmanServer.Tasks.PretrialRunsTest do
 
     LLMProvider.expect_llm_responses(["Provider configured"])
     :ok = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
-    assert_turn_completed(task_id, message_id)
+    assert_turn_completed(task_id, message_id, runtime)
     assert Tasks.remaining_runs(scope) == 4
   end
 
-  defp assert_turn_completed(task_id, message_id) do
+  defp assert_turn_completed(task_id, message_id, runtime) do
     assert_receive {:interaction,
                     %{
                       task_id: ^task_id,
@@ -101,6 +103,6 @@ defmodule FrontmanServer.Tasks.PretrialRunsTest do
     assert_receive {:interaction, %{task_id: ^task_id, turn_number: 1, type: :agent_completed}},
                    5_000
 
-    refute_running_eventually(task_id)
+    refute_running_eventually(task_id, runtime)
   end
 end

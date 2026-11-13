@@ -60,8 +60,8 @@ defmodule FrontmanServer.Tasks.StreamStallTimeout do
   defp start_feeder(stream) do
     caller = self()
 
-    pid =
-      spawn_link(fn ->
+    {:ok, pid} =
+      Task.start_link(fn ->
         send(caller, {:feeder_ready, self()})
 
         try do

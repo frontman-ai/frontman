@@ -7,6 +7,7 @@ defmodule SwarmAi.Runtime do
 
   @type state :: %{
           runtime: atom(),
+          initialize_process: (-> :ok),
           monitors: %{reference() => {String.t(), SwarmAi.Loop.t()}}
         }
 
@@ -14,7 +15,8 @@ defmodule SwarmAi.Runtime do
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
     runtime = Keyword.fetch!(opts, :runtime)
-    GenServer.start_link(__MODULE__, runtime, name: runtime)
+    initialize_process = Keyword.fetch!(opts, :initialize_process)
+    GenServer.start_link(__MODULE__, {runtime, initialize_process}, name: runtime)
   end
 
   @doc false
@@ -74,15 +76,19 @@ defmodule SwarmAi.Runtime do
   def execution_supervisor_name(runtime), do: :"#{runtime}.ExecutionSupervisor"
 
   @impl true
-  @spec init(atom()) :: {:ok, state()}
-  def init(runtime) when is_atom(runtime) do
+  @spec init({atom(), (-> :ok)}) :: {:ok, state()}
+  def init({runtime, initialize_process}) when is_atom(runtime) do
     Process.flag(:trap_exit, true)
-    {:ok, %{runtime: runtime, monitors: %{}}}
+    :ok = initialize_process.()
+    {:ok, %{runtime: runtime, initialize_process: initialize_process, monitors: %{}}}
   end
 
   @impl true
-  def handle_call({:run, key, %SwarmAi.Loop{} = loop}, _from, %{runtime: runtime} = state) do
-    case start_execution(runtime, key, loop) do
+  def handle_call({:run, key, %SwarmAi.Loop{} = loop}, _from, state) do
+    case start_execution(state.runtime, key, %{
+           loop: loop,
+           initialize_process: state.initialize_process
+         }) do
       {:ok, pid, ref} ->
         {:reply, {:ok, pid}, put_in(state.monitors[ref], {key, loop})}
 
@@ -154,10 +160,13 @@ defmodule SwarmAi.Runtime do
     end
   end
 
-  defp start_execution(runtime, key, %SwarmAi.Loop{} = loop) do
+  defp start_execution(runtime, key, %{
+         loop: %SwarmAi.Loop{} = loop,
+         initialize_process: initialize_process
+       }) do
     case DynamicSupervisor.start_child(
            execution_supervisor_name(runtime),
-           {SwarmAi.ExecutionWorker, {runtime, key, loop}}
+           {SwarmAi.ExecutionWorker, {runtime, key, loop, initialize_process}}
          ) do
       {:ok, pid} -> {:ok, pid, Process.monitor(pid)}
       {:error, {:already_started, _pid}} -> {:error, :already_running}

@@ -20,7 +20,13 @@ defmodule SwarmAi do
 
   alias SwarmAi.Loop
 
-  @doc "Returns a child spec for a supervised SwarmAi runtime."
+  @doc """
+  Returns a child spec for a supervised SwarmAi runtime.
+
+  The optional `:initialize_process` zero-arity function runs in the runtime
+  and each execution worker before they handle work. It must return `:ok`.
+  It runs again when either process starts after a supervision restart.
+  """
   @spec child_spec(keyword()) :: Supervisor.child_spec()
   def child_spec(opts) do
     name = Keyword.fetch!(opts, :name)

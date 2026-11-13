@@ -171,7 +171,11 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   def handle_info({:execute_next_turn, execution}, socket) do
-    case Tasks.execute_next_turn(socket.assigns.scope, socket.assigns.task_id, execution) do
+    case Tasks.execute_next_turn(
+           socket.assigns.scope,
+           socket.assigns.task_id,
+           execution
+         ) do
       result when result in [:ok, :already_running, :no_accepted_messages] ->
         :ok
 
@@ -563,7 +567,11 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp resume_agent(socket, scope, task_id) do
-    Tasks.resume_execution(scope, task_id, execution_context(socket, nil))
+    Tasks.resume_execution(
+      scope,
+      task_id,
+      execution_context(socket, nil)
+    )
 
     socket
   end
@@ -679,7 +687,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     had_retry = socket.assigns[:retry_state] != nil
     socket = assign(socket, :retry_state, RetryCoordinator.clear(socket.assigns[:retry_state]))
 
-    case Tasks.cancel_execution(socket.assigns.scope, task_id) do
+    case Tasks.cancel_execution(socket.assigns.scope, task_id, agent_runtime(socket)) do
       :ok ->
         Logger.info("Agent cancel signal sent for task #{task_id}")
         {:noreply, socket}
@@ -948,8 +956,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     case Tasks.retry_execution(
            socket.assigns.scope,
            socket.assigns.task_id,
-           retried_error_id,
-           execution_context(socket, nil)
+           Map.put(execution_context(socket, nil), :retried_error_id, retried_error_id)
          ) do
       :ok ->
         notification = ACP.build_state_update_notification(socket.assigns.task_id, "running")
@@ -1045,6 +1052,10 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp wake_runner(_socket, _meta), do: :ok
 
+  defp agent_runtime(socket) do
+    Map.get(socket.assigns, :agent_runtime, FrontmanServer.AgentRuntime)
+  end
+
   defp execution_context(socket, meta) do
     model =
       case parse_client_model(meta && meta["model"]) do
@@ -1071,7 +1082,8 @@ defmodule FrontmanServerWeb.TaskChannel do
     %{
       model: model,
       mcp_tools: execution_tools,
-      project_traits: Frameworks.project_traits_from_meta(meta, socket.assigns.framework)
+      project_traits: Frameworks.project_traits_from_meta(meta, socket.assigns.framework),
+      runtime: agent_runtime(socket)
     }
   end
 

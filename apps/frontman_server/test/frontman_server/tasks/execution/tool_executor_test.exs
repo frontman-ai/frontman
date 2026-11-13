@@ -1,5 +1,5 @@
 defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
-  use FrontmanServer.DataCase, async: false
+  use FrontmanServer.DataCase, async: true
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks

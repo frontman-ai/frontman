@@ -1078,7 +1078,11 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc "Retries an already-authorized turn without charging or rechecking billing."
-  def retry_execution(scope, task_id, retried_error_id, execution) do
+  def retry_execution(
+        scope,
+        task_id,
+        %{retried_error_id: retried_error_id, runtime: _} = execution
+      ) do
     with {:ok, schema} <- get_task(scope, task_id),
          {:ok, history} = load_history(task_id),
          {:ok, turn_number} <- retry_turn_number(history.rows, retried_error_id),
@@ -1087,16 +1091,26 @@ defmodule FrontmanServer.Tasks do
          {:ok, agent} <- turn_agent(scope, history, turn_number),
          retry_attrs = %{retried_error_id: retried_error_id},
          {:ok, _retry} <- record_interaction(schema, :agent_retry, retry_attrs, turn_number) do
-      start_execution(scope, schema, turn_number, agent, execution)
+      start_execution(scope, schema, %{
+        turn_number: turn_number,
+        agent: agent,
+        execution: execution
+      })
     end
   end
 
   @doc "Executes the next accepted-message turn when work is available."
-  def execute_next_turn(%Scope{} = scope, task_id, execution) when is_binary(task_id) do
+  def execute_next_turn(%Scope{} = scope, task_id, %{runtime: _} = execution)
+      when is_binary(task_id) do
     case start_next_turn(scope, task_id) do
       {:ok, task, turn_number, turn_model, agent} ->
         execution = Map.put(execution, :model, turn_model)
-        start_execution(scope, task, turn_number, agent, execution)
+
+        start_execution(scope, task, %{
+          turn_number: turn_number,
+          agent: agent,
+          execution: execution
+        })
 
       stop when stop in [:already_running, :no_accepted_messages] ->
         stop
@@ -1144,13 +1158,17 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc "Resumes an already-authorized active turn without charging or rechecking billing."
-  def resume_execution(scope, task_id, execution) do
+  def resume_execution(scope, task_id, %{runtime: _} = execution) do
     with {:ok, task} <- get_task(scope, task_id),
          {:ok, history} <- load_history(task.id),
          turn_number when is_integer(turn_number) <- History.active_turn_number(history),
          {:ok, agent} <- turn_agent(scope, history, turn_number),
          {:ok, execution} <- ensure_execution_model(history, turn_number, execution) do
-      start_execution(scope, task, turn_number, agent, execution)
+      start_execution(scope, task, %{
+        turn_number: turn_number,
+        agent: agent,
+        execution: execution
+      })
     else
       nil -> {:error, :not_running}
       {:error, reason} -> {:error, reason}
@@ -1174,18 +1192,21 @@ defmodule FrontmanServer.Tasks do
 
   Verifies the task exists and belongs to the user before cancelling.
   """
-  def cancel_execution(scope, task_id) do
+  def cancel_execution(scope, task_id, runtime \\ FrontmanServer.AgentRuntime) do
     with {:ok, _schema} <- get_task(scope, task_id) do
-      SwarmAi.cancel(FrontmanServer.AgentRuntime, task_id)
+      SwarmAi.cancel(runtime, task_id)
     end
   end
 
   defp start_execution(
          %Scope{} = scope,
          %TaskSchema{} = task,
-         turn_number,
-         agent,
-         %{model: requested_model, mcp_tools: mcp_tools} = execution
+         %{
+           turn_number: turn_number,
+           agent: agent,
+           execution:
+             %{model: requested_model, mcp_tools: mcp_tools, runtime: runtime} = execution
+         }
        )
        when is_integer(turn_number) and turn_number > 0 and is_list(mcp_tools) do
     {:ok, history} = load_history(task.id)
@@ -1213,7 +1234,7 @@ defmodule FrontmanServer.Tasks do
             &dispatch_execution_event(scope, task.id, turn_number, response_context, &1)
         })
 
-      SwarmAi.run(FrontmanServer.AgentRuntime, task.id, loop)
+      SwarmAi.run(runtime, task.id, loop)
     end
     |> case do
       {:ok, _pid} -> :ok

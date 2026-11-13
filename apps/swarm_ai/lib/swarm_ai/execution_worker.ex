@@ -10,15 +10,18 @@ defmodule SwarmAi.ExecutionWorker do
     field(:loop, SwarmAi.Loop.t())
   end
 
-  @spec start_link({atom(), String.t(), SwarmAi.Loop.t()}) :: GenServer.on_start()
-  def start_link({runtime, key, %SwarmAi.Loop{} = loop}) when is_binary(key) do
-    GenServer.start_link(__MODULE__, {runtime, key, loop},
+  @spec start_link({atom(), String.t(), SwarmAi.Loop.t(), (-> :ok)}) :: GenServer.on_start()
+  def start_link({runtime, key, %SwarmAi.Loop{} = loop, initialize_process})
+      when is_binary(key) do
+    GenServer.start_link(__MODULE__, {runtime, key, loop, initialize_process},
       name: SwarmAi.Runtime.Registry.via(runtime, key)
     )
   end
 
   @impl true
-  def init({runtime, key, %SwarmAi.Loop{} = loop}) do
+  def init({runtime, key, %SwarmAi.Loop{} = loop, initialize_process}) do
+    :ok = initialize_process.()
+
     state = %__MODULE__{
       runtime: runtime,
       key: key,

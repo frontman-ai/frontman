@@ -19,3 +19,5 @@ Mox.defmock(
 )
 
 Ecto.Adapters.SQL.Sandbox.mode(FrontmanServer.Repo, :manual)
+
+:ok = LLMDB.Catalog.ensure_loaded!()

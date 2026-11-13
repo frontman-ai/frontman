@@ -21,6 +21,7 @@ These changes require a breaking package release. The package version remains un
 
 ### Added
 
+- Add an optional per-runtime initializer for the runtime and its execution workers.
 - `Await.timeout_ms` accepts `:infinity`. Interactive waits create no timer and remain cancellable. The parked executor retains its history in memory.
 
 ### Fixed
