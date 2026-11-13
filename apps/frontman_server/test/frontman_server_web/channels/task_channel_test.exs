@@ -244,7 +244,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     })
   end
 
-  defp assert_tool_result_crash(context, content, reason, structured \\ %{"logged" => true}) do
+  defp assert_tool_result_crash(context, content, %{reason: reason, structured: structured}) do
     %{socket: socket, task_id: task_id, scope: scope} = context
     result = %{"resultType" => "complete", "content" => content}
     result = Map.put(result, "structuredContent", structured)
@@ -257,6 +257,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     channel_pid = socket.channel_pid
     Process.flag(:trap_exit, true)
     push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, result))
+    catch_exit(:sys.get_state(channel_pid))
     assert_receive {:EXIT, ^channel_pid, {%RuntimeError{message: message}, _stacktrace}}
 
     assert message =~
@@ -1536,18 +1537,24 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
 
     test "crashes loudly for malformed MCP tool results", context do
-      assert_tool_result_crash(context, "invalid", "Invalid MCP tools/call result")
+      assert_tool_result_crash(context, "invalid", %{
+        reason: "Invalid MCP tools/call result",
+        structured: %{"logged" => true}
+      })
     end
 
     test "rejects structured-only output that violates the discovered schema", context do
-      assert_tool_result_crash(context, [], "Invalid MCP tools/call result", %{})
+      assert_tool_result_crash(context, [], %{
+        reason: "Invalid MCP tools/call result",
+        structured: %{}
+      })
     end
 
     test "rejects invalid image data before persistence", context do
       assert_tool_result_crash(
         context,
         [%{"type" => "image", "data" => "invalid", "mimeType" => "image/png"}],
-        "Failed to store MCP tools/call result"
+        %{reason: "Failed to store MCP tools/call result", structured: %{"logged" => true}}
       )
     end
 
