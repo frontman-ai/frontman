@@ -56,6 +56,6 @@ Validation does not require login or inference.
 For a local upload, run `make package-claude-wordpress`.
 This command validates the plugin and creates
 `dist/claude-wordpress/frontman-claude-wordpress-v<version>.zip`.
-The ZIP contains only the manifest, MCP configuration, WordPress skill, and this README.
+The ZIP contains the manifest, icon, MCP configuration, WordPress skill, and this README.
 The directory reads the GitHub-backed source, not this ZIP.
 Update the committed manifest version for each plugin release.
