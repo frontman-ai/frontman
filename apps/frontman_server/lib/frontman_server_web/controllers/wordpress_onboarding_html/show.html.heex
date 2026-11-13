@@ -1,73 +1,186 @@
-<Layouts.app flash={@flash} current_scope={@current_scope}>
-  <div class="mx-auto max-w-4xl">
-    <h1 class="font-headings text-3xl font-semibold tracking-tight sm:text-4xl">
-      Connect your WordPress site
-    </h1>
-    <p class="mt-3 max-w-2xl text-base leading-7 text-base-content/75">
-      Follow these steps to connect your site to your AI assistant.
+<Layouts.app flash={@flash} current_scope={@current_scope} focused>
+  <Layouts.connection title="Connect your WordPress site" assistant={false}>
+    <:intro>Follow these steps to connect your site to your AI assistant.</:intro>
+
+    <p id="frontman-account" class="text-sm text-zinc-400">
+      Frontman account
+      <strong class="ml-2 break-all text-white">{@current_scope.user.email}</strong>
     </p>
 
-    <ol class="mt-10 space-y-10">
-      <li class="flex gap-4 sm:gap-6">
-        <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/20 font-semibold text-primary-100">1</span>
-        <div class="min-w-0 flex-1">
-          <h2 class="font-headings text-xl font-semibold">Install Frontman</h2>
-          <p class="mt-2 leading-7 text-base-content/80">{Enum.at(@steps, 0)}</p>
+    <section id="connection-status" class="border-b border-white/10 pb-6">
+      <h2 class="font-headings text-xl font-semibold text-white">Connection status</h2>
+      <dl class="mt-5 space-y-3 text-sm text-zinc-300">
+        <div class="flex justify-between gap-4">
+          <dt>Subscription</dt>
+          <dd>
+            {if @active,
+              do: if(@billing_status == "trialing", do: "Trial", else: "Active"),
+              else: "Not active"}
+          </dd>
+        </div>
+        <div class="flex justify-between gap-4">
+          <dt>Saved sites</dt><dd id="saved-site-count">{length(@sites)}</dd>
+        </div>
+        <div class="flex justify-between gap-4">
+          <dt>Read access</dt>
+          <dd>
+            <%= if @result == :verified do %>
+              Verified for {@selected.label}
+            <% else %>
+              Not verified
+            <% end %>
+          </dd>
+        </div>
+      </dl>
+    </section>
+
+    <section>
+      <%= cond do %>
+        <% not @active -> %>
+          <FrontmanServerWeb.ConnectionAccessComponents.instructions
+            status={@billing_status}
+            site_links={@site_links}
+          >
+            <:retry>
+              <a
+                id="check-status-again"
+                href={~p"/wordpress/connect"}
+                class={Layouts.connection_button_class()}
+              >Check status again</a>
+            </:retry>
+            <:account_switch>
+              <a
+                id="use-another-account"
+                href={~p"/users/log-out?return_to=/wordpress/connect"}
+                class="text-sm text-primary-200 underline underline-offset-4"
+              >Use another account</a>
+            </:account_switch>
+          </FrontmanServerWeb.ConnectionAccessComponents.instructions>
+        <% @sites == [] -> %>
+          <h2 class="font-headings text-xl font-semibold text-white">
+            Connect your WordPress site
+          </h2>
+          <p class="mt-3 leading-7 text-zinc-300">
+            Install and activate the Frontman WordPress plugin, then connect your site using the same Frontman account shown above.
+            Plugin activation is separate from your paid subscription.
+          </p>
           <a
             id="install-plugin"
             href="https://wordpress.org/plugins/frontman-agentic-ai-editor/"
             target="_blank"
             rel="noopener noreferrer"
-            class="mt-3 inline-block font-semibold text-primary-100 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
-          >Open the Frontman plugin page
-          <span class="text-sm font-normal">(opens in a new tab)</span></a>
-          <p class="mt-2 text-sm leading-6 text-base-content/70">
+            class="mt-3 inline-block font-semibold text-violet-200 underline underline-offset-4 hover:text-white"
+          >
+            Open the Frontman plugin page
+            <span class="text-sm font-normal">(opens in a new tab)</span>
+          </a>
+          <p class="mt-4 text-sm text-zinc-400">After connecting your site, refresh this page.</p>
+        <% @result == :verified -> %>
+          <h2 id="verification-result" class="font-headings text-xl font-semibold text-white">
+            Verified read access
+          </h2>
+          <p class="mt-3 leading-7 text-zinc-300">
+            Frontman read the tool catalog for <strong>{@selected.label}</strong>.
+            This does not verify permission to make changes.
+          </p>
+          <p class="mt-3 leading-7 text-zinc-300">
+            Install the Frontman integration in ChatGPT to connect your account. Then try:
+          </p>
+          <p class="mt-4 rounded-xl bg-zinc-900 p-4 font-semibold text-white">
+            Check my connected WordPress sites
+          </p>
+          <a
+            href="https://chatgpt.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="mt-4 inline-block font-semibold text-violet-200 underline underline-offset-4 hover:text-white"
+          >
+            Open ChatGPT <span class="text-sm font-normal">(opens in a new tab)</span>
+          </a>
+        <% true -> %>
+          <h2 class="font-headings text-xl font-semibold text-white">Verify site access</h2>
+          <p class="mt-3 leading-7 text-zinc-300">
+            Check that Frontman can read the selected site's tool catalog. No changes will be made.
+          </p>
+          <p
+            :if={@result == :failed}
+            id="verification-result"
+            role="status"
+            class="mt-4 text-warning"
+          >
+            Cannot verify access. Check the plugin connection and try again.
+          </p>
+          <.form
+            for={@form}
+            id="verify-site"
+            action={~p"/wordpress/connect"}
+            method="post"
+            class="mt-5"
+          >
+            <.input
+              field={@form[:site_id]}
+              type="select"
+              label="WordPress site"
+              options={Enum.map(@sites, &{&1.label, &1.id})}
+              class={Layouts.connection_input_class()}
+            />
+            <button type="submit" class={[Layouts.connection_button_class(), "mt-5"]}>Verify site access</button>
+          </.form>
+      <% end %>
+    </section>
+
+    <details :if={@active} class="text-sm text-zinc-300">
+      <summary class="cursor-pointer font-semibold text-violet-200">
+        WordPress connection instructions
+      </summary>
+      <ol class="mt-5 space-y-8">
+        <li>
+          <h2 class="font-headings text-lg font-semibold text-white">1. Install Frontman</h2>
+          <p class="mt-2 leading-7">{Enum.at(@steps, 0)}</p>
+          <a
+            href="https://wordpress.org/plugins/frontman-agentic-ai-editor/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="mt-3 inline-block font-semibold text-violet-200 underline underline-offset-4 hover:text-white"
+          >Open the Frontman plugin page <span class="font-normal">(opens in a new tab)</span></a>
+          <p class="mt-2 text-zinc-400">
             If Frontman is already active on your site, continue to the next step.
           </p>
-        </div>
-      </li>
-      <li class="flex gap-4 sm:gap-6">
-        <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/20 font-semibold text-primary-100">2</span>
-        <div class="min-w-0 flex-1">
-          <h2 class="font-headings text-xl font-semibold">Open Frontman</h2>
-          <p class="mt-2 leading-7 text-base-content/80">{Enum.at(@steps, 1)}</p>
+        </li>
+        <li>
+          <h2 class="font-headings text-lg font-semibold text-white">2. Open Frontman</h2>
+          <p class="mt-2 leading-7">{Enum.at(@steps, 1)}</p>
           <img
             src="/images/wordpress-onboarding/wordpress-menu.png"
             width="320"
             height="550"
             loading="lazy"
             alt="WordPress Dashboard menu with Frontman near the bottom"
-            class="mt-5 h-auto w-full max-w-40 rounded-lg border border-border"
+            class="mt-5 h-auto w-full max-w-40 rounded-lg"
           />
-        </div>
-      </li>
-      <li id="frontman-sign-in" class="flex gap-4 sm:gap-6">
-        <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/20 font-semibold text-primary-100">3</span>
-        <div class="min-w-0 flex-1">
-          <h2 class="font-headings text-xl font-semibold">Sign in to Frontman</h2>
-          <p class="mt-2 leading-7 text-base-content/80">{Enum.at(@steps, 2)}</p>
-          <p class="mt-3 rounded-lg bg-surface px-4 py-3 text-sm leading-6 text-base-content/80">
-            The account on this page is <strong class="break-all text-base-content">{@current_scope.user.email}</strong>.
+        </li>
+        <li id="frontman-sign-in">
+          <h2 class="font-headings text-lg font-semibold text-white">3. Sign in to Frontman</h2>
+          <p class="mt-2 leading-7">{Enum.at(@steps, 2)}</p>
+          <p class="mt-3 text-zinc-400">
+            The account on this page is <strong class="break-all text-white">{@current_scope.user.email}</strong>.
           </p>
-        </div>
-      </li>
-      <li class="flex gap-4 sm:gap-6">
-        <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/20 font-semibold text-primary-100">4</span>
-        <div class="min-w-0 flex-1">
-          <h2 class="font-headings text-xl font-semibold">Connect your site</h2>
-          <p class="mt-2 leading-7 text-base-content/80">{Enum.at(@steps, 3)}</p>
+        </li>
+        <li>
+          <h2 class="font-headings text-lg font-semibold text-white">4. Connect your site</h2>
+          <p class="mt-2 leading-7">{Enum.at(@steps, 3)}</p>
           <img
             src="/images/wordpress-onboarding/connect-assistant.png"
             width="896"
             height="324"
             loading="lazy"
             alt="First-use window with the Connect an AI assistant button"
-            class="mt-5 h-auto w-full max-w-lg rounded-lg border border-border"
+            class="mt-5 h-auto w-full max-w-lg rounded-lg"
           />
-          <p class="mt-3 leading-7 text-base-content/80">{Enum.at(@steps, 4)}</p>
+          <p class="mt-3 leading-7">{Enum.at(@steps, 4)}</p>
           <a
             href="/images/wordpress-onboarding/connect-wordpress.png"
-            class="mt-5 block focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+            class="mt-5 block focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300"
           >
             <img
               src="/images/wordpress-onboarding/connect-wordpress.png"
@@ -75,78 +188,12 @@
               height="500"
               loading="lazy"
               alt="Frontman General settings with the Enable MCP and connect button"
-              class="h-auto w-full rounded-lg border border-border"
+              class="h-auto w-full rounded-lg"
             />
-            <span class="mt-2 inline-block text-sm text-primary-100 underline underline-offset-4">
-              Open the image to see it larger
-            </span>
+            <span class="mt-2 inline-block text-violet-200 underline underline-offset-4">Open the image to see it larger</span>
           </a>
-        </div>
-      </li>
-    </ol>
-
-    <section
-      id="connection-status"
-      class="mt-12 rounded-xl border border-border bg-surface p-6 sm:p-8"
-    >
-      <h2 class="font-headings text-xl font-semibold">Check your connection</h2>
-      <%= if @checked do %>
-        <div
-          id="check-result"
-          role="status"
-          tabindex="-1"
-          autofocus
-          class="mt-3 leading-7 text-base-content/80"
-        >
-          <%= if @sites == [] do %>
-            <p id="no-connected-sites">
-              No connected sites found. Complete the WordPress connection steps above using this Frontman account, then check again.
-            </p>
-          <% else %>
-            <p>
-              Connected sites found. Return to your AI assistant and ask it to check your sites.
-            </p>
-            <ul id="connected-sites" class="mt-2 list-inside list-disc">
-              <li :for={site <- @sites}>{site.label}</li>
-            </ul>
-          <% end %>
-        </div>
-      <% else %>
-        <p class="mt-3 leading-7 text-base-content/80">
-          After completing the steps, check for sites connected to this account.
-        </p>
-      <% end %>
-      <.form
-        id="check-connection"
-        for={@check_form}
-        action={~p"/wordpress/connect"}
-        method="get"
-      >
-        <input type="hidden" name={@check_form[:check].name} value={@check_form[:check].value} />
-        <button
-          type="submit"
-          class="btn btn-neutral mt-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
-        >
-          Check for connected sites
-        </button>
-      </.form>
-      <div class="mt-8 border-t border-border pt-6">
-        <h3 class="font-headings text-lg font-semibold">Return to your AI assistant</h3>
-        <p class="mt-2 leading-7 text-base-content/80">
-          Open your conversation and send: <strong>Check my connected WordPress sites.</strong>
-        </p>
-        <p class="mt-4 text-sm text-base-content/70">If you use ChatGPT:</p>
-        <a
-          href="https://chatgpt.com/"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-describedby="chatgpt-new-tab"
-          class="btn btn-primary mt-2 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
-        >
-          Open ChatGPT
-        </a>
-        <p id="chatgpt-new-tab" class="mt-2 text-sm text-base-content/70">Opens in a new tab.</p>
-      </div>
-    </section>
-  </div>
+        </li>
+      </ol>
+    </details>
+  </Layouts.connection>
 </Layouts.app>

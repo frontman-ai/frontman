@@ -4,6 +4,10 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.BillingFixtures
 
+  alias FrontmanServer.BillingFixtures
+  alias FrontmanServer.Repo
+  alias FrontmanServer.WordPress.Connection
+
   test "retains a pending provider request through Frontman login", %{conn: conn} do
     user = user_fixture()
 
@@ -315,6 +319,102 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
            |> response(400) == "Authorization could not continue"
   end
 
+  test "blocks inactive subscriptions on GET and POST without consuming the handoff", %{
+    conn: conn
+  } do
+    for {status, reason} <- [
+          {nil, "No active subscription is linked"},
+          {"past_due", "subscription payment failed"},
+          {"unpaid", "unpaid invoice"},
+          {"canceled", "subscription has ended"},
+          {"incomplete", "Billing setup did not produce"},
+          {"incomplete_expired", "Billing setup did not produce"},
+          {"paused", "subscription is paused"},
+          {"unknown", "cannot confirm an active subscription"}
+        ] do
+      user = user_fixture()
+      scope = user_scope_fixture(user)
+      if status, do: subscription_for_scope_fixture(scope, %{status: status})
+
+      started =
+        conn |> log_in_user(user) |> get("/auth/mcp/workos?external_auth_id=private-request")
+
+      pending = get_session(started, :connect_handoff)
+      shown = started |> recycle() |> get(redirected_to(started))
+      document = shown |> html_response(200) |> LazyHTML.from_document()
+      assert LazyHTML.query(document, "#connect-access") |> LazyHTML.text() =~ reason
+      assert LazyHTML.query(document, "#connect-account") |> LazyHTML.text() =~ user.email
+      assert LazyHTML.query(document, "#connect-handoff") |> LazyHTML.to_tree() == []
+      recheck = LazyHTML.query(document, "#connect-recheck-form")
+      assert LazyHTML.attribute(recheck, "method") == ["get"]
+
+      assert LazyHTML.query(recheck, "button#connect-recheck[type=submit]") |> LazyHTML.text() =~
+               "Check access again"
+
+      [recheck_action] = LazyHTML.attribute(recheck, "action")
+      [recheck_ref] = LazyHTML.attribute(LazyHTML.query(recheck, "input[name=ref]"), "value")
+      assert recheck_ref == pending["ref"]
+      assert LazyHTML.query(document, "#connect-switch-account") |> LazyHTML.to_tree() != []
+      refute shown.resp_body =~ "private-request"
+      refute shown.resp_body =~ "/checkout"
+      refute shown.resp_body =~ "Upgrade"
+
+      blocked = shown |> recycle() |> post("/auth/mcp/workos/pending", ref: pending["ref"])
+      assert html_response(blocked, 403) =~ reason
+      assert get_session(blocked, :connect_handoff) == pending
+
+      assert blocked
+             |> recycle()
+             |> get(recheck_action, ref: recheck_ref)
+             |> html_response(200) =~ reason
+    end
+  end
+
+  test "rechecks subscription changes before continuing", %{conn: conn} do
+    user = user_fixture()
+    scope = user_scope_fixture(user)
+    subscription = subscription_for_scope_fixture(scope, %{status: "past_due"})
+    identity_fixture(user, %{provider: "github"})
+    identity_fixture(user, %{provider: "google"})
+
+    started = conn |> log_in_user(user) |> get("/auth/mcp/workos?external_auth_id=private")
+    pending = get_session(started, :connect_handoff)
+    shown = started |> recycle() |> get(redirected_to(started))
+    assert html_response(shown, 200) =~ "subscription payment failed"
+
+    subscription = subscription |> Ecto.Changeset.change(status: "trialing") |> Repo.update!()
+    active = shown |> recycle() |> get("/auth/mcp/workos/pending", ref: pending["ref"])
+    assert html_response(active, 200) =~ "Assistant access available"
+    assert active.resp_body =~ ~s(id="connect-continue")
+    assert active.resp_body =~ "Your Frontman trial includes assistant access"
+
+    subscription = subscription |> Ecto.Changeset.change(status: "canceled") |> Repo.update!()
+    blocked = active |> recycle() |> post("/auth/mcp/workos/pending", ref: pending["ref"])
+    assert html_response(blocked, 403) =~ "subscription has ended"
+    assert get_session(blocked, :connect_handoff) == pending
+
+    subscription |> Ecto.Changeset.change(status: "trialing") |> Repo.update!()
+
+    assert blocked
+           |> recycle()
+           |> post("/auth/mcp/workos/pending", ref: pending["ref"])
+           |> response(400) == "Authorization could not continue"
+  end
+
+  test "trial cancellation after GET blocks POST without consuming the handoff", %{conn: conn} do
+    user = user_fixture()
+    subscription = subscription_for_scope_fixture(user_scope_fixture(user), %{status: "trialing"})
+    conn = conn |> log_in_user(user) |> get("/auth/mcp/workos?external_auth_id=opaque")
+    pending = get_session(conn, :connect_handoff)
+    shown = conn |> recycle() |> get(redirected_to(conn))
+    assert html_response(shown, 200) =~ "Your Frontman trial includes assistant access"
+
+    subscription |> Ecto.Changeset.change(canceled_at: ~U[2020-01-01 00:00:00Z]) |> Repo.update!()
+    blocked = shown |> recycle() |> post("/auth/mcp/workos/pending", ref: pending["ref"])
+    assert html_response(blocked, 403) =~ "Your trial is canceled or otherwise ineligible"
+    assert get_session(blocked, :connect_handoff) == pending
+  end
+
   test "scrubs request and referrer from Sentry", %{conn: conn} do
     conn =
       conn
@@ -327,6 +427,96 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
     assert scrubbed.params == %{}
     refute inspect(scrubbed.req_headers) =~ "private"
     refute inspect(Sentry.PlugContext.build_request_interface_data(conn, [])) =~ "private"
+  end
+
+  test "rechecks subscription after the handoff page is shown", %{conn: conn} do
+    scope = BillingFixtures.scope_with_allowed_access_fixture()
+    subscription = FrontmanServer.Billing.get_current_subscription(scope)
+    conn = conn |> log_in_user(scope.user) |> get("/auth/mcp/workos?external_auth_id=opaque")
+    pending = get_session(conn, :connect_handoff)
+    ref = pending["ref"]
+
+    assert conn |> recycle() |> get("/auth/mcp/workos/pending", %{ref: ref}) |> html_response(200) =~
+             "Continue to your assistant"
+
+    subscription |> Ecto.Changeset.change(status: "canceled") |> Repo.update!()
+    result = conn |> recycle() |> post("/auth/mcp/workos/pending", %{ref: ref})
+    page = html_response(result, 403)
+    assert page =~ scope.user.email
+    assert page =~ "active subscription or eligible trial is required"
+    refute page =~ "Continue to your assistant"
+    assert get_session(result, :connect_handoff) == pending
+    assert page =~ "existing active subscription"
+    assert page =~ "No site has been changed"
+    document = LazyHTML.from_document(page)
+    recheck = LazyHTML.query(document, "#connect-recheck-form")
+    [path] = LazyHTML.attribute(recheck, "action")
+    assert LazyHTML.attribute(LazyHTML.query(recheck, "input[name=ref]"), "value") == [ref]
+
+    subscription |> Repo.reload!() |> Ecto.Changeset.change(status: "active") |> Repo.update!()
+
+    assert result |> recycle() |> get(path, ref: ref) |> html_response(200) =~
+             "Continue to your assistant"
+  end
+
+  test "blocked handoff explains billing recovery and preserves account switching", %{conn: conn} do
+    scope = BillingFixtures.scope_with_subscription_fixture("past_due")
+    conn = conn |> log_in_user(scope.user) |> get("/auth/mcp/workos?external_auth_id=opaque")
+    pending = get_session(conn, :connect_handoff)
+    conn = conn |> recycle() |> get(redirected_to(conn))
+    page = html_response(conn, 200)
+    document = LazyHTML.from_document(page)
+
+    assert page =~ "WordPress Dashboard"
+    assert page =~ "Select Manage in Stripe"
+    assert page =~ "Use a different account"
+    refute page =~ "Signing out ends this connection attempt"
+    assert page =~ "original AI assistant"
+    assert page =~ "expires after 15 minutes"
+    assert page =~ "It does not start a subscription or retry a payment"
+    assert page =~ "mailto:support@frontman.sh"
+    refute page =~ "opaque"
+    refute page =~ "/billing/checkout"
+    refute page =~ "Continue to your assistant"
+
+    recheck = LazyHTML.query(document, "#connect-recheck-form")
+    [retry_path] = LazyHTML.attribute(recheck, "action")
+    [ref] = LazyHTML.attribute(LazyHTML.query(recheck, "input[name=ref]"), "value")
+    assert ref == pending["ref"]
+    result = conn |> recycle() |> get(retry_path, ref: ref)
+    assert get_session(result, :connect_handoff) == pending
+
+    result =
+      result
+      |> recycle()
+      |> post("/auth/mcp/workos/switch-account", %{ref: ref})
+
+    assert redirected_to(result) == "/users/log-in"
+    assert get_session(result, :connect_handoff) == Map.put(pending, "user_id", nil)
+  end
+
+  test "blocked handoff links to the account's existing WordPress site", %{conn: conn} do
+    scope = BillingFixtures.scope_with_subscription_fixture("past_due")
+
+    %Connection{user_id: scope.user.id}
+    |> Connection.changeset(%{
+      catalog_url: "https://northstar.example/blog/?rest_route=/frontman/v1/tools",
+      call_url: "https://northstar.example/blog/?rest_route=/frontman/v1/tools/call",
+      username: "site-user",
+      password: "site-password"
+    })
+    |> Repo.insert!()
+
+    conn = conn |> log_in_user(scope.user) |> get("/auth/mcp/workos?external_auth_id=opaque")
+    conn = conn |> recycle() |> get(redirected_to(conn))
+    document = conn |> html_response(200) |> LazyHTML.from_document()
+
+    assert LazyHTML.attribute(LazyHTML.query(document, "#frontman-site-links a"), "href") ==
+             ["https://northstar.example/blog/index.php/frontman"]
+
+    assert LazyHTML.text(LazyHTML.query(document, "#subscription-next-steps")) =~ "Then open"
+    refute conn.resp_body =~ "site-password"
+    refute conn.resp_body =~ "Continue to your assistant"
   end
 
   test "rejects stale references, expired requests and a different user", %{conn: conn} do

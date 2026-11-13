@@ -1,6 +1,8 @@
 defmodule FrontmanServerWeb.ConnectHandoffController do
   use FrontmanServerWeb, :controller
 
+  alias FrontmanServer.Billing
+  alias FrontmanServer.WordPress
   alias FrontmanServerWeb.{ConnectHandoff, UserAuth}
 
   def create(conn, %{"external_auth_id" => id})
@@ -29,10 +31,7 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
   def show(conn, %{"ref" => ref}) do
     case pending(conn, ref) do
       {:ok, _pending} ->
-        render(conn, :show,
-          form: Phoenix.Component.to_form(%{"ref" => ref}),
-          page_title: "Confirm your Frontman account"
-        )
+        render_checkpoint(conn, ref, Billing.subscription_access(conn.assigns.current_scope))
 
       :error ->
         send_resp(conn, 400, "Invalid or expired request")
@@ -44,7 +43,13 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
   def complete(conn, %{"ref" => ref}) do
     case pending(conn, ref) do
       {:ok, pending} ->
-        conn |> delete_session(:connect_handoff) |> complete_pending(pending)
+        case Billing.subscription_access(conn.assigns.current_scope) do
+          {:allowed, _status} ->
+            conn |> delete_session(:connect_handoff) |> complete_pending(pending)
+
+          status ->
+            conn |> put_status(:forbidden) |> render_checkpoint(ref, status)
+        end
 
       :error ->
         send_resp(conn, 400, "Invalid or expired request")
@@ -68,6 +73,20 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
   end
 
   def switch_account(conn, _params), do: send_resp(conn, 400, "Invalid request")
+
+  defp render_checkpoint(conn, ref, status) do
+    render(conn, :show,
+      form: Phoenix.Component.to_form(%{"ref" => ref}),
+      access_status: status,
+      billing_status: billing_status(status),
+      site_links: WordPress.list_site_links(conn.assigns.current_scope),
+      page_title: "Confirm your Frontman account"
+    )
+  end
+
+  defp billing_status({:allowed, status}), do: status
+  defp billing_status(:none), do: "none"
+  defp billing_status({:inactive, status}), do: status
 
   defp complete_pending(conn, pending) do
     with {:ok, url} <-

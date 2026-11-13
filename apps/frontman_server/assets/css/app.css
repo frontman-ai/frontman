@@ -210,3 +210,12 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 [data-phx-session], [data-phx-teleported-src] { display: contents }
+
+@theme {
+  --animate-connection-enter: connection-enter 850ms cubic-bezier(0.32, 0.72, 0, 1) both;
+
+  @keyframes connection-enter {
+    from { opacity: 0; transform: translateY(18px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}

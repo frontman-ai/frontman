@@ -237,6 +237,28 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     end
   end
 
+  test "onboarding rejects ineligible and foreign site checks without catalog requests", %{
+    conn: conn
+  } do
+    user = AccountsFixtures.user_fixture()
+    site = insert_site(user, "owned.invalid")
+    foreign = insert_site(AccountsFixtures.user_fixture(), "foreign.invalid")
+    record_requests()
+    conn = conn |> log_in_user(user) |> get("/wordpress/connect")
+
+    conn = conn |> recycle() |> post("/wordpress/connect", %{site_id: site.id})
+    assert html_response(conn, 200) =~ "active subscription or eligible trial is required"
+    refute_received {:wordpress_event, :catalog, _, _}
+
+    BillingFixtures.subscription_for_scope_fixture(Scope.for_user(user))
+
+    for id <- ["bad-id", foreign.id] do
+      result = conn |> recycle() |> post("/wordpress/connect", %{site_id: id})
+      assert html_response(result, 400)
+      refute_received {:wordpress_event, :catalog, _, _}
+    end
+  end
+
   @tag :wordpress_runtime
   @tag skip: System.get_env("FRONTMAN_WP_RUNTIME_URL") == nil
   test "HTTP discovery fetches all 33 catalogs without concurrent requests to one origin" do
@@ -314,6 +336,31 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     submit_prompt(user)
     assert Repo.reload!(user).first_message_at == first_use
     assert [%{args: ^args}] = all_enqueued(worker: SyncResendContact, args: %{user_id: user.id})
+  end
+
+  @tag :wordpress_runtime
+  @tag skip: System.get_env("FRONTMAN_WP_RUNTIME_URL") == nil
+  test "onboarding verifies only the selected site's catalog", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    BillingFixtures.subscription_for_scope_fixture(Scope.for_user(user))
+    [site] = connect_wordpress_runtime(user, 1)
+    insert_site(user, "offline.invalid")
+    record_requests()
+
+    conn = conn |> log_in_user(user) |> get("/wordpress/connect")
+    refute html_response(conn, 200) =~ "Verified read access"
+    conn = conn |> recycle() |> post("/wordpress/connect", %{site_id: site.id})
+    page = html_response(conn, 200)
+    assert page =~ "Verified read access"
+    assert page =~ URI.parse(site.catalog_url).host
+    assert page =~ "tool catalog for"
+    assert LazyHTML.text(LazyHTML.query(LazyHTML.from_document(page), "#saved-site-count")) =~ "2"
+    assert page =~ "Check my connected WordPress sites"
+    assert page =~ "https://chatgpt.com/"
+    assert_received {:wordpress_event, :catalog, %{status_code: 200}, %{outcome: :ok}}
+    refute_received {:wordpress_event, :call, _, _}
+    refute_received {:outbound, _, _, "offline.invalid"}
+    assert_inactive(user)
   end
 
   @tag :wordpress_runtime
