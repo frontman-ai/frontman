@@ -13,7 +13,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Hosted MCP tool requests require an active subscription or eligible trial; free editor turns do not grant access.
 - Explain AI assistant connection steps during Frontman sign-in and let customers switch accounts without restarting setup.
 - Present Frontman's visual editor and AI assistant access as two ways to edit WordPress, with clear connection steps, subscription requirements, and assistant-specific API-key guidance.
+- WordPress setup checks the selected site's read access before continuing to ChatGPT.
 - Explain subscription-specific recovery steps and account switching during assistant setup.
+- Link directly to Frontman on known WordPress sites from subscription recovery screens.
 
 ## [5.9.0] - 2026-11-10
 

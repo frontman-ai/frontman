@@ -76,7 +76,10 @@
       </.form>
     </div>
     <div :if={!match?({:allowed, _}, @access_status)} id="connect-access">
-      <FrontmanServerWeb.ConnectionAccessComponents.instructions status={@billing_status}>
+      <FrontmanServerWeb.ConnectionAccessComponents.instructions
+        status={@billing_status}
+        site_links={@site_links}
+      >
         <:retry>
           <.form
             for={@form}

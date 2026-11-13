@@ -6,6 +6,7 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
 
   alias FrontmanServer.BillingFixtures
   alias FrontmanServer.Repo
+  alias FrontmanServer.WordPress.Connection
 
   test "retains a pending provider request through Frontman login", %{conn: conn} do
     user = user_fixture()
@@ -492,6 +493,30 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
 
     assert redirected_to(result) == "/users/log-in"
     assert get_session(result, :connect_handoff) == Map.put(pending, "user_id", nil)
+  end
+
+  test "blocked handoff links to the account's existing WordPress site", %{conn: conn} do
+    scope = BillingFixtures.scope_with_subscription_fixture("past_due")
+
+    %Connection{user_id: scope.user.id}
+    |> Connection.changeset(%{
+      catalog_url: "https://northstar.example/blog/?rest_route=/frontman/v1/tools",
+      call_url: "https://northstar.example/blog/?rest_route=/frontman/v1/tools/call",
+      username: "site-user",
+      password: "site-password"
+    })
+    |> Repo.insert!()
+
+    conn = conn |> log_in_user(scope.user) |> get("/auth/mcp/workos?external_auth_id=opaque")
+    conn = conn |> recycle() |> get(redirected_to(conn))
+    document = conn |> html_response(200) |> LazyHTML.from_document()
+
+    assert LazyHTML.attribute(LazyHTML.query(document, "#frontman-site-links a"), "href") ==
+             ["https://northstar.example/blog/index.php/frontman"]
+
+    assert LazyHTML.text(LazyHTML.query(document, "#subscription-next-steps")) =~ "Then open"
+    refute conn.resp_body =~ "site-password"
+    refute conn.resp_body =~ "Continue to your assistant"
   end
 
   test "rejects stale references, expired requests and a different user", %{conn: conn} do

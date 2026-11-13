@@ -20,6 +20,20 @@ defmodule FrontmanServer.WordPress do
     |> Enum.map(fn site -> %{id: site.id, label: URI.parse(site.catalog_url).host} end)
   end
 
+  def list_site_links(%Scope{} = scope) do
+    scope
+    |> Scope.user_id()
+    |> Connection.sites_for_user()
+    |> Repo.all()
+    |> Enum.flat_map(fn site ->
+      case frontman_url(site.catalog_url) do
+        {:ok, url} -> [%{id: site.id, label: URI.parse(url).host, url: url}]
+        :error -> []
+      end
+    end)
+    |> Enum.uniq_by(& &1.url)
+  end
+
   def catalog(%Scope{} = scope, site_id, timeout) when timeout > 0 do
     request_site(scope, site_id, :get, nil, timeout)
   end
@@ -162,6 +176,39 @@ defmodule FrontmanServer.WordPress do
       },
       %{outcome: outcome}
     )
+  end
+
+  defp frontman_url(catalog_url) do
+    with {:ok, %URI{scheme: "https", userinfo: nil, fragment: nil, host: host} = uri}
+         when is_binary(host) <- URI.new(catalog_url),
+         true <- host != "",
+         true <- uri.port in 1..65_535,
+         {:ok, path} <- frontman_path(uri.path || "/", uri.query) do
+      {:ok, URI.to_string(%{uri | path: path, query: nil})}
+    else
+      _ -> :error
+    end
+  end
+
+  defp frontman_path(path, nil) do
+    case Regex.run(~r{\A(.*)/wp-json/frontman/v1/tools/?\z}, path, capture: :all_but_first) do
+      [base] -> {:ok, base <> "/frontman"}
+      nil -> :error
+    end
+  end
+
+  defp frontman_path(path, query) do
+    route = ~r{\Arest_route=(?:/|%2[fF])frontman(?:/|%2[fF])v1(?:/|%2[fF])tools(?:/|%2[fF])?\z}
+
+    case Regex.match?(route, query) do
+      true ->
+        base = String.trim_trailing(path, "/")
+        controller = if String.ends_with?(base, "/index.php"), do: "", else: "/index.php"
+        {:ok, base <> controller <> "/frontman"}
+
+      false ->
+        :error
+    end
   end
 
   defp catalog_batches(groups) do

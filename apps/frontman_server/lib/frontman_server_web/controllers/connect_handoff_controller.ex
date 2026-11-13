@@ -2,6 +2,7 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
   use FrontmanServerWeb, :controller
 
   alias FrontmanServer.Billing
+  alias FrontmanServer.WordPress
   alias FrontmanServerWeb.{ConnectHandoff, UserAuth}
 
   def create(conn, %{"external_auth_id" => id})
@@ -78,6 +79,7 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
       form: Phoenix.Component.to_form(%{"ref" => ref}),
       access_status: status,
       billing_status: billing_status(status),
+      site_links: WordPress.list_site_links(conn.assigns.current_scope),
       page_title: "Confirm your Frontman account"
     )
   end
