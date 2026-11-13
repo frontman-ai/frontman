@@ -21,8 +21,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
   alias FrontmanServer.Tools.MCP
 
   @moduletag billing: :active
-  @moduletag private_runtime: true
-  setup [:verify_on_exit!, :setup_execution_runtime, :setup_user, :setup_task]
+  setup [:verify_on_exit!, :setup_user, :setup_task]
 
   setup %{scope: scope} do
     :ok = Providers.upsert_api_key(scope, "anthropic", "sk-ant-test")
@@ -121,7 +120,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     end)
 
     {:ok, _interaction, 2} =
-      submit_anthropic_message(scope, task_id, %{content: "show old screenshot", overrides: []})
+      submit_anthropic_message(scope, task_id, "show old screenshot")
 
     assert_receive_interaction(%Interaction.AgentCompleted{}, 2)
     refute_running_eventually(task_id, __MODULE__)
@@ -217,7 +216,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     end)
 
     {:ok, _interaction, 1} =
-      submit_anthropic_message(scope, task_id, %{content: prompt, overrides: []})
+      submit_anthropic_message(scope, task_id, prompt)
 
     assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
     refute_running_eventually(task_id, __MODULE__)
@@ -235,6 +234,11 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
       task_id,
       %{execution: execution_request, message: prompt_content(content), runtime: __MODULE__}
     )
+  end
+
+  defp submit_anthropic_message(scope, task_id, content)
+       when is_binary(content) or is_list(content) do
+    submit_anthropic_message(scope, task_id, %{content: content, overrides: []})
   end
 
   defp prompt_content(content) when is_binary(content), do: user_content(content)

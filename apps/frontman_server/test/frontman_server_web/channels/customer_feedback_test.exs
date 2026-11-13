@@ -1,6 +1,5 @@
 defmodule FrontmanServerWeb.CustomerFeedbackTest do
   use FrontmanServerWeb.ChannelCase, async: true
-  @moduletag private_runtime: true
   import FrontmanServer.Test.Fixtures.Tasks
   import FrontmanServer.Test.Fixtures.Tools, only: [mcp_tool: 2]
   import FrontmanServer.ExecutionCase, only: [refute_running_eventually: 2]

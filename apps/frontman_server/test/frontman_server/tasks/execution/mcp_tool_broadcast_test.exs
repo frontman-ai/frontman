@@ -19,8 +19,7 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
   alias FrontmanServer.Tools.MCP
 
   @moduletag billing: :active
-  @moduletag private_runtime: true
-  setup [:setup_execution_runtime, :setup_user, :setup_task]
+  setup [:setup_user, :setup_task]
 
   describe "MCP tool call broadcast" do
     test "registers before broadcasting one tool call and preserves its response metadata", %{

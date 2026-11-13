@@ -79,8 +79,7 @@ The client still supports one pending question form.
 
 ## Private execution tests
 
-The ordinary execution integration and task channel suites use a private Swarm runtime per test.
-Other converted execution and channel tests also use private runtimes.
+Async `ExecutionCase` and `ChannelCase` tests start a private Swarm runtime per test.
 The SQL owner remains alive until the test supervisor stops the runtime.
 Channel tests start channels after the runtime, so the supervisor stops channels first.
 The runtime initializer grants SQL access and sets the caller chain for existing test expectations.

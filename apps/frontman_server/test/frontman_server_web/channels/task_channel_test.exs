@@ -2,8 +2,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   use FrontmanServerWeb.ChannelCase, async: true
   use Oban.Testing, repo: FrontmanServer.Repo
 
-  @moduletag private_runtime: true
-
   import FrontmanServer.InteractionCase.Helpers,
     only: [
       agent_error: 2,

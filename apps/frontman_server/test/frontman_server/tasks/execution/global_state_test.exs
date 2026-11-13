@@ -37,6 +37,10 @@ defmodule FrontmanServer.Tasks.Execution.GlobalStateTest do
     })
   end
 
+  defp submit_user_message(scope, task_id, content) when is_list(content) do
+    submit_user_message(scope, task_id, %{content: content, overrides: []})
+  end
+
   defp turn_started_rows(task_id) do
     task_id
     |> InteractionSchema.for_task()
@@ -62,23 +66,6 @@ defmodule FrontmanServer.Tasks.Execution.GlobalStateTest do
 
   defp provider_texts(messages, role) do
     for %{role: ^role, content: content} <- messages, do: extract_content_text(content)
-  end
-
-  defp assert_active_count(expected, attempts \\ 50)
-
-  defp assert_active_count(expected, 0) do
-    assert SwarmAi.active_count(FrontmanServer.AgentRuntime) == expected
-  end
-
-  defp assert_active_count(expected, attempts) do
-    case SwarmAi.active_count(FrontmanServer.AgentRuntime) do
-      ^expected ->
-        :ok
-
-      _count ->
-        Process.sleep(10)
-        assert_active_count(expected, attempts - 1)
-    end
   end
 
   describe "skill discovery and loading" do
@@ -114,10 +101,7 @@ defmodule FrontmanServer.Tasks.Execution.GlobalStateTest do
       expect_llm_responses(["Continued without the unavailable tool"])
 
       {:ok, _, 1} =
-        submit_user_message(scope, task_id, %{
-          content: user_content("Improve the hero"),
-          overrides: []
-        })
+        submit_user_message(scope, task_id, user_content("Improve the hero"))
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
       assert_receive {:without_skill_tool, messages, tools}
@@ -193,7 +177,7 @@ defmodule FrontmanServer.Tasks.Execution.GlobalStateTest do
       refute Enum.any?(Tasks.interactions(waiting), &match?(%Interaction.ToolResult{}, &1))
       refute Enum.any?(Tasks.interactions(waiting), &match?(%Interaction.AgentPaused{}, &1))
 
-      assert_active_count(0)
+      assert_active_count(FrontmanServer.AgentRuntime, 0)
       assert SwarmAi.running?(FrontmanServer.AgentRuntime, task_id)
 
       log =
@@ -238,7 +222,7 @@ defmodule FrontmanServer.Tasks.Execution.GlobalStateTest do
                )
 
       refute_running_eventually(task_id)
-      assert_active_count(0)
+      assert_active_count(FrontmanServer.AgentRuntime, 0)
 
       assert :ok =
                Tasks.resume_execution(
@@ -307,10 +291,7 @@ defmodule FrontmanServer.Tasks.Execution.GlobalStateTest do
         expect_llm_responses([{:tool_calls, [call], "Calling tool"}, "Handled."])
 
         {:ok, _, 1} =
-          submit_user_message(scope, task_id, %{
-            content: user_content("Do a thing"),
-            overrides: []
-          })
+          submit_user_message(scope, task_id, user_content("Do a thing"))
 
         assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
         :sys.get_state(socket.channel_pid)

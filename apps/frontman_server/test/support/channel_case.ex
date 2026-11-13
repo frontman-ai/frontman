@@ -285,23 +285,10 @@ defmodule FrontmanServerWeb.ChannelCase do
       raise "Cannot combine shared_sandbox: true with async: true - shared sandbox requires synchronous execution"
     end
 
-    if tags[:private_runtime] && tags[:shared_sandbox] do
-      raise "Cannot combine private_runtime: true with shared_sandbox: true"
-    end
+    shared = tags[:shared_sandbox] || !tags[:async]
 
-    shared = !tags[:private_runtime] && (tags[:shared_sandbox] || !tags[:async])
-
-    cond do
-      tags[:private_runtime] ->
-        Mox.set_mox_private()
-        Req.Test.set_req_test_to_private()
-
-      shared ->
-        Mox.set_mox_global()
-
-      true ->
-        :ok
-    end
+    Mox.set_mox_from_context(tags)
+    if tags[:async], do: Req.Test.set_req_test_from_context(tags)
 
     LLMProvider.stub_llm_response("Test response")
 
@@ -309,7 +296,7 @@ defmodule FrontmanServerWeb.ChannelCase do
     on_exit(fn -> Sandbox.stop_owner(pid) end)
 
     runtime =
-      if tags[:private_runtime] do
+      if tags[:async] do
         FrontmanServer.PrivateExecutionRuntime.start!(tags.module, pid)
       end
 

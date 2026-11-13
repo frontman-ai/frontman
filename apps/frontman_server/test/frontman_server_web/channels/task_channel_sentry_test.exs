@@ -8,7 +8,6 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
   """
 
   use FrontmanServerWeb.ChannelCase, async: true
-  @moduletag private_runtime: true
 
   import FrontmanServer.InteractionCase.Helpers,
     only: [interaction_event: 2, tool_call: 2, tool_call: 3, tool_result: 3, tool_result: 4]

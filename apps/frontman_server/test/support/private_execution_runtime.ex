@@ -7,18 +7,16 @@ defmodule FrontmanServer.PrivateExecutionRuntime do
 
   alias Ecto.Adapters.SQL.Sandbox
 
-  def start!(runtime, sandbox_owner, test_owner \\ self()) do
-    initialize_process = initializer(sandbox_owner, test_owner)
-    # ExUnit stops later-started channels before this tree and runs on_exit afterward.
-    start_supervised!({SwarmAi, name: runtime, initialize_process: initialize_process})
-    runtime
-  end
+  def start!(runtime, sandbox_owner) do
+    test_owner = self()
 
-  defp initializer(sandbox_owner, test_owner) do
-    fn ->
+    initialize_process = fn ->
       :ok = Sandbox.allow(FrontmanServer.Repo, sandbox_owner, self())
       Process.put(:"$callers", [sandbox_owner, test_owner])
       :ok
     end
+
+    start_supervised!({SwarmAi, name: runtime, initialize_process: initialize_process})
+    runtime
   end
 end

@@ -3,7 +3,7 @@ defmodule FrontmanServer.ExecutionCase do
 
   use ExUnit.CaseTemplate
 
-  import ExUnit.Assertions, only: [refute: 2]
+  import ExUnit.Assertions, only: [assert: 1, refute: 2]
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Tasks
@@ -43,13 +43,7 @@ defmodule FrontmanServer.ExecutionCase do
     end
   end
 
-  def refute_running_eventually(task_id), do: refute_running_eventually(task_id, 50)
-
-  def refute_running_eventually(task_id, runtime) when is_atom(runtime),
-    do: refute_running_eventually(task_id, runtime, 50)
-
-  def refute_running_eventually(task_id, attempts) when is_integer(attempts),
-    do: refute_running_eventually(task_id, FrontmanServer.AgentRuntime, attempts)
+  def refute_running_eventually(task_id, runtime \\ FrontmanServer.AgentRuntime, attempts \\ 50)
 
   def refute_running_eventually(task_id, runtime, 0) do
     refute SwarmAi.running?(runtime, task_id),
@@ -67,27 +61,35 @@ defmodule FrontmanServer.ExecutionCase do
     end
   end
 
-  def setup_execution_runtime(context) do
-    owner = Sandbox.start_owner!(FrontmanServer.Repo, shared: false)
-    on_exit(fn -> Sandbox.stop_owner(owner) end)
-    runtime = FrontmanServer.PrivateExecutionRuntime.start!(context.module, owner)
-    {:ok, runtime: runtime}
+  def assert_active_count(runtime, expected, attempts \\ 50)
+
+  def assert_active_count(runtime, expected, 0) do
+    assert SwarmAi.active_count(runtime) == expected
+  end
+
+  def assert_active_count(runtime, expected, attempts) when attempts > 0 do
+    case SwarmAi.active_count(runtime) do
+      ^expected ->
+        :ok
+
+      _count ->
+        Process.sleep(10)
+        assert_active_count(runtime, expected, attempts - 1)
+    end
   end
 
   setup context do
-    if context[:async] && !context[:private_runtime] do
-      raise "Async execution tests require private_runtime: true"
-    end
+    Mox.set_mox_from_context(context)
+    Req.Test.set_req_test_from_context(context)
 
-    if context[:private_runtime] do
-      Mox.set_mox_private()
-      Req.Test.set_req_test_to_private()
+    if context[:async] do
+      owner = Sandbox.start_owner!(FrontmanServer.Repo, shared: false)
+      on_exit(fn -> Sandbox.stop_owner(owner) end)
+      runtime = FrontmanServer.PrivateExecutionRuntime.start!(context.module, owner)
+      {:ok, runtime: runtime}
     else
-      Mox.set_mox_global()
-      Req.Test.set_req_test_to_shared()
       on_exit(fn -> Req.Test.set_req_test_to_private() end)
+      :ok
     end
-
-    :ok
   end
 end

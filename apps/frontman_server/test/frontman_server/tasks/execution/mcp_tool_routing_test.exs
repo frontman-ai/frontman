@@ -1,10 +1,12 @@
 defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
   @moduledoc false
 
-  use FrontmanServer.ExecutionCase, async: true
   use FrontmanServerWeb.ChannelCase, async: true
 
-  @moduletag private_runtime: true
+  import FrontmanServer.ExecutionCase,
+    only: [submit_user_message_and_run: 3, refute_running_eventually: 2]
+
+  import FrontmanServer.Test.Fixtures.LLMProvider
 
   import FrontmanServer.InteractionCase.Helpers,
     only: [assert_receive_interaction: 3, swarm_tool_call: 2]

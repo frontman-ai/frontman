@@ -1,6 +1,5 @@
 defmodule FrontmanServer.Tasks.PretrialRunsTest do
   use FrontmanServerWeb.ChannelCase, async: true
-  @moduletag private_runtime: true
 
   import FrontmanServer.ExecutionCase, only: [refute_running_eventually: 2]
   import FrontmanServer.Test.Fixtures.Accounts, only: [user_fixture: 0]

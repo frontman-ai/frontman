@@ -376,7 +376,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
                    MCPInitializer.handle_response(state, 1, result)
         end)
 
-      # Other async channels can initialize rules while this capture is active.
       pid = self() |> :erlang.pid_to_list() |> List.to_string()
       own_log = log |> String.split("\n") |> Enum.filter(&String.contains?(&1, "pid=#{pid}"))
 

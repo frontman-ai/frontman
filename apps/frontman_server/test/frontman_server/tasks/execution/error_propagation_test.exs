@@ -15,8 +15,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
 
   describe "LLM stream error propagation" do
     @describetag billing: :active
-    @describetag private_runtime: true
-    setup [:setup_execution_runtime, :setup_user, :setup_task]
+    setup [:setup_user, :setup_task]
 
     test "LLM stream raise persists AgentError interaction via PubSub", %{
       task_id: task_id,
