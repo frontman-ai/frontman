@@ -3,6 +3,8 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
 
   import FrontmanServer.Test.Fixtures.Accounts
   alias FrontmanServer.Accounts
+  alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.BillingFixtures
 
   setup do
     %{unconfirmed_user: unconfirmed_user_fixture(), user: user_fixture()}
@@ -315,6 +317,9 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       user: user
     } do
       user = set_password(user)
+
+      BillingFixtures.subscription_for_scope_fixture(Scope.for_user(user))
+
       conn = get(conn, "/auth/mcp/workos?external_auth_id=unverified-request")
       pending = get_session(conn, :connect_handoff)
       conn = get(conn, ~p"/users/log-in")
@@ -482,7 +487,9 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       conn = get(conn, redirected_to(conn))
       page = html_response(conn, 200)
       assert page =~ "This does not connect a new website"
+      assert page =~ "No active subscription is linked"
       assert page =~ user.email
+      refute page =~ "Continue to your assistant"
       assert get_session(conn, :connect_handoff)["ref"] == pending["ref"]
     end
 

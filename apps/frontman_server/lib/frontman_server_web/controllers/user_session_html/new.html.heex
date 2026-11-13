@@ -1,270 +1,225 @@
-<Layouts.app flash={@flash} current_scope={@current_scope}>
-  <div class="grid gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-16">
-    <section class={[
-      "mx-auto w-full max-w-md space-y-8 text-center lg:mx-0 lg:max-w-2xl lg:text-left",
-      @assistant_connection && "lg:col-start-1 lg:row-start-1"
-    ]}>
-      <div class="space-y-5">
-        <div class="space-y-4">
-          <h1 class="font-headings text-4xl font-bold leading-tight tracking-tight text-base-content sm:text-5xl lg:text-6xl">
-            <%= if @assistant_connection do %>
-              Edit your WordPress site, your way.
-            <% else %>
-              Enter the runtime era.
-            <% end %>
-          </h1>
-          <p class="mx-auto max-w-xl text-base leading-relaxed text-base-content/70 sm:text-lg lg:mx-0">
-            <%= if @assistant_connection do %>
-              Work in Frontman's visual editor, or update your site from the AI assistant you already use.
-            <% else %>
-              Frontman sees your live product, understands the DOM, and turns plain-English changes into real code edits.
-            <% end %>
-          </p>
-        </div>
-      </div>
-
-      <div
+<Layouts.app flash={@flash} current_scope={@current_scope} focused>
+  <Layouts.connection
+    title={
+      if @assistant_connection,
+        do: "Edit your WordPress site, your way.",
+        else: "Enter the runtime era."
+    }
+    assistant={@assistant_connection}
+  >
+    <:intro>
+      <p class="text-base leading-relaxed text-zinc-400 sm:text-lg">
+        <%= if @assistant_connection do %>
+          Work in Frontman's visual editor, or update your site from the AI assistant you already use.
+        <% else %>
+          Frontman sees your live product, understands the DOM, and turns plain-English changes into real code edits.
+        <% end %>
+      </p>
+      <details
         :if={@assistant_connection}
         id="assistant-requirements"
-        class="space-y-1 text-sm leading-6 text-base-content/70"
+        class="mt-6 space-y-1 text-sm leading-6 text-zinc-400"
       >
+        <summary class="cursor-pointer py-2 text-primary-200">Before you connect</summary>
         <p>No separate AI-provider API key is needed to use Frontman through your assistant.</p>
         <p>An active Frontman subscription or eligible trial is required.</p>
-      </div>
+        <p>Use the same Frontman account for your assistant and your WordPress site.</p>
+        <p>Review the email address before authorizing assistant access.</p>
+        <p>Choose a connected site, or follow the steps to connect one.</p>
+      </details>
 
       <div
         :if={!@assistant_connection}
-        class="flex flex-wrap justify-center gap-3 lg:justify-start"
+        class="mt-6 flex flex-wrap gap-3"
       >
-        <span class="badge badge-success">Sees your live DOM</span>
-        <span class="badge badge-success">Understands your framework</span>
-        <span class="badge badge-success">Ships real code edits</span>
+        <span class="rounded-full bg-white/5 px-3 py-1 text-sm text-zinc-300">Sees your live DOM</span>
+        <span class="rounded-full bg-white/5 px-3 py-1 text-sm text-zinc-300">Understands your framework</span>
+        <span class="rounded-full bg-white/5 px-3 py-1 text-sm text-zinc-300">Ships real code edits</span>
       </div>
-    </section>
-
-    <section class={[
-      "mx-auto w-full max-w-md lg:mx-0 lg:ml-auto",
-      @assistant_connection && "lg:col-start-2 lg:row-start-1 lg:row-span-2"
-    ]}>
-      <div class="card card-border bg-base-200 text-base-content shadow-xl">
-        <div class="card-body gap-6">
-          <div class="space-y-2 text-center">
-            <h2 class="card-title justify-center font-headings text-2xl tracking-tight">
-              <%= cond do %>
-                <% @assistant_connection -> %>
-                  Connect Frontman to your AI assistant
-                <% @embedded_request -> %>
-                  Connect Frontman
-                <% true -> %>
-                  Sign in to Frontman
-              <% end %>
-            </h2>
-            <p class="text-sm leading-6 text-base-content/60">
-              <%= cond do %>
-                <% @assistant_connection -> %>
-                  Sign in, confirm your account, then choose a connected WordPress site.
-                <% @embedded_request -> %>
-                  Continue to let <strong class="break-all">{@embedded_request["origin"]}</strong>
-                  use your Frontman account.
-                <% true -> %>
-                  Choose your workspace identity to continue.
-              <% end %>
-            </p>
-            <p :if={@assistant_connection} class="text-sm leading-6 text-base-content/60">
-              New here? Continue with Google or GitHub to create an account.
-            </p>
-          </div>
-
-          <.form
-            :if={@embedded_request && @current_scope}
-            for={%{}}
-            action={~p"/users/log-in"}
-            id="embedded-connect-form"
-          >
-            <.embedded_request request={@embedded_request} />
-            <input type="hidden" name="user_id" value={@current_scope.user.id} />
-            <button
-              type="submit"
-              name="_action"
-              value="connect"
-              class="btn btn-primary btn-lg btn-block"
-            >
-              Continue as {@current_scope.user.email}
-            </button>
-          </.form>
-
-          <div :if={!@current_scope} class="flex flex-col gap-3">
-            <.form for={%{}} action={~p"/auth/github"} id="github-login-form">
-              <.embedded_request request={@embedded_request} />
-              <button class="btn btn-lg btn-block border-black bg-black text-white">
-                <svg
-                  aria-label="GitHub logo"
-                  width="16"
-                  height="16"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    fill="white"
-                    d="M12,2A10,10 0 0,0 2,12C2,16.42 4.87,20.17 8.84,21.5C9.34,21.58 9.5,21.27 9.5,21C9.5,20.77 9.5,20.14 9.5,19.31C6.73,19.91 6.14,17.97 6.14,17.97C5.68,16.81 5.03,16.5 5.03,16.5C4.12,15.88 5.1,15.9 5.1,15.9C6.1,15.97 6.63,16.93 6.63,16.93C7.5,18.45 8.97,18 9.54,17.76C9.63,17.11 9.89,16.67 10.17,16.42C7.95,16.17 5.62,15.31 5.62,11.5C5.62,10.39 6,9.5 6.65,8.79C6.55,8.54 6.2,7.5 6.75,6.15C6.75,6.15 7.59,5.88 9.5,7.17C10.29,6.95 11.15,6.84 12,6.84C12.85,6.84 13.71,6.95 14.5,7.17C16.41,5.88 17.25,6.15 17.25,6.15C17.8,7.5 17.45,8.54 17.35,8.79C18,9.5 18.38,10.39 18.38,11.5C18.38,15.32 16.04,16.16 13.81,16.41C14.17,16.72 14.5,17.33 14.5,18.26C14.5,19.6 14.5,20.68 14.5,21C14.5,21.27 14.66,21.59 15.17,21.5C19.14,20.16 22,16.42 22,12A10,10 0 0,0 12,2Z"
-                  />
-                </svg>
-                {if @assistant_connection, do: "Continue with GitHub", else: "Login with GitHub"}
-              </button>
-            </.form>
-
-            <.form for={%{}} action={~p"/auth/google"} id="google-login-form">
-              <.embedded_request request={@embedded_request} />
-              <button class="btn btn-lg btn-block border-[#e5e5e5] bg-white text-black">
-                <svg
-                  aria-label="Google logo"
-                  width="16"
-                  height="16"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 512 512"
-                >
-                  <g>
-                    <path d="m0 0H512V512H0" fill="#fff" />
-                    <path
-                      fill="#34a853"
-                      d="M153 292c30 82 118 95 171 60h62v48A192 192 0 0190 341"
-                    />
-                    <path fill="#4285f4" d="m386 400a140 175 0 0053-179H260v74h102q-7 37-38 57" />
-                    <path fill="#fbbc02" d="m90 341a208 200 0 010-171l63 49q-12 37 0 73" />
-                    <path
-                      fill="#ea4335"
-                      d="m153 219c22-69 116-109 179-50l55-54c-78-75-230-72-297 55"
-                    />
-                  </g>
-                </svg>
-                {if @assistant_connection, do: "Continue with Google", else: "Login with Google"}
-              </button>
-            </.form>
-          </div>
-
-          <div :if={!@current_scope || !@embedded_request}>
-            <div class="mb-4 border-t border-base-content/10 pt-4 text-center text-xs text-base-content/50">
-              {if @assistant_connection,
-                do: "Already have an account?",
-                else: "Email sign-in"}
-            </div>
-            <.form for={@form} action={~p"/users/log-in"} id="email-link-form" class="space-y-3">
-              <.embedded_request request={@embedded_request} />
-              <.input
-                field={@form[:email]}
-                type="email"
-                label="Email"
-                autocomplete="email"
-                required
-                class="w-full rounded-lg border border-base-content/20 bg-base-100 px-4 py-3 text-base text-base-content outline-none transition focus:border-base-content/60 focus:ring-2 focus:ring-base-content/20"
-              />
-              <p
-                :if={@assistant_connection}
-                class="text-left text-sm leading-6 text-base-content/70"
-              >
-                Use your Frontman email to receive a sign-in link.
-              </p>
-              <button
-                type="submit"
-                class="w-full rounded-lg bg-base-content px-4 py-3 font-semibold text-base-100 transition hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2"
-              >
-                Send sign-in link
-              </button>
-            </.form>
-            <div :if={@embedded_request} class="mt-4 space-y-2 text-sm text-base-content/70">
-              <p>
-                Open the email link in this same browser. After signing in, return to this window
-                and continue to connect your site.
-              </p>
-              <a
-                id="embedded-email-continue"
-                href={
-                  ~p"/users/log-in?#{%{embedded_origin: @embedded_request["origin"], embedded_state: @embedded_request["state"]}}"
-                }
-                class="inline-block font-semibold underline underline-offset-4 hover:text-base-content"
-              >
-                I have signed in — continue
-              </a>
-            </div>
-          </div>
-
-          <div :if={!@current_scope || !@embedded_request}>
-            <div class="divider text-xs text-base-content/40">Password login</div>
-
-            <.form for={@form} action={~p"/users/log-in"} id="login-form" class="space-y-3">
-              <.embedded_request request={@embedded_request} />
-              <.input
-                field={@form[:email]}
-                type="email"
-                placeholder="Email"
-                autocomplete="email"
-                required
-                class="input input-lg w-full"
-              />
-              <.input
-                field={@form[:password]}
-                type="password"
-                placeholder="Password"
-                autocomplete="current-password"
-                required
-                class="input input-lg w-full"
-              />
-              <button type="submit" id="login-submit" class="btn btn-neutral btn-lg btn-block">
-                Sign in with password
-              </button>
-            </.form>
-          </div>
-
-          <p class="text-center text-xs leading-relaxed text-base-content/40">
-            By signing in, you agree to our
-            <a href="https://frontman.sh/terms/" class="link link-hover text-base-content/60">
-              Terms of Service
-            </a>
-            and <a
-              href="https://frontman.sh/privacy/"
-              class="link link-hover text-base-content/60"
-            >Privacy Policy</a>.
-          </p>
-        </div>
-      </div>
-    </section>
-    <section
-      :if={@assistant_connection}
-      aria-label="Connection steps"
-      class="mx-auto w-full max-w-md space-y-6 lg:col-start-1 lg:row-start-2 lg:mx-0 lg:max-w-2xl"
-    >
-      <ol id="assistant-setup-steps" class="space-y-5 text-left">
-        <li class="flex gap-4" aria-current="step">
-          <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-700 text-white font-semibold">1</span>
-          <div>
-            <p class="font-semibold">Sign in to Frontman</p>
-            <p class="mt-1 text-sm leading-6 text-base-content/70">
-              Use the same Frontman account for your assistant and your WordPress site.
-            </p>
-          </div>
-        </li>
-        <li class="flex gap-4">
-          <span class="flex size-8 shrink-0 items-center justify-center rounded-full border border-base-content/20 text-base-content/70">2</span>
-          <div>
-            <p class="font-semibold">Confirm your account</p>
-            <p class="mt-1 text-sm leading-6 text-base-content/70">
-              Review the email address before authorizing assistant access.
-            </p>
-          </div>
-        </li>
-        <li class="flex gap-4">
-          <span class="flex size-8 shrink-0 items-center justify-center rounded-full border border-base-content/20 text-base-content/70">3</span>
-          <div>
-            <p class="font-semibold">Return to your assistant</p>
-            <p class="mt-1 text-sm leading-6 text-base-content/70">
-              Choose a connected site, or follow the steps to connect one.
-            </p>
-          </div>
-        </li>
-      </ol>
-      <p class="text-sm leading-6 text-base-content/70">
+      <p :if={@assistant_connection} class="mt-6 text-sm leading-6 text-zinc-400">
         Signing in does not connect a new website or start a subscription.
       </p>
-    </section>
-  </div>
+    </:intro>
+    <div class="space-y-6">
+      <div class="space-y-2">
+        <h2 class="text-2xl font-semibold tracking-tight text-white">
+          <%= cond do %>
+            <% @assistant_connection -> %>
+              Connect Frontman to your AI assistant
+            <% @embedded_request -> %>
+              Connect Frontman
+            <% true -> %>
+              Sign in to Frontman
+          <% end %>
+        </h2>
+        <p class="text-sm leading-6 text-zinc-400">
+          <%= cond do %>
+            <% @assistant_connection -> %>
+              Sign in, confirm your account, then choose a connected WordPress site.
+            <% @embedded_request -> %>
+              Continue to let <strong class="break-all">{@embedded_request["origin"]}</strong>
+              use your Frontman account.
+            <% true -> %>
+              Choose your workspace identity to continue.
+          <% end %>
+        </p>
+        <p :if={@assistant_connection} class="text-sm leading-6 text-zinc-400">
+          New here? Continue with Google or GitHub to create an account.
+        </p>
+      </div>
+
+      <.form
+        :if={@embedded_request && @current_scope}
+        for={%{}}
+        action={~p"/users/log-in"}
+        id="embedded-connect-form"
+      >
+        <.embedded_request request={@embedded_request} />
+        <input type="hidden" name="user_id" value={@current_scope.user.id} />
+        <button
+          type="submit"
+          name="_action"
+          value="connect"
+          class={Layouts.connection_button_class()}
+        >
+          Continue as {@current_scope.user.email}
+        </button>
+      </.form>
+
+      <div :if={!@current_scope} class="flex flex-col gap-3">
+        <.form for={%{}} action={~p"/auth/github"} id="github-login-form">
+          <.embedded_request request={@embedded_request} />
+          <button class={Layouts.connection_secondary_button_class()}>
+            <svg
+              aria-label="GitHub logo"
+              width="16"
+              height="16"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+            >
+              <path
+                fill="white"
+                d="M12,2A10,10 0 0,0 2,12C2,16.42 4.87,20.17 8.84,21.5C9.34,21.58 9.5,21.27 9.5,21C9.5,20.77 9.5,20.14 9.5,19.31C6.73,19.91 6.14,17.97 6.14,17.97C5.68,16.81 5.03,16.5 5.03,16.5C4.12,15.88 5.1,15.9 5.1,15.9C6.1,15.97 6.63,16.93 6.63,16.93C7.5,18.45 8.97,18 9.54,17.76C9.63,17.11 9.89,16.67 10.17,16.42C7.95,16.17 5.62,15.31 5.62,11.5C5.62,10.39 6,9.5 6.65,8.79C6.55,8.54 6.2,7.5 6.75,6.15C6.75,6.15 7.59,5.88 9.5,7.17C10.29,6.95 11.15,6.84 12,6.84C12.85,6.84 13.71,6.95 14.5,7.17C16.41,5.88 17.25,6.15 17.25,6.15C17.8,7.5 17.45,8.54 17.35,8.79C18,9.5 18.38,10.39 18.38,11.5C18.38,15.32 16.04,16.16 13.81,16.41C14.17,16.72 14.5,17.33 14.5,18.26C14.5,19.6 14.5,20.68 14.5,21C14.5,21.27 14.66,21.59 15.17,21.5C19.14,20.16 22,16.42 22,12A10,10 0 0,0 12,2Z"
+              />
+            </svg>
+            {if @assistant_connection, do: "Continue with GitHub", else: "Login with GitHub"}
+          </button>
+        </.form>
+
+        <.form for={%{}} action={~p"/auth/google"} id="google-login-form">
+          <.embedded_request request={@embedded_request} />
+          <button class={Layouts.connection_secondary_button_class()}>
+            <svg
+              aria-label="Google logo"
+              width="16"
+              height="16"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 512 512"
+            >
+              <g>
+                <path d="m0 0H512V512H0" fill="#fff" />
+                <path
+                  fill="#34a853"
+                  d="M153 292c30 82 118 95 171 60h62v48A192 192 0 0190 341"
+                />
+                <path fill="#4285f4" d="m386 400a140 175 0 0053-179H260v74h102q-7 37-38 57" />
+                <path fill="#fbbc02" d="m90 341a208 200 0 010-171l63 49q-12 37 0 73" />
+                <path
+                  fill="#ea4335"
+                  d="m153 219c22-69 116-109 179-50l55-54c-78-75-230-72-297 55"
+                />
+              </g>
+            </svg>
+            {if @assistant_connection, do: "Continue with Google", else: "Login with Google"}
+          </button>
+        </.form>
+      </div>
+
+      <div :if={!@current_scope || !@embedded_request}>
+        <div class="mb-4 border-t border-white/10 pt-4 text-center text-xs text-zinc-400">
+          {if @assistant_connection,
+            do: "Already have an account?",
+            else: "Email sign-in"}
+        </div>
+        <.form for={@form} action={~p"/users/log-in"} id="email-link-form" class="space-y-3">
+          <.embedded_request request={@embedded_request} />
+          <.input
+            field={@form[:email]}
+            type="email"
+            label="Email"
+            autocomplete="email"
+            required
+            class={Layouts.connection_input_class()}
+          />
+          <p
+            :if={@assistant_connection}
+            class="text-left text-sm leading-6 text-zinc-400"
+          >
+            Use your Frontman email to receive a sign-in link.
+          </p>
+          <button
+            type="submit"
+            class={Layouts.connection_button_class()}
+          >
+            Send sign-in link
+          </button>
+        </.form>
+        <div :if={@embedded_request} class="mt-4 space-y-2 text-sm text-zinc-400">
+          <p>
+            Open the email link in this same browser. After signing in, return to this window
+            and continue to connect your site.
+          </p>
+          <a
+            id="embedded-email-continue"
+            href={
+              ~p"/users/log-in?#{%{embedded_origin: @embedded_request["origin"], embedded_state: @embedded_request["state"]}}"
+            }
+            class="inline-block font-semibold underline underline-offset-4 hover:text-white"
+          >
+            I have signed in — continue
+          </a>
+        </div>
+      </div>
+
+      <div :if={!@current_scope || !@embedded_request}>
+        <div class="border-t border-white/10 pt-4 text-center text-xs text-zinc-400">
+          Password login
+        </div>
+
+        <.form for={@form} action={~p"/users/log-in"} id="login-form" class="space-y-3">
+          <.embedded_request request={@embedded_request} />
+          <.input
+            field={@form[:email]}
+            type="email"
+            placeholder="Email"
+            autocomplete="email"
+            required
+            class={Layouts.connection_input_class()}
+          />
+          <.input
+            field={@form[:password]}
+            type="password"
+            placeholder="Password"
+            autocomplete="current-password"
+            required
+            class={Layouts.connection_input_class()}
+          />
+          <button type="submit" id="login-submit" class={Layouts.connection_button_class()}>
+            Sign in with password
+          </button>
+        </.form>
+      </div>
+
+      <p class="text-center text-xs leading-relaxed text-zinc-400">
+        By signing in, you agree to our
+        <a href="https://frontman.sh/terms/" class="underline underline-offset-4 hover:text-white">
+          Terms of Service
+        </a>
+        and <a
+          href="https://frontman.sh/privacy/"
+          class="underline underline-offset-4 hover:text-white"
+        >Privacy Policy</a>.
+      </p>
+    </div>
+  </Layouts.connection>
 </Layouts.app>
