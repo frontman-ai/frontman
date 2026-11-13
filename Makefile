@@ -654,11 +654,21 @@ package-openai-wordpress:
 	$(MAKE) -C plugins/openai-wordpress release-artifact VERSION="$(VERSION)"
 
 .PHONY: check-claude-wordpress package-claude-wordpress
-check-claude-wordpress:
-	$(MAKE) -C plugins/claude-wordpress check
+CLAUDE_BIN ?= claude
+OUTPUT_DIR ?= $(CURDIR)/dist/claude-wordpress
 
-package-claude-wordpress:
-	$(MAKE) -C plugins/claude-wordpress package
+check-claude-wordpress:
+	"$(CLAUDE_BIN)" plugin validate --strict "$(CURDIR)/plugins/claude-wordpress"
+
+package-claude-wordpress: check-claude-wordpress
+	mkdir -p "$(OUTPUT_DIR)"
+	@set -eu; tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; \
+	cd plugins/claude-wordpress; \
+	zip -q -X "$$tmp/plugin.zip" .claude-plugin/plugin.json .claude-plugin/icon.png .mcp.json skills/wordpress/SKILL.md README.md; \
+	version=$$(jq -r .version .claude-plugin/plugin.json); \
+	archive="$(abspath $(OUTPUT_DIR))/frontman-claude-wordpress-v$$version.zip"; \
+	mv "$$tmp/plugin.zip" "$$archive"; \
+	printf 'Created %s\n' "$$archive"
 
 .PHONY: test-wordpress-plugin-export
 test-wordpress-plugin-export: package-wordpress-plugin
