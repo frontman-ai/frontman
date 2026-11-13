@@ -19,44 +19,12 @@ defmodule FrontmanServer.Tasks.Execution.GlobalStateTest do
   alias FrontmanServer.Skills
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.LLMProviderMock
-  alias FrontmanServer.Tasks.{Interaction, InteractionSchema}
+  alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Test.Fixtures.ReqLLMResponses
   alias FrontmanServer.Tools.MCP
 
   @moduletag billing: :active
-  @endpoint FrontmanServerWeb.Endpoint
   @acp_message Protocols.ACP.event_acp_message()
-
-  defp submit_user_message(scope, task_id, %{content: content, overrides: overrides}) do
-    execution = execution_request_fixture(overrides)
-
-    submit_user_message_and_run(scope, task_id, %{
-      execution: execution,
-      message: content,
-      runtime: FrontmanServer.AgentRuntime
-    })
-  end
-
-  defp submit_user_message(scope, task_id, content) when is_list(content) do
-    submit_user_message(scope, task_id, %{content: content, overrides: []})
-  end
-
-  defp turn_started_rows(task_id) do
-    task_id
-    |> InteractionSchema.for_task()
-    |> InteractionSchema.of_type(:turn_started)
-    |> InteractionSchema.ordered()
-    |> Repo.all()
-  end
-
-  defp setup_channel(%{scope: scope, task_id: task_id}) do
-    {:ok, _reply, socket} =
-      FrontmanServerWeb.UserSocket
-      |> socket("user_id", %{scope: scope})
-      |> subscribe_and_join("task:#{task_id}", %{})
-
-    {:ok, socket: socket}
-  end
 
   defp with_backend_tools(modules) do
     previous = Application.fetch_env!(:frontman_server, :backend_tools)
@@ -101,7 +69,11 @@ defmodule FrontmanServer.Tasks.Execution.GlobalStateTest do
       expect_llm_responses(["Continued without the unavailable tool"])
 
       {:ok, _, 1} =
-        submit_user_message(scope, task_id, user_content("Improve the hero"))
+        submit_user_message_and_run(
+          scope,
+          task_id,
+          execution_request_fixture(message: user_content("Improve the hero"))
+        )
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
       assert_receive {:without_skill_tool, messages, tools}
@@ -162,10 +134,11 @@ defmodule FrontmanServer.Tasks.Execution.GlobalStateTest do
       end)
 
       {:ok, _, 1} =
-        submit_user_message(scope, task_id, %{
-          content: user_content("Do the change"),
-          overrides: [mcp_tools: tools]
-        })
+        submit_user_message_and_run(
+          scope,
+          task_id,
+          execution_request_fixture(message: user_content("Do the change"), mcp_tools: tools)
+        )
 
       assert_receive_interaction(
         %Interaction.ToolCall{tool_name: "approval", execution_mode: :interactive},
@@ -228,14 +201,7 @@ defmodule FrontmanServer.Tasks.Execution.GlobalStateTest do
                Tasks.resume_execution(
                  scope,
                  task_id,
-                 %{
-                   execution:
-                     execution_request_fixture(
-                       model: "missing:connection-model",
-                       mcp_tools: tools
-                     ),
-                   runtime: FrontmanServer.AgentRuntime
-                 }
+                 execution_request_fixture(model: "missing:connection-model", mcp_tools: tools)
                )
 
       assert_receive {:resumed_messages, %LLMDB.Model{id: "openai/gpt-5.5"}, messages}, 1_000
@@ -291,7 +257,11 @@ defmodule FrontmanServer.Tasks.Execution.GlobalStateTest do
         expect_llm_responses([{:tool_calls, [call], "Calling tool"}, "Handled."])
 
         {:ok, _, 1} =
-          submit_user_message(scope, task_id, user_content("Do a thing"))
+          submit_user_message_and_run(
+            scope,
+            task_id,
+            execution_request_fixture(message: user_content("Do a thing"))
+          )
 
         assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
         :sys.get_state(socket.channel_pid)

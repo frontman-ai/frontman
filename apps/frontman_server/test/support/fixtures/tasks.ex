@@ -71,7 +71,8 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
       model: @default_test_model,
       agent_id: "test-frontman",
       project_traits: [],
-      mcp_tools: []
+      mcp_tools: [],
+      runtime: FrontmanServer.AgentRuntime
     }
     |> Map.merge(Map.new(overrides))
   end

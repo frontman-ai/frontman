@@ -4,10 +4,15 @@ defmodule FrontmanServer.ExecutionCase do
   use ExUnit.CaseTemplate
 
   import ExUnit.Assertions, only: [assert: 1, refute: 2]
+  import Phoenix.ChannelTest
 
   alias Ecto.Adapters.SQL.Sandbox
+  alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Test.Fixtures.Tasks, as: TaskFixtures
+
+  @endpoint FrontmanServerWeb.Endpoint
 
   using opts do
     quote do
@@ -17,30 +22,40 @@ defmodule FrontmanServer.ExecutionCase do
     end
   end
 
-  def submit_user_message_and_run(scope, task_id, %{
-        execution: execution_request,
-        message: message,
-        runtime: runtime
-      }) do
+  def submit_user_message_and_run(scope, task_id, %{message: message, runtime: _} = request) do
     with {:ok, interaction} <-
            Tasks.submit_user_message(
              scope,
-             Map.merge(execution_request, %{
+             Map.merge(request, %{
                task_id: task_id,
                message_id: Ecto.UUID.generate(),
                message: message
              })
            ),
          :ok <-
-           Tasks.execute_next_turn(scope, task_id, %{
-             execution: execution_request,
-             runtime: runtime
-           }) do
+           Tasks.execute_next_turn(scope, task_id, request) do
       {:ok, interaction, TaskFixtures.latest_turn_number(task_id)}
     else
       result when result in [:already_running, :no_accepted_messages] -> {:error, result}
       result -> result
     end
+  end
+
+  def turn_started_rows(task_id) do
+    task_id
+    |> InteractionSchema.for_task()
+    |> InteractionSchema.of_type(:turn_started)
+    |> InteractionSchema.ordered()
+    |> Repo.all()
+  end
+
+  def setup_channel(%{scope: scope, task_id: task_id, runtime: runtime}) do
+    {:ok, _reply, socket} =
+      FrontmanServerWeb.UserSocket
+      |> socket("user_id", %{scope: scope, agent_runtime: runtime})
+      |> subscribe_and_join("task:#{task_id}", %{})
+
+    {:ok, socket: socket}
   end
 
   def refute_running_eventually(task_id, runtime \\ FrontmanServer.AgentRuntime, attempts \\ 50)
@@ -89,7 +104,7 @@ defmodule FrontmanServer.ExecutionCase do
       {:ok, runtime: runtime}
     else
       on_exit(fn -> Req.Test.set_req_test_to_private() end)
-      :ok
+      {:ok, runtime: FrontmanServer.AgentRuntime}
     end
   end
 end

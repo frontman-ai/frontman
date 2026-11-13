@@ -44,7 +44,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   alias ReqLLM.Error.API.Request
 
   @moduletag billing: :active
-  @endpoint FrontmanServerWeb.Endpoint
   @acp_message Protocols.ACP.event_acp_message()
 
   defp mixed_access_mcp_tool_defs do
@@ -65,38 +64,22 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   end
 
   defp submit_user_message(scope, task_id, %{content: content, overrides: overrides}) do
-    execution = execution_request_fixture(overrides)
+    request =
+      execution_request_fixture(Keyword.merge(overrides, message: content, runtime: __MODULE__))
 
-    submit_user_message_and_run(scope, task_id, %{
-      execution: execution,
-      message: content,
-      runtime: __MODULE__
-    })
+    submit_user_message_and_run(scope, task_id, request)
   end
 
   defp submit_user_message(scope, task_id, content) when is_list(content) do
     submit_user_message(scope, task_id, %{content: content, overrides: []})
   end
 
-  defp turn_started_rows(task_id) do
-    task_id
-    |> InteractionSchema.for_task()
-    |> InteractionSchema.of_type(:turn_started)
-    |> InteractionSchema.ordered()
-    |> Repo.all()
-  end
-
   defp setup_task_only(%{scope: scope}) do
     {:ok, task_id: task_fixture(scope).id}
   end
 
-  defp setup_channel(%{scope: scope, task_id: task_id}) do
-    {:ok, _reply, socket} =
-      FrontmanServerWeb.UserSocket
-      |> socket("user_id", %{scope: scope, agent_runtime: __MODULE__})
-      |> subscribe_and_join("task:#{task_id}", %{})
-
-    {:ok, socket: socket}
+  setup %{runtime: runtime} do
+    %{execution: execution_request_fixture(runtime: runtime)}
   end
 
   describe "cancel_execution" do
@@ -136,7 +119,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
     test "runs next accepted user message as a turn", %{
       task_id: task_id,
-      scope: scope
+      scope: scope,
+      execution: execution
     } do
       expect_llm_responses(["Response"])
 
@@ -149,11 +133,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           agent_id: "test-frontman"
         })
 
-      assert :ok =
-               Tasks.execute_next_turn(scope, task_id, %{
-                 execution: execution_request_fixture(),
-                 runtime: __MODULE__
-               })
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution)
 
       assert_receive {:interaction,
                       %{
@@ -201,11 +181,10 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                Tasks.execute_next_turn(
                  scope,
                  task_id,
-                 %{
-                   execution:
-                     execution_request_fixture(model: "openrouter:anthropic/claude-fable-5.1"),
+                 execution_request_fixture(
+                   model: "openrouter:anthropic/claude-fable-5.1",
                    runtime: __MODULE__
-                 }
+                 )
                )
 
       assert_receive {:executed_model, %LLMDB.Model{id: "openai/gpt-5.5"}}
@@ -217,7 +196,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
     test "claims only pending message prefix with the same agent and model", %{
       task_id: task_id,
-      scope: scope
+      scope: scope,
+      execution: execution
     } do
       expect_llm_responses(["First response", "Second response"])
 
@@ -248,11 +228,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           agent_id: "test-planner"
         })
 
-      assert :ok =
-               Tasks.execute_next_turn(scope, task_id, %{
-                 execution: execution_request_fixture(),
-                 runtime: __MODULE__
-               })
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution)
 
       assert [first_turn] = turn_started_rows(task_id)
       assert first_turn.data.agent_id == "test-frontman"
@@ -261,11 +237,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
       refute_running_eventually(task_id, __MODULE__)
 
-      assert :ok =
-               Tasks.execute_next_turn(scope, task_id, %{
-                 execution: execution_request_fixture(),
-                 runtime: __MODULE__
-               })
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution)
 
       assert [_first_turn, second_turn] = turn_started_rows(task_id)
       assert second_turn.data.agent_id == "test-planner"
@@ -277,7 +249,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
     test "groups only contiguous messages with the same agent and model", %{
       task_id: task_id,
-      scope: scope
+      scope: scope,
+      execution: execution
     } do
       expect_llm_responses(["First response", "Second response", "Third response"])
 
@@ -317,29 +290,17 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           agent_id: "test-frontman"
         })
 
-      assert :ok =
-               Tasks.execute_next_turn(scope, task_id, %{
-                 execution: execution_request_fixture(),
-                 runtime: __MODULE__
-               })
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution)
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
       refute_running_eventually(task_id, __MODULE__)
 
-      assert :ok =
-               Tasks.execute_next_turn(scope, task_id, %{
-                 execution: execution_request_fixture(),
-                 runtime: __MODULE__
-               })
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution)
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, 2)
       refute_running_eventually(task_id, __MODULE__)
 
-      assert :ok =
-               Tasks.execute_next_turn(scope, task_id, %{
-                 execution: execution_request_fixture(),
-                 runtime: __MODULE__
-               })
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution)
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, 3)
       refute_running_eventually(task_id, __MODULE__)
@@ -355,7 +316,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
     test "uses default agent for historical user messages without agent id", %{
       task_id: task_id,
-      scope: scope
+      scope: scope,
+      execution: execution
     } do
       expect_llm_responses(["Response"])
 
@@ -372,11 +334,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       })
       |> Repo.insert!()
 
-      assert :ok =
-               Tasks.execute_next_turn(scope, task_id, %{
-                 execution: execution_request_fixture(),
-                 runtime: __MODULE__
-               })
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution)
 
       assert [turn_started] = turn_started_rows(task_id)
       assert turn_started.data.agent_id == "test-planner"
@@ -386,7 +344,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
     test "accepts follow-up while running and drains it next", %{
       task_id: task_id,
-      scope: scope
+      scope: scope,
+      execution: execution
     } do
       parent = self()
 
@@ -412,22 +371,14 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                  agent_id: "test-frontman"
                })
 
-      assert :already_running =
-               Tasks.execute_next_turn(scope, task_id, %{
-                 execution: execution_request_fixture(),
-                 runtime: __MODULE__
-               })
+      assert :already_running = Tasks.execute_next_turn(scope, task_id, execution)
 
       send(provider, :finish_response)
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
 
       refute_running_eventually(task_id, __MODULE__)
 
-      assert :ok =
-               Tasks.execute_next_turn(scope, task_id, %{
-                 execution: execution_request_fixture(),
-                 runtime: __MODULE__
-               })
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution)
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
 
@@ -550,11 +501,11 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
     test "keeps selected skill attached to its user message in batched turns", %{
       task_id: task_id,
-      scope: scope
+      scope: scope,
+      execution: execution
     } do
       parent = self()
       skill = skill_fixture(scope)
-      execution = execution_request_fixture()
 
       expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
         send(parent, {:provider_messages, messages})
@@ -583,10 +534,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         )
 
       assert :ok =
-               Tasks.execute_next_turn(scope, task_id, %{
-                 execution: execution,
-                 runtime: __MODULE__
-               })
+               Tasks.execute_next_turn(scope, task_id, execution)
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
       assert_receive {:provider_messages, messages}, 1_000
@@ -600,17 +548,15 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert second_part.text == "Now tighten copy"
     end
 
-    test "missing credentials leave the accepted message unclaimed and allowance unspent" do
+    test "missing credentials leave the accepted message unclaimed and allowance unspent", %{
+      execution: execution
+    } do
       scope = Scope.for_user(user_fixture())
       task = task_with_pubsub_fixture(scope)
       message = insert_accepted_user_message!(task, "Edit")
-      execution = execution_request_fixture()
 
       assert {:error, :no_api_key} =
-               Tasks.execute_next_turn(scope, task.id, %{
-                 execution: execution,
-                 runtime: __MODULE__
-               })
+               Tasks.execute_next_turn(scope, task.id, execution)
 
       assert [] == turn_started_rows(task.id)
       assert Tasks.remaining_runs(scope) == 5
@@ -619,10 +565,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       expect_llm_responses(["Done"])
 
       assert :ok =
-               Tasks.execute_next_turn(scope, task.id, %{
-                 execution: execution,
-                 runtime: __MODULE__
-               })
+               Tasks.execute_next_turn(scope, task.id, execution)
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
       message_id = message.id
@@ -756,11 +699,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                Tasks.retry_execution(
                  scope,
                  task_id,
-                 %{
-                   retried_error_id: error.id,
-                   execution: execution_request_fixture(),
-                   runtime: __MODULE__
-                 }
+                 execution_request_fixture(retried_error_id: error.id, runtime: __MODULE__)
                )
 
       {:ok, task} = Tasks.get_task_with_history(scope, task_id)
@@ -789,10 +728,10 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         ReqLLMResponses.response("done")
       end)
 
-      execution = execution_request_fixture(model: "missing:test")
+      execution = execution_request_fixture(model: "missing:test", runtime: __MODULE__)
 
       assert :ok =
-               Tasks.resume_execution(scope, task_id, %{execution: execution, runtime: __MODULE__})
+               Tasks.resume_execution(scope, task_id, execution)
 
       assert_receive {:provider_request, %LLMDB.Model{id: "openai/gpt-5.5"}, messages}, 1_000
       assert [user_text] = provider_texts(messages, :user)
@@ -803,7 +742,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
     test "includes every user message claimed by the started turn in order", %{
       task_id: task_id,
-      scope: scope
+      scope: scope,
+      execution: execution
     } do
       parent = self()
       {:ok, task} = Tasks.get_task(scope, task_id)
@@ -818,11 +758,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         ReqLLMResponses.response("done")
       end)
 
-      assert :ok =
-               Tasks.resume_execution(scope, task_id, %{
-                 execution: execution_request_fixture(),
-                 runtime: __MODULE__
-               })
+      assert :ok = Tasks.resume_execution(scope, task_id, execution)
 
       assert_receive {:provider_messages, messages}, 1_000
       assert provider_texts(messages, :user) == ["second", "first"]
@@ -831,7 +767,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
     test "uses persisted turn agent as the base system prompt", %{
       task_id: task_id,
-      scope: scope
+      scope: scope,
+      execution: execution
     } do
       parent = self()
       {:ok, task} = Tasks.get_task(scope, task_id)
@@ -845,11 +782,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         ReqLLMResponses.response("done")
       end)
 
-      assert :ok =
-               Tasks.resume_execution(scope, task_id, %{
-                 execution: execution_request_fixture(),
-                 runtime: __MODULE__
-               })
+      assert :ok = Tasks.resume_execution(scope, task_id, execution)
 
       assert_receive {:provider_messages, messages}, 1_000
       assert [system_text] = provider_texts(messages, :system)
@@ -881,11 +814,10 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                  Tasks.resume_execution(
                    scope,
                    task_id,
-                   %{
-                     execution:
-                       execution_request_fixture(mcp_tools: mixed_access_mcp_tool_defs()),
+                   execution_request_fixture(
+                     mcp_tools: mixed_access_mcp_tool_defs(),
                      runtime: __MODULE__
-                   }
+                   )
                  )
 
         assert_receive {:provider_tool_names, tool_names}, 1_000
@@ -1304,7 +1236,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
     test "read-only agent rejects hidden backend write tools without executing them", %{
       task_id: task_id,
-      scope: scope
+      scope: scope,
+      execution: execution
     } do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
@@ -1324,11 +1257,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         "Continued without the unavailable tool."
       ])
 
-      assert :ok =
-               Tasks.resume_execution(scope, task_id, %{
-                 execution: execution_request_fixture(),
-                 runtime: __MODULE__
-               })
+      assert :ok = Tasks.resume_execution(scope, task_id, execution)
 
       assert_receive {[:swarm_ai, :tool, :execute, :stop], ^ref, _measurements,
                       %{tool_id: ^tc_id} = metadata}

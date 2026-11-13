@@ -30,11 +30,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
         submit_user_message_and_run(
           scope,
           task_id,
-          %{
-            execution: execution_request_fixture(),
-            message: user_content("Take a screenshot"),
-            runtime: runtime
-          }
+          execution_request_fixture(message: user_content("Take a screenshot"), runtime: runtime)
         )
 
       assert_receive_interaction(%Interaction.AgentError{error: reason}, _turn_number)
@@ -52,11 +48,11 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
                submit_user_message_and_run(
                  scope,
                  task_id,
-                 %{
-                   execution: execution_request_fixture(model: "openai_codex:gpt-5.4-mini"),
+                 execution_request_fixture(
+                   model: "openai_codex:gpt-5.4-mini",
                    message: user_content("Hello"),
                    runtime: runtime
-                 }
+                 )
                )
 
       refute Repo.get_by(InteractionSchema, task_id: task_id, type: :turn_started)
@@ -94,11 +90,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
           submit_user_message_and_run(
             scope,
             task_id,
-            %{
-              execution: execution_request_fixture(),
-              message: user_content("Hello"),
-              runtime: runtime
-            }
+            execution_request_fixture(message: user_content("Hello"), runtime: runtime)
           )
 
         assert_receive_interaction(%Interaction.AgentError{} = error, _turn_number)

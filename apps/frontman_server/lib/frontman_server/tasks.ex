@@ -1078,11 +1078,11 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc "Retries an already-authorized turn without charging or rechecking billing."
-  def retry_execution(scope, task_id, %{
-        retried_error_id: retried_error_id,
-        execution: execution,
-        runtime: runtime
-      }) do
+  def retry_execution(
+        scope,
+        task_id,
+        %{retried_error_id: retried_error_id, runtime: _} = execution
+      ) do
     with {:ok, schema} <- get_task(scope, task_id),
          {:ok, history} = load_history(task_id),
          {:ok, turn_number} <- retry_turn_number(history.rows, retried_error_id),
@@ -1094,14 +1094,13 @@ defmodule FrontmanServer.Tasks do
       start_execution(scope, schema, %{
         turn_number: turn_number,
         agent: agent,
-        execution: execution,
-        runtime: runtime
+        execution: execution
       })
     end
   end
 
   @doc "Executes the next accepted-message turn when work is available."
-  def execute_next_turn(%Scope{} = scope, task_id, %{execution: execution, runtime: runtime})
+  def execute_next_turn(%Scope{} = scope, task_id, %{runtime: _} = execution)
       when is_binary(task_id) do
     case start_next_turn(scope, task_id) do
       {:ok, task, turn_number, turn_model, agent} ->
@@ -1110,8 +1109,7 @@ defmodule FrontmanServer.Tasks do
         start_execution(scope, task, %{
           turn_number: turn_number,
           agent: agent,
-          execution: execution,
-          runtime: runtime
+          execution: execution
         })
 
       stop when stop in [:already_running, :no_accepted_messages] ->
@@ -1160,7 +1158,7 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc "Resumes an already-authorized active turn without charging or rechecking billing."
-  def resume_execution(scope, task_id, %{execution: execution, runtime: runtime}) do
+  def resume_execution(scope, task_id, %{runtime: _} = execution) do
     with {:ok, task} <- get_task(scope, task_id),
          {:ok, history} <- load_history(task.id),
          turn_number when is_integer(turn_number) <- History.active_turn_number(history),
@@ -1169,8 +1167,7 @@ defmodule FrontmanServer.Tasks do
       start_execution(scope, task, %{
         turn_number: turn_number,
         agent: agent,
-        execution: execution,
-        runtime: runtime
+        execution: execution
       })
     else
       nil -> {:error, :not_running}
@@ -1207,8 +1204,8 @@ defmodule FrontmanServer.Tasks do
          %{
            turn_number: turn_number,
            agent: agent,
-           execution: %{model: requested_model, mcp_tools: mcp_tools} = execution,
-           runtime: runtime
+           execution:
+             %{model: requested_model, mcp_tools: mcp_tools, runtime: runtime} = execution
          }
        )
        when is_integer(turn_number) and turn_number > 0 and is_list(mcp_tools) do

@@ -226,13 +226,14 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
   end
 
   defp submit_anthropic_message(scope, task_id, %{content: content, overrides: overrides}) do
-    execution_request =
-      execution_request_fixture(Keyword.merge([model: "anthropic:claude-sonnet-4-6"], overrides))
-
     submit_user_message_and_run(
       scope,
       task_id,
-      %{execution: execution_request, message: prompt_content(content), runtime: __MODULE__}
+      execution_request_fixture(
+        [model: "anthropic:claude-sonnet-4-6"]
+        |> Keyword.merge(overrides)
+        |> Keyword.merge(message: prompt_content(content), runtime: __MODULE__)
+      )
     )
   end
 

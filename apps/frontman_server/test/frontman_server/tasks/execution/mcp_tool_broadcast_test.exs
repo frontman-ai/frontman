@@ -38,17 +38,15 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
 
       expect_llm_responses([{:tool_calls, [mcp_tool_call], "Done!"}])
 
-      execution_request = execution_request_fixture(mcp_tools: [some_mcp_tool_def])
-
       {:ok, _, _} =
         submit_user_message_and_run(
           scope,
           task_id,
-          %{
-            execution: execution_request,
+          execution_request_fixture(
+            mcp_tools: [some_mcp_tool_def],
             message: user_content("Please call the MCP tool"),
             runtime: runtime
-          }
+          )
         )
 
       expected_id = mcp_tool_call.id

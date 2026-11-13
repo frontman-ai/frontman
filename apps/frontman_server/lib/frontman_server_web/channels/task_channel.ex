@@ -174,7 +174,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     case Tasks.execute_next_turn(
            socket.assigns.scope,
            socket.assigns.task_id,
-           %{execution: execution, runtime: agent_runtime(socket)}
+           execution
          ) do
       result when result in [:ok, :already_running, :no_accepted_messages] ->
         :ok
@@ -570,7 +570,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     Tasks.resume_execution(
       scope,
       task_id,
-      %{execution: execution_context(socket, nil), runtime: agent_runtime(socket)}
+      execution_context(socket, nil)
     )
 
     socket
@@ -956,11 +956,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     case Tasks.retry_execution(
            socket.assigns.scope,
            socket.assigns.task_id,
-           %{
-             retried_error_id: retried_error_id,
-             execution: execution_context(socket, nil),
-             runtime: agent_runtime(socket)
-           }
+           Map.put(execution_context(socket, nil), :retried_error_id, retried_error_id)
          ) do
       :ok ->
         notification = ACP.build_state_update_notification(socket.assigns.task_id, "running")
@@ -1086,7 +1082,8 @@ defmodule FrontmanServerWeb.TaskChannel do
     %{
       model: model,
       mcp_tools: execution_tools,
-      project_traits: Frameworks.project_traits_from_meta(meta, socket.assigns.framework)
+      project_traits: Frameworks.project_traits_from_meta(meta, socket.assigns.framework),
+      runtime: agent_runtime(socket)
     }
   end
 

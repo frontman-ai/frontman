@@ -105,18 +105,16 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
         execution_request_fixture(
           mcp_tools: [mcp_tool_def],
           model: "openrouter:anthropic/claude-sonnet-4.6",
-          project_traits: []
+          project_traits: [],
+          message: user_content("Implement the component"),
+          runtime: runtime
         )
 
       {:ok, _interaction, _turn_number} =
         submit_user_message_and_run(
           scope,
           task_id,
-          %{
-            execution: execution_request,
-            message: user_content("Implement the component"),
-            runtime: runtime
-          }
+          execution_request
         )
 
       assert_push(
