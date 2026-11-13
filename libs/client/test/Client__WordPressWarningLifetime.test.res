@@ -57,10 +57,12 @@ test("authentication retries retain the observer on the same lifetime", t => {
   let currentSignal = signal(state)
   let (state, effects) = Reducer.next(
     state,
-    ConnectionAction(ConnectionResultReceived({
-      signal: currentSignal,
-      result: Error(AuthenticationRequired({loginUrl: "http://localhost/users/log-in"})),
-    })),
+    ConnectionAction(
+      ConnectionResultReceived({
+        signal: currentSignal,
+        result: Error(AuthenticationRequired({loginUrl: "http://localhost/users/log-in"})),
+      }),
+    ),
   )
   t->expect(observes(effects))->Expect.toBe(false)
   let (state, effects) = Reducer.next(state, ConnectionAction(RetryAuthentication))

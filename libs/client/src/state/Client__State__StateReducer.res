@@ -173,7 +173,9 @@ let rec next = (state: state, action) => {
       let updated = {...state, connection: Some(connection)}
       let warningEffects = switch (
         state.wordPressWarningReady,
-        connection.config.acp.clientInfo._meta->Option.flatMap(Connection.frameworkFromClientInfoMeta),
+        connection.config.acp.clientInfo._meta->Option.flatMap(
+          Connection.frameworkFromClientInfoMeta,
+        ),
         connection.connection,
       ) {
       | (false, Some("wordpress"), Ok(Some({lifetimeAbortController}))) =>
