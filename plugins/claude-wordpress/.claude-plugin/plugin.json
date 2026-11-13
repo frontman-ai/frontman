@@ -1,7 +1,7 @@
 {
   "name": "frontman-wordpress",
   "displayName": "Frontman for WordPress",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Manage WordPress with Claude: find and edit posts, pages, layouts, and WooCommerce content on your connected site.",
   "author": {
     "name": "Boilerplate Ventures UG",
