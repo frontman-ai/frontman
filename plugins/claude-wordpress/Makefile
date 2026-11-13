@@ -1,7 +1,7 @@
 ROOT := $(abspath ../..)
 OUTPUT_DIR ?= $(ROOT)/dist/claude-wordpress
 CLAUDE_BIN ?= claude
-FILES := .claude-plugin/plugin.json .mcp.json skills/wordpress/SKILL.md README.md
+FILES := .claude-plugin/plugin.json .claude-plugin/icon.png .mcp.json skills/wordpress/SKILL.md README.md
 
 .PHONY: check package
 check:
