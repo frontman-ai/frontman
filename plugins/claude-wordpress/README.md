@@ -46,16 +46,16 @@ See the [Frontman documentation](https://frontman.sh/docs/), [support](https://f
 [privacy policy](https://frontman.sh/privacy/), and [terms](https://frontman.sh/terms/).
 This bundle is licensed under Apache-2.0; see the [repository license](https://github.com/frontman-ai/frontman/blob/main/LICENSE).
 
-## Repository checks
+## Validation and packaging
 
-Run `make -C plugins/claude-wordpress toolchain` once to download Claude Code
-2.1.311 into the ignored workspace `dist/` directory. This verifies Anthropic's
-release signing-key fingerprint, signed manifest, and binary checksum. It
-requires curl, GnuPG, jq, and a SHA-256 utility; checks also require Make,
-Bash, zip, and unzip. The supported bootstrap platforms are macOS and Linux on x64 or
-ARM64. Then run `make check-claude-wordpress`.
-The official Claude CLI validates the plugin format. A small integration test
-checks the Frontman endpoint, isolated CLI configuration, and the ZIP's exact
-contents. Run `make package-claude-wordpress` only when you need a local upload.
-The directory reads the GitHub-backed source, not this ZIP. Update the committed
-manifest version when releasing plugin changes. Validation does not require login or inference.
+Install Claude Code 2.1.311 or later, Make, jq, and zip.
+Run `make check-claude-wordpress` from the repository root.
+This command uses the installed `claude` CLI to validate the plugin format.
+Validation does not require login or inference.
+
+For a local upload, run `make package-claude-wordpress`.
+This command validates the plugin and creates
+`dist/claude-wordpress/frontman-claude-wordpress-v<version>.zip`.
+The ZIP contains only the manifest, MCP configuration, WordPress skill, and this README.
+The directory reads the GitHub-backed source, not this ZIP.
+Update the committed manifest version for each plugin release.

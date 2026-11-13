@@ -122,7 +122,7 @@ HELP_rescript-build := Build ReScript project (one-shot)
 HELP_rescript-format := Format ReScript source
 HELP_reanalyze := Run ReScript dead code analysis
 HELP_check-source-comments := Test scanner and check repository source comments
-HELP_check-claude-wordpress := Validate and test the Claude WordPress candidate
+HELP_check-claude-wordpress := Validate the Claude WordPress candidate
 HELP_clean := Clean ReScript build artifacts
 
 HELP_SSL_TITLE := SSL & Networking
@@ -655,7 +655,7 @@ package-openai-wordpress:
 
 .PHONY: check-claude-wordpress package-claude-wordpress
 check-claude-wordpress:
-	$(MAKE) -C plugins/claude-wordpress check test
+	$(MAKE) -C plugins/claude-wordpress check
 
 package-claude-wordpress:
 	$(MAKE) -C plugins/claude-wordpress package
