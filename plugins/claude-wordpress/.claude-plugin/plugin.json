@@ -9,7 +9,6 @@
     "url": "https://frontman.sh/"
   },
   "homepage": "https://frontman.sh/",
-  "privacyPolicyUrl": "https://frontman.sh/privacy/",
   "repository": "https://github.com/frontman-ai/frontman",
   "license": "Apache-2.0"
 }
