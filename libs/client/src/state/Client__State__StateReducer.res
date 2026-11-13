@@ -114,6 +114,7 @@ let clearConnectionState = (state: state) => {
     ...clearPendingQuestions(state),
     wordPressConnectionStatus: WordPressNotChecked,
     wordPressConnectionRequestId: state.wordPressConnectionRequestId + 1,
+    wordPressAssistantSetupSelected: false,
     billingStatus: Client__Billing.NotLoaded,
     billingFlow: Client__Billing.Idle,
     billingAbortController: None,
@@ -135,9 +136,16 @@ let rec next = (state: state, action) => {
     | None => {...state, wordPressLoginRecovery: Some({loginUrl: loginUrl})}->StateReducer.update
     }
   | ReloadAfterWordPressLogin => state->StateReducer.update(~sideEffects=[ReloadFrontman])
+  | WordPressWarningCleared(signal) =>
+    switch state.connection {
+    | Some({connection: Ok(Some({lifetimeAbortController}))})
+      if signal === lifetimeAbortController.signal && !signal.aborted =>
+      {...state, wordPressWarningReady: true}->StateReducer.update
+    | _ => state->StateReducer.update
+    }
   | InitializeConnection(config) =>
     next(
-      {...state, connection: Some(Connection.initialState(config))},
+      {...state, connection: Some(Connection.initialState(config)), wordPressWarningReady: false},
       ConnectionAction(Initialize),
     )
   | ConnectionEvent({signal, action}) =>
@@ -163,12 +171,33 @@ let rec next = (state: state, action) => {
     | Some(previous) =>
       let (connection, effects) = Connection.next(previous, action)
       let updated = {...state, connection: Some(connection)}
+      let warningEffects = switch (
+        state.wordPressWarningReady,
+        connection.config.acp.clientInfo._meta->Option.flatMap(
+          Connection.frameworkFromClientInfoMeta,
+        ),
+        connection.connection,
+      ) {
+      | (false, Some("wordpress"), Ok(Some({lifetimeAbortController}))) =>
+        switch previous.connection {
+        | Ok(Some({lifetimeAbortController: oldController}))
+          if oldController === lifetimeAbortController => []
+        | _ => [ObserveWordPressWarning]
+        }
+      | _ => []
+      }
       let (updated, configEffects) = switch action {
       | SessionResultReceived({result: Ok((_, Some(configOptions)))}) if connection !== previous =>
         next(updated, ConfigOptionsReceived({configOptions: configOptions}))
       | _ => (updated, [])
       }
-      (updated, Array.concat(configEffects, effects->Array.map(effect => ConnectionEffect(effect))))
+      (
+        updated,
+        Array.concat(
+          warningEffects,
+          Array.concat(configEffects, effects->Array.map(effect => ConnectionEffect(effect))),
+        ),
+      )
     }
     switch (
       action,
@@ -568,6 +597,12 @@ let rec next = (state: state, action) => {
     }
 
   | SetSettingsModalTab({tab}) => {...state, settingsModalTab: tab}->StateReducer.update
+  | OpenWordPressAssistantSetup =>
+    {
+      ...state,
+      wordPressAssistantSetupSelected: true,
+      settingsModalTab: Some(General),
+    }->StateReducer.update
   | RequestBilling(request) =>
     switch (Selectors.apiBaseUrl(state), request, state.billingFlow) {
     | (None, _, _) | (_, Checkout(_) | CustomerPortal, Opening | AwaitingCheckout) =>

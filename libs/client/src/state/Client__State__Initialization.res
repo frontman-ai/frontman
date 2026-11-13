@@ -3,16 +3,20 @@ type state = Client__State__Types.state
 
 let defaultState: state = {
   tasks: Dict.make(),
-  currentTask: Task.New(Task.makeNew(
-    ~previewUrl=Client__BrowserUrl.getInitialUrl(),
-    ~clientId=WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
-  )),
+  currentTask: Task.New(
+    Task.makeNew(
+      ~previewUrl=Client__BrowserUrl.getInitialUrl(),
+      ~clientId=WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
+    ),
+  ),
   connection: None,
   wordPressLoginRecovery: None,
   wordPressConnectionStatus: WordPressNotChecked,
   wordPressConnectionRequestId: 0,
   wordPressPendingMutation: None,
   wordPressCredentialWarning: false,
+  wordPressAssistantSetupSelected: false,
+  wordPressWarningReady: false,
   userProfile: None,
   settingsModalTab: None,
   billingStatus: Client__Billing.NotLoaded,

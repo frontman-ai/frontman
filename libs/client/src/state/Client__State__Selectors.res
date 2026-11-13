@@ -13,8 +13,7 @@ let getInitialUrl = Client__BrowserUrl.getInitialUrl
 let wordPressLoginRecovery = (state: state) => state.wordPressLoginRecovery
 let wordPressConnectionStatus = (state: state) => state.wordPressConnectionStatus
 let wordPressCredentialWarning = (state: state) => state.wordPressCredentialWarning
-let getSession = (state: state) =>
-  state.connection->Option.flatMap(Connection.Selectors.getSession)
+let getSession = (state: state) => state.connection->Option.flatMap(Connection.Selectors.getSession)
 let getRelay = (state: state) => state.connection->Option.flatMap(Connection.Selectors.getRelay)
 let getSessionError = (state: state) =>
   state.connection->Option.flatMap(Connection.Selectors.getSessionError)
@@ -203,9 +202,7 @@ let updateBannerDismissed = (state: state): bool => {
   state.updateBannerDismissed
 }
 
-let highlightedAnnotation = (state: state): option<
-  Client__State__Types.highlightedAnnotation,
-> => {
+let highlightedAnnotation = (state: state): option<Client__State__Types.highlightedAnnotation> => {
   switch state.highlightedAnnotation {
   | Some(highlighted) if highlighted.taskId == currentTaskClientId(state) => Some(highlighted)
   | Some(_) | None => None
@@ -230,9 +227,7 @@ let pendingQuestion = (state: state): option<Client__Question__Types.pendingQues
 
 let pendingPlanHandoff = (state: state): option<pendingPlanHandoff> => {
   let findAgent = name =>
-    state.agentCatalog->Option.flatMap(catalog =>
-      catalog->Array.find(agent => agent.name == name)
-    )
+    state.agentCatalog->Option.flatMap(catalog => catalog->Array.find(agent => agent.name == name))
   switch (
     getSession(state),
     findAgent(plannerAgentName),
@@ -262,3 +257,18 @@ let providerSetupRequired = (state: state): bool => {
   | _ => false
   }
 }
+
+let providerSetupPromptRequired = (state: state, framework: Client__RuntimeConfig.frameworkId) =>
+  switch framework {
+  | Wordpress =>
+    switch (state.wordPressAssistantSetupSelected, state.wordPressConnectionStatus) {
+    | (true, _)
+    | (
+      _,
+      WordPressNotChecked | WordPressChecking | WordPressLinked(_) | WordPressUpdatingAccess(_),
+    ) => false
+    | (false, WordPressUnlinked | WordPressLinking | WordPressConnectionFailed(_)) =>
+      providerSetupRequired(state)
+    }
+  | Nextjs | Vite | Astro => providerSetupRequired(state)
+  }

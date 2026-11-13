@@ -197,21 +197,42 @@ testAsync(
           socket->closeSocket
         }
       })
+      let statusResponse = page->waitForResponse("**/api/wordpress/connections/status*")
       await page->goto(origin ++ "/index.php/frontman")
+      let assistant = page->locator("button:text-is('Connect your agent')")
+      let _ = await statusResponse
+      t->expect(await assistant->count)->Expect.toBe(0)
       await page->locator("#frontman-warning-dismiss")->click
+      await assistant->waitFor
+      await page->locator("button:focus:text-is('Connect your agent')")->waitFor
+      await assistant->press("Tab")
+      await page->locator("button:focus:text-is('Edit in Frontman')")->waitFor
+      await page->locator("button:text-is('Edit in Frontman')")->press("Tab")
+      await page->locator("button:focus:text-is('Connect your agent')")->waitFor
+      await assistant->press("Shift+Tab")
+      await page->locator("button:focus:text-is('Edit in Frontman')")->waitFor
+      await assistant->click
+      await page->locator("button:has-text('Enable MCP and connect')")->waitFor
+      t->expect(await page->locator("input[type='password']")->count)->Expect.toBe(0)
+      let closeSettings = async () => {
+        await page->locator("[data-slot='dialog-close']")->click
+        await page->locator("[data-slot='dialog-content']")->waitFor(~options={state: "detached"})
+        t->expect(await assistant->count)->Expect.toBe(0)
+        t
+        ->expect(await page->locator("button:has-text('Configure provider')")->count)
+        ->Expect.toBe(1)
+        t->expect((await page->locator("[contenteditable='false']")->count) > 0)->Expect.toBe(true)
+      }
+      await closeSettings()
+      await page->locator("[aria-label='Settings']")->click
+      await page->locator("button:has-text('General')")->click
       let settings = async () => {
         await page
         ->locator("fieldset.contents:not([disabled])")
         ->waitFor(~options={state: "attached"})
-        let setup = page->locator("button:has-text('Connect AI provider')")
-        if await setup->isVisible {
-          await setup->click
-        } else {
-          await page->locator("[aria-label='Settings']")->click
-        }
+        await page->locator("[aria-label='Settings']")->click
         await page->locator("button:has-text('General')")->click
       }
-      await settings()
       let response = page->waitForResponse("**/frontman/mcp/connect")
       await page->locator("button:has-text('Enable MCP and connect')")->click
       let credential = try {
@@ -222,15 +243,23 @@ testAsync(
       t->expect(WebAPI.URL.make(~url=credential.catalog_url).origin)->Expect.toBe(origin)
       let linked = page->locator("button:text-is('Disable MCP')")
       await linked->waitFor
+      await closeSettings()
+      await page->locator("button:has-text('Configure provider')")->click
+      await page->locator("input[placeholder='Enter OpenRouter API key']")->waitFor
+      await closeSettings()
       await page->reload
       await settings()
       await linked->waitFor
       for index in 0 to 2 {
         let enabled = index != 1
         if index > 0 {
-          await page->locator(enabled ? "button:text-is('Enable MCP')" : "button:text-is('Disable MCP')")->click
+          await page
+          ->locator(enabled ? "button:text-is('Enable MCP')" : "button:text-is('Disable MCP')")
+          ->click
         }
-        await page->locator(enabled ? "button:text-is('Disable MCP')" : "button:text-is('Enable MCP')")->waitFor
+        await page
+        ->locator(enabled ? "button:text-is('Disable MCP')" : "button:text-is('Enable MCP')")
+        ->waitFor
         let response = await WebAPI.Fetch.fetch(
           credential.catalog_url,
           ~init={

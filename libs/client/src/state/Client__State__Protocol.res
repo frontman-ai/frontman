@@ -29,6 +29,8 @@ type rec action =
   | InitializeConnection(Connection.config)
   | WordPressAuthenticationRequired(option<string>)
   | ReloadAfterWordPressLogin
+  | WordPressWarningCleared(WebAPI.EventTypes.abortSignal)
+  | OpenWordPressAssistantSetup
   | ConnectWordPress
   | FetchWordPressConnection
   | SetWordPressAccess(bool)
@@ -47,7 +49,11 @@ type rec action =
       id: Message.UserMessageId.t,
       error: Connection.ACP.requestError,
     })
-  | AcpSessionUpdateReceived({taskId: string, update: ACP.sessionUpdate, errorDisplayId: option<string>})
+  | AcpSessionUpdateReceived({
+      taskId: string,
+      update: ACP.sessionUpdate,
+      errorDisplayId: option<string>,
+    })
   | TaskAction({target: taskTarget, action: TaskReducer.action})
   | PreviewAction({clientId: string, navigationKey: int, action: TaskReducer.action})
   | CancelTurn
@@ -135,6 +141,7 @@ type customProviderMutationRequest =
 
 type effect =
   | ReloadFrontman
+  | ObserveWordPressWarning
   | PersistSelectedModel(option<string>)
   | ConnectionEffect(Connection.effect)
   | CreateSession({taskId: string, input: promptInput})
