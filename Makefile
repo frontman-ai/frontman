@@ -110,7 +110,7 @@ HELP_dev-nextjs-prebuilt := Start Next.js test site with prebuilt integration
 HELP_dev-marketing := Start development server for marketing site
 
 HELP_BUILD_TITLE := Build & Quality
-HELP_BUILD_TARGETS := install prepare-deps hooks-install setup-elixir-tools verify-toolchain-pins build rescript-watch rescript-build rescript-format reanalyze check-source-comments clean
+HELP_BUILD_TARGETS := install prepare-deps hooks-install setup-elixir-tools verify-toolchain-pins build rescript-watch rescript-build rescript-format reanalyze check-source-comments check-claude-wordpress clean
 HELP_install := Install dependencies
 HELP_prepare-deps := Fetch locked JS and server dependencies without compiling applications
 HELP_hooks-install := Install git pre-commit hooks via Lefthook
@@ -122,6 +122,7 @@ HELP_rescript-build := Build ReScript project (one-shot)
 HELP_rescript-format := Format ReScript source
 HELP_reanalyze := Run ReScript dead code analysis
 HELP_check-source-comments := Test scanner and check repository source comments
+HELP_check-claude-wordpress := Validate the Claude WordPress candidate
 HELP_clean := Clean ReScript build artifacts
 
 HELP_SSL_TITLE := SSL & Networking
@@ -149,7 +150,7 @@ HELP_infra-down := Tear down all pods, volumes, and Caddy
 HELP_infra-build := Rebuild the frontman-dev container image
 
 HELP_REL_TITLE := Release
-HELP_REL_TARGETS := publish publish-astro publish-vite publish-nextjs publish-react-statestore publish-swarm-ai release package-wordpress-plugin package-openai-wordpress publish-wordpress-plugin-svn build-wordpress-dependencies wordpress-composer-lock test-wordpress-core-tools test-wordpress-sentry test-wordpress-runtime
+HELP_REL_TARGETS := publish publish-astro publish-vite publish-nextjs publish-react-statestore publish-swarm-ai release package-wordpress-plugin package-openai-wordpress package-claude-wordpress publish-wordpress-plugin-svn build-wordpress-dependencies wordpress-composer-lock test-wordpress-core-tools test-wordpress-sentry test-wordpress-runtime
 HELP_publish := Publish all npm packages (pass OTP=<code> for 2FA)
 HELP_publish-astro := Publish @frontman-ai/astro to npm (pass OTP=<code> for 2FA)
 HELP_publish-vite := Publish @frontman-ai/vite to npm (pass OTP=<code> for 2FA)
@@ -159,6 +160,7 @@ HELP_publish-swarm-ai := Publish swarm_ai to Hex (dry run by default, HEX_PUBLIS
 HELP_release := Create a release PR from pending changesets
 HELP_package-wordpress-plugin := Build WordPress ZIP and WordPress.org bundle
 HELP_package-openai-wordpress := Build the OpenAI WordPress candidate for VERSION (does not submit)
+HELP_package-claude-wordpress := Build the diagnostic Claude WordPress ZIP (does not submit)
 HELP_publish-wordpress-plugin-svn := Publish WordPress.org bundle to SVN (requires WORDPRESS_ORG_* env vars)
 HELP_test-wordpress-core-tools := Run PHP tests (select basenames with WORDPRESS_TESTS="ToolRegistryTest ElementorToolsTest")
 HELP_test-wordpress-runtime := Run plugin integration tests in WordPress containers
@@ -650,6 +652,13 @@ package-wordpress-plugin:
 
 package-openai-wordpress:
 	$(MAKE) -C plugins/openai-wordpress release-artifact VERSION="$(VERSION)"
+
+.PHONY: check-claude-wordpress package-claude-wordpress
+check-claude-wordpress:
+	$(MAKE) -C plugins/claude-wordpress check
+
+package-claude-wordpress:
+	$(MAKE) -C plugins/claude-wordpress package
 
 .PHONY: test-wordpress-plugin-export
 test-wordpress-plugin-export: package-wordpress-plugin
