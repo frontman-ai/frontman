@@ -14,7 +14,13 @@ defmodule FrontmanServer.Tools.PreviousConversationsTest do
   test "finds prior prepared text across task titles and pages its UTF-8 content" do
     scope = user_scope_fixture()
     prior = task_fixture(scope)
-    turn = start_turn_fixture(scope, prior.id, user_content("Rename artist"))
+
+    turn =
+      start_turn_fixture(scope, prior.id, [
+        %{"type" => "text", "text" => "Rename artist"},
+        %{"type" => "text", "text" => "Unique second-block phrase"}
+      ])
+
     text = String.duplicate("Préparation ", 900) <> "28 titres SEO"
     {:ok, _} = Tasks.agent_replied(scope, prior.id, turn, text)
     {:ok, _} = Tasks.record_execution_outcome(scope, prior.id, turn, :completed)
@@ -27,6 +33,11 @@ defmodule FrontmanServer.Tools.PreviousConversationsTest do
       call(context, %{"query" => "28 TITRES SEO"})["tasks"]
 
     assert task_id == prior.id
+
+    assert [%{"match" => %{"excerpt" => excerpt}}] =
+             call(context, %{"query" => "second-block"})["tasks"]
+
+    assert excerpt =~ "Unique second-block phrase"
     first = call(context, %{"task_id" => prior.id, "interaction_id" => id})
 
     second =
@@ -50,13 +61,8 @@ defmodule FrontmanServer.Tools.PreviousConversationsTest do
     assert call(context, %{"query" => "Private SEO"})["tasks"] == []
     assert MCP.error?(PreviousConversations.execute(%{"before_task_id" => other.id}, context))
     assert MCP.error?(PreviousConversations.execute(%{"task_id" => other.id}, context))
-
-    assert MCP.error?(
-             PreviousConversations.execute(
-               %{"task_id" => String.upcase(context.task.id)},
-               context
-             )
-           )
+    own_id = String.upcase(context.task.id)
+    assert MCP.error?(PreviousConversations.execute(%{"task_id" => own_id}, context))
   end
 
   test "pages completed turns and projects answers and validated todos, not other results" do

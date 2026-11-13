@@ -185,19 +185,15 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp get_prior_task(scope, current_id, prior_id) do
-    case Ecto.UUID.cast(current_id) == Ecto.UUID.cast(prior_id) do
-      true -> {:error, :not_found}
-      false -> get_task(scope, prior_id)
-    end
+    if Ecto.UUID.cast(current_id) == Ecto.UUID.cast(prior_id),
+      do: {:error, :not_found},
+      else: get_task(scope, prior_id)
   end
 
   defp valid_prior_cursor(_scope, nil), do: :ok
 
   defp valid_prior_cursor(scope, id) do
-    case get_task(scope, id) do
-      {:ok, _task} -> :ok
-      {:error, :not_found} -> {:error, :not_found}
-    end
+    with {:ok, _task} <- get_task(scope, id), do: :ok
   end
 
   defp prior_matches([], _query), do: %{}
@@ -208,7 +204,15 @@ defmodule FrontmanServer.Tasks do
     |> Enum.map(& &1.id)
     |> InteractionSchema.matching_history(query)
     |> Repo.all()
-    |> Map.new(&{&1.task_id, %{interaction_id: &1.interaction_id, excerpt: &1.excerpt}})
+    |> Map.new(fn match ->
+      text = match.text
+      folded = String.downcase(text)
+      {byte_offset, _length} = :binary.match(folded, String.downcase(query))
+      start = folded |> binary_part(0, byte_offset) |> String.length() |> Kernel.-(60) |> max(0)
+
+      {match.task_id,
+       %{interaction_id: match.interaction_id, excerpt: String.slice(text, start, 220)}}
+    end)
   end
 
   @doc "Gets a task by ID with its interaction history loaded."

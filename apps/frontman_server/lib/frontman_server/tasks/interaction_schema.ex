@@ -114,8 +114,9 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       where: i.task_id in ^task_ids and i.type in [:user_message, :agent_response],
       where:
         fragment(
-          "strpos(lower(coalesce(?->>'content', ?->'messages'->>0, '')), lower(?)) > 0",
+          "strpos(lower(?->>'content'), lower(?)) > 0 OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(coalesce(?->'messages', '[]'::jsonb)) AS part(value) WHERE strpos(lower(part.value), lower(?)) > 0)",
           i.data,
+          ^term,
           i.data,
           ^term
         ),
@@ -124,11 +125,9 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       select: %{
         task_id: i.task_id,
         interaction_id: i.id,
-        excerpt:
+        text:
           fragment(
-            "substring(coalesce(?->>'content', ?->'messages'->>0, '') from greatest(1, strpos(lower(coalesce(?->>'content', ?->'messages'->>0, '')), lower(?)) - 60) for 220)",
-            i.data,
-            i.data,
+            "coalesce(?->>'content', (SELECT part.value FROM jsonb_array_elements_text(coalesce(?->'messages', '[]'::jsonb)) AS part(value) WHERE strpos(lower(part.value), lower(?)) > 0 LIMIT 1))",
             i.data,
             i.data,
             ^term
