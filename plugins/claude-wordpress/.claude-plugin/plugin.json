@@ -2,7 +2,7 @@
   "name": "frontman-wordpress",
   "displayName": "Frontman for WordPress",
   "version": "1.0.0",
-  "description": "Edit and manage connected WordPress sites from Claude. Available tools depend on your site's integrations and permissions.",
+  "description": "Manage WordPress with Claude: find and edit posts, pages, layouts, and WooCommerce content on your connected site.",
   "author": {
     "name": "Boilerplate Ventures UG",
     "email": "support@frontman.sh",

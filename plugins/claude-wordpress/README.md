@@ -1,5 +1,15 @@
 # Frontman for WordPress
 
+Use Claude to work on your existing WordPress site with Frontman. Find and edit
+posts and pages, review layouts, and manage WooCommerce content in conversation.
+
+- Draft and update WordPress content without switching between editor screens.
+- Inspect Gutenberg blocks, Elementor layouts, menus, and theme settings when available.
+- Review WooCommerce products and store data when WooCommerce is installed.
+
+Connect your WordPress site to a Frontman account, then authorize Frontman in
+Claude. Available tools depend on your site, integrations, and permissions.
+
 This is a candidate plugin, not a submitted or approved listing. Its proposed
 endpoint and live tool catalog remain subject to policy review and actual OAuth
 acceptance. The catalog is not silently filtered: it can include WooCommerce
