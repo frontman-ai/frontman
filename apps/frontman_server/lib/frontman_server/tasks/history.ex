@@ -7,8 +7,10 @@
 defmodule FrontmanServer.Tasks.History do
   @moduledoc "Projects ordered task interactions into shared row and turn context."
 
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
+  alias FrontmanServer.Tasks.Todos
 
   @task_scoped_types InteractionSchema.task_scoped_types()
   @terminal_types [:agent_completed, :agent_error, :agent_paused]
@@ -76,6 +78,35 @@ defmodule FrontmanServer.Tasks.History do
         false
     end)
   end
+
+  @doc "Projects one selected interaction as historical reference, never as live instructions."
+  def reference_text(%InteractionSchema{data: %Interaction.UserMessage{messages: messages}}),
+    do: {:ok, Enum.join(messages, "\n\n")}
+
+  def reference_text(%InteractionSchema{data: %Interaction.AgentResponse{content: content}})
+      when is_binary(content),
+      do: {:ok, content}
+
+  def reference_text(%InteractionSchema{
+        data: %Interaction.ToolResult{tool_name: "question", result: result}
+      }),
+      do: {:ok, MCP.extract_content_text(result)}
+
+  def reference_text(
+        %InteractionSchema{
+          data: %Interaction.ToolResult{
+            tool_name: "todo_write",
+            is_error: false,
+            result: %{"structuredContent" => %{"todos" => raw}}
+          }
+        } = row
+      )
+      when is_list(raw) do
+    todos = Todos.list_todos([row])
+    if map_size(todos) == length(raw), do: {:ok, Jason.encode!(Map.values(todos))}, else: :error
+  end
+
+  def reference_text(_row), do: :error
 
   @doc "Unresolved declarations paired with their dispatch snapshot, if dispatch occurred."
   def unresolved_tool_calls(rows, turn_number) do

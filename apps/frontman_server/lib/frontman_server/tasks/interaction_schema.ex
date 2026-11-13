@@ -93,56 +93,20 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     from(i in query, order_by: [asc: i.sequence, asc: i.inserted_at, asc: i.id])
   end
 
-  def history_page(task_id, after_id, limit) do
-    query =
-      from(i in __MODULE__,
-        where: i.task_id == ^task_id,
-        where: i.type in [:user_message, :agent_response, :tool_call, :tool_result],
-        order_by: [asc: i.sequence, asc: i.inserted_at, asc: i.id],
-        limit: ^limit,
-        select: %{
-          id: i.id,
-          sequence: i.sequence,
-          inserted_at: i.inserted_at,
-          type: i.type,
-          tool_name: fragment("?->>'tool_name'", i.data),
-          is_error: fragment("?->>'is_error'", i.data),
-          preview:
-            fragment(
-              "left(case when ? = 'tool_result' and ?->>'tool_name' <> 'question' then '' else coalesce(?->>'content', ?->'messages'->>0, ?->'result'->'content'->0->>'text', '') end, 180)",
-              i.type,
-              i.data,
-              i.data,
-              i.data,
-              i.data
-            ),
-          bytes:
-            fragment(
-              "octet_length(case when ? = 'tool_result' and ?->>'tool_name' <> 'question' then '' else coalesce(?->>'content', ?->'messages'->>0, ?->'result'->'content'->0->>'text', '') end)",
-              i.type,
-              i.data,
-              i.data,
-              i.data,
-              i.data
-            )
-        }
-      )
-
-    case after_id do
-      nil ->
-        query
-
-      id ->
-        from(i in query,
-          join: cursor in __MODULE__,
-          on: cursor.id == ^id and cursor.task_id == ^task_id,
-          where:
-            i.sequence > cursor.sequence or
-              (i.sequence == cursor.sequence and i.inserted_at > cursor.inserted_at) or
-              (i.sequence == cursor.sequence and i.inserted_at == cursor.inserted_at and
-                 i.id > cursor.id)
-        )
-    end
+  def history_page(task_id, page, page_size) do
+    from(i in for_task(task_id),
+      where: i.type in [:user_message, :agent_response, :tool_call, :tool_result],
+      order_by: [asc: i.sequence, asc: i.inserted_at, asc: i.id],
+      offset: ^(page * page_size),
+      limit: ^(page_size + 1),
+      select: %{
+        id: i.id,
+        type: i.type,
+        inserted_at: i.inserted_at,
+        tool_name: fragment("?->>'tool_name'", i.data),
+        is_error: fragment("?->>'is_error'", i.data)
+      }
+    )
   end
 
   def matching_history(task_ids, term) do

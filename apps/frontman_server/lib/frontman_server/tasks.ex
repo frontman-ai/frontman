@@ -150,35 +150,32 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc "Lists compact interaction metadata for an owned prior task."
-  def prior_history_page(%Scope{} = scope, current_id, prior_id, after_id) do
+  def prior_history_page(%Scope{} = scope, current_id, prior_id, page_number) do
     with {:ok, _current} <- get_task(scope, current_id),
          {:ok, _prior} <- get_prior_task(scope, current_id, prior_id) do
       rows =
         prior_id
-        |> InteractionSchema.history_page(after_id, @history_page_size + 1)
+        |> InteractionSchema.history_page(page_number, @history_page_size)
         |> Repo.all()
 
       page = Enum.take(rows, @history_page_size)
-
-      next_cursor =
-        if length(rows) > @history_page_size, do: List.last(page).id, else: nil
-
-      {:ok, %{interactions: page, next_cursor: next_cursor}}
+      next_page = if length(rows) > @history_page_size, do: page_number + 1, else: nil
+      {:ok, %{interactions: page, next_page: next_page}}
     end
   end
 
-  @doc "Retrieves one interaction of an owned prior task for bounded text paging."
-  def prior_history_item(%Scope{} = scope, current_id, prior_id, interaction_id) do
+  @doc "Projects one owned prior interaction into historical reference text."
+  def prior_history_text(%Scope{} = scope, current_id, prior_id, interaction_id) do
     with {:ok, _current} <- get_task(scope, current_id),
-         {:ok, _prior} <- get_prior_task(scope, current_id, prior_id) do
-      case prior_id |> InteractionSchema.history_item(interaction_id) |> Repo.one() do
-        %InteractionSchema{type: type} = row
-        when type in [:user_message, :agent_response, :tool_result] ->
-          {:ok, row}
-
-        _ ->
-          {:error, :not_found}
-      end
+         {:ok, _prior} <- get_prior_task(scope, current_id, prior_id),
+         %InteractionSchema{} = row <-
+           prior_id |> InteractionSchema.history_item(interaction_id) |> Repo.one(),
+         {:ok, text} <- History.reference_text(row) do
+      {:ok, %{id: row.id, type: row.type, text: text}}
+    else
+      nil -> {:error, :not_found}
+      :error -> {:error, :not_readable}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -198,21 +195,15 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  defp prior_matches([], _query), do: %{}
   defp prior_matches(_tasks, ""), do: %{}
 
   defp prior_matches(tasks, query) do
-    ids = Enum.map(tasks, & &1.id)
-
-    case ids do
-      [] ->
-        %{}
-
-      ids ->
-        ids
-        |> InteractionSchema.matching_history(query)
-        |> Repo.all()
-        |> Map.new(&{&1.task_id, %{interaction_id: &1.interaction_id, excerpt: &1.excerpt}})
-    end
+    tasks
+    |> Enum.map(& &1.id)
+    |> InteractionSchema.matching_history(query)
+    |> Repo.all()
+    |> Map.new(&{&1.task_id, %{interaction_id: &1.interaction_id, excerpt: &1.excerpt}})
   end
 
   @doc "Gets a task by ID with its interaction history loaded."
