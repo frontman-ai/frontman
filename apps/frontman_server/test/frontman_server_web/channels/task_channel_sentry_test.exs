@@ -7,29 +7,30 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
   - Gap 4: MCP tool errors are reported to Sentry
   """
 
-  use FrontmanServerWeb.ChannelCase, async: false
+  use FrontmanServerWeb.ChannelCase, async: true
+  @moduletag private_runtime: true
 
   import FrontmanServer.InteractionCase.Helpers,
     only: [interaction_event: 2, tool_call: 2, tool_call: 3, tool_result: 3, tool_result: 4]
 
   import FrontmanServer.Test.Fixtures.Tasks
-  import FrontmanServer.ExecutionCase, only: [refute_running_eventually: 1]
+  import FrontmanServer.ExecutionCase, only: [refute_running_eventually: 2]
 
   alias FrontmanServer.Protocols.{JsonRpc, MCP}
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks.InteractionSchema
 
-  defp await_completion(task_id) do
+  defp await_completion(task_id, runtime) do
     assert_receive {:interaction, %{task_id: ^task_id, type: :agent_completed}}, 5_000
-    refute_running_eventually(task_id)
+    refute_running_eventually(task_id, runtime)
   end
 
-  setup %{scope: scope} do
+  setup %{scope: scope, runtime: runtime} do
     Sentry.Test.setup_sentry(dedup_events: false)
     Sentry.Context.clear_all()
     Logger.reset_metadata([])
 
-    {socket, task_id} = join_task_channel(scope, framework: "nextjs")
+    {socket, task_id} = join_task_channel(scope, framework: "nextjs", runtime: runtime)
     complete_mcp_handshake(socket)
 
     turn_number = start_turn_fixture(scope, task_id)
@@ -98,7 +99,8 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
       socket: socket,
       task_id: task_id,
       scope: scope,
-      turn_number: turn_number
+      turn_number: turn_number,
+      runtime: runtime
     } do
       tool_call =
         tool_call("call_mcp_err_#{:rand.uniform(1_000_000)}", "testMcpTool", %{"key" => "value"})
@@ -133,7 +135,7 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
         }
       })
 
-      await_completion(task_id)
+      await_completion(task_id, runtime)
       reports = Sentry.Test.pop_sentry_reports()
 
       mcp_error_reports =
@@ -157,7 +159,8 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
       socket: socket,
       task_id: task_id,
       scope: scope,
-      turn_number: turn_number
+      turn_number: turn_number,
+      runtime: runtime
     } do
       tool_call =
         tool_call("call_mcp_no_msg_#{:rand.uniform(1_000_000)}", "anotherMcpTool")
@@ -177,7 +180,7 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
 
       :sys.get_state(socket.channel_pid)
 
-      await_completion(task_id)
+      await_completion(task_id, runtime)
       reports = Sentry.Test.pop_sentry_reports()
 
       mcp_error_reports =

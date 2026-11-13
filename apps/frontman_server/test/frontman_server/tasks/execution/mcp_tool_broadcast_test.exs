@@ -6,7 +6,7 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
   from SwarmCase, catching issues like duplicate tool call broadcasts.
   """
 
-  use FrontmanServer.ExecutionCase
+  use FrontmanServer.ExecutionCase, async: true
 
   import FrontmanServer.InteractionCase.Helpers,
     only: [assert_receive_interaction: 2, swarm_tool_call: 2]
@@ -15,17 +15,18 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
   import FrontmanServer.Test.Fixtures.Tasks
   import FrontmanServer.Test.Fixtures.Tools, only: [mcp_tool: 2]
 
-  import FrontmanServer.DataCase, only: [setup_sandbox: 1]
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools.MCP
 
   @moduletag billing: :active
-  setup [:setup_sandbox, :setup_user, :setup_task]
+  @moduletag private_runtime: true
+  setup [:setup_execution_runtime, :setup_user, :setup_task]
 
   describe "MCP tool call broadcast" do
     test "registers before broadcasting one tool call and preserves its response metadata", %{
       task_id: task_id,
-      scope: scope
+      scope: scope,
+      runtime: runtime
     } do
       mcp_tool_call = swarm_tool_call("some_mcp_tool", ~s({"arg": "value"}))
 
@@ -44,8 +45,11 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
         submit_user_message_and_run(
           scope,
           task_id,
-          execution_request,
-          user_content("Please call the MCP tool")
+          %{
+            execution: execution_request,
+            message: user_content("Please call the MCP tool"),
+            runtime: runtime
+          }
         )
 
       expected_id = mcp_tool_call.id
@@ -71,9 +75,10 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       assert Jason.decode!(persisted_call["arguments"]) == %{"arg" => "value"}
       refute Map.has_key?(persisted_call, "function")
 
-      assert :ok = Tasks.cancel_execution(scope, task_id)
+      assert :ok = Tasks.cancel_execution(scope, task_id, runtime)
 
       assert_receive_interaction(%Tasks.Interaction.AgentError{kind: "cancelled"}, _turn_number)
+      refute_running_eventually(task_id, runtime)
     end
   end
 end

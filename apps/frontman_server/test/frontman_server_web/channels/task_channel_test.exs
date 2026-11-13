@@ -1,6 +1,8 @@
 defmodule FrontmanServerWeb.TaskChannelTest do
-  use FrontmanServerWeb.ChannelCase, async: false
+  use FrontmanServerWeb.ChannelCase, async: true
   use Oban.Testing, repo: FrontmanServer.Repo
+
+  @moduletag private_runtime: true
 
   import FrontmanServer.InteractionCase.Helpers,
     only: [
@@ -14,7 +16,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   import FrontmanServer.Test.Fixtures.Tasks
   import FrontmanServer.Test.Fixtures.Tools, only: [mcp_tool: 2, question_args: 2]
-  import FrontmanServer.ExecutionCase, only: [refute_running_eventually: 1]
+  import FrontmanServer.ExecutionCase, only: [refute_running_eventually: 2]
   import ExUnit.CaptureLog
 
   alias FrontmanServer.InteractionCase.Helpers
@@ -183,7 +185,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       1_000
     )
 
-    refute_running_eventually(task_id)
+    refute_running_eventually(task_id, __MODULE__)
   end
 
   defp assert_state_update_running(task_id) do
@@ -348,10 +350,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       {:ok, %{task_id: ^task_id}, _socket} =
         UserSocket
-        |> socket("user_id", %{scope: scope})
+        |> socket("user_id", %{scope: scope, agent_runtime: __MODULE__})
         |> subscribe_and_join("task:#{task_id}", %{})
 
-      other = socket(UserSocket, "other_user_id", %{scope: scope})
+      other = socket(UserSocket, "other_user_id", %{scope: scope, agent_runtime: __MODULE__})
 
       assert {:error, %{reason: "task_already_joined"}} =
                subscribe_and_join(other, "task:#{task_id}", %{})
@@ -362,7 +364,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       {:error, reply} =
         UserSocket
-        |> socket("user_id", %{scope: scope})
+        |> socket("user_id", %{scope: scope, agent_runtime: __MODULE__})
         |> subscribe_and_join("task:#{nonexistent_task_id}", %{})
 
       assert reply == %{reason: "task_not_found"}
@@ -372,7 +374,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   describe "session/prompt" do
     setup %{scope: scope} do
       FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
-      {socket, task_id} = join_task_channel(scope)
+      {socket, task_id} = join_task_channel(scope, runtime: __MODULE__)
       {:ok, socket: socket, task_id: task_id}
     end
 
@@ -782,7 +784,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   end
 
   test "keeps response identity across assistant chunks", %{scope: scope} do
-    {socket, _task_id} = join_task_channel(scope)
+    {socket, _task_id} = join_task_channel(scope, runtime: __MODULE__)
     turn_started_id = Ecto.UUID.generate()
     metadata = response_metadata(turn_started_id)
     message_id = "#{turn_started_id}:0"
@@ -817,7 +819,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       {:ok, _reply, socket} =
         UserSocket
-        |> socket("user_id", %{scope: scope})
+        |> socket("user_id", %{scope: scope, agent_runtime: __MODULE__})
         |> subscribe_and_join("task:#{task_id}", %{})
 
       complete_mcp_handshake(socket)
@@ -840,7 +842,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "PubSub subscription" do
     setup %{scope: scope} do
-      {socket, task_id} = join_task_channel(scope)
+      {socket, task_id} = join_task_channel(scope, runtime: __MODULE__)
       complete_mcp_handshake(socket)
       {:ok, socket: socket, task_id: task_id}
     end
@@ -962,7 +964,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "failed event handling" do
     setup %{scope: scope} do
-      {socket, task_id} = join_task_channel(scope)
+      {socket, task_id} = join_task_channel(scope, runtime: __MODULE__)
       complete_mcp_handshake(socket)
       {:ok, socket: socket, task_id: task_id}
     end
@@ -1016,7 +1018,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "MCP tool call result extraction" do
     setup %{scope: scope} do
-      {socket, task_id} = join_task_channel(scope)
+      {socket, task_id} = join_task_channel(scope, runtime: __MODULE__)
       complete_mcp_handshake(socket)
       {:ok, socket: socket, task_id: task_id, scope: scope}
     end
@@ -1200,7 +1202,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     test "pushes tool completion and current plan for a successful todo write", %{
       scope: scope
     } do
-      {socket, task_id} = join_task_channel(scope)
+      {socket, task_id} = join_task_channel(scope, runtime: __MODULE__)
       turn_number = start_turn_fixture(scope, task_id)
 
       tool_call = tool_call("todo-call", "todo_write", %{"todos" => []})
@@ -1258,7 +1260,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "MCP initialization" do
     test "sends MCP discovery request on join", %{scope: scope} do
-      {_socket, _task_id} = join_task_channel(scope)
+      {_socket, _task_id} = join_task_channel(scope, runtime: __MODULE__)
 
       expected_version = MCP.protocol_version()
 
@@ -1276,14 +1278,14 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
 
     test "fails initialization when discovery times out", %{scope: scope} do
-      {socket, _task_id} = join_task_channel(scope)
+      {socket, _task_id} = join_task_channel(scope, runtime: __MODULE__)
       {_request_id, timer} = next_mcp_initialization_request(socket, "server/discover")
 
       assert_mcp_initialization_timeout(socket, timer)
     end
 
     test "fails initialization when the first tools/list request times out", %{scope: scope} do
-      {socket, _task_id} = join_task_channel(scope)
+      {socket, _task_id} = join_task_channel(scope, runtime: __MODULE__)
       discovery_timer = complete_mcp_discovery(socket)
       {_tools_request_id, tools_timer} = next_mcp_initialization_request(socket, "tools/list")
 
@@ -1294,7 +1296,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     test "replaces the timer for tools/list pagination and ignores stale timeout tokens", %{
       scope: scope
     } do
-      {socket, _task_id} = join_task_channel(scope)
+      {socket, _task_id} = join_task_channel(scope, runtime: __MODULE__)
       discovery_timer = complete_mcp_discovery(socket)
       {tools_request_id, tools_timer} = next_mcp_initialization_request(socket, "tools/list")
 
@@ -1329,7 +1331,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
 
     test "fails initialization when project rules time out", %{scope: scope} do
-      {socket, _task_id} = join_task_channel(scope)
+      {socket, _task_id} = join_task_channel(scope, runtime: __MODULE__)
       complete_mcp_discovery(socket)
       complete_mcp_tools_list(socket)
       {_rules_request_id, rules_timer} = next_mcp_initialization_request(socket, "tools/call")
@@ -1338,7 +1340,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
 
     test "fails initialization when project structure times out", %{scope: scope} do
-      {socket, _task_id} = join_task_channel(scope)
+      {socket, _task_id} = join_task_channel(scope, runtime: __MODULE__)
       complete_mcp_discovery(socket)
       complete_mcp_tools_list(socket)
       rules_timer = complete_mcp_project_rules(socket)
@@ -1353,7 +1355,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     test "preserves project context error transitions and clears the terminal timer", %{
       scope: scope
     } do
-      {socket, _task_id} = join_task_channel(scope)
+      {socket, _task_id} = join_task_channel(scope, runtime: __MODULE__)
       complete_mcp_discovery(socket)
       complete_mcp_tools_list(socket)
       {rules_request_id, rules_timer} = next_mcp_initialization_request(socket, "tools/call")
@@ -1381,7 +1383,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
 
     test "clears the timer after an explicit initialization failure", %{scope: scope} do
-      {socket, _task_id} = join_task_channel(scope)
+      {socket, _task_id} = join_task_channel(scope, runtime: __MODULE__)
 
       discovery_timer =
         complete_mcp_discovery(
@@ -1394,7 +1396,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
 
     test "does not revive initialization after a timeout", %{scope: scope} do
-      {socket, _task_id} = join_task_channel(scope)
+      {socket, _task_id} = join_task_channel(scope, runtime: __MODULE__)
 
       {discovery_request_id, discovery_timer} =
         next_mcp_initialization_request(socket, "server/discover")
@@ -1424,7 +1426,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
 
     test "wordpress completes after tools/list without filesystem tool calls", %{scope: scope} do
-      {socket, _task_id} = join_task_channel(scope, framework: "wordpress")
+      {socket, _task_id} = join_task_channel(scope, framework: "wordpress", runtime: __MODULE__)
 
       complete_mcp_handshake(socket, load_project_context: false)
 
@@ -1439,7 +1441,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "MCP response validation" do
     setup %{scope: scope} do
-      {socket, task_id} = join_task_channel(scope)
+      {socket, task_id} = join_task_channel(scope, runtime: __MODULE__)
 
       complete_mcp_handshake(socket,
         tools: [
@@ -1599,7 +1601,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       {:ok, _reply, socket} =
         UserSocket
-        |> socket("user_id", %{scope: scope})
+        |> socket("user_id", %{scope: scope, agent_runtime: __MODULE__})
         |> subscribe_and_join("task:#{task.id}", %{})
 
       push(
@@ -1631,7 +1633,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       {:ok, _reply, socket} =
         UserSocket
-        |> socket("user_id", %{scope: scope})
+        |> socket("user_id", %{scope: scope, agent_runtime: __MODULE__})
         |> subscribe_and_join("task:#{task.id}", %{})
 
       collect_all_pushes()
@@ -1726,7 +1728,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       {:ok, _reply, socket} =
         UserSocket
-        |> socket("user_id", %{scope: scope})
+        |> socket("user_id", %{scope: scope, agent_runtime: __MODULE__})
         |> subscribe_and_join("task:#{task.id}", %{})
 
       collect_all_pushes()
@@ -1791,7 +1793,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       {:ok, _reply, socket} =
         UserSocket
-        |> socket("user_id", %{scope: scope})
+        |> socket("user_id", %{scope: scope, agent_runtime: __MODULE__})
         |> subscribe_and_join("task:#{task.id}", %{})
 
       complete_mcp_handshake(socket)
@@ -1820,7 +1822,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "session/command" do
     setup %{scope: scope} do
-      {socket, task_id} = join_task_channel(scope)
+      {socket, task_id} = join_task_channel(scope, runtime: __MODULE__)
       complete_mcp_handshake(socket)
       {:ok, socket: socket, task_id: task_id}
     end
@@ -1845,7 +1847,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "tool_call chunk streaming" do
     setup %{scope: scope} do
-      {socket, task_id} = join_task_channel(scope)
+      {socket, task_id} = join_task_channel(scope, runtime: __MODULE__)
       complete_mcp_handshake(socket)
       {:ok, socket: socket, task_id: task_id}
     end
@@ -1926,7 +1928,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   end
 
   test "characterizes ambiguous write replay after losing its response", %{scope: scope} do
-    {socket, task_id} = join_task_channel(scope, framework: "wordpress")
+    {socket, task_id} = join_task_channel(scope, framework: "wordpress", runtime: __MODULE__)
     complete_mcp_handshake(socket, load_project_context: false)
     turn_number = start_turn_fixture(scope, task_id)
     call = tool_call("lost-write-response", "write_file", %{"content" => "test only"})
@@ -1952,7 +1954,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     {:ok, _reply, reconnected} =
       UserSocket
-      |> socket("user_id", %{scope: scope})
+      |> socket("user_id", %{scope: scope, agent_runtime: __MODULE__})
       |> subscribe_and_join("task:#{task_id}", %{})
 
     complete_mcp_handshake(reconnected, load_project_context: false)
@@ -2024,7 +2026,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       {:ok, _reply, socket} =
         UserSocket
-        |> socket("user_id", %{scope: scope})
+        |> socket("user_id", %{scope: scope, agent_runtime: __MODULE__})
         |> subscribe_and_join("task:#{task_id}", %{})
 
       complete_mcp_handshake(socket)
@@ -2104,7 +2106,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       {:ok, _reply, socket} =
         UserSocket
-        |> socket("user_id", %{scope: scope})
+        |> socket("user_id", %{scope: scope, agent_runtime: __MODULE__})
         |> subscribe_and_join("task:#{task_id}", %{})
 
       complete_mcp_handshake(socket)
@@ -2142,7 +2144,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert {:ok, ^turn_number, [_remaining_call]} =
                Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
 
-      refute SwarmAi.running?(FrontmanServer.AgentRuntime, task_id)
+      refute SwarmAi.running?(__MODULE__, task_id)
 
       push(socket, "mcp:message", question_answer_response(final_request_id, "B"))
       :sys.get_state(socket.channel_pid)
@@ -2165,7 +2167,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       {:ok, _reply, socket} =
         UserSocket
-        |> socket("user_id", %{scope: scope})
+        |> socket("user_id", %{scope: scope, agent_runtime: __MODULE__})
         |> subscribe_and_join("task:#{task_id}", %{})
 
       complete_mcp_handshake(socket)
@@ -2248,7 +2250,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       {:ok, _reply, socket} =
         UserSocket
-        |> socket("user_id", %{scope: scope})
+        |> socket("user_id", %{scope: scope, agent_runtime: __MODULE__})
         |> subscribe_and_join("task:#{task_id}", %{})
 
       complete_mcp_handshake(socket)
@@ -2269,7 +2271,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     } do
       {:ok, _reply, socket} =
         UserSocket
-        |> socket("user_id", %{scope: scope})
+        |> socket("user_id", %{scope: scope, agent_runtime: __MODULE__})
         |> subscribe_and_join("task:#{task_id}", %{})
 
       :sys.get_state(socket.channel_pid)
@@ -2351,7 +2353,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     } do
       {:ok, _reply, socket} =
         UserSocket
-        |> socket("user_id", %{scope: scope})
+        |> socket("user_id", %{scope: scope, agent_runtime: __MODULE__})
         |> subscribe_and_join("task:#{task_id}", %{})
 
       complete_mcp_handshake(socket)
@@ -2398,7 +2400,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       {:ok, _reply, socket} =
         UserSocket
-        |> socket("user_id", %{scope: scope})
+        |> socket("user_id", %{scope: scope, agent_runtime: __MODULE__})
         |> subscribe_and_join("task:#{task_id}", %{})
 
       complete_mcp_handshake(socket)
@@ -2424,7 +2426,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   describe "retry command flow" do
     setup %{scope: scope} do
       FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
-      {socket, task_id} = join_task_channel(scope)
+      {socket, task_id} = join_task_channel(scope, runtime: __MODULE__)
       complete_mcp_handshake(socket)
       {:ok, socket: socket, task_id: task_id}
     end
@@ -2509,7 +2511,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   describe "retry flow" do
     setup %{scope: scope} do
       FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
-      {socket, task_id} = join_task_channel(scope)
+      {socket, task_id} = join_task_channel(scope, runtime: __MODULE__)
       complete_mcp_handshake(socket)
       {:ok, socket: socket, task_id: task_id}
     end

@@ -19,3 +19,6 @@ Mox.defmock(
 )
 
 Ecto.Adapters.SQL.Sandbox.mode(FrontmanServer.Repo, :manual)
+
+# Load the shared model catalog before async tests contend for its initial load.
+:ok = LLMDB.Catalog.ensure_loaded!()

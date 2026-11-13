@@ -77,6 +77,19 @@ Cancellation without a live worker and concurrent continuation admission remain 
 Reconnect still redispatches unresolved synchronous calls. Abrupt process loss can therefore repeat external writes.
 The client still supports one pending question form.
 
+## Private execution tests
+
+The ordinary execution integration and task channel suites use a private Swarm runtime per test.
+Other converted execution and channel tests also use private runtimes.
+The SQL owner remains alive until the test supervisor stops the runtime.
+Channel tests start channels after the runtime, so the supervisor stops channels first.
+The runtime initializer grants SQL access and sets the caller chain for existing test expectations.
+The production runtime remains the default. Only trusted server code can select another runtime.
+
+`GlobalStateTest` stays serial because its tests change application configuration or restart the application.
+`PromptCacheTest` stays serial and uses the shared runtime.
+An abrupt process exit during an active SQL query can invalidate that connection.
+
 ## Restart test isolation
 
 `make test` and `make test-coverage` exclude the `application_restart` tag.

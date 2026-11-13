@@ -1,5 +1,5 @@
 defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
-  use FrontmanServer.ExecutionCase
+  use FrontmanServer.ExecutionCase, async: true
 
   import Mox
 
@@ -11,7 +11,6 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
   import FrontmanServer.Test.Fixtures.Tools, only: [mcp_tool: 1]
   import FrontmanServer.ProvidersFixtures, only: [png_fixture: 2]
 
-  import FrontmanServer.DataCase, only: [setup_sandbox: 1]
   alias FrontmanServer.Image
   alias FrontmanServer.Protocols
   alias FrontmanServer.Providers
@@ -22,7 +21,8 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
   alias FrontmanServer.Tools.MCP
 
   @moduletag billing: :active
-  setup [:verify_on_exit!, :setup_sandbox, :setup_user, :setup_task]
+  @moduletag private_runtime: true
+  setup [:verify_on_exit!, :setup_execution_runtime, :setup_user, :setup_task]
 
   setup %{scope: scope} do
     :ok = Providers.upsert_api_key(scope, "anthropic", "sk-ant-test")
@@ -75,7 +75,10 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     end)
 
     {:ok, _interaction, 1} =
-      submit_anthropic_message(scope, task_id, "look at the page", mcp_tools: tool_defs)
+      submit_anthropic_message(scope, task_id, %{
+        content: "look at the page",
+        overrides: [mcp_tools: tool_defs]
+      })
 
     assert_receive_interaction(%Interaction.ToolCall{tool_call_id: ^screenshot_tool_call_id}, 1)
 
@@ -88,6 +91,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
       )
 
     assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+    refute_running_eventually(task_id, __MODULE__)
     assert_receive {:provider_messages, :turn1_after_screenshot, turn1_after_messages}, 1_000
 
     turn1_tool_message = tool_message!(turn1_after_messages, screenshot_tool_call_id)
@@ -116,9 +120,11 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
       ReqLLMResponses.response("Recovered screenshot is visible.")
     end)
 
-    {:ok, _interaction, 2} = submit_anthropic_message(scope, task_id, "show old screenshot")
+    {:ok, _interaction, 2} =
+      submit_anthropic_message(scope, task_id, %{content: "show old screenshot", overrides: []})
 
     assert_receive_interaction(%Interaction.AgentCompleted{}, 2)
+    refute_running_eventually(task_id, __MODULE__)
     assert_receive {:provider_messages, :turn2_before_get_tool_result, before_messages}, 1_000
     assert_receive {:provider_messages, :turn2_after_get_tool_result, after_messages}, 1_000
 
@@ -155,7 +161,10 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     end)
 
     {:ok, _interaction, 1} =
-      submit_anthropic_message(scope, task_id, "look at the page", mcp_tools: tool_defs)
+      submit_anthropic_message(scope, task_id, %{
+        content: "look at the page",
+        overrides: [mcp_tools: tool_defs]
+      })
 
     assert_receive_interaction(%Interaction.ToolCall{tool_call_id: ^tool_call_id}, 1)
 
@@ -168,6 +177,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
       )
 
     assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+    refute_running_eventually(task_id, __MODULE__)
     assert_receive {:provider_messages, :live_screenshot, messages}, 1_000
 
     tool_message = tool_message!(messages, tool_call_id)
@@ -206,19 +216,25 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
       ReqLLMResponses.response("Many image request accepted.")
     end)
 
-    {:ok, _interaction, 1} = submit_anthropic_message(scope, task_id, prompt)
+    {:ok, _interaction, 1} =
+      submit_anthropic_message(scope, task_id, %{content: prompt, overrides: []})
 
     assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+    refute_running_eventually(task_id, __MODULE__)
     assert_receive {:provider_messages, :many_live_images, messages}, 1_000
 
     refute Enum.any?(image_parts(messages), &over_dimension?(&1, 2000))
   end
 
-  defp submit_anthropic_message(scope, task_id, content, overrides \\ []) do
+  defp submit_anthropic_message(scope, task_id, %{content: content, overrides: overrides}) do
     execution_request =
       execution_request_fixture(Keyword.merge([model: "anthropic:claude-sonnet-4-6"], overrides))
 
-    submit_user_message_and_run(scope, task_id, execution_request, prompt_content(content))
+    submit_user_message_and_run(
+      scope,
+      task_id,
+      %{execution: execution_request, message: prompt_content(content), runtime: __MODULE__}
+    )
   end
 
   defp prompt_content(content) when is_binary(content), do: user_content(content)

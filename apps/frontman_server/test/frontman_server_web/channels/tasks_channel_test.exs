@@ -1,5 +1,5 @@
 defmodule FrontmanServerWeb.TasksChannelTest do
-  use FrontmanServerWeb.ChannelCase, async: false
+  use FrontmanServerWeb.ChannelCase, async: true
 
   import FrontmanServer.BillingFixtures
   import FrontmanServer.Test.Fixtures.Accounts

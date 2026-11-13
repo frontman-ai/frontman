@@ -78,7 +78,11 @@ defmodule FrontmanServer.Tasks.Execution.PromptCacheTest do
           text = "User turn #{turn}"
 
           assert {:ok, _, ^turn} =
-                   submit_user_message_and_run(scope, task_id, execution, user_content(text))
+                   submit_user_message_and_run(scope, task_id, %{
+                     execution: execution,
+                     message: user_content(text),
+                     runtime: FrontmanServer.AgentRuntime
+                   })
 
           assert_receive_interaction(%Interaction.AgentCompleted{}, ^turn)
           refute_running_eventually(task_id)

@@ -1,5 +1,5 @@
 defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
-  use FrontmanServer.DataCase, async: false
+  use FrontmanServer.DataCase, async: true
 
   import ExUnit.CaptureLog
   import FrontmanServer.Test.Fixtures.Accounts
@@ -370,14 +370,22 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
         )
 
       log =
-        capture_log(fn ->
+        capture_log([metadata: [:pid], format: "$metadata$message\n"], fn ->
           assert {%{status: :loading_project_structure, project_rules_request_id: nil},
                   [{:push_mcp, _request}]} =
                    MCPInitializer.handle_response(state, 1, result)
         end)
 
-      assert log =~ "Failed to persist project rules; no rules loaded"
-      refute log =~ "Initialized"
+      # Other async channels can initialize rules while this capture is active.
+      pid = self() |> :erlang.pid_to_list() |> List.to_string()
+      own_log = log |> String.split("\n") |> Enum.filter(&String.contains?(&1, "pid=#{pid}"))
+
+      assert Enum.any?(
+               own_log,
+               &String.contains?(&1, "Failed to persist project rules; no rules loaded")
+             )
+
+      refute Enum.any?(own_log, &String.contains?(&1, "Initialized"))
       refute log =~ content
       refute Repo.exists?(InteractionSchema.for_task(task.id))
     end

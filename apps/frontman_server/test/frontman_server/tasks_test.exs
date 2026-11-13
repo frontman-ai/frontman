@@ -301,7 +301,10 @@ defmodule FrontmanServer.TasksTest do
                })
 
       assert {:error, :unknown_agent} =
-               Tasks.execute_next_turn(scope, task.id, execution_request_fixture())
+               Tasks.execute_next_turn(scope, task.id, %{
+                 execution: execution_request_fixture(),
+                 runtime: FrontmanServer.AgentRuntime
+               })
 
       refute Enum.any?(db_rows(task.id), &(&1.type == :turn_started))
     end
@@ -772,14 +775,18 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "retry_execution/4" do
+  describe "retry_execution/3" do
     test "only retries agent errors", %{scope: scope} do
       allow_access_for_scope_fixture(scope)
       task_id = task_fixture(scope).id
       {:ok, user_message} = user_message_fixture(scope, task_id, user_content("not an error"))
 
       assert {:error, :not_found} =
-               Tasks.retry_execution(scope, task_id, user_message.id, execution_request_fixture())
+               Tasks.retry_execution(scope, task_id, %{
+                 retried_error_id: user_message.id,
+                 execution: execution_request_fixture(),
+                 runtime: FrontmanServer.AgentRuntime
+               })
     end
 
     test "rejects an older error after later interactions in the same turn", %{scope: scope} do
@@ -795,7 +802,11 @@ defmodule FrontmanServer.TasksTest do
       insert_interaction_row(task_id, Interaction.AgentCompleted, 1)
 
       assert {:error, :stale_turn} =
-               Tasks.retry_execution(scope, task_id, "error-1", execution_request_fixture())
+               Tasks.retry_execution(scope, task_id, %{
+                 retried_error_id: "error-1",
+                 execution: execution_request_fixture(),
+                 runtime: FrontmanServer.AgentRuntime
+               })
     end
 
     test "fills missing model from started turn user messages", %{scope: scope} do
@@ -806,9 +817,10 @@ defmodule FrontmanServer.TasksTest do
       {:ok, error} = Tasks.record_execution_outcome(scope, task.id, 1, {:failed, "boom"})
 
       assert :ok =
-               Tasks.retry_execution(scope, task.id, error.id, %{
-                 mcp_tools: [],
-                 project_traits: []
+               Tasks.retry_execution(scope, task.id, %{
+                 retried_error_id: error.id,
+                 execution: %{mcp_tools: [], project_traits: []},
+                 runtime: FrontmanServer.AgentRuntime
                })
 
       assert [_retry] =
@@ -833,7 +845,10 @@ defmodule FrontmanServer.TasksTest do
       task_id = task_fixture(scope).id
 
       assert {:error, :not_running} =
-               Tasks.resume_execution(scope, task_id, execution_request_fixture())
+               Tasks.resume_execution(scope, task_id, %{
+                 execution: execution_request_fixture(),
+                 runtime: FrontmanServer.AgentRuntime
+               })
     end
 
     test "fills missing model from started turn user messages", %{scope: scope} do
@@ -841,7 +856,11 @@ defmodule FrontmanServer.TasksTest do
       task = task_fixture(scope)
       start_turn_fixture(scope, task.id, user_content("running"), "missing:test")
 
-      assert :ok = Tasks.resume_execution(scope, task.id, %{mcp_tools: [], project_traits: []})
+      assert :ok =
+               Tasks.resume_execution(scope, task.id, %{
+                 execution: %{mcp_tools: [], project_traits: []},
+                 runtime: FrontmanServer.AgentRuntime
+               })
     end
   end
 
