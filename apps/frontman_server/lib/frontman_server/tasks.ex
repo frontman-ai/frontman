@@ -108,6 +108,110 @@ defmodule FrontmanServer.Tasks do
     {:ok, tasks}
   end
 
+  @prior_page_size 20
+  @history_page_size 20
+
+  @doc "Finds a bounded page of earlier tasks belonging to the current user."
+  def find_prior_tasks(%Scope{} = scope, current_id, query, before_id) do
+    with {:ok, _current} <- get_task(scope, current_id),
+         :ok <- valid_prior_cursor(scope, before_id) do
+      tasks =
+        scope
+        |> Accounts.scope_user_id()
+        |> TaskSchema.prior_for_user(current_id, before_id, @prior_page_size + 1)
+        |> Repo.all()
+
+      page = Enum.take(tasks, @prior_page_size)
+      matches = prior_matches(page, query)
+      next_cursor = if length(tasks) > @prior_page_size, do: List.last(page).id, else: nil
+
+      {:ok,
+       %{
+         tasks:
+           for task <- page,
+               excerpt = Map.get(matches, task.id),
+               query == "" or excerpt != nil or
+                 String.contains?(String.downcase(task.short_desc), String.downcase(query)) do
+             %{
+               task_id: task.id,
+               title: String.slice(task.short_desc, 0, 160),
+               framework: task.framework,
+               created_at: task.inserted_at,
+               updated_at: task.updated_at,
+               match: excerpt
+             }
+           end,
+         next_cursor: next_cursor
+       }}
+    end
+  end
+
+  @doc "Lists compact interaction metadata for an owned prior task."
+  def prior_history_page(%Scope{} = scope, current_id, prior_id, after_id) do
+    with {:ok, _current} <- get_task(scope, current_id),
+         {:ok, _prior} <- get_prior_task(scope, current_id, prior_id) do
+      rows =
+        prior_id
+        |> InteractionSchema.history_page(after_id, @history_page_size + 1)
+        |> Repo.all()
+
+      page = Enum.take(rows, @history_page_size)
+
+      next_cursor =
+        if length(rows) > @history_page_size, do: List.last(page).id, else: nil
+
+      {:ok, %{interactions: page, next_cursor: next_cursor}}
+    end
+  end
+
+  @doc "Retrieves one interaction of an owned prior task for bounded text paging."
+  def prior_history_item(%Scope{} = scope, current_id, prior_id, interaction_id) do
+    with {:ok, _current} <- get_task(scope, current_id),
+         {:ok, _prior} <- get_prior_task(scope, current_id, prior_id) do
+      case prior_id |> InteractionSchema.history_item(interaction_id) |> Repo.one() do
+        %InteractionSchema{type: type} = row
+        when type in [:user_message, :agent_response, :tool_result] ->
+          {:ok, row}
+
+        _ ->
+          {:error, :not_found}
+      end
+    end
+  end
+
+  defp get_prior_task(scope, current_id, prior_id) do
+    case Ecto.UUID.cast(current_id) == Ecto.UUID.cast(prior_id) do
+      true -> {:error, :not_found}
+      false -> get_task(scope, prior_id)
+    end
+  end
+
+  defp valid_prior_cursor(_scope, nil), do: :ok
+
+  defp valid_prior_cursor(scope, id) do
+    case get_task(scope, id) do
+      {:ok, _task} -> :ok
+      {:error, :not_found} -> {:error, :not_found}
+    end
+  end
+
+  defp prior_matches(_tasks, ""), do: %{}
+
+  defp prior_matches(tasks, query) do
+    ids = Enum.map(tasks, & &1.id)
+
+    case ids do
+      [] ->
+        %{}
+
+      ids ->
+        ids
+        |> InteractionSchema.matching_history(query)
+        |> Repo.all()
+        |> Map.new(&{&1.task_id, %{interaction_id: &1.interaction_id, excerpt: &1.excerpt}})
+    end
+  end
+
   @doc "Gets a task by ID with its interaction history loaded."
   def get_task_with_history(scope, task_id) do
     with {:ok, task} <- get_task(scope, task_id),

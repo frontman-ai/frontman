@@ -93,6 +93,90 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     from(i in query, order_by: [asc: i.sequence, asc: i.inserted_at, asc: i.id])
   end
 
+  def history_page(task_id, after_id, limit) do
+    query =
+      from(i in __MODULE__,
+        where: i.task_id == ^task_id,
+        where: i.type in [:user_message, :agent_response, :tool_call, :tool_result],
+        order_by: [asc: i.sequence, asc: i.inserted_at, asc: i.id],
+        limit: ^limit,
+        select: %{
+          id: i.id,
+          sequence: i.sequence,
+          inserted_at: i.inserted_at,
+          type: i.type,
+          tool_name: fragment("?->>'tool_name'", i.data),
+          is_error: fragment("?->>'is_error'", i.data),
+          preview:
+            fragment(
+              "left(case when ? = 'tool_result' and ?->>'tool_name' <> 'question' then '' else coalesce(?->>'content', ?->'messages'->>0, ?->'result'->'content'->0->>'text', '') end, 180)",
+              i.type,
+              i.data,
+              i.data,
+              i.data,
+              i.data
+            ),
+          bytes:
+            fragment(
+              "octet_length(case when ? = 'tool_result' and ?->>'tool_name' <> 'question' then '' else coalesce(?->>'content', ?->'messages'->>0, ?->'result'->'content'->0->>'text', '') end)",
+              i.type,
+              i.data,
+              i.data,
+              i.data,
+              i.data
+            )
+        }
+      )
+
+    case after_id do
+      nil ->
+        query
+
+      id ->
+        from(i in query,
+          join: cursor in __MODULE__,
+          on: cursor.id == ^id and cursor.task_id == ^task_id,
+          where:
+            i.sequence > cursor.sequence or
+              (i.sequence == cursor.sequence and i.inserted_at > cursor.inserted_at) or
+              (i.sequence == cursor.sequence and i.inserted_at == cursor.inserted_at and
+                 i.id > cursor.id)
+        )
+    end
+  end
+
+  def matching_history(task_ids, term) do
+    from(i in __MODULE__,
+      where: i.task_id in ^task_ids and i.type in [:user_message, :agent_response],
+      where:
+        fragment(
+          "strpos(lower(coalesce(?->>'content', ?->'messages'->>0, '')), lower(?)) > 0",
+          i.data,
+          i.data,
+          ^term
+        ),
+      distinct: i.task_id,
+      order_by: [asc: i.task_id, desc: i.sequence],
+      select: %{
+        task_id: i.task_id,
+        interaction_id: i.id,
+        excerpt:
+          fragment(
+            "substring(coalesce(?->>'content', ?->'messages'->>0, '') from greatest(1, strpos(lower(coalesce(?->>'content', ?->'messages'->>0, '')), lower(?)) - 60) for 220)",
+            i.data,
+            i.data,
+            i.data,
+            i.data,
+            ^term
+          )
+      }
+    )
+  end
+
+  def history_item(task_id, id) do
+    from(i in __MODULE__, where: i.task_id == ^task_id and i.id == ^id)
+  end
+
   def of_type(query \\ __MODULE__, type) when is_atom(type) do
     from(i in query, where: i.type == ^type)
   end

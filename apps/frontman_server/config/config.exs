@@ -32,7 +32,9 @@ config :frontman_server, :workos_config,
 
 config :frontman_server, :backend_tools, [
   FrontmanServer.Tools.AgentFeedback,
+  FrontmanServer.Tools.FindPreviousConversations,
   FrontmanServer.Tools.GetToolResult,
+  FrontmanServer.Tools.ReadPreviousConversation,
   FrontmanServer.Tools.Skill,
   FrontmanServer.Tools.TodoWrite,
   FrontmanServer.Tools.WebFetch
