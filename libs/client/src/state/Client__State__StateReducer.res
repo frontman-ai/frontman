@@ -144,17 +144,10 @@ let rec next = (state: state, action) => {
     | _ => state->StateReducer.update
     }
   | InitializeConnection(config) =>
-    let (initialized, effects) = next(
+    next(
       {...state, connection: Some(Connection.initialState(config)), wordPressWarningReady: false},
       ConnectionAction(Initialize),
     )
-    let warningEffects = switch config.acp.clientInfo._meta->Option.flatMap(
-      Connection.frameworkFromClientInfoMeta,
-    ) {
-    | Some("wordpress") => [ObserveWordPressWarning]
-    | Some(_) | None => []
-    }
-    initialized->StateReducer.update(~sideEffects=Array.concat(warningEffects, effects))
   | ConnectionEvent({signal, action}) =>
     switch state.connection {
     | Some(connection) if Connection.isCurrentConnection(connection, signal) => next(state, action)
@@ -178,12 +171,31 @@ let rec next = (state: state, action) => {
     | Some(previous) =>
       let (connection, effects) = Connection.next(previous, action)
       let updated = {...state, connection: Some(connection)}
+      let warningEffects = switch (
+        state.wordPressWarningReady,
+        connection.config.acp.clientInfo._meta->Option.flatMap(Connection.frameworkFromClientInfoMeta),
+        connection.connection,
+      ) {
+      | (false, Some("wordpress"), Ok(Some({lifetimeAbortController}))) =>
+        switch previous.connection {
+        | Ok(Some({lifetimeAbortController: oldController}))
+          if oldController === lifetimeAbortController => []
+        | _ => [ObserveWordPressWarning]
+        }
+      | _ => []
+      }
       let (updated, configEffects) = switch action {
       | SessionResultReceived({result: Ok((_, Some(configOptions)))}) if connection !== previous =>
         next(updated, ConfigOptionsReceived({configOptions: configOptions}))
       | _ => (updated, [])
       }
-      (updated, Array.concat(configEffects, effects->Array.map(effect => ConnectionEffect(effect))))
+      (
+        updated,
+        Array.concat(
+          warningEffects,
+          Array.concat(configEffects, effects->Array.map(effect => ConnectionEffect(effect))),
+        ),
+      )
     }
     switch (
       action,
