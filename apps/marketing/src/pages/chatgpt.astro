@@ -1,11 +1,10 @@
 ---
 import Layout from '../layouts/Layout.astro'
 import Button from '../components/ui/Button.astro'
-import gridNetBackground from '../assets/grid-net-background.svg'
+import WordPressHero from '../components/blocks/WordPressHero.astro'
 
 const connectionGuideUrl = 'https://api.frontman.sh/wordpress/connect'
 const pluginUrl = 'https://wordpress.org/plugins/frontman-agentic-ai-editor/'
-const demoVideoUrl = 'https://www.youtube-nocookie.com/embed/-4GD1GYwH8Y'
 
 const jobs = [
 	{
@@ -79,36 +78,15 @@ const pageJsonLd = {
 >
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(pageJsonLd)} />
 
-	<section class="chatgpt-hero">
-		<div class="hero-background" aria-hidden="true">
-			<img src={gridNetBackground.src} alt="" width="1440" height="900" fetchpriority="high" />
-		</div>
-		<div class="page-container hero-grid">
-			<div>
-				<h1><span>Update WordPress.</span><span>From ChatGPT.</span></h1>
-				<p class="lead">New headline. Fresh campaign copy. Updated pages. Tell ChatGPT what you want, and Frontman makes the WordPress changes.</p>
-				<div class="actions">
-					<Button link="#connect" size="lg" style="white">Connect your site</Button>
-					<a href="#jobs" class="copy-link">See examples</a>
-				</div>
-			</div>
-			<figure class="demo">
-				<div class="video-wrapper">
-					<iframe
-						src={demoVideoUrl}
-						title="Frontman WordPress editor demo"
-						width="960"
-						height="540"
-						loading="lazy"
-						allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-						referrerpolicy="strict-origin-when-cross-origin"
-						allowfullscreen
-					></iframe>
-				</div>
-				<figcaption>Frontman’s WordPress editor in action.</figcaption>
-			</figure>
-		</div>
-	</section>
+	<WordPressHero
+		headingLines={['Update WordPress.', 'From ChatGPT.']}
+		description="New headline. Fresh campaign copy. Updated pages. Tell ChatGPT what you want, and Frontman makes the WordPress changes."
+		demoTitle="Frontman WordPress editor demo"
+		demoCaption="Frontman’s WordPress editor in action."
+	>
+		<Button link="#connect" size="lg" style="white">Connect your site</Button>
+		<a href="#jobs" class="copy-link">See examples</a>
+	</WordPressHero>
 
 	<section id="jobs" class="page-section page-section--light" aria-labelledby="jobs-heading">
 		<div class="page-container">
@@ -186,23 +164,11 @@ const pageJsonLd = {
 
 	.page-container { @apply mx-auto max-w-marketing px-page-gutter; }
 	.narrow { max-width: 52rem; }
-	.chatgpt-hero, .closing {
+	.closing {
 		position: relative;
 		background: var(--color-accent-purple);
 		color: var(--color-neutral-50);
 	}
-	.hero-background { position: absolute; inset: 0; opacity: 0.3; pointer-events: none; }
-	.hero-background img { width: 100%; height: 100%; object-fit: cover; }
-	.hero-grid { position: relative; display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr); gap: 3rem; align-items: center; padding-top: 6rem; padding-bottom: 3rem; }
-	h1 { font-size: clamp(2.75rem, 4.2vw, 3.75rem); line-height: 1.1; letter-spacing: -0.035em; text-wrap: balance; }
-	h1 span { display: block; }
-	h1 span + span { color: var(--color-primary-100); }
-	.lead { margin-top: 1.5rem; max-width: 44ch; font-size: 1.125rem; line-height: 1.7; }
-	.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 1.5rem; margin-top: 2rem; }
-	.demo { min-width: 0; }
-	.video-wrapper { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid rgb(255 255 255 / 0.25); border-radius: var(--radius-panel); background: var(--color-surface-raised); }
-	iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
-	figcaption { margin-top: 0.75rem; color: var(--color-primary-100); font-size: 0.8125rem; line-height: 1.6; }
 	.page-section { --section-link: var(--color-primary-200); padding: 5rem 0 6rem; background: #09090b; color: var(--color-neutral-50); }
 	.page-section--light { --section-link: var(--color-primary-800); background: #fafafa; color: #09090b; }
 	.page-section h2, .page-section h3 { color: inherit; }
@@ -237,20 +203,12 @@ const pageJsonLd = {
 	details p { padding-bottom: 1.25rem; margin: 0; }
 	.closing { padding: 5rem 0 6rem; text-align: center; }
 	.closing p { margin: 0 auto 2rem; }
-	:global(.chatgpt-hero a:focus-visible), :global(.closing a:focus-visible) { outline: 3px solid white; outline-offset: 4px; }
+	:global(.closing a:focus-visible) { outline: 3px solid white; outline-offset: 4px; }
 	.page-section a:focus-visible, summary:focus-visible { outline: 3px solid var(--section-link); outline-offset: 4px; }
 	#jobs, #connect { scroll-margin-top: 6rem; }
-	@media (max-width: 1023px) {
-		.hero-grid { grid-template-columns: 1fr; gap: 2rem; }
-		h1 { font-size: clamp(2.5rem, 6vw, 3.75rem); }
-	}
 	@media (max-width: 767px) {
 		.setup-steps, .jobs li, .story-grid { grid-template-columns: 1fr; gap: 1.5rem; }
 		.page-section, .closing { padding: 3.5rem 0 4rem; }
-		.hero-grid { padding-bottom: 2.5rem; }
 		.jobs li { gap: 1rem; }
-	}
-	@media (max-width: 639px) {
-		.actions :global(.button) { width: 100%; }
 	}
 </style>

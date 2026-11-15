@@ -18,8 +18,36 @@ describe('ChatGPT landing page production HTML', () => {
 		expect(document.querySelector('iframe')?.getAttribute('src')).toBe(
 			'https://www.youtube-nocookie.com/embed/-4GD1GYwH8Y'
 		)
-	expect(document.querySelector('.demo figcaption')?.textContent).toContain('WordPress editor in action')
+		expect(document.querySelector('#demo figcaption')?.textContent).toContain('WordPress editor in action')
 		expect(document.querySelector('[rel="canonical"]')?.getAttribute('href')).toBe('https://frontman.sh/chatgpt/')
+	})
+
+	it('uses the homepage fold structure and click-to-play preview on both pages', () => {
+		for (const path of ['', 'chatgpt']) {
+			const document = documentFor(path)
+			const hero = document.querySelector('main > section')
+			expect(hero?.classList.contains('wp-hero'), path).toBe(true)
+			const grid = hero?.querySelector('.wp-hero__grid')
+			expect(grid?.children).toHaveLength(2)
+			expect(grid?.children[0].querySelector('h1')).not.toBeNull()
+			expect(grid?.children[0].querySelector('.wp-lead')).not.toBeNull()
+			expect(grid?.children[0].querySelector('.wp-actions .button')).not.toBeNull()
+			expect(grid?.children[1].id).toBe('demo')
+
+			const preview = new JSDOM(hero?.querySelector('iframe')?.getAttribute('srcdoc') ?? '').window.document
+			expect(preview.querySelector('img')?.getAttribute('src')).toBe('/images/home-demo-poster.webp')
+			expect(preview.querySelector('a')?.getAttribute('href')).toBe(
+				'https://www.youtube-nocookie.com/embed/-4GD1GYwH8Y?autoplay=1&rel=0'
+			)
+		}
+		const home = documentFor('')
+		const chatgpt = documentFor('chatgpt')
+		expect(home.querySelector('.wp-hero .button')?.getAttribute('href')).toBe(
+			'https://wordpress.org/plugins/frontman-agentic-ai-editor/'
+		)
+		expect(home.querySelector('.wp-hero .button')?.getAttribute('data-ga-label')).toBe('wordpress_home_hero')
+		expect(chatgpt.querySelector('.wp-hero .button')?.getAttribute('href')).toBe('#connect')
+		expect(chatgpt.querySelector('.wp-hero a[href="#jobs"]')).not.toBeNull()
 	})
 
 	it('leads with customer jobs and keeps practical details in the FAQ', () => {
