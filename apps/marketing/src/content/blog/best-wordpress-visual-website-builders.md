@@ -40,7 +40,7 @@ With Frontman, you open the plugin from the WordPress admin menu and describe a 
 
 This can help when you know what you want changed but would rather describe it than locate individual controls. Frontman requires WordPress 6.0 or later, PHP 7.4 or later, an administrator account, Frontman service access, and a supported AI provider connection. **AI provider costs are separate**; Frontman does not include a built-in model credential. See [provider setup](/docs/api-keys/) and [current Frontman pricing](/pricing/).
 
-Frontman’s WordPress tools act on the connected installation. They are not arbitrary source-file editing or a universal theme-settings editor: for example, the plugin does not expose a generic theme-mod write tool or arbitrary WordPress option access. See the [WordPress compatibility details](/docs/reference/compatibility/) before choosing it for a specific workflow.
+Frontman’s WordPress tools act on the connected installation. They are not arbitrary source-file editing or a universal theme-settings editor: for example, the plugin does not expose a generic theme-mod write tool or arbitrary WordPress option access. Check the [supported WordPress operations and limits](/docs/integrations/wordpress/#what-the-agent-can-do) before choosing it for a specific workflow.
 
 ## Before you try it
 

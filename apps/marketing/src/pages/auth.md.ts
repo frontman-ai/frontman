@@ -98,7 +98,7 @@ The MCP connection also requires HTTPS and permission to create WordPress Applic
 2. Open Frontman from the WordPress admin menu.
 3. Sign in with the same Frontman account used for the AI assistant.
 4. If a provider prompt appears, click Connect AI provider to open Settings.
-5. Open Settings, then General. The Connect an AI assistant action also opens this section.
+5. Open Settings, then General. The Connect your agent action also opens this section.
 6. Click Enable MCP and connect.
 7. Return to the AI assistant and call list_sites.
 8. Use a returned site ID as site_id for that site's tools.
@@ -135,7 +135,8 @@ Edits can change published content immediately. Use staging and backups.
 - Provider OAuth credentials and provider API keys authorize AI-provider requests for Frontman's editor, not external MCP clients.
 
 These credentials are not interchangeable. Do not send WordPress passwords, browser cookies, or provider API keys as MCP bearer tokens.
-The ChatGPT connection requires an active paid Frontman subscription, but no separate AI-provider key.
+The ChatGPT connection requires an active Frontman subscription or eligible subscription trial, but no separate AI-provider key.
+A trial with cancellation requested or recorded does not grant access. Free editor uses do not grant hosted MCP access.
 Frontman's editor has separate provider setup and usage requirements: https://frontman.sh/docs/api-keys/.
 
 ## Auth.md agent-registration extension

@@ -27,7 +27,7 @@ const jobs = [
 const faqs = [
 	{
 		question: 'Do I need a Frontman subscription?',
-		answer: 'Yes. The ChatGPT connection is included with an active paid Frontman subscription. Editor trials and free uses do not include it.'
+		answer: 'Yes. The ChatGPT connection requires an active Frontman subscription or eligible subscription trial. A trial with cancellation requested or recorded does not grant access. Free editor uses do not include it.'
 	},
 	{
 		question: 'Do I need an OpenAI API key?',
@@ -124,6 +124,8 @@ const pageJsonLd = {
 					<h3>Add Frontman to WordPress</h3>
 					<p>From your WordPress admin, install the plugin and open Frontman. Sign in to Frontman and connect your site.</p>
 					<a href={connectionGuideUrl} class="copy-link">Setup guide</a>
+					<a href="/docs/wordpress/connect-agent/" class="copy-link">Read the WordPress MCP setup instructions</a>
+					<a href="/docs/wordpress/chatgpt/" class="copy-link">Follow the ChatGPT connection guide</a>
 					<a href={pluginUrl} class="copy-link" data-ga-event="click_wordpress_plugin" data-ga-category="engagement" data-ga-label="chatgpt_setup" data-ga-placement="setup" data-ga-destination="wordpress_org">Get the plugin</a>
 				</li>
 				<li>
@@ -134,6 +136,7 @@ const pageJsonLd = {
 				<li>
 					<h3>Make it yours</h3>
 					<p>Choose your site and ask for the change. Refine the details together, then open the page to see the result.</p>
+					<a href="/docs/wordpress/connect-agent/#3-check-access-without-edits" class="copy-link">Check site access before editing</a>
 				</li>
 			</ol>
 		</div>

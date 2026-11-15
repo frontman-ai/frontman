@@ -76,7 +76,7 @@ This guide separates three evidence layers. Palmkvist's recording demonstrates t
 
 ### 1. Open the target page beside Frontman
 
-Install [Frontman for WordPress](/), sign in with the required capability, then append `/frontman` to the page URL. For example, open `/landing-page/frontman` to load the chat beside a preview of that page.
+Follow the [WordPress installation instructions](/docs/integrations/wordpress/#installation), sign in with the required capability, then append `/frontman` to the page URL. For example, open `/landing-page/frontman` to load the chat beside a preview of that page.
 
 Frontman can inspect the compact Elementor tree before changing anything. That matters here because a page may contain several containers, videos, and HTML widgets. The agent should identify the intended element IDs instead of guessing from visible order.
 
@@ -86,7 +86,7 @@ Use a prompt with explicit boundaries:
 
 > On this Elementor page, make the existing self-hosted video progress with vertical scroll. First inspect the Elementor page structure and the schemas for unfamiliar widgets. Reuse the existing video and container where possible. Keep the video muted, hide controls, preserve unrelated content, provide a defined scroll range, and keep the video visible during that range. Use GSAP ScrollTrigger to map scroll progress to video currentTime only after media duration is available. Respect reduced-motion preference by providing a non-scrubbed fallback. Update or add an Elementor HTML widget only if needed. Save rollback information, flush Elementor CSS, and stop for confirmation before any full-page-data replacement.
 
-This prompt is deliberately stricter than "make this animate." Frontman exposes granular Elementor operations for inspecting page structure, updating one element, adding a generic widget, and replacing an exact fragment inside an existing HTML widget. Full page-tree replacement is available but requires confirmation and should not be the default.
+This prompt is deliberately stricter than "make this animate." Frontman exposes granular Elementor operations for inspecting page structure, updating one element, adding a generic widget, and replacing an exact fragment inside an existing HTML widget. Check the [current supported Elementor operations](/docs/integrations/wordpress/#what-the-agent-can-do) for your workflow. Full page-tree replacement is available but requires confirmation and should not be the default.
 
 ### 3. Review the visible result
 
@@ -104,7 +104,7 @@ Frontman can flush Elementor CSS after visual changes. A separate WordPress cach
 
 ### 4. Roll back if the structure is wrong
 
-Elementor mutations made through current Frontman tools save private rollback snapshots. Frontman can list and restore those snapshots, with confirmation required for restoration.
+Elementor mutations made through current Frontman tools save private rollback snapshots. Frontman can list snapshots and [restore them after separate confirmation](/docs/integrations/wordpress/#confirmation-and-rollback).
 
 That is useful, but it is not a substitute for a site backup. Frontman does not guarantee one-click undo for every WordPress mutation. Keep staging and backup discipline outside the agent.
 

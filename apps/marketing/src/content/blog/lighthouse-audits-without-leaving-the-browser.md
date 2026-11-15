@@ -16,6 +16,8 @@ Google describes [Lighthouse](https://developer.chrome.com/docs/lighthouse/overv
 
 This tool runs through the JavaScript framework integrations, not the WordPress plugin. WordPress users should use external speed tests and the [WordPress-specific capability guide](/docs/integrations/wordpress/#what-the-agent-can-do), rather than assuming this audit command is available there.
 
+For an Elementor site, use the [page-speed diagnosis workflow with external tests](/blog/how-to-make-elementor-website-faster/#diagnose-page-speed-and-choose-one-change).
+
 ## What Frontman actually runs
 
 The implementation in [`FrontmanCore__Tool__Lighthouse.res`](https://github.com/frontman-ai/frontman/blob/main/libs/frontman-core/src/tools/FrontmanCore__Tool__Lighthouse.res) does the following:

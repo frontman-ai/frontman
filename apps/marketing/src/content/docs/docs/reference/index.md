@@ -28,3 +28,5 @@ Most users don't need to self-host. Browser tools run in the browser, filesystem
 ## Troubleshooting
 
 When things break, check **[Troubleshooting](/docs/reference/troubleshooting/)** for fixes to common issues: the UI not loading, agent timeouts, tool failures, and WebSocket connection problems.
+
+For external assistants, use [WordPress MCP connection troubleshooting](/docs/wordpress/troubleshooting/). For site access and offboarding, read [MCP permissions and revocation](/docs/wordpress/permissions/).

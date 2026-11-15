@@ -5,6 +5,8 @@ description: Fix common Frontman issues — UI not loading, agent timeouts, tool
 
 This guide helps you diagnose and fix common Frontman issues quickly: Frontman not loading, agent timeouts, tool call failures, WebSocket disconnects, and code edits that do not apply.
 
+For an external assistant's missing sites, OAuth errors or subscription failures, use [WordPress MCP connection troubleshooting](/docs/wordpress/troubleshooting/) instead of the editor checklist.
+
 If you are looking for setup docs, start with [Reference](/docs/reference/). You can also check [Compatibility](/docs/reference/compatibility/), [Configuration](/docs/reference/configuration/), [Environment Variables](/docs/reference/env-vars/), [Models](/docs/reference/models/), and [Architecture](/docs/reference/architecture/).
 
 ---

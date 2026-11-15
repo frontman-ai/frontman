@@ -18,6 +18,8 @@ Frontman is our AI agent for making changes to your existing WordPress site. Ins
 
 The sections below explain the manual Astra route and give you a task to delegate to Frontman. The prompts are suggested starting points, not recordings of completed Astra workflows. Ask the agent to identify the available editing path first. If a required Astra setting is unsupported, use the manual route for that step.
 
+Check the [supported WordPress editing operations](/docs/integrations/wordpress/#what-the-agent-can-do) before delegation. If you are still choosing a theme, use the [small-business WordPress theme comparison](/blog/best-wordpress-themes-small-business/) rather than treating this Astra guide as a recommendation for every site.
+
 **Before you edit:** Work on a staging copy and keep a backup. WordPress edits can affect the connected site immediately, including published pages. Preview is not a universal approval gate.
 
 ## Adjust responsive layout and spacing

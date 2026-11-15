@@ -36,6 +36,8 @@ For example, suppose a page has a nonessential video embed below its CTA, and th
 
 After the edit, note the rollback ID. [Check the page on desktop and mobile, including its CTA and forms](/blog/how-to-make-wordpress-website-mobile-friendly/#before-you-publish-check-the-experience-and-recovery-path). If Frontman cannot make the specific change through supported Elementor controls, don’t force it; hand the task to a person who can.
 
+If the design requires keeping a scroll-controlled video, use the [Elementor video-scroll guide](/blog/play-video-on-scroll-elementor-with-frontman/) for interaction and reduced-motion checks. That workflow is not evidence of faster loading.
+
 ## Handle images outside the page edit
 
 If the report points to images, inspect the files and compress or resize them outside Frontman. Good media work means choosing dimensions appropriate to the display and checking that image quality remains acceptable. Consider how you load images and videos: useful media can support the page, while an unnecessary embed may be a separate candidate for removal. Frontman can upload a user-attached image, but it does not offer general Media Library browsing or image editing.

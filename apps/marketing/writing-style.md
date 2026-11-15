@@ -42,7 +42,14 @@ Keep one primary reference for each recurring explanation. Sibling posts should 
 | WordPress AI category selection | `best-wordpress-ai-plugins-2026.md` | Agent and MCP details belong in the specialist comparisons |
 | WordPress editing-agent tradeoffs | `ai-agent-wordpress-plugin-comparison.md` | Send authentication and MCP deployment selection to the MCP guide |
 | WordPress MCP selection | `best-wordpress-mcp-servers-and-plugins-2026.md` | Keep tool discovery distinct from visual editing and approval |
-| WordPress setup, capabilities, confirmation and rollback | `/docs/integrations/wordpress/` | Announcements own dated events, not competing current inventories |
+| WordPress installation, embedded editor and capability reference | `/docs/integrations/wordpress/` | Announcements own dated events; preview tutorials use the editor path |
+| WordPress interface choice | `/docs/wordpress/choose-interface/` | Shared editing workflows do not inherently require MCP |
+| External-agent WordPress setup and first read | `/docs/wordpress/connect-agent/` | Keep model-provider setup separate from hosted MCP authorization |
+| Hosted WordPress permissions and revocation | `/docs/wordpress/permissions/` | Disabling MCP is not Application Password revocation |
+| Hosted WordPress connection failures | `/docs/wordpress/troubleshooting/` | Editor WebSocket/API-key failures stay in the general troubleshooting guide |
+| Named-agent connection instructions and evidence status | `/docs/wordpress/agents/` and its linked client guides | Vendor-documented support is not a live-tested Frontman integration |
+| WordPress content, builder, product, SEO and multi-site procedures | `/docs/wordpress/` workflow guides linked from `connect-agent` | Keep installation and OAuth setup in the shared connection guide |
+| Review and corrective recovery procedure | `/docs/wordpress/recovery/` | Detailed CSS revision contract remains in the WordPress integration reference |
 | Elementor page speed | `how-to-make-elementor-website-faster.md` | External measurement and supported edits; not responsive-layout or encoding guidance |
 | Mobile layout and usability | `how-to-make-wordpress-website-mobile-friendly.md` | A mobile layout improvement does not establish faster loading |
 | Scroll-controlled Elementor video | `play-video-on-scroll-elementor-with-frontman.md` | Own interaction mechanics and reduced motion, not generic speed optimization |

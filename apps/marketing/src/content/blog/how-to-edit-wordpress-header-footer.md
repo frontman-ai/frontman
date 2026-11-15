@@ -147,7 +147,7 @@ We build Frontman, so this is the product-specific route.
 
 [Frontman for WordPress](/) works beside a live preview and can inspect candidate WordPress structures, including block templates, template parts, menus, widgets, and Elementor page content. It cannot always prove which candidate controls rendered output.
 
-Install Frontman on a staging site, open `/frontman`, and start with an inspection request:
+Install Frontman on a staging site, [open the embedded Frontman editor](/docs/integrations/wordpress/#use-the-frontman-editor), and start with an inspection request:
 
 > Inspect the candidate WordPress structures for this header. Do not change anything. Report what you can verify and what remains unknown.
 

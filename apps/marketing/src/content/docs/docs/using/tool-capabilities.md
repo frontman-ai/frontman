@@ -132,6 +132,9 @@ The browser workflow does not bypass authentication or target permissions.
 Stored overrides do not prove rendered titles, descriptions, social tags, or schema. Inspect the requested rendered output separately.
 If save or readback fails, report the remaining work instead of claiming completion.
 
+For the complete inspect, update and rendered-output procedure, use the [WordPress SEO metadata workflow](/docs/wordpress/seo-metadata/).
+That guide separates site tools from this embedded-browser interaction tool.
+
 ### `search_text`
 
 Searches for visible text on the current page, like Ctrl+F.

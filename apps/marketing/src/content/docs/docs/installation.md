@@ -12,7 +12,7 @@ This page owns the end-to-end installation outcome. Integration guides own manua
 - A project using Next.js, Astro, Vite, or WordPress
 - A local development server for JavaScript integrations, or WordPress administrator access for the plugin
 - A GitHub or Google account for hosted Frontman sign-in
-- A supported AI provider connection or API key
+- A supported AI provider connection or API key for the embedded editor
 
 Check exact framework, Node.js, WordPress, and PHP requirements in [Frontman Framework Compatibility](/docs/reference/compatibility/) before installing.
 
@@ -24,6 +24,9 @@ Check exact framework, Node.js, WordPress, and PHP requirements in [Frontman Fra
 | Astro                                                                  | `@frontman-ai/astro`      |
 | React, Vue, Svelte, SolidJS, SvelteKit, or another app running on Vite | `@frontman-ai/vite`       |
 | WordPress                                                              | Frontman WordPress plugin |
+
+If OpenClaw handles your JavaScript project setup, read the [OpenClaw browser-mediated handoff guide](/blog/frontman-openclaw-skill/).
+That skill opens the embedded workspace; it is not the hosted WordPress MCP connection.
 
 ## Astro
 
@@ -55,6 +58,8 @@ Install **Frontman - AI Website Editor** from the [WordPress Plugin Directory](h
 
 Activate the plugin, then open `/frontman` on your site. See [Install and Use Frontman for WordPress](/docs/integrations/wordpress/) for requirements, sign-in, supported workflows, and WordPress-specific troubleshooting.
 
+For an external assistant such as ChatGPT, continue with [WordPress MCP connection setup](/docs/wordpress/connect-agent/) instead of the editor's provider setup.
+
 ## Verify installation
 
 For Next.js, Astro, or Vite:
@@ -70,7 +75,8 @@ Use the framework's development server for this functional installation check. T
 
 Next.js differs from Astro and Vite here. Its [installer templates](https://github.com/frontman-ai/frontman/blob/main/libs/frontman-nextjs/src/cli/FrontmanNextjs__Cli__Templates.res) write request middleware for Next.js 15.x (15.5 minimum) or proxy for Next.js 16.x. The package runtime handles routes only when `NODE_ENV=development` by default. Production and preview builds require `FRONTMAN_ENABLE_IN_PRODUCTION=1` or `FRONTMAN_ENABLED=1`; `FRONTMAN_ENABLED=0` forces the integration off. Verify the built artifact and deployed `/frontman` route when deployment behavior matters.
 
-For WordPress, verify that an administrator can open `/frontman`, complete hosted sign-in, and see the site preview beside chat.
+For the WordPress editor, verify that an administrator can open `/frontman`, complete hosted sign-in, and see the site preview beside chat.
+For hosted MCP, use the [first read-only site check](/docs/wordpress/connect-agent/#3-check-access-without-edits).
 
 ## Update Frontman
 
@@ -89,6 +95,8 @@ For a JavaScript project:
 If the Next.js installer added a dedicated middleware or proxy file, delete that file only when it contains no non-Frontman logic. If Frontman was merged into an existing file, remove only the Frontman import, handler, and matcher entries.
 
 For WordPress, deactivate and delete the plugin through **Plugins** in wp-admin. Deactivation removes the Frontman route from normal use; it does not revoke provider credentials stored on your Frontman account. Manage those separately through [API Keys & Providers](/docs/api-keys/).
+
+If you connected an external assistant, also review [WordPress credential revocation](/docs/wordpress/permissions/#revoke-the-wordpress-credential). Plugin removal does not replace credential revocation.
 
 ## Setup problems
 

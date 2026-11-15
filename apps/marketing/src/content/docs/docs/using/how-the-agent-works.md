@@ -7,6 +7,8 @@ Frontman is an AI agent that sits between your browser and your source code. You
 
 This page explains what happens under the hood so you can work with the agent more effectively.
 
+It describes Frontman's embedded editor. For an external assistant, use [the hosted WordPress MCP guide](/docs/wordpress/connect-agent/); the assistant supplies its own model.
+
 ## The three-part system
 
 Frontman has three main components:

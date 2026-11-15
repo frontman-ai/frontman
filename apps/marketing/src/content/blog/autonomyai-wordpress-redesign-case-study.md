@@ -162,4 +162,6 @@ That small loop is the same one Guy repeated across AutonomyAI's site. To try it
 
 Frontman is production-ready and battle-tested. Keep backups and review every change. You will need WordPress administrator access, a Frontman sign-in, and a supported AI model provider. Read the [WordPress security boundaries](/blog/security/#wordpress-live-site-threat-model) before connecting a production site.
 
-Need setup details? [Read the WordPress integration guide](/docs/integrations/wordpress/).
+Before your first edit, check [Elementor restoration and other recovery limits](/docs/integrations/wordpress/#confirmation-and-rollback).
+For the workflow used in this project, [set up the embedded WordPress editor](/docs/integrations/wordpress/#use-the-frontman-editor).
+For a smaller code-backed procedure, use the [single-element Elementor editing guide](/docs/wordpress/elementor/); it is not a recording of this customer project.

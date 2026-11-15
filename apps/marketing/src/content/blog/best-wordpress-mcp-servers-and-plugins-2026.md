@@ -2,7 +2,7 @@
 title: 'Best WordPress MCP Servers and Plugins in 2026'
 seoTitle: 'Best WordPress MCP Servers and Plugins 2026'
 pubDate: 2026-07-31T05:00:00Z
-updatedDate: 2026-11-11T00:00:00Z
+updatedDate: 2026-11-15T00:00:00Z
 description: 'Compare WordPress MCP servers and plugins for Claude, ChatGPT, Cursor, content, SEO, WooCommerce, Elementor, security, and custom abilities.'
 image: '/blog/best-wordpress-mcp-servers-and-plugins-2026-cover.png'
 tags: ['wordpress', 'mcp', 'comparison', 'ai']
@@ -38,7 +38,7 @@ faq:
   - question: 'Is a WordPress MCP server safe to use on production?'
     answer: 'An MCP server creates a privileged application surface and should not be treated as safe merely because it supports OAuth or application passwords. Start on staging, use a dedicated low-privilege WordPress user, expose the smallest possible tool set, require confirmation for writes, keep backups, log calls, and test revocation before production use.'
   - question: 'Is Frontman a WordPress MCP server?'
-    answer: 'Yes. Frontman offers hosted MCP access connecting ChatGPT to user-connected WordPress sites, alongside a separate embedded editor with a live preview. Hosted MCP requires an active paid Frontman subscription. Trials and free editor uses do not grant MCP access. Setup requires a Frontman account and WordPress administrator access to connect the site. Available tools depend on active plugins and permissions.'
+    answer: 'Yes. Frontman offers hosted MCP access connecting ChatGPT to user-connected WordPress sites, alongside a separate embedded editor with a live preview. Hosted MCP requires an active subscription or eligible subscription trial. A trial with cancellation requested or recorded does not grant access. Free editor uses do not grant MCP access. Setup requires a Frontman account and WordPress administrator access to connect the site. Available tools depend on active plugins and permissions.'
 author: 'Itay Adler'
 articleSection: 'Comparison or Buyer Guide'
 imageAlt: 'Best WordPress MCP Servers and Plugins in 2026 article cover.'
@@ -51,6 +51,8 @@ imageAlt: 'Best WordPress MCP Servers and Plugins in 2026 article cover.'
 **Disclosure and evidence status:** We build [Frontman for WordPress](/), which offers hosted MCP and a separate live-preview editor. [Itay Adler](/authors/itay-adler/), this article's author, is a former Frontman co-founder with a full-stack engineering and WordPress product background. This article is not an affiliate roundup. We did not run a hands-on benchmark of every plugin. Competitor capabilities below are documented claims checked against official WordPress documentation, WordPress.org plugin pages, and public repositories on July 31, 2026. Tool counts, client support, versions, pricing, and authentication flows can change.
 
 **Frontman capability update, November 11, 2026:** Frontman now offers hosted MCP for connecting ChatGPT to user-connected WordPress sites. This update covers Frontman only; the competitor source review and rankings remain as of July 31, 2026.
+
+**Frontman access correction, November 15, 2026:** Hosted MCP also accepts eligible subscription trials. A trial with cancellation requested or recorded does not grant access. Free editor uses remain separate. This corrects the earlier paid-only statement, not the competitor rankings.
 
 ## Best WordPress MCP servers and plugins at a glance
 
@@ -235,11 +237,18 @@ Royal MCP and StifLi document dedicated Elementor operations. Easy MCP AI docume
 
 ## Frontman: hosted MCP and a separate visual editor
 
-[Frontman for ChatGPT](/chatgpt/) connects ChatGPT through hosted MCP to WordPress sites a user has connected. Hosted MCP requires an active paid Frontman subscription and a connected site. Setup requires a Frontman account and WordPress administrator access. Trials and free editor uses do not grant MCP access. ChatGPT provides the model for this route, so no additional model API key is needed. Tool availability depends on active plugins and permissions.
+[Frontman for ChatGPT](/chatgpt/) connects ChatGPT through hosted MCP to WordPress sites a user has connected. Hosted MCP requires an active subscription or eligible subscription trial and a connected site. A trial with cancellation requested or recorded does not grant access. Setup requires a Frontman account and WordPress administrator access. Free editor uses do not grant MCP access. ChatGPT provides the model for this route, so no additional model API key is needed. Tool availability depends on active plugins and permissions.
 
 Frontman's separate embedded editor lets administrators request supported changes beside a live preview, without an external MCP client. It sends relevant site content through its hosted agent service and a separately configured model provider. For either workflow, writes can affect published content immediately. Preview is not a universal approval gate, and there is no universal undo. Start on staging and keep backups.
 
+Before authorizing the hosted route, review [MCP permissions and credential revocation](/docs/wordpress/permissions/#wordpress-permissions). Disabling MCP does not revoke the WordPress Application Password.
+
 For the broader category decision, read [AI Agent Plugins for WordPress Compared](/blog/ai-agent-wordpress-plugin-comparison/). For current capabilities and data-flow boundaries, read [Install and Use Frontman for WordPress](/docs/integrations/wordpress/).
+
+To authorize your site and make a first read-only request, use [Connect Your AI Agent to WordPress](/docs/wordpress/connect-agent/).
+
+After setup, start with a [draft post or targeted page edit](/docs/wordpress/posts-and-pages/) or a [bounded WooCommerce product update](/docs/wordpress/woocommerce-products/).
+For more than one installation, use the [site-selection procedure](/docs/wordpress/multiple-sites/) before any write.
 
 ## Which WordPress MCP server should you choose?
 
