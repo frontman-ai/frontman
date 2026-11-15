@@ -84,4 +84,27 @@ defmodule FrontmanServer.Tasks.TaskSchema do
   def limited(query \\ __MODULE__, count) do
     from(t in query, limit: ^count)
   end
+
+  def prior_for_user(user_id, current_id, before_id, limit) do
+    query =
+      from(t in __MODULE__,
+        where: t.user_id == ^user_id and t.id != ^current_id,
+        order_by: [desc: t.inserted_at, desc: t.id],
+        limit: ^limit
+      )
+
+    case before_id do
+      nil ->
+        query
+
+      id ->
+        from(t in query,
+          join: cursor in __MODULE__,
+          on: cursor.id == ^id and cursor.user_id == ^user_id,
+          where:
+            t.inserted_at < cursor.inserted_at or
+              (t.inserted_at == cursor.inserted_at and t.id < cursor.id)
+        )
+    end
+  end
 end
