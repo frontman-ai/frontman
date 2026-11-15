@@ -229,6 +229,8 @@ Quarterly checks are our recommendation for recovery and access assumptions that
 - Review old content that still receives traffic or drives conversions.
 - Confirm who receives uptime, security, domain, SSL, and billing alerts.
 
+For a retired Frontman connection, [revoke the WordPress Application Password](/docs/wordpress/permissions/#revoke-the-wordpress-credential). Disabling MCP alone does not revoke that credential.
+
 A restore test gives more evidence than a green backup status. It can reveal missing uploads. It can also reveal files and database copies saved at different times, missing login details, or a restore that is too slow.
 
 ## Annual WordPress Maintenance Checklist

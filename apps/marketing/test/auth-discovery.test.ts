@@ -59,6 +59,8 @@ test('built auth.md describes WordPress provisioning and separates the three cre
 	expect(body).toContain('https://api.frontman.sh/wordpress/connect')
 	expect(body).toContain('does not revoke the Application Password')
 	expect(body).toContain('no separate AI-provider key')
+	expect(body).toContain('active Frontman subscription or eligible subscription trial')
+	expect(body).toContain('cancellation requested or recorded does not grant access')
 	expect(body).toContain('These credentials are not interchangeable')
 })
 

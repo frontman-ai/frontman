@@ -128,6 +128,8 @@ Who approves the change? Where do they see it? Does the agent understand Element
 
 Those questions decide if a WordPress AI agent workflow survives contact with a client site. For individual options, authentication, and hosting differences, use the [WordPress MCP server comparison](/blog/best-wordpress-mcp-servers-and-plugins-2026/), particularly its [security selection criteria](/blog/best-wordpress-mcp-servers-and-plugins-2026/#security-matters-more-than-tool-count).
 
+For Frontman's separate hosted connection, follow [site authorization and the first read-only request](/docs/wordpress/connect-agent/#1-connect-your-wordpress-site). This is not the embedded preview workflow described here.
+
 ### Where builders are the wrong comparison
 
 AI website builders make a related promise: "make a WordPress site with AI." That promise is real, but it is a different phase of work.
@@ -176,4 +178,6 @@ There are content AI plugins. There are MCP servers. There are site builders. An
 
 Frontman belongs in the last category. It is not the broadest AI plugin. It is not the canonical MCP adapter. It is not a site generator. It is the WordPress agent workflow for people who need to change the page, see the result, and stay inside the same loop.
 
-Install [Frontman - AI Website Editor from the WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/), open `/frontman`, and start on staging. For the product overview, see [Frontman for WordPress](/). The better workflow is not more AI buttons in wp-admin. It is an agent that changes WordPress while the page stays visible.
+Install [Frontman - AI Website Editor from the WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/), [set up the embedded Frontman editor](/docs/integrations/wordpress/#use-the-frontman-editor), and start on staging. For the product overview, see [Frontman for WordPress](/). The better workflow is not more AI buttons in wp-admin. It is an agent that changes WordPress while the page stays visible.
+
+For the first bounded task, use the [posts and pages guide](/docs/wordpress/posts-and-pages/). Define the [review and recovery path](/docs/wordpress/recovery/) before a write.

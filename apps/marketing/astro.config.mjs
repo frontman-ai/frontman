@@ -207,6 +207,45 @@ export default defineConfig({
           ],
         },
         {
+          label: "WordPress",
+          items: [
+            { label: "Overview & Installation", slug: "docs/integrations/wordpress" },
+            {
+              label: "Choose Your Editing Interface",
+              items: [
+                { label: "Compare the Interfaces", slug: "docs/wordpress/choose-interface" },
+                { label: "Embedded Frontman Editor", link: "/docs/integrations/wordpress/#use-the-frontman-editor" },
+                { label: "External Agent via MCP", slug: "docs/wordpress/connect-agent" },
+              ],
+            },
+            {
+              label: "MCP Connections",
+              items: [
+                { label: "Compatibility", slug: "docs/wordpress/agents" },
+                { label: "ChatGPT", slug: "docs/wordpress/chatgpt" },
+                { label: "Claude", slug: "docs/wordpress/claude" },
+                { label: "OpenAI dots", slug: "docs/wordpress/dots" },
+                { label: "Meta Muse", slug: "docs/wordpress/muse" },
+                { label: "Instinct", slug: "docs/wordpress/instinct" },
+                { label: "Multiple Connected Sites", slug: "docs/wordpress/multiple-sites" },
+                { label: "Permissions & Revocation", slug: "docs/wordpress/permissions" },
+                { label: "Troubleshooting", slug: "docs/wordpress/troubleshooting" },
+              ],
+            },
+            {
+              label: "Editing Workflows",
+              items: [
+                { label: "Posts & Pages", slug: "docs/wordpress/posts-and-pages" },
+                { label: "Gutenberg Blocks", slug: "docs/wordpress/gutenberg" },
+                { label: "Elementor Pages", slug: "docs/wordpress/elementor" },
+                { label: "WooCommerce Products", slug: "docs/wordpress/woocommerce-products" },
+                { label: "SEO Titles & Descriptions", slug: "docs/wordpress/seo-metadata" },
+              ],
+            },
+            { label: "Review & Recovery", slug: "docs/wordpress/recovery" },
+          ],
+        },
+        {
           label: "Reference",
           collapsed: true,
           items: [

@@ -46,6 +46,9 @@ If a change went wrong, you can ask the agent to undo it:
 
 The agent has the file's previous state in its conversation history and can reverse the edit. For complex multi-file changes, be specific about which file or change to revert.
 
+This advice concerns source-file edits, not universal WordPress recovery.
+For WordPress changes, use the surface-specific [confirmation and rollback guidance](/docs/integrations/wordpress/#confirmation-and-rollback).
+
 ## Chaining prompts
 
 Complex work is better as a sequence of focused prompts than one mega-request. The agent handles each step more reliably, and you can course-correct between them.

@@ -7,6 +7,8 @@ The Frontman WordPress plugin connects your site to an AI assistant such as Chat
 
 This guide owns WordPress installation and use. For the cross-platform support matrix, see [Frontman Framework Compatibility](/docs/reference/compatibility/). For the product overview, see [Frontman for WordPress](/).
 
+Start with [Choose Your WordPress Editing Interface](/docs/wordpress/choose-interface/) to separate embedded-editor setup from external-agent MCP authorization.
+
 > Keep backups and review changes carefully. Use staging for higher-risk changes. Changes to a live site can take effect before review.
 
 ## Requirements
@@ -17,7 +19,7 @@ This guide owns WordPress installation and use. For the cross-platform support m
 - A GitHub or Google account for Frontman sign-in
 - Frontman service access (see [current pricing](/pricing/))
 
-For ChatGPT, you also need an active Frontman subscription or trial. ChatGPT supplies the model for hosted MCP, so no additional AI provider connection or API key is required to connect the site or view Billing.
+For ChatGPT, you also need an active Frontman subscription or eligible subscription trial. ChatGPT supplies the model for hosted MCP, so no additional AI provider connection or API key is required to connect the site or view Billing.
 
 For the embedded Frontman editor, you need a supported AI provider connection or API key. Separate provider charges can apply. See [API Keys & Providers](/docs/api-keys/).
 
@@ -34,14 +36,12 @@ Install Frontman from the [WordPress Plugin Directory](https://wordpress.org/plu
 
 ## Connect an AI assistant
 
-1. Sign in to WordPress as an admin and select **Frontman** from the admin menu.
-2. Sign in to Frontman with the account that has your active subscription or trial.
-3. Open **Settings → General**, or select **Connect your agent** if that choice is shown.
-4. For a new connection, select **Enable MCP and connect** to approve site access. If a saved connection has MCP disabled, select **Enable MCP**. If it is already enabled, continue.
-5. Open the [connection setup page](https://api.frontman.sh/wordpress/connect) to verify read access to the site's tool catalog. This does not verify write permissions.
-6. Connect Frontman in ChatGPT using the same Frontman account. If it is already connected, return to your original conversation and ask: **Check my connected WordPress sites.**
+Use [Connect Your AI Agent to WordPress](/docs/wordpress/connect-agent/) for site authorization, the hosted MCP endpoint and a first read-only request.
+Use the same Frontman account for the site and the assistant.
 
-Connecting enables site-wide MCP access. Tools can change or delete content. Frontman stores an Application Password with the administrator account's broader REST permissions. Disabling MCP does not revoke that password. To revoke it, remove **Frontman MCP** from your WordPress profile.
+Connecting enables site-wide access, including tools that change or delete content.
+Read [MCP permissions and revocation](/docs/wordpress/permissions/) before authorization.
+For missing sites or authentication errors, use [MCP connection troubleshooting](/docs/wordpress/troubleshooting/).
 
 ## Use the Frontman editor
 
@@ -66,23 +66,39 @@ Start with a staging copy and a backup. Draft publication and staging promotion 
 
 This inventory reflects Frontman WordPress plugin 3.1.0 source, verified August 27, 2026. WordPress uses dedicated `wp_*` tools, not the file and Lighthouse tools provided by Astro, Next.js, and Vite. For shared browser and backend tools, see [Frontman Agent Tool Capabilities](/docs/using/tool-capabilities/).
 
-- **Posts, pages, and Gutenberg:** list, read, create, duplicate, update, and delete posts or pages; list, read, insert, update, move, and delete blocks.
-- **Elementor, when active:** inspect page data and widgets; add, update, duplicate, move, remove, or generate elements; replace complete page data; flush generated CSS; list and restore Frontman rollback snapshots.
+- **[Posts and pages](/docs/wordpress/posts-and-pages/) and [Gutenberg blocks](/docs/wordpress/gutenberg/):** list, read, create, duplicate, update, and delete posts or pages; list, read, insert, update, move, and delete blocks.
+- **[Elementor, when active](/docs/wordpress/elementor/):** inspect page data and widgets; add, update, duplicate, move, remove, or generate elements; replace complete page data; flush generated CSS; list and restore Frontman rollback snapshots.
 - **Navigation, templates, and widgets:** manage classic menus, menu items, menu locations, block-theme navigation menus, block templates, template parts, widget areas, and supported widget types.
 - **Site settings:** read and update allowlisted core options such as title, tagline, front-page selection, permalink structure, and comment settings. Arbitrary option access is not available.
 - **Additional CSS:** read and replace active-theme Additional CSS. Frontman can also list, inspect, and restore WordPress Custom CSS revisions for plain CSS.
 - **Theme settings:** list active-theme Customizer/theme mods or read one mod. Plugin 3.1.0 does not expose a generic theme-mod write tool.
 - **Media:** upload a user-attached image into Media Library with optional title, alt text, caption, description, and parent post. Maximum decoded upload size is 20 MB. Plugin does not expose general media browsing, editing, or deletion tools.
-- **WooCommerce, when active:** `wc_*` tools cover products, categories, tags, attributes and terms, variations, reviews, orders, notes, refunds, customers, shipping, taxes, coupons, payment gateways, reports, settings, system status, store data, and product/order/customer metadata.
+- **WooCommerce, when active:** `wc_*` tools cover products, categories, tags, attributes and terms, variations, reviews, orders, notes, refunds, customers, shipping, taxes, coupons, payment gateways, reports, settings, system status, store data, and product/order/customer metadata. Start with the bounded [product-description workflow](/docs/wordpress/woocommerce-products/).
 - **Cache:** inspect supported cache plugins and request cache clearing.
+
+For supported search titles and descriptions, use the [WordPress SEO metadata guide](/docs/wordpress/seo-metadata/).
+For separate installations, use the [multiple-site selection guide](/docs/wordpress/multiple-sites/).
+
+### Choose a practical editing guide
+
+For an existing site, use the [header and footer guide](/blog/how-to-edit-wordpress-header-footer/) to identify which WordPress surface owns the change.
+For layout problems, use the [mobile-friendly WordPress guide](/blog/how-to-make-wordpress-website-mobile-friendly/).
+For measured loading problems, use the [Elementor performance guide](/blog/how-to-make-elementor-website-faster/), not a layout tutorial as evidence of faster loading.
+These guides describe native controls or the embedded editor; they do not establish browser-preview access through hosted MCP.
 
 ## Confirmation and Rollback
 
-- Frontman must ask for approval before calling plugin tools whose schema requires `confirm=true`. This includes WordPress delete tools, Elementor restoration, Additional CSS writes, and WooCommerce mutations.
+- Frontman must ask for approval before calling plugin tools whose schema requires `confirm=true`. Examples include WordPress delete tools, Elementor restoration, and Additional CSS writes.
+- WooCommerce endpoint tools using `PUT` or `DELETE`, and metadata writes, require `confirm=true`.
+- WooCommerce `POST` create tools do not require that field. This includes product, order, and refund creation. Product creation can publish immediately; refund creation can request a payment-gateway refund.
 - Post and page deletion moves content to trash by default; `force=true` permanently deletes it. Other delete tools do not promise trash or automatic restoration.
 - Many mutation results include before/after state for review, but those snapshots are not a general undo system.
 - Elementor content mutation tools save private rollback snapshots and return rollback IDs. `wp_elementor_list_rollbacks` finds them; `wp_elementor_restore_rollback` restores one after separate confirmation.
 - No plugin-wide one-click rollback exists for Gutenberg, menus, templates, widgets, options, media, or WooCommerce. Use revisions or trash where applicable, and maintain site backups.
+
+An assistant can ask for approval through its own controls. That is separate from the plugin enforcing a `confirm=true` field.
+
+For a step-by-step result review and restoration decision, use [Review and Recover WordPress AI Changes](/docs/wordpress/recovery/).
 
 Before production use, establish backup ownership, restore verification, recurring checks, and escalation rules with the [WordPress maintenance checklist](/blog/wordpress-maintenance-checklist/).
 

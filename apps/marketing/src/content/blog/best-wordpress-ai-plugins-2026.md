@@ -158,6 +158,8 @@ Choose MCP tooling when the primary job is connecting an external AI client to W
 
 Use the dedicated [WordPress MCP comparison](/blog/best-wordpress-mcp-servers-and-plugins-2026/) for authentication, hosting, and exposed-action differences. Its [security checklist](/blog/best-wordpress-mcp-servers-and-plugins-2026/#security-matters-more-than-tool-count) covers the questions to settle before granting a client write access.
 
+For Frontman's hosted route, use [the WordPress MCP setup guide](/docs/wordpress/connect-agent/). It is separate from the embedded-editor demo above and does not require an additional model-provider key.
+
 ## Why Frontman Beats MCP Alone For Site Editing
 
 A protocol connection and a finished editing workspace solve different problems. Frontman keeps the page beside the conversation while supported WordPress tools make the change. That visual feedback is its product advantage, not a claim that it replaces every MCP workflow or provides a universal approval gate.
@@ -168,7 +170,7 @@ For a narrower comparison with AI Engine and external-client workflows, read [wh
 
 Choose a builder when you need a first draft of a site, page, or layout. Choose an existing-site editing workflow when you need to change selected content without replacing the surrounding setup.
 
-The distinction is the job, not an absolute boundary on every product's capabilities. The [agent comparison's builder section](/blog/ai-agent-wordpress-plugin-comparison/#where-builders-are-the-wrong-comparison) explains how to evaluate that tradeoff.
+The distinction is the job, not an absolute boundary on every product's capabilities. The [agent comparison's builder section](/blog/ai-agent-wordpress-plugin-comparison/#where-builders-are-the-wrong-comparison) explains how to evaluate that tradeoff. For drag-and-drop versus AI-assisted editing, use the [WordPress visual-builder comparison](/blog/best-wordpress-visual-website-builders/).
 
 ## Content, SEO, Forms, And Chatbots Are Their Own Lanes
 
@@ -177,6 +179,8 @@ The WP101-style plugin universe is broad because WordPress work is broad. Site o
 Use content tools when the task is writing or rewriting text. Jasper AI, AI Power, Jetpack AI-style assistants, and AI Engine's content features live here.
 
 Use SEO tools when the task is search metadata, schema, optimization, descriptions, titles, or recommendations. AIOSEO is the entity that shows up most clearly in the source analysis.
+
+For Frontman's own title and description updates, use the [WordPress SEO metadata workflow](/docs/wordpress/seo-metadata/). It starts with the installed plugin's advertised capabilities, not an assumption that every SEO plugin supports the same writes.
 
 Use form tools when the task is building or improving forms. WPForms AI belongs here. So do AI forms inside AI Engine if you need generated apps or prompt-driven form behavior.
 
@@ -237,6 +241,6 @@ The best WordPress AI agent for existing-site visual editing is Frontman. The be
 
 If you need the broadest WordPress AI framework, start with [AI Engine](https://wordpress.org/plugins/ai-engine/). If you need site generation, evaluate builder tools like Divi AI, Elementor AI, Hostinger, Liftoff AI, ZipWP, or SeedProd. If you need SEO, start with AIOSEO. If you need forms, look at WPForms AI or AI Engine's AI Forms. If you need automation, look at Uncanny Automator. If you need customer chat, look at Tidio or similar chat tools.
 
-If you need an AI agent to edit an existing WordPress site while you see what changed, use [Frontman for WordPress](/). Watch the workflow above, then install [Frontman - AI Website Editor](https://wordpress.org/plugins/frontman-agentic-ai-editor/), open Frontman from the WordPress admin menu, and start on staging with your own supported AI provider. For install details and launch context, see [Frontman WordPress Plugin Is Live](/blog/frontman-wordpress-plugin-released/).
+If you need an AI agent to edit an existing WordPress site while you see what changed, use [Frontman for WordPress](/). Watch the workflow above, then install [Frontman - AI Website Editor](https://wordpress.org/plugins/frontman-agentic-ai-editor/), open Frontman from the WordPress admin menu, and start on staging with your own supported AI provider. Use the [current installation instructions](/docs/integrations/wordpress/#installation) for setup; the [plugin-directory release announcement](/blog/frontman-wordpress-plugin-released/) covers launch context.
 
 That is the competent version of WordPress AI in 2026. Not more magic buttons. Clear tools for clear jobs, with review where the result actually appears.

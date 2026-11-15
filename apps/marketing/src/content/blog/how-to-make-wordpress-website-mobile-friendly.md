@@ -103,7 +103,7 @@ The workflow is **inspect → change → check**:
 2. **Make a focused edit.** Describe the stacking behavior you want, keeping the request within the page’s supported editing surface.
 3. **Check the result.** Inspect the narrow-screen layout again, then compare tablet and desktop views for unintended changes.
 
-The benefit is not another set of responsive controls. It is help translating the change you can describe into WordPress operations, with the page beside the conversation. Frontman does not expose every theme or plugin setting; check the [supported WordPress operations](/docs/integrations/wordpress/) before planning a larger change.
+The benefit is not another set of responsive controls. It is help translating the change you can describe into WordPress operations, with the page beside the conversation. Frontman does not expose every theme or plugin setting; check the [supported WordPress operations](/docs/integrations/wordpress/#what-the-agent-can-do) before planning a larger change.
 
 ### Before you start
 
@@ -124,6 +124,8 @@ For the cramped-columns example, adapt this request to your page. This is a sugg
 
 Your acceptance criteria are concrete: the columns stack on mobile, the content remains readable, and the section has no horizontal scrolling. The desktop arrangement must remain intact. Check each one against the actual page.
 
+For native block identification, nesting and a bounded content edit, use the [Gutenberg workflow guide](/docs/wordpress/gutenberg/). Its saved-content checks complement, rather than replace, this visual layout review.
+
 ## Before you publish: check the experience and recovery path
 
 Check more than whether the page now fits inside a narrow viewport:
@@ -137,11 +139,11 @@ Check more than whether the page now fits inside a narrow viewport:
 
 Editor previews are useful, but also inspect the actual page in a browser and on a phone when possible. For broader checks, [Browserling offers responsive testing across screen sizes and browsers](https://www.browserling.com/responsive-testing). It complements editing rather than replacing it.
 
-If a change is not visible, caching may be involved; Frontman’s WordPress guide documents supported cache inspection and cache-clear requests.
+If a change is not visible, caching may be involved; Frontman’s WordPress guide documents [supported cache inspection and cache-clear requests](/docs/integrations/wordpress/#what-the-agent-can-do).
 
 A better layout is not the same as a faster site. For Elementor sites, [diagnose page speed separately](/blog/how-to-make-elementor-website-faster/#diagnose-page-speed-and-choose-one-change). Large images, hosting, and caching can still affect load time. A visual change does not guarantee search rankings, accessibility compliance, or correct behavior across every device and browser.
 
-Frontman’s WordPress changes also have different recovery options. Some tools require explicit confirmation, and Elementor changes have Frontman rollback snapshots. But there is **no plugin-wide one-click undo** for Gutenberg, menus, templates, widgets, settings, or other supported surfaces. Use WordPress revisions or trash where applicable, and rely on a verified backup when needed. The [WordPress integration guide](/docs/integrations/wordpress/) explains the limits by change type.
+Frontman’s WordPress changes also have different recovery options. Some tools require explicit confirmation, and Elementor changes have Frontman rollback snapshots. But there is **no plugin-wide one-click undo** for Gutenberg, menus, templates, widgets, settings, or other supported surfaces. Use WordPress revisions or trash where applicable, and rely on a verified backup when needed. Read the [confirmation and recovery limits by change type](/docs/integrations/wordpress/#confirmation-and-rollback).
 
 ## Fix one mobile layout issue first
 

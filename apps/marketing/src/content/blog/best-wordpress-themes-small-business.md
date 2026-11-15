@@ -125,9 +125,9 @@ Choose by the work your business needs: content and search visibility, store fea
 
 ## Next step: match the editing surface to the task
 
-Before choosing a theme, identify whether expected updates involve native WordPress content, menus, or a proprietary theme or builder control. Compare that list with the installation’s available [Frontman operations](/docs/integrations/wordpress/); for controls not documented there, plan to use the theme’s native editing workflow. [2]
+Before choosing a theme, identify whether expected updates involve native WordPress content, menus, or a proprietary theme or builder control. Compare that list with the installation’s available [Frontman operations](/docs/integrations/wordpress/#what-the-agent-can-do); for controls not documented there, plan to use the theme’s native editing workflow. [2]
 
-Ready to make a supported change on your site? [Install Frontman for WordPress](/docs/integrations/wordpress/), then try a task from this guide on a staging copy if your setup provides it. Keep a backup and review the result before making changes to your live site. [2]
+Ready to make a supported change on your site? [Install Frontman for WordPress](/docs/integrations/wordpress/#installation), then try a task from this guide on a staging copy if your setup provides it. Keep a backup and review the result before making changes to your live site. [2]
 
 ## Sources
 

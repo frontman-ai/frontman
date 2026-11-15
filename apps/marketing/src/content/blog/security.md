@@ -111,7 +111,9 @@ Next.js needs particular attention: the [installer templates](https://github.com
 
 ## WordPress live-site threat model
 
-WordPress is not a source-code development integration. When the plugin is active on a production site, `/frontman` and tool calls run against that site's database, media library, caches, and optional Elementor or WooCommerce data. The router requires a valid WordPress login with `manage_options`; POST tool calls also require the Frontman WordPress nonce. Those checks limit who can invoke tools, but an authorized or compromised administrator session can still cause live customer-facing and business-data changes.
+WordPress is not a source-code development integration. When the plugin is active on a production site, `/frontman` and tool calls run against that site's database, media library, caches, and optional Elementor or WooCommerce data. In the embedded editor's route, the router requires a valid WordPress login with `manage_options`; POST tool calls also require the Frontman WordPress nonce. Those checks limit who can invoke tools, but an authorized or compromised administrator session can still cause live customer-facing and business-data changes.
+
+External assistants use a separate hosted MCP route with assistant OAuth and a WordPress Application Password. Read the [hosted MCP credential boundaries and revocation instructions](/docs/wordpress/permissions/); the browser-login description is not its authentication procedure.
 
 The plugin [registers its core tools](https://github.com/frontman-ai/frontman/blob/main/libs/frontman-wordpress/frontman.php) and conditionally registers Elementor and WooCommerce tools when those plugins are available. Current mutation classes include:
 

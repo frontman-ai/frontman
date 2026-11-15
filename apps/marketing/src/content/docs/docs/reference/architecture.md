@@ -12,6 +12,9 @@ Frontman is a browser-based coding agent built as a distributed system. A single
 
 This page describes how those parts fit together and how data moves between them.
 
+This diagram describes the embedded editor and framework relay, not an external assistant's hosted WordPress connection.
+For that route, see [WordPress MCP setup and execution boundaries](/docs/wordpress/connect-agent/#multiple-sites-and-browser-access) and [hosted authentication](/auth.md).
+
 ## System purpose
 
 Frontman lets an LLM act on a real running application instead of operating only on text. The agent can inspect the rendered DOM, take screenshots, read source files, edit code, and verify the result against the live preview.

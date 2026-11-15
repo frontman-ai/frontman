@@ -3,7 +3,9 @@ title: Configure Frontman API Keys & Providers
 description: Connect, verify, replace, or disconnect the provider credentials Frontman uses to run its coding agent.
 ---
 
-Frontman needs a credential for the provider behind your selected model. You can connect a supported account with OAuth or save your own provider API key in Frontman settings.
+The embedded Frontman editor needs a credential for the provider behind your selected model. You can connect a supported account with OAuth or save your own provider API key in Frontman settings.
+
+For an external assistant, use [WordPress MCP connection setup](/docs/wordpress/connect-agent/) instead. That connection does not require an additional AI provider key.
 
 This page owns credential setup and lifecycle. For current models and model IDs, use [Models & Providers](/docs/reference/models/).
 

@@ -15,6 +15,27 @@ Frontman documentation explains installation, API keys, integrations, usage work
 - Vite: https://frontman.sh/docs/integrations/vite/
 - WordPress: https://frontman.sh/docs/integrations/wordpress/
 
+## WordPress
+
+- Choose the embedded editor or MCP: https://frontman.sh/docs/wordpress/choose-interface/
+
+- Connect an AI agent to WordPress: https://frontman.sh/docs/wordpress/connect-agent/
+- Agent compatibility and evidence status: https://frontman.sh/docs/wordpress/agents/
+- ChatGPT connection: https://frontman.sh/docs/wordpress/chatgpt/
+- Claude connection: https://frontman.sh/docs/wordpress/claude/
+- OpenAI dots access: https://frontman.sh/docs/wordpress/dots/
+- Meta Muse access: https://frontman.sh/docs/wordpress/muse/
+- Instinct access: https://frontman.sh/docs/wordpress/instinct/
+- Posts and pages: https://frontman.sh/docs/wordpress/posts-and-pages/
+- Gutenberg blocks: https://frontman.sh/docs/wordpress/gutenberg/
+- Elementor pages: https://frontman.sh/docs/wordpress/elementor/
+- WooCommerce products: https://frontman.sh/docs/wordpress/woocommerce-products/
+- SEO titles and descriptions: https://frontman.sh/docs/wordpress/seo-metadata/
+- Multiple connected sites: https://frontman.sh/docs/wordpress/multiple-sites/
+- Review and recovery: https://frontman.sh/docs/wordpress/recovery/
+- MCP permissions and revocation: https://frontman.sh/docs/wordpress/permissions/
+- MCP connection troubleshooting: https://frontman.sh/docs/wordpress/troubleshooting/
+
 ## Reference
 
 - Configuration: https://frontman.sh/docs/reference/configuration/
