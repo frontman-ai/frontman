@@ -125,11 +125,15 @@ They do not change the written guides' explicit source-review and unverified-int
 
 - `make -C apps/marketing test`: 114 tests passed.
 - `make -C libs/frontman-astro build`: passed; required because the local integration bundle was absent.
-- `make -C apps/marketing test-rendered`: production build, internal link check and 15 rendered-output tests passed after the hierarchy adjustment.
+- `make -C apps/marketing test-rendered`: production build, internal link check and 10 rendered-output tests passed after test cleanup.
 - All 17 WordPress documentation routes returned HTTP 200 from the local development server.
 - Technical review compared the seven new workflow/recovery guides with code and the six client/reference pages with primary sources.
 - Corrected the Elementor CSS-cache scope description: a supplied post ID does not guarantee isolated cache clearing.
 - JSDOM reports CSS parser warnings for Starlight styles; the HTML/Markdown assertions passed.
 - `git diff --check`: passed.
+
+Test cleanup reduced the WordPress documentation suite from eight tests to three focused built-output checks.
+It no longer locks tool-name mentions, review dates, generic disclaimers or the editorial-link matrix.
+Eligibility regressions remain in the existing ChatGPT/auth tests, and the corrected WooCommerce confirmation rule retains a targeted check.
 
 The [internal-link audit](wordpress-internal-link-audit.md) records the subsequent blog/docs reader-path changes and before/after measurements.

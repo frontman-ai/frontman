@@ -65,9 +65,10 @@ Paths in this table are public routes. Each link sits beside the corresponding d
 | Lighthouse article → Elementor performance diagnosis | External-test alternative; no claim that WordPress exposes the Lighthouse tool |
 | JavaScript installation → OpenClaw skill article | Browser-mediated workspace handoff, not hosted WordPress MCP compatibility |
 
-The rendered regression test recorded 22 representative source/destination journeys in this pass.
-The subsequent article delivery and interface-first hierarchy expand that coverage to 26 journeys and all 17 WordPress documentation pages.
-It requires links inside article content and checks destination fragments, rather than accepting sidebar discovery as sufficient.
+The original regression test recorded 22 representative source/destination journeys, later expanded to 26.
+Test cleanup removed that editorial-link matrix and the tool-name, fixed-date and generic prose assertions.
+Current automated coverage checks built-page discovery, HTML/Markdown delivery, interface grouping and the corrected confirmation rule.
+The contextual source/destination matrix remains an editorial audit record, not a permanent test specification.
 The topic-ownership table in `apps/marketing/writing-style.md` now separates installation/editor, hosted setup, permissions and connection failures.
 
 ## Deliberate boundaries and follow-ups

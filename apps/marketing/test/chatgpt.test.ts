@@ -60,7 +60,6 @@ describe('ChatGPT landing page production HTML', () => {
 		const document = documentFor('blog/best-wordpress-mcp-servers-and-plugins-2026')
 		const text = document.querySelector('main')?.textContent ?? ''
 		expect(text).toContain('Frontman capability update, November 11, 2026')
-		expect(text).toContain('Frontman access correction, November 15, 2026')
 		expect(text).toContain('rankings remain as of July 31, 2026')
 		expect(text).not.toContain('Frontman is not an MCP server')
 		expect(text).not.toContain('non-MCP alternative')
