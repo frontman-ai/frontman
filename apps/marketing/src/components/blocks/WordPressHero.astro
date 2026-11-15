@@ -1,0 +1,102 @@
+---
+import gridNetBackground from '../../assets/grid-net-background.svg'
+
+interface Props {
+	headingLines: [string, string]
+	description: string
+	demoTitle: string
+	demoCaption: string
+}
+
+const { headingLines, description, demoTitle, demoCaption } = Astro.props
+
+const demoPreview = `
+	<style>
+		* { box-sizing: border-box; }
+		html, body { margin: 0; height: 100%; background: #180d2b; }
+		a { display: grid; place-items: center; height: 100%; position: relative; color: white; }
+		img { position: absolute; width: 100%; height: 100%; object-fit: cover; }
+		span { position: relative; display: grid; place-items: center; width: 80px; height: 80px; border-radius: 50%; background: #fff; color: #291344; box-shadow: 0 0 0 10px rgb(255 255 255 / .18); transition: transform 350ms cubic-bezier(.32,.72,0,1); }
+		a:hover span { transform: scale(1.08); }
+		a:focus-visible { outline: 4px solid white; outline-offset: -8px; }
+		a:active span { transform: scale(.98); }
+		@media (prefers-reduced-motion: reduce) { span { transition: none; } }
+	</style>
+	<a href="https://www.youtube-nocookie.com/embed/-4GD1GYwH8Y?autoplay=1&rel=0" aria-label="Play Frontman editing demo">
+		<img src="/images/home-demo-poster.webp" alt="Frontman conversation alongside the live storefront preview">
+		<span><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m9 5 11 7-11 7z"/></svg></span>
+	</a>
+`
+---
+
+<section class="wp-hero">
+	<div class="wp-hero__bg" aria-hidden="true">
+		<img src={gridNetBackground.src} alt="" class="wp-hero__bg-image" width="1440" height="900" fetchpriority="high" />
+	</div>
+	<div class="wp-hero__grid">
+		<div class="wp-hero__content">
+			<h1>
+				<span>{headingLines[0]}</span>{' '}
+				<span>{headingLines[1]}</span>
+			</h1>
+			<p class="wp-lead">{description}</p>
+			<div class="wp-actions">
+				<slot />
+			</div>
+		</div>
+		<figure id="demo" class="wp-demo">
+			<div class="wp-video-wrapper">
+				<iframe
+					src="https://www.youtube-nocookie.com/embed/-4GD1GYwH8Y"
+					srcdoc={demoPreview}
+					title={demoTitle}
+					width="960"
+					height="540"
+					loading="lazy"
+					allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+					referrerpolicy="strict-origin-when-cross-origin"
+					allowfullscreen
+				></iframe>
+			</div>
+			<figcaption>{demoCaption}</figcaption>
+		</figure>
+	</div>
+</section>
+
+<style>
+	@reference "../../styles/global.css";
+
+	.wp-hero {
+		--color-surface-border: rgb(255 255 255 / 0.25);
+		position: relative;
+		overflow: hidden;
+		background: var(--color-accent-purple);
+		color: var(--color-neutral-50);
+	}
+	.wp-hero__bg { position: absolute; inset: 0; z-index: 0; opacity: 0.3; pointer-events: none; }
+	.wp-hero__bg-image { width: 100%; height: 100%; object-fit: cover; object-position: center; }
+	.wp-hero__grid { @apply mx-auto max-w-marketing px-page-gutter; position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr); gap: 3rem; align-items: center; min-height: min(56rem, 100svh); padding-top: 10rem; padding-bottom: 7rem; }
+	.wp-hero__content { min-width: 0; }
+	h1 { font-size: clamp(4rem, 5.7vw, 5.5rem); line-height: 1.02; letter-spacing: -0.045em; text-wrap: balance; }
+	h1 span { display: block; }
+	h1 span + span { color: var(--color-primary-100); }
+	.wp-lead { @apply mt-6 text-lg; line-height: 1.7; max-width: 44ch; text-wrap: pretty; }
+	.wp-actions { @apply mt-8 flex flex-wrap items-center gap-4; }
+	.wp-actions :global(a:not(.button)) { @apply underline underline-offset-4 transition-colors duration-200 hover:decoration-2; color: white; }
+	.wp-hero :global(a:focus-visible), iframe:focus-visible { outline: 3px solid white; outline-offset: 4px; }
+	.wp-demo { min-width: 0; padding: 0.5rem; border-radius: calc(var(--radius-panel) + 0.5rem); background: rgb(255 255 255 / 0.1); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2); scroll-margin-top: 6rem; }
+	.wp-video-wrapper { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid var(--color-surface-border); border-radius: var(--radius-panel); background: var(--color-surface-raised); }
+	iframe { position: absolute; inset: 0; display: block; width: 100%; height: 100%; border: 0; }
+	figcaption { margin: 1rem 0.75rem 0.5rem; font-size: 0.8125rem; line-height: 1.6; color: var(--color-primary-100); }
+
+	@media (max-width: 1023px) {
+		.wp-hero__grid { grid-template-columns: 1fr; gap: 3rem; min-height: auto; padding-top: 9rem; padding-bottom: 5rem; }
+		h1 { font-size: clamp(3rem, 7vw, 4.75rem); }
+	}
+	@media (max-width: 767px) {
+		.wp-hero__grid { padding-top: 8rem; padding-bottom: 3rem; }
+	}
+	@media (max-width: 639px) {
+		.wp-actions :global(.button) { width: 100%; }
+	}
+</style>
