@@ -2616,7 +2616,7 @@ __metadata:
     "@tiptap/extension-paragraph": "npm:3.31.4"
     "@tiptap/extension-placeholder": "npm:3.31.4"
     "@tiptap/extension-text": "npm:3.31.4"
-    "@tiptap/extensions": "npm:3.31.4"
+    "@tiptap/extensions": "npm:3.32.0"
     "@tiptap/pm": "npm:3.31.4"
     "@tiptap/react": "npm:3.31.4"
     "@types/babel__core": "npm:^7"
@@ -6506,13 +6506,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tiptap/extensions@npm:3.31.4":
-  version: 3.31.4
-  resolution: "@tiptap/extensions@npm:3.31.4"
+"@tiptap/extensions@npm:3.32.0":
+  version: 3.32.0
+  resolution: "@tiptap/extensions@npm:3.32.0"
   peerDependencies:
-    "@tiptap/core": 3.31.4
-    "@tiptap/pm": 3.31.4
-  checksum: 10c0/005bb44014a9ada7a3de5e31e16cb4f58f8bc2ba56a8702c9d2266ae64ffe53becc93ce086d31e5b18de770c91d7d860236b9d6e0a13464ac968a936a34acac8
+    "@tiptap/core": 3.32.0
+    "@tiptap/pm": 3.32.0
+  checksum: 10c0/e770d04e198043aaaf1429df6bee1eb07f9ca3de27b1d8538e495e164333b273e09529e2377dd001f8f0b0ebe92ad4798dddff7725710e82e83bf1c2dbe2bcfd
   languageName: node
   linkType: hard
 
