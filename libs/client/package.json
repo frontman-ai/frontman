@@ -62,8 +62,8 @@
 		"immutable": "5.1.9",
 		"lucide-react": "^1.48.0",
 		"playwright": "^1.64.0",
-		"react": "^19.3.0",
-		"react-dom": "^19.3.0",
+		"react": "^19.3.1",
+		"react-dom": "^19.3.1",
 		"rescript": "catalog:",
 		"rescript-base-ui": "^1.6.2",
 		"rescript-vitest": "catalog:",
@@ -92,7 +92,7 @@
 		"diff": "^9.0.0"
 	},
 	"peerDependencies": {
-		"react": "^19.3.0",
-		"react-dom": "^19.3.0"
+		"react": "^19.3.1",
+		"react-dom": "^19.3.1"
 	}
 }
