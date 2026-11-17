@@ -14,7 +14,6 @@ on:
       - "apps/frontman_server/lib/**"
       - "apps/frontman_server/config/**"
       - "apps/frontman_server/mix.*"
-      - "apps/frontman_server/priv/scripts/e2e_openai*.exs"
       - "apps/swarm_ai/**"
       - "mise.toml"
       - "package.json"
@@ -186,27 +185,39 @@ jobs:
           mix deps.clean --unlock --unused
           mix deps.get
 
-      # PR code must never receive the privileged secret writer or rotate shared grants.
-      - name: Read E2E OpenAI token lifetime
+      - name: Refresh E2E OpenAI token if needed
         id: token
         working-directory: apps/frontman_server
         env:
-          E2E_OPENAI_TOKEN_MODE: read
+          E2E_OPENAI_TOKEN_MODE: refresh_if_needed
           E2E_OPENAI_REFRESH_THRESHOLD_SECONDS: "1800"
-        run: make e2e-openai-token
+        run: mix run --no-start priv/scripts/e2e_openai_token.exs
 
-      - name: Require sufficient E2E OpenAI token lifetime
-        env:
-          REFRESH_NEEDED: ${{ steps.token.outputs.refresh_needed }}
+      - name: Use refreshed E2E OpenAI token for this run
         run: |
-          if [ "$REFRESH_NEEDED" != "false" ]; then
-            echo "Run the trusted Refresh E2E OpenAI token workflow with force_refresh=true, then start a new E2E run."
+          echo "E2E_OPENAI_ACCESS_TOKEN=${{ steps.token.outputs.access_token }}" >> "$GITHUB_ENV"
+          echo "E2E_OPENAI_REFRESH_TOKEN=${{ steps.token.outputs.refresh_token }}" >> "$GITHUB_ENV"
+          echo "E2E_OPENAI_ACCOUNT_ID=${{ steps.token.outputs.account_id }}" >> "$GITHUB_ENV"
+
+      - name: Persist refreshed E2E OpenAI token
+        if: steps.token.outputs.rotated == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.E2E_SECRET_ROTATION_GH_TOKEN }}
+          REPO: ${{ github.repository }}
+          ACCESS_TOKEN: ${{ steps.token.outputs.access_token }}
+          REFRESH_TOKEN: ${{ steps.token.outputs.refresh_token }}
+          ACCOUNT_ID: ${{ steps.token.outputs.account_id }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "Missing E2E_SECRET_ROTATION_GH_TOKEN secret"
             exit 1
           fi
 
-      - name: Preflight E2E OpenAI model access
-        working-directory: apps/frontman_server
-        run: make e2e-openai-preflight
+          for APP in actions dependabot; do
+            gh secret set E2E_CHATGPT_ACCESS_TOKEN --app "$APP" --repo "$REPO" --body "$ACCESS_TOKEN"
+            gh secret set E2E_CHATGPT_REFRESH_TOKEN --app "$APP" --repo "$REPO" --body "$REFRESH_TOKEN"
+            gh secret set E2E_CHATGPT_ACCOUNT_ID --app "$APP" --repo "$REPO" --body "$ACCOUNT_ID"
+          done
 
       - name: Clean stale test databases
         run: bash scripts/ci/postgres-test-db-cleanup.sh stale

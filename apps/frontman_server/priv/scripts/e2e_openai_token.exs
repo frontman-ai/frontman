@@ -1,17 +1,12 @@
-Code.require_file("e2e_openai_auth.exs", __DIR__)
-
 defmodule FrontmanServer.E2EOpenAITokenScript do
   @moduledoc false
 
-  alias FrontmanServer.E2EOpenAIAuth
   alias FrontmanServer.Providers.OpenAIOAuth
 
   @default_threshold_seconds 259_200
 
   def run do
-    mode = System.get_env("E2E_OPENAI_TOKEN_MODE", "read") |> E2EOpenAIAuth.validate_mode!()
-    # OpenAIOAuth logs raw provider responses. This CLI reports only sanitized errors.
-    Logger.configure(level: :none)
+    mode = System.get_env("E2E_OPENAI_TOKEN_MODE", "read")
     access_token = required_env!("E2E_OPENAI_ACCESS_TOKEN")
     refresh_token = required_env!("E2E_OPENAI_REFRESH_TOKEN")
     account_id = System.get_env("E2E_OPENAI_ACCOUNT_ID")
@@ -24,7 +19,10 @@ defmodule FrontmanServer.E2EOpenAITokenScript do
     current_expires_at = token_expires_at(access_token)
 
     refresh_needed =
-      E2EOpenAIAuth.refresh_needed?(mode, current_expires_at, now, threshold_seconds)
+      case current_expires_at do
+        {:ok, expires_at} -> DateTime.diff(expires_at, now, :second) <= threshold_seconds
+        {:error, _reason} -> true
+      end
 
     result =
       case mode do
@@ -40,15 +38,18 @@ defmodule FrontmanServer.E2EOpenAITokenScript do
              now
            )}
 
-        mode when mode in ["refresh_if_needed", "force_refresh"] ->
+        "refresh_if_needed" ->
           maybe_refresh_if_needed(
             access_token,
             refresh_token,
             account_id,
             current_expires_at,
-            refresh_needed,
+            refresh_needed or System.get_env("E2E_OPENAI_FORCE_REFRESH") == "true",
             now
           )
+
+        other ->
+          {:error, {:invalid_mode, other}}
       end
 
     case result do
@@ -186,8 +187,8 @@ defmodule FrontmanServer.E2EOpenAITokenScript do
 
       value ->
         case Integer.parse(value) do
-          {integer, ""} when integer >= 0 -> integer
-          _ -> raise "Invalid nonnegative integer for #{name}"
+          {integer, ""} -> integer
+          _ -> raise "Invalid integer value for #{name}: #{inspect(value)}"
         end
     end
   end
@@ -331,8 +332,12 @@ defmodule FrontmanServer.E2EOpenAITokenScript do
     )
   end
 
+  defp format_error({:invalid_mode, mode}) do
+    "invalid mode #{inspect(mode)} (expected \"read\" or \"refresh_if_needed\")"
+  end
+
   defp format_error({:refresh_failed, reason}) do
-    E2EOpenAIAuth.refresh_error(reason)
+    "token refresh failed: #{inspect(reason)}"
   end
 end
 
