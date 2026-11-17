@@ -3,6 +3,11 @@ name: Refresh E2E OpenAI token
 on:
   workflow_dispatch:
     inputs:
+      force_refresh:
+        description: "Refresh even when the access token has not expired"
+        type: boolean
+        required: true
+        default: false
       refresh_threshold_seconds:
         description: "Refresh when token expires within this many seconds"
         required: true
@@ -15,11 +20,12 @@ permissions:
 
 concurrency:
   group: refresh-e2e-openai-token
-  cancel-in-progress: false
+  queue: max
 
 jobs:
   refresh-e2e-openai-token:
     name: Refresh E2E OpenAI token
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -29,7 +35,7 @@ jobs:
       E2E_OPENAI_ACCESS_TOKEN: ${{ secrets.E2E_CHATGPT_ACCESS_TOKEN }}
       E2E_OPENAI_REFRESH_TOKEN: ${{ secrets.E2E_CHATGPT_REFRESH_TOKEN }}
       E2E_OPENAI_ACCOUNT_ID: ${{ secrets.E2E_CHATGPT_ACCOUNT_ID }}
-      E2E_OPENAI_TOKEN_MODE: refresh_if_needed
+      E2E_OPENAI_TOKEN_MODE: ${{ inputs.force_refresh && 'force_refresh' || 'refresh_if_needed' }}
       E2E_OPENAI_REFRESH_THRESHOLD_SECONDS: ${{ github.event.inputs.refresh_threshold_seconds || '259200' }}
 
     steps:
@@ -46,10 +52,16 @@ jobs:
         working-directory: apps/frontman_server
         run: mix deps.get
 
+      - name: Require secret writer before any rotation
+        env:
+          GH_TOKEN: ${{ secrets.E2E_SECRET_ROTATION_GH_TOKEN }}
+        run: |
+          test -n "$GH_TOKEN" || { echo "Missing E2E_SECRET_ROTATION_GH_TOKEN Actions secret. No rotation attempted."; exit 1; }
+
       - name: Refresh token if needed
         id: token
         working-directory: apps/frontman_server
-        run: mix run --no-start priv/scripts/e2e_openai_token.exs
+        run: make e2e-openai-token
 
       - name: Update repo secrets
         if: steps.token.outputs.rotated == 'true'
@@ -71,8 +83,59 @@ jobs:
             gh secret set E2E_CHATGPT_ACCOUNT_ID --app "$APP" --repo "$REPO" --body "$ACCOUNT_ID"
           done
 
+      - name: Use current credentials after persistence
+        env:
+          ACCESS_TOKEN: ${{ steps.token.outputs.access_token }}
+          REFRESH_TOKEN: ${{ steps.token.outputs.refresh_token }}
+          ACCOUNT_ID: ${{ steps.token.outputs.account_id }}
+        run: |
+          printf 'E2E_OPENAI_ACCESS_TOKEN=%s\nE2E_OPENAI_REFRESH_TOKEN=%s\nE2E_OPENAI_ACCOUNT_ID=%s\n' \
+            "$ACCESS_TOKEN" "$REFRESH_TOKEN" "$ACCOUNT_ID" >> "$GITHUB_ENV"
+
+      - name: Preflight current credentials
+        id: preflight
+        working-directory: apps/frontman_server
+        run: make e2e-openai-preflight-recovery
+
+      - name: Refresh once after explicit authentication rejection
+        if: steps.preflight.outputs.auth_rejected == 'true'
+        id: recovery
+        working-directory: apps/frontman_server
+        env:
+          E2E_OPENAI_TOKEN_MODE: force_refresh
+        run: make e2e-openai-token
+
+      # Persist the recovered pair before a second probe can fail and discard step outputs.
+      - name: Persist recovery credentials
+        if: steps.recovery.outputs.rotated == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.E2E_SECRET_ROTATION_GH_TOKEN }}
+          REPO: ${{ github.repository }}
+          ACCESS_TOKEN: ${{ steps.recovery.outputs.access_token }}
+          REFRESH_TOKEN: ${{ steps.recovery.outputs.refresh_token }}
+          ACCOUNT_ID: ${{ steps.recovery.outputs.account_id }}
+        run: |
+          for APP in actions dependabot; do
+            gh secret set E2E_CHATGPT_ACCESS_TOKEN --app "$APP" --repo "$REPO" --body "$ACCESS_TOKEN"
+            gh secret set E2E_CHATGPT_REFRESH_TOKEN --app "$APP" --repo "$REPO" --body "$REFRESH_TOKEN"
+            gh secret set E2E_CHATGPT_ACCOUNT_ID --app "$APP" --repo "$REPO" --body "$ACCOUNT_ID"
+          done
+
+      - name: Retry preflight once after persistence
+        if: steps.preflight.outputs.auth_rejected == 'true'
+        working-directory: apps/frontman_server
+        env:
+          E2E_OPENAI_ACCESS_TOKEN: ${{ steps.recovery.outputs.access_token }}
+          E2E_OPENAI_ACCOUNT_ID: ${{ steps.recovery.outputs.account_id }}
+        run: |
+          make e2e-openai-preflight || {
+            echo "Recovery preflight failed. If authentication was rejected again, reauthorization is required. See test/e2e/README.md."
+            exit 1
+          }
+
       - name: Summarize result
         run: |
           echo "rotated=${{ steps.token.outputs.rotated }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "recovery_rotated=${{ steps.recovery.outputs.rotated || 'false' }}" >> "$GITHUB_STEP_SUMMARY"
           echo "refresh_needed=${{ steps.token.outputs.refresh_needed }}" >> "$GITHUB_STEP_SUMMARY"
           echo "expires_at=${{ steps.token.outputs.expires_at }}" >> "$GITHUB_STEP_SUMMARY"

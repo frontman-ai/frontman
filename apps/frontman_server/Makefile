@@ -83,6 +83,30 @@ test:
 	MIX_ENV=test mix ecto.migrate --quiet
 	mix test $(TEST_ARGS)
 
+.PHONY: test-e2e-openai-auth e2e-openai-token e2e-openai-preflight e2e-openai-preflight-recovery check-e2e-openai-auth
+# Standalone ExUnit avoids the application/DB and the normal test helper's mock setup.
+test-e2e-openai-auth:
+	MIX_ENV=test mix run --no-start test/e2e_openai_auth_test.exs
+
+e2e-openai-token:
+	MIX_ENV=e2e mix run --no-start priv/scripts/e2e_openai_token.exs
+
+e2e-openai-preflight:
+	MIX_ENV=e2e mix run --no-start priv/scripts/e2e_openai_preflight.exs
+
+# Only the trusted writer can convert auth rejection into one refresh/persist/retry.
+e2e-openai-preflight-recovery:
+	@status=0; MIX_ENV=e2e mix run --no-start priv/scripts/e2e_openai_preflight.exs || status=$$?; \
+	case "$$status" in \
+	  0) ;; \
+	  2) printf 'auth_rejected=true\n' >> "$$GITHUB_OUTPUT" ;; \
+	  *) exit "$$status" ;; \
+	esac
+
+check-e2e-openai-auth:
+	mix format --check-formatted priv/scripts/e2e_openai*.exs test/e2e_openai_auth_test.exs
+	mix credo --strict priv/scripts/e2e_openai*.exs
+
 .PHONY: test-application-restart
 test-application-restart:
 	@set -eu; \
