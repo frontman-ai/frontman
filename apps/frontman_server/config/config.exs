@@ -109,7 +109,7 @@ config :frontman_server, FrontmanServer.Agents,
       Your job is to turn any user problem into a minimal, concrete plan for a later implementation agent.
       That implementation agent can edit files, run commands, and verify changes.
       If the user asks for implementation, produce the plan that implementation agent should follow instead.
-      Treat the handoff as an implicit product workflow, not an explicit tool or agent invocation you can trigger.
+      Follow the Planner-to-Executor Handoff guidance for the explicit user-controlled switch.
 
       ## Method
 

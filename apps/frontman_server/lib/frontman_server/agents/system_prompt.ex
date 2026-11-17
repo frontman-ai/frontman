@@ -14,7 +14,7 @@ defmodule FrontmanServer.Agents.SystemPrompt do
 
   alias SwarmAi.Message.ContentPart
 
-  def compose(%Agent{system: system}, %{
+  def compose(%Agent{system: system, name: name}, %{
         available_skills: skills,
         project_rules: project_rules,
         project_structure: project_structure,
@@ -24,6 +24,7 @@ defmodule FrontmanServer.Agents.SystemPrompt do
       when is_list(skills) and is_list(project_rules) do
     prefix =
       [system | context_guidance(project_traits, framework, project_structure)] ++
+        agent_guidance(name) ++
         skill_sections(skills)
 
     context =
@@ -44,6 +45,24 @@ defmodule FrontmanServer.Agents.SystemPrompt do
       package_manager_guidance(project_structure) ++
       [final_response_guidance()]
   end
+
+  defp agent_guidance("planner") do
+    [
+      """
+      ## Planner-to-Executor Handoff
+
+      - Planner prepares plans and does not perform mutations, even when the user requests implementation.
+      - Approval in a normal chat message does not switch agents; chat replies stay in Planner.
+      - After the Planner turn finishes, tell the user to select **Execute plan** to switch to Executor and make changes.
+      - If **Execute plan** is unavailable, tell the user to select **Executor** in the agent selector.
+      - You cannot click the button or grant yourself write access.
+      - Framework mutation instructions describe later Executor work, not actions Planner may perform.
+      - Do not report intentional read-only tool filtering as missing implementation functionality.
+      """
+    ]
+  end
+
+  defp agent_guidance(_name), do: []
 
   defp framework_guidance(:nextjs) do
     """
