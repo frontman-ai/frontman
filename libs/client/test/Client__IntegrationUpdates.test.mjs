@@ -12,8 +12,8 @@ vi.mock("../src/state/Client__State.res.mjs", async (importOriginal) => ({
 	useSelector: (selector) => selector(selectedState.current),
 }));
 
-import { defaultState } from "../src/state/Client__State__Initialization.res.mjs";
 import { handleEffect } from "../src/state/Client__State__Effects.res.mjs";
+import { defaultState } from "../src/state/Client__State__Initialization.res.mjs";
 import { next } from "../src/state/Client__State__StateReducer.res.mjs";
 
 vi.mock(

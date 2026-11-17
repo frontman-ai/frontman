@@ -24,7 +24,15 @@ if ( in_array( $runtime_case, [ 'polylang-setup', 'polylang-cleanup', 'polylang-
 	define( 'PLL_ADMIN', true );
 }
 try {
-	require '/var/www/html/wp-load.php';
+	if ( 'seo-indexing-multisite' === $runtime_case ) {
+		$_SERVER['HTTP_HOST'] = 'frontman-multisite.example.test';
+		$_SERVER['REQUEST_URI'] = '/';
+		$_SERVER['REMOTE_ADDR'] = '127.0.0.1';
+		require '/tmp/frontman-multisite/wp-load.php';
+		frontman_runtime_assert( is_multisite() && ! ms_is_switched(), 'SEO multisite case requires the existing real network fixture.' );
+	} else {
+		require '/var/www/html/wp-load.php';
+	}
 	frontman_runtime_inventory( '' === $runtime_case ? 'baseline' : $runtime_case );
 	$schema = [ 'type' => 'array', 'items' => [ 'type' => 'integer' ], 'minItems' => 1 ];
 	frontman_runtime_same( true, rest_validate_value_from_schema( [ 1 ], $schema, 'items' ), 'WordPress schema must accept a valid value.' );

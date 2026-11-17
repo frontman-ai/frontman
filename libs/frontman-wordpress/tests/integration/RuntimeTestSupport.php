@@ -86,6 +86,15 @@ function frontman_runtime_http( string $method, string $path, string $cookie = '
 	foreach ( $matches as $match ) {
 		$meta[ $match[1] ] = html_entity_decode( $match[3], ENT_QUOTES | ENT_HTML5, 'UTF-8' );
 	}
+	$meta_tags = [];
+	preg_match_all( '~<meta\b[^>]*>~is', (string) $response, $tags );
+	foreach ( $tags[0] as $tag ) {
+		$attributes = wp_kses_hair( substr( $tag, 5, -1 ), wp_allowed_protocols() );
+		$name = strtolower( $attributes['name']['value'] ?? $attributes['property']['value'] ?? '' );
+		if ( isset( $attributes['content'] ) ) {
+			$meta_tags[] = [ 'name' => $name, 'content' => html_entity_decode( $attributes['content']['value'], ENT_QUOTES | ENT_HTML5, 'UTF-8' ) ];
+		}
+	}
 	$webpage = [];
 	if ( preg_match( '~<script[^>]*class=["\']yoast-schema-graph["\'][^>]*>(.*?)</script>~is', (string) $response, $schema ) ) {
 		foreach ( json_decode( $schema[1], true, 512, JSON_THROW_ON_ERROR )['@graph'] as $piece ) {
@@ -101,6 +110,7 @@ function frontman_runtime_http( string $method, string $path, string $cookie = '
 		'description' => $meta['description'] ?? null,
 		'og_title' => $meta['og:title'] ?? null, 'og_description' => $meta['og:description'] ?? null,
 		'schema_name' => $webpage['name'] ?? null, 'schema_description' => $webpage['description'] ?? null,
+		'meta_tags' => $meta_tags,
 	];
 }
 
@@ -122,6 +132,7 @@ function frontman_runtime_isolated_cases(): array {
 		'woocommerce-annotations' => [ 'file' => 'WooCommerceAnnotationsRuntimeCases.php', 'root_alias' => false ],
 		'installation-paths' => [ 'file' => 'InstallationPathsRuntimeTest.php', 'root_alias' => true ],
 		'seo-coexistence' => [ 'file' => 'SeoCoexistenceRuntimeTest.php', 'root_alias' => false ],
+		'seo-indexing-multisite' => [ 'file' => 'SeoIndexingMultisiteRuntimeCases.php', 'root_alias' => false ],
 		'surerank' => [ 'file' => 'SureRankRuntimeTest.php', 'root_alias' => false ],
 		'directorist' => [ 'file' => 'DirectoristRuntimeTest.php', 'root_alias' => false ],
 		'super-cache' => [ 'file' => 'SuperCacheRuntimeTest.php', 'root_alias' => false ],
