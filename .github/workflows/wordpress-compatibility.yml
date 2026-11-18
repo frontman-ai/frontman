@@ -87,7 +87,7 @@ jobs:
 
       - name: Set up SDK integration toolchain
         if: matrix.wordpress == '7.0.2' && matrix.php == '8.4' && !matrix.yoast
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca
+        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7
         with:
           install: true
           cache: true

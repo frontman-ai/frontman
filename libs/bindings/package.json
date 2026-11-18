@@ -13,8 +13,8 @@
 	},
 	"devDependencies": {
 		"@rescript/react": "^0.15.0",
-		"react": "^19.3.0",
-		"react-dom": "^19.3.0",
+		"react": "^19.3.1",
+		"react-dom": "^19.3.1",
 		"rescript": "catalog:",
 		"sentry-testkit": "^7.6.0"
 	}

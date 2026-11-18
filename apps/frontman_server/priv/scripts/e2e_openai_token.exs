@@ -44,7 +44,7 @@ defmodule FrontmanServer.E2EOpenAITokenScript do
             refresh_token,
             account_id,
             current_expires_at,
-            refresh_needed,
+            refresh_needed or System.get_env("E2E_OPENAI_FORCE_REFRESH") == "true",
             now
           )
 

@@ -36,7 +36,7 @@
 	],
 	"devDependencies": {
 		"@babel/core": "^8.0.7",
-		"@base-ui/react": "^1.8.0",
+		"@base-ui/react": "^1.9.0",
 		"@biomejs/biome": "^2.5.15",
 		"@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main",
 		"@frontman-ai/astro-browser": "workspace:*",
@@ -62,8 +62,8 @@
 		"immutable": "5.1.9",
 		"lucide-react": "^1.48.0",
 		"playwright": "^1.64.0",
-		"react": "^19.3.0",
-		"react-dom": "^19.3.0",
+		"react": "^19.3.1",
+		"react-dom": "^19.3.1",
 		"rescript": "catalog:",
 		"rescript-base-ui": "^1.6.2",
 		"rescript-vitest": "catalog:",
@@ -80,19 +80,19 @@
 	"dependencies": {
 		"@floating-ui/dom": "^1.8.0",
 		"@pierre/diffs": "^1.5.1",
-		"@tiptap/core": "3.31.4",
-		"@tiptap/extension-document": "3.31.4",
-		"@tiptap/extension-paragraph": "3.31.4",
-		"@tiptap/extension-placeholder": "3.31.4",
-		"@tiptap/extension-text": "3.31.4",
+		"@tiptap/core": "3.32.0",
+		"@tiptap/extension-document": "3.32.0",
+		"@tiptap/extension-paragraph": "3.32.0",
+		"@tiptap/extension-placeholder": "3.32.0",
+		"@tiptap/extension-text": "3.32.0",
 		"@tiptap/extensions": "3.32.0",
-		"@tiptap/pm": "3.31.4",
-		"@tiptap/react": "3.31.4",
+		"@tiptap/pm": "3.32.0",
+		"@tiptap/react": "3.32.0",
 		"border-beam": "^1.4.1",
 		"diff": "^9.0.0"
 	},
 	"peerDependencies": {
-		"react": "^19.3.0",
-		"react-dom": "^19.3.0"
+		"react": "^19.3.1",
+		"react-dom": "^19.3.1"
 	}
 }

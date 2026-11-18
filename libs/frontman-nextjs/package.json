@@ -63,7 +63,7 @@
 		"build": "yarn build:rescript && yarn build:bundle"
 	},
 	"dependencies": {
-		"@sentry/nextjs": "^11.0.0",
+		"@sentry/nextjs": "^11.8.0",
 		"chrome-launcher": "^1.2.2",
 		"dom-element-to-component-source": "npm:@frontman-ai/dom-element-to-component-source@0.5.0",
 		"lighthouse": "^13.5.0",
@@ -100,8 +100,8 @@
 		"@rescript/runtime": "catalog:",
 		"@rescript/webapi": "workspace:*",
 		"next": "catalog:",
-		"react": "^19.3.0",
-		"react-dom": "^19.3.0",
+		"react": "^19.3.1",
+		"react-dom": "^19.3.1",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"sury": "catalog:",
