@@ -36,7 +36,7 @@
 	],
 	"devDependencies": {
 		"@babel/core": "^8.0.7",
-		"@base-ui/react": "^1.8.0",
+		"@base-ui/react": "^1.9.0",
 		"@biomejs/biome": "^2.5.15",
 		"@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main",
 		"@frontman-ai/astro-browser": "workspace:*",
@@ -62,8 +62,8 @@
 		"immutable": "5.1.9",
 		"lucide-react": "^1.48.0",
 		"playwright": "^1.64.0",
-		"react": "^19.3.0",
-		"react-dom": "^19.3.0",
+		"react": "^19.3.1",
+		"react-dom": "^19.3.1",
 		"rescript": "catalog:",
 		"rescript-base-ui": "^1.6.2",
 		"rescript-vitest": "catalog:",
@@ -92,7 +92,7 @@
 		"diff": "^9.0.0"
 	},
 	"peerDependencies": {
-		"react": "^19.3.0",
-		"react-dom": "^19.3.0"
+		"react": "^19.3.1",
+		"react-dom": "^19.3.1"
 	}
 }
