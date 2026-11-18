@@ -41,7 +41,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca
+        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7
         with:
           install: true
           cache: true

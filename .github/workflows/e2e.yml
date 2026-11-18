@@ -138,7 +138,7 @@ jobs:
         run: chmod -R +x ~/.local/share/mise/bin/ 2>/dev/null || true
 
       - name: Install E2E runtime tools via mise
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca
+        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7
         with:
           install: true
           install_args: erlang elixir mkcert
