@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - Update Oban from 2.24.1 to 2.24.2.
+- Update all Tiptap editor packages to 3.32.0 together to keep their required versions aligned.
 - Allow forced E2E OpenAI token refresh even when the access token is unexpired.
 - Update Plug to 1.20.4 to fix multipart length-limit enforcement (CVE-2026-120287).
 - Use a shared responsive layout for sign-in, email verification, account confirmation, and WordPress connection instructions, with solid cards and consistent controls.
