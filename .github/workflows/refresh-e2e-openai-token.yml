@@ -3,6 +3,9 @@ name: Refresh E2E OpenAI token
 on:
   workflow_dispatch:
     inputs:
+      force_refresh:
+        type: boolean
+        default: false
       refresh_threshold_seconds:
         description: "Refresh when token expires within this many seconds"
         required: true
@@ -30,6 +33,7 @@ jobs:
       E2E_OPENAI_REFRESH_TOKEN: ${{ secrets.E2E_CHATGPT_REFRESH_TOKEN }}
       E2E_OPENAI_ACCOUNT_ID: ${{ secrets.E2E_CHATGPT_ACCOUNT_ID }}
       E2E_OPENAI_TOKEN_MODE: refresh_if_needed
+      E2E_OPENAI_FORCE_REFRESH: ${{ inputs.force_refresh }}
       E2E_OPENAI_REFRESH_THRESHOLD_SECONDS: ${{ github.event.inputs.refresh_threshold_seconds || '259200' }}
 
     steps:
