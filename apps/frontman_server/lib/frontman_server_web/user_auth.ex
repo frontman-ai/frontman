@@ -16,7 +16,9 @@ defmodule FrontmanServerWeb.UserAuth do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.OpenAIAds
   alias FrontmanServerWeb.EmbeddedClientOrigin
+  alias FrontmanServerWeb.OpenAIAdsCookie
 
   @max_cookie_age_in_days 14
   @remember_me_cookie "_frontman_server_web_user_remember_me"
@@ -37,6 +39,7 @@ defmodule FrontmanServerWeb.UserAuth do
   """
   def log_in_user(conn, user, params \\ %{}) do
     user_return_to = get_session(conn, :user_return_to)
+    :ok = OpenAIAds.associate(user.id, OpenAIAdsCookie.id(conn))
 
     pending_connect_handoff =
       case get_session(conn, :connect_handoff) do

@@ -48,6 +48,7 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Billing
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Observability.SentryContext
+  alias FrontmanServer.OpenAIAds
   alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Providers
   alias FrontmanServer.Repo
@@ -451,7 +452,7 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp finish_turn(task, _history, turn_number, {type, attrs}) do
+  defp finish_turn(task, history, turn_number, {type, attrs}) do
     with {:ok, row} <-
            insert_interaction_row(task, %{
              id: Ecto.UUID.generate(),
@@ -459,8 +460,42 @@ defmodule FrontmanServer.Tasks do
              data: attrs,
              turn_number: turn_number
            }) do
+      record_edit_activation(task, history, turn_number, type, row.id)
       {:ok, [row]}
     end
+  end
+
+  defp record_edit_activation(task, history, turn_number, :agent_completed, source_ref) do
+    edited? =
+      Enum.any?(history.rows, fn
+        %InteractionSchema{
+          turn_number: ^turn_number,
+          data: %Interaction.ToolResult{is_error: false, tool_name: name, result: result}
+        } ->
+          OpenAIAds.editing_success?(name, result)
+
+        _row ->
+          false
+      end)
+
+    if edited? do
+      :ok =
+        OpenAIAds.record(
+          task.user_id,
+          "first_successful_edit",
+          source_ref,
+          !earlier_edit?(task.user_id, source_ref)
+        )
+    end
+  end
+
+  defp record_edit_activation(_task, _history, _turn_number, _type, _source_ref), do: :ok
+
+  def earlier_edit?(user_id, excluded_completion_id \\ "00000000-0000-0000-0000-000000000000") do
+    user_id
+    |> InteractionSchema.completed_edits(excluded_completion_id, OpenAIAds.editing_tools())
+    |> Repo.all()
+    |> Enum.any?(fn {name, result} -> OpenAIAds.editing_success?(name, result) end)
   end
 
   defp publish_outcome({:ok, rows}, task_id) do

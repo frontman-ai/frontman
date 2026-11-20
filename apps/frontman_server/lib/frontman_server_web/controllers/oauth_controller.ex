@@ -10,6 +10,7 @@ defmodule FrontmanServerWeb.OAuthController do
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.WorkOS.AuthError
   alias FrontmanServerWeb.EmbeddedClientAuth
+  alias FrontmanServerWeb.OpenAIAdsCookie
   alias FrontmanServerWeb.UserAuth
 
   import FrontmanServerWeb.UserAuth, only: [require_sudo_mode: 2]
@@ -41,7 +42,11 @@ defmodule FrontmanServerWeb.OAuthController do
 
     signup_framework = get_session(conn, :signup_framework)
 
-    case Accounts.authenticate_with_oauth(code, signup_framework) do
+    case Accounts.authenticate_with_oauth(
+           code,
+           signup_framework,
+           OpenAIAdsCookie.id(conn)
+         ) do
       {:ok, user} ->
         conn
         |> put_flash(:info, "Welcome!")
@@ -106,7 +111,12 @@ defmodule FrontmanServerWeb.OAuthController do
 
     case get_session(conn, :pending_auth) do
       %{"state" => ^state, "token" => token, "request" => request} when is_binary(state) ->
-        case Accounts.authenticate_with_email_verification(code, token, signup_framework) do
+        case Accounts.authenticate_with_email_verification(
+               code,
+               token,
+               signup_framework,
+               OpenAIAdsCookie.id(conn)
+             ) do
           {:ok, user} ->
             conn
             |> assign(:embedded_request, request)

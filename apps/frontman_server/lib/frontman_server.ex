@@ -22,6 +22,7 @@ defmodule FrontmanServer do
     {WordPress, []},
     {Skills, []},
     {Support, []},
+    {OpenAIAds, []},
     {Tasks, []},
     {Frameworks, []},
     BrandTokens,
