@@ -13,7 +13,6 @@ if (summary < 0 || table?.type !== 'table' || !table.rows.length ||
 	throw new Error('Expected the documented Frontman compatibility summary table')
 }
 
-// Export the documented wording, not inferred semver or a test result.
 const integrations = table.rows.map(row => {
 	const [platform, integration, status, versions, access] = row.map(cell => cell.text.replace(/^`([^`]+)`$/, '$1'))
 	if (!platform || !integration || !status || !versions || !access) {

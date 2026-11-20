@@ -1,6 +1,5 @@
 import type { CollectionEntry } from 'astro:content'
 
-// Each list is ordered as a reading path. Tags remain a separate, exhaustive index.
 export const blogTopics = [
 	{
 		id: 'browser-aware-coding',
