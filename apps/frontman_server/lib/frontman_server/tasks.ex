@@ -74,6 +74,69 @@ defmodule FrontmanServer.Tasks do
 
   @pretrial_run_limit 5
 
+  @woocommerce_resources ~w(product product_category product_tag product_attribute attribute_term
+    product_variation product_review order customer shipping_zone shipping_zone_method tax_rate coupon)
+  @woocommerce_edits for resource <- @woocommerce_resources,
+                         action <- ~w(create update delete),
+                         do: "wc_#{action}_#{resource}"
+  @editing_tools @woocommerce_edits ++
+                   ~w(write_file edit_file wp_create_post wp_duplicate_post wp_update_post wp_delete_post
+    wp_update_block wp_insert_block wp_move_block wp_delete_block wp_upload_media
+    wp_update_option wp_restore_custom_css_revision wp_update_custom_css wp_update_theme_mod
+    wp_update_customizer_setting wp_update_seo wp_set_post_language wp_write_public_file
+    wp_update_term_seo wp_update_post_type_archive_seo
+    wp_create_redirect wp_delete_redirect wp_301_redirects_create wp_301_redirects_delete
+    wp_set_widget_visibility wp_create_widget wp_update_widget wp_move_widget wp_delete_widget
+    wp_create_menu wp_delete_menu wp_assign_menu_location wp_create_menu_item wp_update_menu_item
+    wp_delete_menu_item wp_create_navigation_menu wp_update_navigation_menu wp_delete_navigation_menu
+    wp_create_template wp_update_template wp_elementor_save_page_data wp_elementor_update_element
+    wp_elementor_add_element wp_elementor_wrap_element wp_elementor_remove_element
+    wp_elementor_restore_rollback wp_elementor_duplicate_element wp_elementor_move_element
+    wc_create_order_note wc_delete_order_note wc_create_order_refund wc_delete_order_refund
+    wc_update_shipping_zone_locations wc_create_tax_class wc_delete_tax_class
+    wc_update_payment_gateway wc_update_setting_option
+    wc_update_product_meta wc_delete_product_meta wc_update_order_meta wc_delete_order_meta
+    wc_update_customer_meta wc_delete_customer_meta)
+
+  @doc "Qualifies operation-level editing success, excluding known native failures and dry runs."
+  def editing_success?(name, %{"isError" => true}) when is_binary(name), do: false
+
+  def editing_success?(name, %{"content" => content}) when is_list(content) do
+    name in @editing_tools &&
+      Enum.all?(content, fn
+        %{"type" => "text", "text" => text} ->
+          case Jason.decode(text) do
+            {:ok, %{"success" => false}} -> false
+            {:ok, %{"updated" => false}} -> false
+            {:ok, %{"dryRun" => true}} -> false
+            {:ok, %{"dry_run" => true}} -> false
+            {:ok, %{"before" => before, "after" => after_value}} -> before != after_value
+            _text_or_operation_result -> true
+          end
+
+        _other_content ->
+          true
+      end)
+  end
+
+  def editing_success?(_name, _result), do: false
+
+  @doc "Checks persisted completed turns using the same native-result qualification as current edits."
+  def earlier_edit?(
+        %Scope{user: %{id: user_id}},
+        excluded_completion_id \\ "00000000-0000-0000-0000-000000000000"
+      ) do
+    {:ok, found?} =
+      Repo.transaction(fn ->
+        user_id
+        |> InteractionSchema.completed_edits(excluded_completion_id, @editing_tools)
+        |> Repo.stream(max_rows: 10)
+        |> Enum.any?(fn {name, result} -> editing_success?(name, result) end)
+      end)
+
+    found?
+  end
+
   @doc "Gets task metadata by ID without loading its interaction history."
   def get_task(scope, task_id) do
     case task_id
