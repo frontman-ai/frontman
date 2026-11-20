@@ -227,6 +227,9 @@ describe("Connection Reducer", () => {
         )
         t->expect(unchanged)->Expect.toBe(current)
         t->expect(effectKinds(effects))->Expect.toEqual([#cleanupConnection, #logInfo])
+        let replacement = ready(NoSession)
+        let (connected, _) = complete(unchanged, Ok(replacement))
+        t->expect(runtime(connected).phase)->Expect.toEqual(Ready(replacement))
       },
     )
     test(
