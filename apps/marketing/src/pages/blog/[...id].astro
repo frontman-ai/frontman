@@ -3,17 +3,44 @@
 import Layout from '../../layouts/PostLayout.astro'
 
 import { getCollection, render  } from 'astro:content'
+import { resolveBlogTopics } from '../../content/blogTopics'
 export async function getStaticPaths() {
 	const blogEntries = await getCollection('blog')
-	return blogEntries.map((entry) => ({
-		params:{ id: decodeURI( entry.id )},
-		props: { entry }
-	}))
+	const topics = resolveBlogTopics(blogEntries)
+	return blogEntries.map(entry => {
+		const topic = topics.find(topic => topic.posts.some(post => post.id === entry.id))
+		return {
+			params: { id: decodeURI(entry.id) },
+			props: {
+				entry,
+				related: topic && {
+					title: topic.title,
+					href: `/blog/tags/#${topic.id}`,
+					posts: topic.posts.filter(post => post.id !== entry.id).slice(0, 3)
+				}
+			}
+		}
+	})
 }
-const { entry } = Astro.props
+const { entry, related } = Astro.props
 const { Content } = await render(entry);
 ---
 
 <Layout frontmatter={entry.data} body={entry.body}>
 	<Content />
+	{related && related.posts.length > 0 && (
+		<section slot="related" class="mx-auto max-w-3xl px-6 pb-12 lg:pb-24" aria-labelledby="related-posts-heading">
+			<div class="border-t border-neutral-200 pt-8 dark:border-neutral-800">
+				<h2 id="related-posts-heading" class="text-2xl font-semibold">Related articles</h2>
+				<ul class="my-4 list-disc space-y-2 pl-5">
+					{related.posts.map(post => (
+						<li><a class="underline underline-offset-4" href={`/blog/${post.id}/`}>{post.data.title}</a></li>
+					))}
+				</ul>
+				<a class="text-sm font-semibold underline underline-offset-4" href={related.href}>
+					Reading guide: {related.title}
+				</a>
+			</div>
+		</section>
+	)}
 </Layout>

@@ -72,13 +72,12 @@ export const navigationBarData: NavData = {
 			]
 		},
 		{
-			name: 'For frameworks',
-			link: '/frameworks/',
+			name: 'Use cases',
 			submenu: [
-				{ name: 'Framework overview', link: '/frameworks/' },
 				{ name: 'Marketing and design teams', link: '/marketing-teams/' },
 				{ name: 'Designers', link: '/use-cases/designers/' },
-				{ name: 'Frontend developers', link: '/use-cases/frontend-developers/' }
+				{ name: 'Frontend developers', link: '/use-cases/frontend-developers/' },
+				{ name: 'Next.js, Astro, and Vite setup', link: '/frameworks/' }
 			]
 		}
 	],

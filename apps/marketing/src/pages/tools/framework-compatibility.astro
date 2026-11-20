@@ -1,0 +1,61 @@
+---
+import { marked, type Tokens } from 'marked'
+import compatibility from '../../content/docs/docs/reference/compatibility.md?raw'
+import ToolsLayout from '../../layouts/ToolsLayout.astro'
+
+const source = '/docs/reference/compatibility/'
+const tokens = marked.lexer(compatibility)
+const summary = tokens.findIndex(token => token.type === 'heading' && token.text === 'Compatibility summary')
+const table = tokens.slice(summary + 1).find(token => token.type !== 'space') as Tokens.Table | undefined
+const columns = ['Platform', 'Package / integration', 'Status', 'Minimum versions', 'What Frontman can access']
+if (summary < 0 || table?.type !== 'table' || !table.rows.length ||
+	table.header.map(cell => cell.text).join('|') !== columns.join('|')) {
+	throw new Error('Expected the documented Frontman compatibility summary table')
+}
+
+// Export the documented wording, not inferred semver or a test result.
+const integrations = table.rows.map(row => {
+	const [platform, integration, status, versions, access] = row.map(cell => cell.text.replace(/^`([^`]+)`$/, '$1'))
+	if (!platform || !integration || !status || !versions || !access) {
+		throw new Error('Incomplete row in the Frontman compatibility summary')
+	}
+	return { platform, integration, status, versions, access }
+})
+const snapshot = JSON.stringify({ source: new URL(source, Astro.site).href, integrations }, null, 2)
+---
+
+<ToolsLayout
+	title="Frontman compatibility lookup"
+	description="Find the Frontman integration for your stack, check its documented version requirements, and save the matrix as JSON."
+>
+	<section class="border-t border-neutral-800 py-8" aria-labelledby="choose-stack">
+		<h2 id="choose-stack" class="text-xl md:text-2xl">Choose your stack</h2>
+		<div class="mt-4 space-y-3">
+			{integrations.map(({ platform, integration, status, versions, access }) => (
+				<details class="rounded-lg border border-neutral-800 px-4 py-3">
+					<summary class="cursor-pointer font-medium">{platform}</summary>
+					<dl class="mt-4 space-y-3 text-neutral-300">
+						<div><dt class="font-medium text-white">Integration</dt><dd>{integration}</dd></div>
+						<div><dt class="font-medium text-white">Documented status</dt><dd>{status}</dd></div>
+						<div><dt class="font-medium text-white">Version requirements</dt><dd>{versions}</dd></div>
+						<div><dt class="font-medium text-white">What Frontman can access</dt><dd>{access}</dd></div>
+					</dl>
+				</details>
+			))}
+		</div>
+		<p class="mt-6">
+			<a class="underline" href={`data:application/json;charset=utf-8,${encodeURIComponent(snapshot)}`} download="frontman-compatibility.json">Download the compatibility matrix (JSON)</a>
+		</p>
+	</section>
+
+	<section slot="help" class="max-w-2xl border-t border-neutral-800 py-8" aria-labelledby="methodology">
+		<h2 id="methodology" class="text-xl">About the data</h2>
+		<p class="mt-3 leading-7 text-neutral-300">
+			The lookup and download use the same summary table from the
+			<a class="underline" href={source}>Frontman compatibility reference</a>
+			at build time. This is a snapshot of documented support. It does not inspect your project or verify deployment behavior.
+			See the reference for platform-specific caveats and the
+			<a class="underline" href="/docs/installation/">installation guide</a> for setup and verification steps.
+		</p>
+	</section>
+</ToolsLayout>

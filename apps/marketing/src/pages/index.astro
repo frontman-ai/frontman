@@ -7,7 +7,7 @@ const pluginUrl = 'https://wordpress.org/plugins/frontman-agentic-ai-editor/'
 const setupGuideUrl = '/docs/integrations/wordpress/'
 
 const SEO = {
-	title: 'Frontman — AI WordPress Editor for Existing Sites',
+	title: 'AI Editor for Existing WordPress Sites | Frontman',
 	description:
 		'Edit your existing WordPress site with Frontman AI. Update Gutenberg blocks, Elementor pages, and navigation with WordPress-native tools beside live preview.'
 }
@@ -30,19 +30,19 @@ const faqs = [
 			'Frontman for WordPress is an AI editor plugin for existing WordPress sites. It adds a Frontman workspace with chat, WordPress-native tools, and live site preview so administrators can describe changes and review the result in context.'
 	},
 	{
-		question: 'How do I install it?',
+		question: 'How do I install Frontman on WordPress?',
 		answer:
-			'Install Frontman - AI Website Editor from the WordPress Plugin Directory in wp-admin: Plugins > Add New Plugin, search for Frontman - AI Website Editor, install, activate, then open Frontman from the WordPress admin menu. Sign in to Frontman, arrange service access, and connect your own supported AI provider.'
+			'In wp-admin, go to Plugins > Add New Plugin and search for Frontman - AI Website Editor. Install and activate it, then open Frontman from the WordPress admin menu. You’ll need a Frontman account, service access, and a supported AI provider. AI provider costs are separate.'
 	},
 	{
-		question: 'Does it work with Elementor?',
+		question: 'Can Frontman edit Gutenberg blocks and Elementor pages?',
 		answer:
-			'Yes. Frontman includes Elementor-aware tools for inspecting and editing Elementor-backed pages, while keeping the page preview visible during the workflow.'
+			'Yes. Frontman can update blocks in the WordPress block editor (Gutenberg) and edit individual widgets on pages built with Elementor. You can review the result in the live site preview.'
 	},
 	{
-		question: 'Can I use it on production?',
+		question: 'Does Frontman save changes directly to my live WordPress site?',
 		answer:
-			'Yes. Frontman for WordPress is production-ready. Writes affect the connected installation, so published content on a live site can change immediately. Use staging for higher-risk work, keep backups, and inspect the resulting page. Recovery depends on the type of change.'
+			'Yes, if you’re working on your live installation. Frontman saves changes to the connected site, so published content can change before you review the preview. Use staging for higher-risk edits and keep a backup. Recovery depends on what changed.'
 	},
 	{
 		question: 'Who can access Frontman in WordPress?',
@@ -96,7 +96,7 @@ const pageJsonLd = {
 	</script>
 
 	<WordPressHero
-		headingLines={['The best AI agent', 'for WordPress.']}
+		headingLines={['Edit your WordPress', 'site with AI']}
 		description="Describe what you want. Frontman edits your pages, content, and navigation with WordPress-native tools for Gutenberg and Elementor. See the results in your live site preview."
 		demoTitle="Frontman WordPress editing demo"
 		demoCaption="From idea to updated page. Watch Frontman edit WordPress beside your live preview."
@@ -106,7 +106,7 @@ const pageJsonLd = {
 
 	<section class="wp-section wp-workflow" aria-labelledby="workflow-title">
 		<div class="wp-container">
-			<h2 id="workflow-title">Describe. Inspect. Refine.</h2>
+			<h2 id="workflow-title">How do you edit a WordPress page with Frontman?</h2>
 			<ol class="wp-steps" role="list">
 				<li><h3>Describe one update</h3><p>Ask for a bounded change. Select an element when it helps clarify the request.</p></li>
 				<li><h3>Inspect the page</h3><p>See your updated content and layout right in the live preview.</p></li>
@@ -149,7 +149,7 @@ const pageJsonLd = {
 	<section id="wordpress-features" class="wp-section">
 		<div class="wp-container">
 			<div class="wp-section-header">
-				<h2>Start with one job on your existing site.</h2>
+				<h2>What can Frontman change on your WordPress site?</h2>
 			</div>
 			<ul class="wp-capabilities" role="list">
 				<li class="wp-capability"><h3>Headline and CTA copy</h3><p>Replace a stale message or clarify the next action.</p></li>
@@ -167,7 +167,7 @@ const pageJsonLd = {
 	<section id="wordpress-plugins" class="wp-section wp-section--raised" aria-labelledby="plugins-title">
 		<div class="wp-container">
 			<div class="wp-section-header">
-				<h2 id="plugins-title">Built around the plugins you already use.</h2>
+				<h2 id="plugins-title">Which WordPress plugins work with Frontman?</h2>
 				<p>Keep your page builder. Keep your store. Keep the WordPress setup you’ve made your own.</p>
 			</div>
 			<p>Refresh your Elementor landing page for a campaign, rewrite WooCommerce product descriptions, or fine-tune a Yoast SEO Free title. Tell Frontman what needs changing, not which plugin screen to open.</p>
@@ -179,7 +179,7 @@ const pageJsonLd = {
 		<div class="wp-container wp-split">
 			<div>
 				<p class="wp-label">Safety</p>
-				<h2>Know what changes immediately.</h2>
+				<h2>When do WordPress edits go live?</h2>
 			</div>
 			<div class="wp-copy">
 				<p>Frontman for WordPress is production-ready. Writes persist to the connected WordPress installation. Published content on a live site can change immediately; preview is not a universal approval gate. Draft publication and staging promotion still use your normal process.</p>
@@ -191,7 +191,7 @@ const pageJsonLd = {
 
 	<section class="wp-section wp-section--raised">
 		<div class="wp-container">
-			<h2>Common questions</h2>
+			<h2>Frontman for WordPress FAQ</h2>
 			<div class="wp-faqs">
 				{faqs.map((faq) => (
 					<details class="wp-faq">
