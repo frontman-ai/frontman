@@ -106,6 +106,7 @@ defmodule FrontmanServerWeb.MCPDiagnosticsTest do
     {request_id, log} =
       with_log([metadata: :all], fn ->
         assert {:ok, _} = persist_tool_call_fixture(scope, task_id, turn, call)
+        :sys.get_state(socket.channel_pid)
 
         assert_push("mcp:message", %{
           "id" => request_id,
@@ -119,7 +120,6 @@ defmodule FrontmanServerWeb.MCPDiagnosticsTest do
           }
         })
 
-        :sys.get_state(socket.channel_pid)
         request_id
       end)
 
