@@ -34,6 +34,7 @@ defmodule FrontmanServer do
     Mailer,
     Release,
     Encrypted.Binary,
+    OpenAIAds,
     {Tools, []},
     Observability.ConsoleHandler,
     Observability.SentryContext,
