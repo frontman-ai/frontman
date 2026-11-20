@@ -57,6 +57,7 @@ defmodule FrontmanServerWeb.Endpoint do
   end
 
   plug(Plug.RequestId)
+  plug(FrontmanServerWeb.Plugs.OpenAIAdsBoundary)
   plug(Plug.Telemetry, event_prefix: [:phoenix, :endpoint])
   plug(:mcp_boundary)
 
