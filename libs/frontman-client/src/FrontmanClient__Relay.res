@@ -85,8 +85,10 @@ let readHttpError = async response => {
   }
 }
 
-let request = async (relay: config, ~path, ~body=?, ~signal, ~decode): result<'a, string> => {
-  let result: result<'a, string> = try {
+type requestFailure = Cancelled | Failed(string)
+
+let request = async (relay: config, ~path, ~body=?, ~signal, ~decode): result<'a, requestFailure> =>
+  try {
     let (method, headers) = switch body {
     | Some(_) => ("POST", dict{"Content-Type": "application/json", "Accept": "text/event-stream"})
     | None => ("GET", Dict.make())
@@ -102,7 +104,7 @@ let request = async (relay: config, ~path, ~body=?, ~signal, ~decode): result<'a
       },
     )
     switch response.ok {
-    | true => await decode(response)
+    | true => (await decode(response))->Result.mapError(message => Failed(message))
     | false =>
       let failure = await readHttpError(response)
       let code =
@@ -110,19 +112,26 @@ let request = async (relay: config, ~path, ~body=?, ~signal, ~decode): result<'a
         ->Option.map(code => ` [${code->String.slice(~start=0, ~end=80)}]`)
         ->Option.getOr("")
       let message = failure.error->String.slice(~start=0, ~end=500)
-      Error(`HTTP ${response.status->Int.toString}${code}: ${message}`)
+      Error(Failed(`HTTP ${response.status->Int.toString}${code}: ${message}`))
     }
   } catch {
   | exn =>
-    Error(
-      exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Relay request failed"),
-    )
+    let rejection = JsExn.fromException(exn)
+    switch (signal.aborted, rejection->Option.flatMap(JsExn.name)) {
+    | (true, Some("AbortError")) => Error(Cancelled)
+    | _ =>
+      Error(Failed(rejection->Option.flatMap(JsExn.message)->Option.getOr("Relay request failed")))
+    }
   }
-  result->Result.mapError(message => {
+
+let reportRequestResult = (result, ~path, ~cancelled) =>
+  switch result {
+  | Ok(value) => Ok(value)
+  | Error(Cancelled) => Error(cancelled)
+  | Error(Failed(message)) =>
     Log.error(~ctx={"path": path}, message)
-    message
-  })
-}
+    Error(message)
+  }
 
 let connect = async (config: config, ~signal: WebAPI.EventTypes.abortSignal): result<
   connected,
@@ -131,11 +140,14 @@ let connect = async (config: config, ~signal: WebAPI.EventTypes.abortSignal): re
   switch signal.aborted {
   | true => Error("Relay connection aborted")
   | false =>
-    let result = await request(config, ~path="tools", ~signal, ~decode=async response => {
-      (await response->WebAPI.Response.json)
-      ->parseToolsResponse
-      ->Result.mapError(message => `Invalid tools response: ${message}`)
-    })
+    let path = "tools"
+    let result = (
+      await request(config, ~path, ~signal, ~decode=async response => {
+        (await response->WebAPI.Response.json)
+        ->parseToolsResponse
+        ->Result.mapError(message => `Invalid tools response: ${message}`)
+      })
+    )->reportRequestResult(~path, ~cancelled="Relay connection aborted")
     switch signal.aborted {
     | true => Error("Relay connection aborted")
     | false =>
@@ -165,12 +177,16 @@ let executeTool = async (
     let input: Types.toolCallRequest = {name, arguments}
     let body = input->S.decodeOrThrow(~from=Types.toolCallRequestSchema, ~to=S.jsonString)
     let signal = WebAPI.AbortSignal.any([relay.signal, requestSignal])
-    await request(relay.config, ~path="tools/call", ~body, ~signal, ~decode=async response => {
-      (await SSE.readStream(response))->Result.flatMap(json =>
-        json
-        ->Decoders.parseSchema(MCPTypes.callToolResultSchema)
-        ->Result.mapError(message => `Invalid result: ${message}`)
-      )
-    })
+    let path = "tools/call"
+
+    (
+      await request(relay.config, ~path, ~body, ~signal, ~decode=async response => {
+        (await SSE.readStream(response))->Result.flatMap(json =>
+          json
+          ->Decoders.parseSchema(MCPTypes.callToolResultSchema)
+          ->Result.mapError(message => `Invalid result: ${message}`)
+        )
+      })
+    )->reportRequestResult(~path, ~cancelled="Relay request cancelled")
   }
 }

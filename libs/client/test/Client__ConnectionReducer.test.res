@@ -601,6 +601,79 @@ describe("Connection Reducer", () => {
     )
   })
 
+  testAsync("mount, dispose, and remount leave only the replacement runtime ready", async t => {
+    let wire = reconnectWire()
+    stubGlobal(
+      "window",
+      {
+        "location": {"origin": "https://wordpress.test"},
+        "__frontmanRuntime": {"framework": "nextjs", "basePath": "frontman"},
+        "heap": {"track": (_: string, _: JSON.t) => ()},
+      },
+    )
+    onTestFinished(unstubAllGlobals)
+    let toolsRequests = []
+    let relay = Reducer.Relay.makeConfig(
+      ~baseUrl="http://test",
+      ~fetch=(_, init) => {
+        let signal = init.signal->Option.getOrThrow->Null.getOrThrow
+        toolsRequests->Array.push(signal)
+        switch toolsRequests->Array.length {
+        | 1 =>
+          Promise.make(
+            (_, reject) =>
+              Reducer.ACP.onAbort(signal, () => reject(JsExn.anyToExnInternal(signal.reason))),
+          )
+        | _ =>
+          Promise.resolve(
+            WebAPI.Response.fromString(`{"tools":[],"serverInfo":{"name":"replacement","version":"1"},"protocolVersion":"2.0"}`),
+          )
+        }
+      },
+    )
+    let state = ref(
+      Reducer.initialState({
+        ...config,
+        relay,
+        acp: {...config.acp, getAuthToken: () => Some("test")},
+      }),
+    )
+    let rec dispatch = action => {
+      let (next, effects) = Reducer.reduce(state.contents, action)
+      state := next
+      effects->Array.forEach(
+        effect =>
+          switch effect {
+          | Reducer.FetchSessionsEffect(_) => ()
+          | effect => handleEffect(effect, next, dispatch)
+          },
+      )
+    }
+    onTestFinished(() => dispatch(Dispose))
+
+    dispatch(Initialize)
+    await FrontmanBindings.Bindings__Test__Vitest.waitFor(
+      () => t->expect(wire.requests->Array.length)->Expect.toBe(1),
+    )
+    t->expect(Reducer.Selectors.getConnectionStatus(state.contents))->Expect.toBe(Connecting)
+    dispatch(Dispose)
+    t->expect((toolsRequests->Array.get(0)->Option.getOrThrow).aborted)->Expect.toBe(true)
+    t->expect(Reducer.Selectors.getConnectionStatus(state.contents))->Expect.toBe(Disconnected)
+
+    dispatch(Initialize)
+    await FrontmanBindings.Bindings__Test__Vitest.waitFor(
+      () =>
+        t->expect(Reducer.Selectors.getConnectionStatus(state.contents))->Expect.toBe(Connected),
+    )
+    t->expect(wire.requests->Array.length)->Expect.toBe(2)
+    t->expect(toolsRequests->Array.length)->Expect.toBe(2)
+    switch runtime(state.contents).phase {
+    | Ready({relay}) =>
+      t->expect(Reducer.Relay.getServerInfo(relay).name)->Expect.toBe("replacement")
+    | _ => failwith("Expected the replacement runtime to be ready")
+    }
+  })
+
   [
     ("socket loss", #socketLoss),
     ("control-channel error", #controlError),
