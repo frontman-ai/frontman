@@ -410,19 +410,25 @@ defmodule FrontmanServer.Accounts do
     to: WorkOS,
     as: :get_authorization_url
 
-  def authenticate_with_oauth(code, signup_framework \\ nil) do
-    WorkOS.authenticate_with_code(code, signup_framework)
+  def authenticate_with_oauth(code, signup_framework \\ nil, consent_id \\ nil) do
+    WorkOS.authenticate_with_code(code, signup_framework, consent_id)
+  end
+
+  def complete_oauth_profile(%Scope{user: nil} = scope, profile, signup_framework, consent_id) do
+    WorkOS.complete_oauth_profile(scope, profile, signup_framework, consent_id)
   end
 
   def authenticate_with_email_verification(
         code,
         pending_authentication_token,
-        signup_framework \\ nil
+        signup_framework \\ nil,
+        consent_id \\ nil
       ) do
     WorkOS.authenticate_with_email_verification(
       code,
       pending_authentication_token,
-      signup_framework
+      signup_framework,
+      consent_id
     )
   end
 

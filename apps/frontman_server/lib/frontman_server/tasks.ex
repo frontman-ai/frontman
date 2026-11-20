@@ -48,6 +48,7 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Billing
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Observability.SentryContext
+  alias FrontmanServer.OpenAIAds
   alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Providers
   alias FrontmanServer.Repo
@@ -482,7 +483,8 @@ defmodule FrontmanServer.Tasks do
 
   defp broadcast_swarm_event(_task_id, _turn_number, _event), do: :ok
 
-  defp finish_turn(task, history, turn_number, kind) when kind in [:cancelled, :terminated] do
+  defp finish_turn(scope, task, history, turn_number, kind)
+       when kind in [:cancelled, :terminated] do
     {preserved, interrupted} =
       history.rows
       |> History.unresolved_tool_calls(turn_number)
@@ -505,7 +507,7 @@ defmodule FrontmanServer.Tasks do
     case preserved do
       [] ->
         with {:ok, terminal} <-
-               finish_turn(task, history, turn_number, build_execution_outcome(kind)) do
+               finish_turn(scope, task, history, turn_number, build_execution_outcome(kind)) do
           {:ok, results ++ terminal}
         end
 
@@ -514,7 +516,7 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp finish_turn(task, _history, turn_number, {type, attrs}) do
+  defp finish_turn(scope, task, history, turn_number, {type, attrs}) do
     with {:ok, row} <-
            insert_interaction_row(task, %{
              id: Ecto.UUID.generate(),
@@ -522,9 +524,33 @@ defmodule FrontmanServer.Tasks do
              data: attrs,
              turn_number: turn_number
            }) do
+      record_edit_activation(scope, history, turn_number, type, row.id)
       {:ok, [row]}
     end
   end
+
+  defp record_edit_activation(scope, history, turn_number, :agent_completed, source_ref) do
+    edited? =
+      Enum.any?(history.rows, fn
+        %InteractionSchema{
+          turn_number: ^turn_number,
+          data: %Interaction.ToolResult{is_error: false, tool_name: name, result: result}
+        } ->
+          editing_success?(name, result)
+
+        _row ->
+          false
+      end)
+
+    if edited? do
+      :ok =
+        OpenAIAds.record(scope, "first_successful_edit", source_ref, fn ->
+          !earlier_edit?(scope, source_ref)
+        end)
+    end
+  end
+
+  defp record_edit_activation(_scope, _history, _turn_number, _type, _source_ref), do: :ok
 
   defp publish_outcome({:ok, rows}, task_id) do
     Enum.each(rows, fn row ->
@@ -899,7 +925,7 @@ defmodule FrontmanServer.Tasks do
            {:ok, history} <- load_history(task_id),
            {:ok, _turn} <- History.turn(history, turn_number),
            true <- History.active_turn_number(history) == turn_number do
-        finish_turn(task, history, turn_number, outcome)
+        finish_turn(scope, task, history, turn_number, outcome)
       else
         nil -> {:error, :not_found}
         false -> {:ok, []}

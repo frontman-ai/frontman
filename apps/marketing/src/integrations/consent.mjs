@@ -12,6 +12,31 @@ const config = {
 
 const runConsent = config => {
   let memoryConsent = null
+  const advertisingEnabled = config.advertisingEnabled && location.origin === "https://frontman.sh"
+  let advertisingQueue = Promise.resolve()
+  const syncAdvertising = (explicit, current = read()) => {
+    if (!advertisingEnabled) return Promise.resolve()
+    const allowed = current?.categories.advertising === true
+    const oppref = allowed ? new URL(location.href).searchParams.get("oppref") : null
+    if (allowed && !explicit && !oppref) return advertisingQueue
+    advertisingQueue = advertisingQueue.catch(() => {}).then(async () => {
+      const response = await fetch("https://api.frontman.sh/ads/attribution", {
+        method: allowed ? "POST" : "DELETE",
+        credentials: "include",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(allowed ? {
+          advertising_consent: true, oppref,
+          consent_updated_at_ms: current.updatedAt,
+        } : {}),
+      })
+      if (response.status !== 204) throw new Error("Advertising update failed")
+    })
+    advertisingQueue.catch(() => {
+      const button = document.getElementById("astro-consent-preferences")
+      if (button) button.textContent = "Advertising update failed — save preferences to retry"
+    })
+    return advertisingQueue
+  }
 
   const read = () => {
     let raw
@@ -43,6 +68,7 @@ const runConsent = config => {
         categories: {
           essential: true,
           analytics: consent.categories.analytics === true,
+          ...(advertisingEnabled ? {advertising: consent.categories.advertising === true} : {}),
         },
       }
       memoryConsent = normalized
@@ -65,6 +91,7 @@ const runConsent = config => {
     const allowedCategories = {
       essential: true,
       analytics: categories?.analytics === true,
+      ...(advertisingEnabled ? {advertising: categories?.advertising === true} : {}),
     }
     const now = Date.now()
     const consent = {
@@ -75,7 +102,13 @@ const runConsent = config => {
     memoryConsent = consent
     try {
       localStorage.setItem(config.storageKey, JSON.stringify(consent))
-    } catch (_error) {}
+    } catch (_error) {
+      if (advertisingEnabled) {
+        allowedCategories.advertising = false
+        try { localStorage.removeItem(config.storageKey) } catch (_storageError) {}
+      }
+    }
+    syncAdvertising(true, consent)
     document.dispatchEvent(new CustomEvent("consentchange", {detail: allowedCategories}))
     return allowedCategories
   }
@@ -84,11 +117,14 @@ const runConsent = config => {
     get: read,
     set,
     reset: () => {
-      memoryConsent = null
-      try {
-        localStorage.removeItem(config.storageKey)
-      } catch (_error) {}
-      location.reload()
+      const clear = () => {
+        memoryConsent = null
+        try { localStorage.removeItem(config.storageKey) } catch (_error) {}
+        location.reload()
+      }
+      if (!advertisingEnabled) return clear()
+      set({analytics: false, advertising: false})
+      return syncAdvertising(true).then(clear).catch(() => {})
     },
   }
 
@@ -119,7 +155,10 @@ const runConsent = config => {
 
     const previousOverflow = document.body.style.overflow
     const previousFocus = document.activeElement
-    const state = {analytics: read()?.categories.analytics === true}
+    const state = {
+      analytics: read()?.categories.analytics === true,
+      advertising: read()?.categories.advertising === true,
+    }
     const modal = createElement("div")
     modal.id = "astro-consent-modal"
     modal.setAttribute("role", "dialog")
@@ -152,6 +191,19 @@ const runConsent = config => {
     }
     analyticsRow.append(createElement("span", "", "Analytics"), analyticsToggle)
     categories.append(essentialRow, analyticsRow)
+    if (advertisingEnabled) {
+      const row = createElement("div", "cb-row")
+      const toggle = createButton("cb-toggle", "")
+      toggle.setAttribute("aria-label", "Allow advertising measurement")
+      const update = () => {
+        toggle.classList.toggle("active", state.advertising)
+        toggle.setAttribute("aria-pressed", String(state.advertising))
+      }
+      toggle.onclick = () => { state.advertising = !state.advertising; update() }
+      update()
+      row.append(createElement("span", "", "Advertising measurement (OpenAI)"), toggle)
+      categories.append(row)
+    }
 
     const actions = createElement("div", "cb-actions cb-actions-modal")
     const reject = createButton("cb-reject", "Reject optional")
@@ -170,8 +222,8 @@ const runConsent = config => {
       if (typeof focusTarget?.focus === "function") focusTarget.focus()
     }
 
-    const finish = analytics => {
-      set({analytics})
+    const finish = (analytics, advertising = false) => {
+      set({analytics, advertising})
       removeBanner()
       ensurePreferencesButton()
       close()
@@ -203,7 +255,7 @@ const runConsent = config => {
     }
 
     reject.onclick = () => finish(false)
-    accept.onclick = () => finish(state.analytics)
+    accept.onclick = () => finish(state.analytics, state.advertising)
     modal.onclick = event => {
       if (event.target === modal) close()
     }
@@ -274,6 +326,7 @@ const runConsent = config => {
     }
   }
 
+  syncAdvertising(false)
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", schedule, {once: true})
   } else {
@@ -281,16 +334,16 @@ const runConsent = config => {
   }
 }
 
-export const createConsentScript = () => {
-  const serializedConfig = JSON.stringify(config).replaceAll("<", "\\u003c")
+export const createConsentScript = ({advertisingEnabled = false} = {}) => {
+  const serializedConfig = JSON.stringify({...config, advertisingEnabled}).replaceAll("<", "\\u003c")
   return `(${runConsent.toString()})(${serializedConfig});`
 }
 
-export default function consent() {
+export default function consent(options) {
   return {
     name: "frontman-marketing-consent",
     hooks: {
-      "astro:config:setup": ({injectScript}) => injectScript("page", createConsentScript()),
+      "astro:config:setup": ({injectScript}) => injectScript("page", createConsentScript(options)),
     },
   }
 }

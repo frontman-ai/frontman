@@ -20,6 +20,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
   alias FrontmanServer.Accounts.User
   alias FrontmanServer.Accounts.UserIdentity
   alias FrontmanServer.Accounts.WorkOS.AuthError
+  alias FrontmanServer.OpenAIAds
   alias FrontmanServer.Repo
   alias FrontmanServer.Workers.EnterActivationCampaign
   alias FrontmanServer.Workers.NotifyDiscordNewUser
@@ -138,29 +139,27 @@ defmodule FrontmanServer.Accounts.WorkOS do
   Note: We use a raw HTTP call instead of the SDK to capture the full error
   response, including `pending_authentication_token` for email verification.
   """
-  def authenticate_with_code(code, signup_framework \\ nil)
+  def authenticate_with_code(code, signup_framework \\ nil, consent_id \\ nil)
 
-  def authenticate_with_code(code, nil) when is_binary(code) and code != "" do
-    authenticate_with_code_internal(code, nil)
+  def authenticate_with_code(code, signup_framework, consent_id)
+      when is_binary(code) and code != "" and
+             (is_nil(signup_framework) or is_binary(signup_framework)) do
+    authenticate_with_code_internal(code, signup_framework, consent_id)
   end
 
-  def authenticate_with_code(code, signup_framework)
-      when is_binary(code) and code != "" and is_binary(signup_framework) do
-    authenticate_with_code_internal(code, signup_framework)
-  end
-
-  def authenticate_with_code("", _signup_framework), do: {:error, {:invalid_argument, :code}}
-
-  def authenticate_with_code(code, _signup_framework) when not is_binary(code),
+  def authenticate_with_code("", _signup_framework, _consent_id),
     do: {:error, {:invalid_argument, :code}}
 
-  def authenticate_with_code(_code, _signup_framework),
+  def authenticate_with_code(code, _signup_framework, _consent_id) when not is_binary(code),
+    do: {:error, {:invalid_argument, :code}}
+
+  def authenticate_with_code(_code, _signup_framework, _consent_id),
     do: {:error, {:invalid_argument, :signup_framework}}
 
-  defp authenticate_with_code_internal(code, signup_framework) do
+  defp authenticate_with_code_internal(code, signup_framework, consent_id) do
     with {:ok, auth_response} <- authenticate_with_code_raw(code),
          {:ok, profile} <- extract_profile(auth_response) do
-      find_or_create_user_from_oauth(profile, signup_framework)
+      complete_oauth_profile(%Scope{}, profile, signup_framework, consent_id)
     end
   end
 
@@ -174,50 +173,69 @@ defmodule FrontmanServer.Accounts.WorkOS do
   def authenticate_with_email_verification(
         code,
         pending_authentication_token,
-        signup_framework \\ nil
+        signup_framework \\ nil,
+        consent_id \\ nil
       )
 
-  def authenticate_with_email_verification(code, pending_authentication_token, nil)
+  def authenticate_with_email_verification(
+        code,
+        pending_authentication_token,
+        signup_framework,
+        consent_id
+      )
       when is_binary(code) and code != "" and is_binary(pending_authentication_token) and
-             pending_authentication_token != "" do
-    authenticate_with_email_verification_internal(code, pending_authentication_token, nil)
-  end
-
-  def authenticate_with_email_verification(code, pending_authentication_token, signup_framework)
-      when is_binary(code) and code != "" and is_binary(pending_authentication_token) and
-             pending_authentication_token != "" and is_binary(signup_framework) do
+             pending_authentication_token != "" and
+             (is_nil(signup_framework) or is_binary(signup_framework)) do
     authenticate_with_email_verification_internal(
       code,
       pending_authentication_token,
-      signup_framework
+      signup_framework,
+      consent_id
     )
   end
 
-  def authenticate_with_email_verification("", _pending_authentication_token, _signup_framework),
-    do: {:error, {:invalid_argument, :code}}
+  def authenticate_with_email_verification(
+        "",
+        _token,
+        _signup_framework,
+        _consent_id
+      ),
+      do: {:error, {:invalid_argument, :code}}
 
-  def authenticate_with_email_verification(_code, "", _signup_framework),
+  def authenticate_with_email_verification(_code, "", _signup_framework, _consent_id),
     do: {:error, {:invalid_argument, :pending_authentication_token}}
 
-  def authenticate_with_email_verification(code, _pending_authentication_token, _signup_framework)
+  def authenticate_with_email_verification(
+        code,
+        _token,
+        _signup_framework,
+        _consent_id
+      )
       when not is_binary(code),
       do: {:error, {:invalid_argument, :code}}
 
-  def authenticate_with_email_verification(_code, pending_authentication_token, _signup_framework)
-      when not is_binary(pending_authentication_token),
+  def authenticate_with_email_verification(
+        _code,
+        token,
+        _signup_framework,
+        _consent_id
+      )
+      when not is_binary(token),
       do: {:error, {:invalid_argument, :pending_authentication_token}}
 
   def authenticate_with_email_verification(
         _code,
-        _pending_authentication_token,
-        _signup_framework
+        _token,
+        _signup_framework,
+        _consent_id
       ),
       do: {:error, {:invalid_argument, :signup_framework}}
 
   defp authenticate_with_email_verification_internal(
          code,
          pending_authentication_token,
-         signup_framework
+         signup_framework,
+         consent_id
        ) do
     body = %{
       client_id: workos_client_id(),
@@ -230,7 +248,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
     with {:ok, response_body} <- post_authenticate_request(body, "email verify"),
          {:ok, auth_response} <- parse_auth_response(response_body),
          {:ok, profile} <- extract_profile(auth_response) do
-      find_or_create_user_from_oauth(profile, signup_framework)
+      complete_oauth_profile(%Scope{}, profile, signup_framework, consent_id)
     end
   end
 
@@ -330,10 +348,11 @@ defmodule FrontmanServer.Accounts.WorkOS do
     |> List.first()
   end
 
-  defp find_or_create_user_from_oauth(profile, signup_framework) do
+  def complete_oauth_profile(%Scope{user: nil}, profile, signup_framework, consent_id) do
     identity = get_identity_by_provider_id(profile.provider, profile.provider_id)
     existing_user = get_user_by_email(profile.provider_email)
 
+    profile = Map.put(profile, :ads_consent_id, consent_id)
     multi = build_oauth_multi(identity, existing_user, profile, signup_framework)
 
     case Repo.transaction(multi) do
@@ -372,6 +391,12 @@ defmodule FrontmanServer.Accounts.WorkOS do
     )
     |> Multi.insert(:identity, fn %{user: user} ->
       build_identity_changeset(user, profile)
+    end)
+    |> Multi.run(:ads_registration, fn _repo, %{user: user} ->
+      scope = Scope.for_user(user)
+      :ok = OpenAIAds.associate(scope, profile.ads_consent_id)
+      :ok = OpenAIAds.record(scope, "registration_completed", user.id)
+      {:ok, :recorded}
     end)
     |> Oban.insert(:welcome_email, fn %{user: user} ->
       SendWelcomeEmail.new(%{user_id: user.id})

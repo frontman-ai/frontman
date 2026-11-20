@@ -24,6 +24,18 @@ defmodule FrontmanServerWeb.Router do
     plug(:accepts, ["json"])
   end
 
+  pipeline :ads_attribution do
+    plug(:fetch_session)
+    plug(:fetch_current_scope_for_user)
+  end
+
+  scope "/ads", FrontmanServerWeb do
+    pipe_through(:ads_attribution)
+
+    post("/attribution", OpenAIAdsAttributionController, :create, log: false)
+    delete("/attribution", OpenAIAdsAttributionController, :delete, log: false)
+  end
+
   pipeline :connect_handoff do
     plug(:put_secure_browser_headers, %{
       "cache-control" => "no-store",
