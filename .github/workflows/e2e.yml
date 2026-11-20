@@ -43,7 +43,6 @@ concurrency:
   queue: max
 
 env:
-  # Do not send test fixture errors to the shared Sentry project.
   FRONTMAN_INTERNAL_DEV: "true"
 
 jobs:
