@@ -42,6 +42,10 @@ concurrency:
   group: e2e
   queue: max
 
+env:
+  # Do not send test fixture errors to the shared Sentry project.
+  FRONTMAN_INTERNAL_DEV: "true"
+
 jobs:
   nextjs-compat:
     name: Next.js compatibility (${{ matrix.next.label }})
@@ -231,8 +235,8 @@ jobs:
         id: js-build-cache
         with:
           path: libs/*/dist
-          key: js-build-v2-${{ runner.os }}-${{ hashFiles('libs/*/src/**', 'libs/*/rescript.json', 'libs/*/tsup.config.ts') }}
-          restore-keys: js-build-v2-${{ runner.os }}-
+          key: js-build-v3-${{ runner.os }}-internal-dev-${{ env.FRONTMAN_INTERNAL_DEV }}-${{ hashFiles('libs/*/src/**', 'libs/*/rescript.json', 'libs/*/tsup.config.ts', 'libs/client/vite.config*.ts') }}
+          restore-keys: js-build-v3-${{ runner.os }}-internal-dev-${{ env.FRONTMAN_INTERNAL_DEV }}-
 
       - name: Build ReScript
         run: yarn rescript
