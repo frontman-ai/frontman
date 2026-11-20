@@ -7,7 +7,9 @@ import Row from '../../../components/ui/Row.astro'
 import Col from '../../../components/ui/Col.astro'
 
 import { getCollection } from 'astro:content'
+import { resolveBlogTopics } from '../../../content/blogTopics'
 const allPosts = await getCollection('blog')
+const topics = resolveBlogTopics(allPosts)
 
 const tagDisplayNames: Record<string, string> = {
 	ai: 'AI',
@@ -46,13 +48,37 @@ const tags = [...tagCounts.entries()]
 ---
 
 <Layout
-	title="Frontman | Blog Tags"
-	description="Browse all blog post tags on the Frontman blog. Find articles by topic — AI coding, browser tools, frontend development, and more."
+	title="Blog Topics | Frontman"
+	description="Find reading guides on browser-aware AI coding, choosing coding tools, and editing and maintaining WordPress. Browse the full tag index for more."
 >
-	<Hero title="Tags" />
+	<Hero title="Blog topics" text="Follow a reading guide or browse the full tag index." />
+	<Section id="reading-guides">
+		<Row>
+			<Col span="10" classes="lg:col-start-2">
+				<nav class="mb-10 flex flex-wrap gap-x-6 gap-y-2" aria-label="Jump to a blog topic">
+					{topics.map(topic => <a class="topic-link" href={`#${topic.id}`}>{topic.title}</a>)}
+					<a class="topic-link" href="#tag-directory">All tags</a>
+				</nav>
+				<div class="grid gap-10 lg:grid-cols-2">
+					{topics.map(topic => (
+						<section id={topic.id} class="scroll-mt-28" aria-labelledby={`${topic.id}-heading`}>
+							<h2 id={`${topic.id}-heading`} class="text-2xl font-semibold">{topic.title}</h2>
+							<p class="mt-2 text-neutral-600 dark:text-neutral-300">{topic.description}</p>
+							<ol class="mt-4 list-decimal space-y-3 pl-5">
+								{topic.posts.map(post => (
+									<li><a class="topic-link" href={`/blog/${post.id}/`}>{post.data.title}</a></li>
+								))}
+							</ol>
+						</section>
+					))}
+				</div>
+			</Col>
+		</Row>
+	</Section>
 	<Section id="tag-directory">
 		<Row>
 			<Col span="10" classes="lg:col-start-2">
+				<h2 class="mb-5 text-2xl font-semibold">All tags</h2>
 				<ul class="tag-directory" aria-label="Blog tags">
 					{tags.map((tag) => (
 						<li>
@@ -72,6 +98,10 @@ const tags = [...tagCounts.entries()]
 
 <style>
 	@reference "../../../styles/global.css";
+
+	.topic-link {
+		@apply text-primary-700 underline underline-offset-4 hover:text-primary-900 dark:text-primary-300 dark:hover:text-primary-100;
+	}
 
 	.tag-directory {
 		@apply grid list-none gap-4 p-0 sm:grid-cols-2 lg:grid-cols-3;

@@ -158,6 +158,8 @@ const videoJsonLd = frontmatter.video
 		<slot />
 	</div>
 
+	<slot name="related" />
+
 	{
 		frontmatter.faq?.length && (
 			<section class="post-faq">

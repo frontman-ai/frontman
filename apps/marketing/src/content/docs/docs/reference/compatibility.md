@@ -5,6 +5,8 @@ description: Check Frontman support and minimum versions for Next.js, Astro, Vit
 
 This page owns framework support, versions, and integration choice. Use [Installation](/docs/installation/) for commands and success checks, [Configuration Options](/docs/reference/configuration/) for settings, and [Frontman Agent Tool Capabilities](/docs/using/tool-capabilities/) for individual tool parameters.
 
+Use the [Frontman compatibility lookup](/tools/framework-compatibility/) to download the summary table as JSON.
+
 Frontman has two compatibility layers:
 
 1. **The browser UI and agent runtime** — the same Frontman interface and hosted orchestration server.

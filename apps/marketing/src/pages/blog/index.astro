@@ -3,6 +3,7 @@
 import Layout from '../../layouts/Layout.astro'
 import Hero from '../../components/blocks/hero/PageHeader.astro'
 import BlogPosts from '../../components/blocks/blog/BlogPosts.astro'
+import { blogTopics } from '../../content/blogTopics'
 
 import { getCollection } from 'astro:content'
 
@@ -42,10 +43,15 @@ const collectionJsonLd = {
 <Layout title={SEO.title} description={SEO.description}>
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(collectionJsonLd)} />
 	<Hero title={header.title} text={header.text} classes="blog-header" />
-	<nav class="flex justify-center bg-neutral-50 px-6 pb-4 dark:bg-neutral-950" aria-label="Blog topics">
+	<nav class="bg-neutral-50 px-6 pb-8 text-center dark:bg-neutral-950" aria-label="Blog topics">
 		<a href="/blog/tags/" class="text-sm font-semibold text-primary-600 underline-offset-4 hover:underline dark:text-primary-300">
 			Browse articles by topic
 		</a>
+		<ul class="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm">
+			{blogTopics.map(topic => (
+				<li><a class="underline underline-offset-4" href={`/blog/tags/#${topic.id}`}>{topic.title}</a></li>
+			))}
+		</ul>
 	</nav>
 	<BlogPosts data={allPosts} />
 </Layout>
