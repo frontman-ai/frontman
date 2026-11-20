@@ -17,6 +17,7 @@ defmodule FrontmanServer.Tasks.PretrialRunsTest do
     Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
     message_id = Ecto.UUID.generate()
     ref = push(socket, "acp:message", build_prompt_request(message_id: message_id))
+    :sys.get_state(socket.channel_pid)
     assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
 
     FrontmanServer.BillingFixtures.run_allowance_fixture(scope, 5)
@@ -65,6 +66,7 @@ defmodule FrontmanServer.Tasks.PretrialRunsTest do
     Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
     message_id = Ecto.UUID.generate()
     ref = push(socket, "acp:message", build_prompt_request(message_id: message_id))
+    :sys.get_state(socket.channel_pid)
     assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
     complete_mcp_handshake(socket)
     :sys.get_state(socket.channel_pid)
