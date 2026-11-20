@@ -33,6 +33,7 @@ defmodule FrontmanServerWeb.CustomerFeedbackTest do
 
       complete_mcp_handshake(socket, tools: [mcp_tool(@name, %{})])
       push(socket, "acp:message", build_acp_request("session/load", 1, %{"sessionId" => task.id}))
+      :sys.get_state(socket.channel_pid)
       assert_push("mcp:message", %{"id" => request_id, "method" => "tools/call"})
 
       {:ok, _} =

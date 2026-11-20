@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Update Phoenix LiveView to 1.2.14 to fix a `live_session` authorization-hook bypass (CVE-2026-126334).
+- Update IDNA to 8.0.0, JSV to 0.28.0, and Swoosh to 1.30.0 to fix a CPU denial-of-service vulnerability (CVE-2026-117678).
 - Update Oban from 2.24.1 to 2.24.2.
 - Update all Tiptap editor packages to 3.32.0 together to keep their required versions aligned.
 - Allow forced E2E OpenAI token refresh even when the access token is unexpired.
