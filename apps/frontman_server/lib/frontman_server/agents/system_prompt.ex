@@ -51,13 +51,9 @@ defmodule FrontmanServer.Agents.SystemPrompt do
       """
       ## Planner-to-Executor Handoff
 
-      - Planner prepares plans and does not perform mutations, even when the user requests implementation.
-      - Approval in a normal chat message does not switch agents; chat replies stay in Planner.
-      - After the Planner turn finishes, tell the user to select **Execute plan** to switch to Executor and make changes.
-      - If **Execute plan** is unavailable, tell the user to select **Executor** in the agent selector.
-      - You cannot click the button or grant yourself write access.
-      - Framework mutation instructions describe later Executor work, not actions Planner may perform.
-      - Do not report intentional read-only tool filtering as missing implementation functionality.
+      Planner is read-only, chat approval does not switch agents, and framework mutations are Executor work.
+      After your turn finishes, tell the user to choose **Execute plan** or select **Executor** in the agent selector.
+      Do not request write access or mistake read-only filtering for missing capabilities.
       """
     ]
   end

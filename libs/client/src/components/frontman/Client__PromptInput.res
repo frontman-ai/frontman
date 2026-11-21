@@ -224,7 +224,7 @@ module AttachButton = {
                  transition-colors cursor-pointer text-zinc-400 hover:text-zinc-200 hover:bg-white/6
                  disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-zinc-400`}
       ariaLabel="Attach images"
-      title="Attach images"
+      title="Attach images (PNG, JPEG, GIF, WebP up to 10MB). Or paste text."
     >
       <Icons.PlusIcon size=13 className="text-zinc-400" />
       {showLabel
@@ -449,16 +449,11 @@ let make = (
           <div
             className="flex flex-1 items-center gap-1 min-w-0 overflow-hidden transition-opacity"
           >
-            <div className="flex min-w-0 flex-1 items-center gap-2">
-              <AttachButton
-                onClick={openAttachPicker}
-                disabled={isInputDisabled || isEnrichingAnnotations}
-                showLabel={showToolbarLabels}
-              />
-              <span className="min-w-0 text-[10px] leading-4 text-zinc-400">
-                {React.string("Images only: PNG, JPEG, GIF, WebP. Or paste text.")}
-              </span>
-            </div>
+            <AttachButton
+              onClick={openAttachPicker}
+              disabled={isInputDisabled || isEnrichingAnnotations}
+              showLabel={showToolbarLabels}
+            />
 
             {switch onSelectElement {
             | Some(handler) =>
