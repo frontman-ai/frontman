@@ -223,7 +223,8 @@ module AttachButton = {
           : "px-2"} rounded-md text-xs font-medium
                  transition-colors cursor-pointer text-zinc-400 hover:text-zinc-200 hover:bg-white/6
                  disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-zinc-400`}
-      title="Attach files (images or PDFs up to 10MB)"
+      ariaLabel="Attach images"
+      title="Attach images (PNG, JPEG, GIF, WebP up to 10MB). Or paste text."
     >
       <Icons.PlusIcon size=13 className="text-zinc-400" />
       {showLabel
@@ -359,15 +360,6 @@ let make = (
     ->Option.map(el => _setupResizeObserver(el, v => setShowToolbarLabels(_ => v)))
   })
 
-  React.useEffect1(() => {
-    switch fileSizeError {
-    | Some(_) =>
-      let timeoutId = setTimeout(() => setFileSizeError(_ => None), 3000)
-      Some(() => clearTimeout(timeoutId))
-    | None => None
-    }
-  }, [fileSizeError])
-
   let doSubmit = () =>
     commandsRef.current->Nullable.toOption->Option.forEach(commands => commands.submit())
   let openAttachPicker = () =>
@@ -411,9 +403,18 @@ let make = (
     | Some(error) =>
       <div className="px-3 pt-2">
         <div
-          className="px-3 py-2 rounded-lg bg-red-900/40 border border-red-700/50 text-xs text-red-300"
+          role="alert"
+          className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-900/40 border border-red-700/50 text-xs text-red-300"
         >
-          {React.string(error)}
+          <span className="min-w-0 flex-1"> {React.string(error)} </span>
+          <button
+            type_="button"
+            ariaLabel="Dismiss error"
+            onClick={_ => setFileSizeError(_ => None)}
+            className="shrink-0 rounded px-1 underline underline-offset-2 cursor-pointer hover:text-red-100 focus-visible:outline focus-visible:outline-2"
+          >
+            {React.string("Dismiss")}
+          </button>
         </div>
       </div>
     | None => React.null

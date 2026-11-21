@@ -14,6 +14,7 @@ class Frontman_Tool_Seo {
 	private const YOAST = 'wordpress-seo/wp-seo.php';
 	private const SURERANK = 'surerank/surerank.php';
 	private const META = [ 'title' => 'title', 'description' => 'metadesc', 'focus_keyphrase' => 'focuskw' ];
+	private const INDEXING = [ 'default' => '0', 'noindex' => '1', 'index' => '2' ];
 	private const SURERANK_META = [
 		'title' => 'surerank_settings_page_title',
 		'description' => 'surerank_settings_page_description',
@@ -36,7 +37,7 @@ class Frontman_Tool_Seo {
 		];
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_read_seo',
-			'Reads stored SEO title, description, and focus keyphrase for an editable post, page, or individual CPT item, not taxonomy terms or CPT archives. For those targets, use wp_read_term_seo or wp_read_post_type_archive_seo when advertised. Stored overrides are not computed tags; verify rendered tags separately.',
+			'Reads stored SEO title, description, focus keyphrase, and supported Yoast indexing preference for an editable post, page, or individual CPT item, not taxonomy terms or CPT archives. For those targets, use wp_read_term_seo or wp_read_post_type_archive_seo when advertised. Indexing describes the stored object preference, not effective indexing. Stored overrides are not computed tags; verify rendered tags separately.',
 			$schema,
 			[ $this, 'read_seo' ],
 			new Frontman_Tool_Annotations( true, false, false, true ), 'read'
@@ -49,9 +50,12 @@ class Frontman_Tool_Seo {
 			'description' => [ 'type' => 'string', 'description' => 'SEO description override.' ],
 			'focus_keyphrase' => [ 'type' => 'string', 'description' => 'Single Yoast focus keyphrase, not secondary keywords.' ],
 		];
+		if ( self::indexing_supported( true ) ) {
+			$schema['properties']['indexing'] = [ 'type' => 'string', 'enum' => array_keys( self::INDEXING ), 'description' => 'Stored Yoast preference only: default deletes the object override and inherits; index does not guarantee effective indexing.' ];
+		}
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_update_seo',
-			'Updates SEO overrides or the focus keyphrase for an editable post, page, or individual CPT item, not taxonomy terms or CPT archives. For those targets, use wp_update_term_seo or wp_update_post_type_archive_seo when advertised. Provide at least one of title, description, or focus_keyphrase. Omitted fields stay unchanged; empty strings restore provider defaults. Reread with wp_read_seo after any failure before retrying. Stored overrides are not computed tags; verify rendered tags separately.',
+			'Updates approved SEO overrides for an editable post, page, or individual CPT item, not taxonomy terms or CPT archives. For those targets, use wp_update_term_seo or wp_update_post_type_archive_seo when advertised. Provide at least one of title, description, or focus_keyphrase, or supported indexing. Omitted fields stay unchanged; empty text strings restore provider defaults. Indexing default deletes the object override and inherits policy; index is a stored preference, not an indexing guarantee. Obtain approval before changing indexing. Reread with wp_read_seo after any failure before retrying; never retry automatically. indexable_refreshed verifies native persisted derived state only, not rendered output or sitemap inclusion. Stored overrides are not computed tags; verify rendered tags separately.',
 			$schema,
 			[ $this, 'update_seo' ],
 			new Frontman_Tool_Annotations( false, true, true, false ), 'read-write'
@@ -76,7 +80,7 @@ class Frontman_Tool_Seo {
 			'provider' => null === $read_reason ? self::provider() : null,
 			'read' => null === $read_reason,
 			'write' => null === $write_reason,
-			'supported_fields' => null === $read_reason ? array_keys( self::META ) : [],
+			'supported_fields' => null === $read_reason ? array_merge( array_keys( self::META ), self::indexing_supported() ? [ 'indexing' ] : [] ) : [],
 			'read_unavailable_reason' => $read_reason,
 			'write_unavailable_reason' => $write_reason,
 			'targets' => $targets,
@@ -162,11 +166,29 @@ class Frontman_Tool_Seo {
 		}
 		return $values;
 	}
+	private static function indexing_supported( bool $write = false ): bool {
+		if ( null !== self::read_unavailable_reason() || 'yoast' !== self::provider()
+			|| ( \WPSEO_Meta::$defaults['_yoast_wpseo_meta-robots-noindex'] ?? null ) !== '0' ) {
+			return false;
+		}
+		if ( ! $write ) { return true; }
+		$key = '_yoast_wpseo_meta-robots-noindex';
+		$registered = get_registered_meta_keys( 'post' );
+		if ( null !== self::unavailable_reason() || ! is_callable( $registered[$key]['sanitize_callback'] ?? null )
+			|| false === has_filter( 'sanitize_post_meta_' . $key, [ 'WPSEO_Meta', 'sanitize_post_meta' ] )
+			|| ! is_callable( [ 'WPSEO_Capability_Utils', 'current_user_can' ] ) || ! is_callable( [ 'WPSEO_Options', 'get' ] )
+			|| ! function_exists( 'YoastSEO' ) ) { return false; }
+		try {
+			return is_callable( [ YoastSEO()->classes->get( \Yoast\WP\SEO\Integrations\Watchers\Indexable_Post_Watcher::class ), 'build_indexable' ] )
+				&& is_callable( [ YoastSEO()->classes->get( \Yoast\WP\SEO\Repositories\Indexable_Repository::class ), 'query' ] )
+				&& is_callable( [ YoastSEO()->helpers->indexable, 'should_index_indexables' ] );
+		} catch ( \Throwable $error ) { return false; }
+	}
 	public static function validate_input( string $tool, array $input ): array {
 		if ( in_array( $tool, self::ARCHIVE_TOOLS, true ) ) {
 			return self::validate_archive_input( $tool, $input );
 		}
-		$allowed = 'wp_read_seo' === $tool ? [ 'id' ] : array_merge( [ 'id' ], array_keys( self::META ) );
+		$allowed = 'wp_read_seo' === $tool ? [ 'id' ] : array_merge( [ 'id' ], array_keys( self::META ), self::indexing_supported( true ) ? [ 'indexing' ] : [] );
 		if ( ! in_array( $tool, [ 'wp_read_seo', 'wp_update_seo' ], true ) || array_diff( array_keys( $input ), $allowed ) ) {
 			throw new Frontman_Tool_Error( __( 'Invalid SEO tool input.', 'frontman-agentic-ai-editor' ) );
 		}
@@ -178,8 +200,11 @@ class Frontman_Tool_Seo {
 				throw new Frontman_Tool_Error( __( 'SEO values must be valid UTF-8 strings.', 'frontman-agentic-ai-editor' ) );
 			}
 		}
-		if ( 'wp_update_seo' === $tool && ! array_intersect_key( $input, self::META ) ) {
-			throw new Frontman_Tool_Error( __( 'Provide title, description, or focus_keyphrase.', 'frontman-agentic-ai-editor' ) );
+		if ( array_key_exists( 'indexing', $input ) && ( ! is_string( $input['indexing'] ) || ! array_key_exists( $input['indexing'], self::INDEXING ) ) ) {
+			throw new Frontman_Tool_Error( 'indexing must be default, noindex, or index.' );
+		}
+		if ( 'wp_update_seo' === $tool && ! array_intersect_key( $input, self::META ) && ! array_key_exists( 'indexing', $input ) ) {
+			throw new Frontman_Tool_Error( __( 'Provide title, description, focus_keyphrase, or supported indexing.', 'frontman-agentic-ai-editor' ) );
 		}
 		return $input;
 	}
@@ -189,10 +214,31 @@ class Frontman_Tool_Seo {
 		return [ 'id' => $input['id'], 'provider' => self::provider() ] + $this->snapshot( $input['id'] );
 	}
 	public function update_seo( array $input ): array {
+		global $wpdb;
 		$input     = self::validate_input( 'wp_update_seo', $input );
 		$post_type = $this->guard( $input['id'] );
 		$before    = $this->snapshot( $input['id'] );
 		$expected  = [];
+		$indexing = array_key_exists( 'indexing', $input );
+		if ( $indexing ) {
+			if ( ( is_multisite() && ms_is_switched() ) || ! current_user_can( 'edit_post_meta', $input['id'], '_yoast_wpseo_meta-robots-noindex' )
+				|| ( WPSEO_Options::get( 'disableadvanced_meta' ) && ! WPSEO_Capability_Utils::current_user_can( 'wpseo_edit_advanced_metadata' ) ) ) {
+				throw new Frontman_Tool_Error( 'You cannot edit indexing metadata on this site and object.' );
+			}
+			try {
+				$watcher = YoastSEO()->classes->get( \Yoast\WP\SEO\Integrations\Watchers\Indexable_Post_Watcher::class );
+				$repository = YoastSEO()->classes->get( \Yoast\WP\SEO\Repositories\Indexable_Repository::class );
+				$helper = YoastSEO()->helpers->indexable;
+				$wpdb->last_error = '';
+				$repository->query()->where( 'object_type', 'post' )->where( 'object_id', $input['id'] )->find_one();
+				if ( '' !== $wpdb->last_error ) { throw new \RuntimeException(); }
+				$helper->should_index_indexables();
+				if ( self::INDEXING[$input['indexing']] !== sanitize_meta( '_yoast_wpseo_meta-robots-noindex', self::INDEXING[$input['indexing']], 'post', $post_type ) ) { throw new \UnexpectedValueException(); }
+			} catch ( \Throwable $error ) {
+				throw new Frontman_Tool_Error( 'Yoast could not prepare indexing sanitization or refresh. No writes were attempted.' );
+			}
+			$expected['indexing'] = $input['indexing'];
+		}
 		try {
 			foreach ( self::META as $field => $key ) {
 				if ( array_key_exists( $field, $input ) ) {
@@ -225,6 +271,26 @@ class Frontman_Tool_Seo {
 				$this->persistence_error( $input['id'], $before, $wanted );
 			}
 		}
+		if ( $indexing ) {
+			try {
+				if ( 'default' === $input['indexing'] ) {
+					\WPSEO_Meta::delete( 'meta-robots-noindex', $input['id'] );
+				} else {
+					\WPSEO_Meta::set_value( 'meta-robots-noindex', self::INDEXING[$input['indexing']], $input['id'] );
+				}
+				$after = $this->snapshot( $input['id'] );
+				if ( $after !== $wanted || ( 'default' === $input['indexing'] && metadata_exists( 'post', $input['id'], '_yoast_wpseo_meta-robots-noindex' ) ) ) { throw new \RuntimeException(); }
+				$watcher->build_indexable( $input['id'] );
+				$refreshed = $helper->should_index_indexables();
+				if ( $refreshed ) {
+					$derived = $repository->query()->where( 'object_type', 'post' )->where( 'object_id', $input['id'] )->find_one();
+					if ( ! $derived || (int) $derived->object_id !== $input['id'] || $derived->object_type !== 'post' || $derived->object_sub_type !== $post_type
+						|| $derived->is_robots_noindex !== [ 'default' => null, 'noindex' => true, 'index' => false ][$input['indexing']] ) { throw new \RuntimeException(); }
+				}
+			} catch ( \Throwable $error ) {
+				$this->persistence_error( $input['id'], $before, $wanted );
+			}
+		}
 		try {
 			$after = $this->snapshot( $input['id'] );
 		} catch ( \Throwable $error ) {
@@ -236,7 +302,7 @@ class Frontman_Tool_Seo {
 		return [
 			'id' => $input['id'], 'provider' => 'yoast',
 			'before' => $before, 'after' => $after, 'changed' => $before !== $after,
-		];
+		] + ( $indexing ? [ 'indexable_refreshed' => $refreshed ] : [] );
 	}
 	private function guard( int $id, bool $write = true ): string {
 		$reason = $write ? self::unavailable_reason() : self::read_unavailable_reason();
@@ -254,6 +320,7 @@ class Frontman_Tool_Seo {
 			throw new Frontman_Tool_Error( __( 'You cannot edit this post.', 'frontman-agentic-ai-editor' ) );
 		}
 		$keys = 'surerank' === self::provider() ? self::SURERANK_META : array_map( static fn( string $key ): string => '_yoast_wpseo_' . $key, self::META );
+		if ( self::indexing_supported() ) { $keys[] = '_yoast_wpseo_meta-robots-noindex'; }
 		foreach ( $keys as $key ) {
 			if ( ! current_user_can( 'edit_post_meta', $id, $key ) ) {
 				throw new Frontman_Tool_Error( __( 'You cannot edit this post SEO metadata.', 'frontman-agentic-ai-editor' ) );
@@ -277,6 +344,15 @@ class Frontman_Tool_Seo {
 			if ( ! is_string( $value ) || 1 !== preg_match( '//u', $value ) ) {
 				throw new Frontman_Tool_Error( __( 'Yoast returned invalid SEO overrides.', 'frontman-agentic-ai-editor' ) );
 			}
+		}
+		if ( self::indexing_supported() ) {
+			$stored = \WPSEO_Meta::get_value( 'meta-robots-noindex', $id );
+			$preference = array_search( $stored, self::INDEXING, true );
+			$raw = get_post_meta( $id, '_yoast_wpseo_meta-robots-noindex', false );
+			if ( false === $preference || ( [] !== $raw && ( count( $raw ) !== 1 || $raw[0] !== $stored ) ) ) {
+				throw new Frontman_Tool_Error( 'Yoast returned an invalid stored indexing preference.' );
+			}
+			$values['indexing'] = $preference;
 		}
 		return $values;
 	}

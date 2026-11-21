@@ -14,7 +14,7 @@ defmodule FrontmanServer.Agents.SystemPrompt do
 
   alias SwarmAi.Message.ContentPart
 
-  def compose(%Agent{system: system}, %{
+  def compose(%Agent{system: system, name: name}, %{
         available_skills: skills,
         project_rules: project_rules,
         project_structure: project_structure,
@@ -24,6 +24,7 @@ defmodule FrontmanServer.Agents.SystemPrompt do
       when is_list(skills) and is_list(project_rules) do
     prefix =
       [system | context_guidance(project_traits, framework, project_structure)] ++
+        agent_guidance(name) ++
         skill_sections(skills)
 
     context =
@@ -44,6 +45,20 @@ defmodule FrontmanServer.Agents.SystemPrompt do
       package_manager_guidance(project_structure) ++
       [final_response_guidance()]
   end
+
+  defp agent_guidance("planner") do
+    [
+      """
+      ## Planner-to-Executor Handoff
+
+      Planner is read-only, chat approval does not switch agents, and framework mutations are Executor work.
+      After your turn finishes, tell the user to choose **Execute plan** or select **Executor** in the agent selector.
+      Do not request write access or mistake read-only filtering for missing capabilities.
+      """
+    ]
+  end
+
+  defp agent_guidance(_name), do: []
 
   defp framework_guidance(:nextjs) do
     """

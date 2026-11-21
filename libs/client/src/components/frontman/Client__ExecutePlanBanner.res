@@ -13,7 +13,7 @@ let make = (~onExecute: unit => unit) => {
         {React.string("Execute plan")}
       </button>
       <span className="text-xs text-zinc-500">
-        {React.string("Hands the plan to the executor agent")}
+        {React.string("Switches to Executor to make changes. Approval text does not switch agents.")}
       </span>
     </div>
   </div>

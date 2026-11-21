@@ -301,6 +301,13 @@ fi
 run_checked_test "OK (Multisite authors, WordPress ${WORDPRESS_VERSION}, PHP " \
   "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/MultisiteAuthorsRuntimeTest.php
 
+if [[ -n "$YOAST_VERSION" ]]; then
+  "$RUNTIME" exec "$WORDPRESS" php -r '$_SERVER["HTTP_HOST"] = "frontman-multisite.example.test"; $_SERVER["REQUEST_URI"] = "/"; require "/tmp/frontman-multisite/wp-load.php"; require_once ABSPATH . "wp-admin/includes/plugin.php"; $result = activate_plugin("wordpress-seo/wp-seo.php", "", true); if (is_wp_error($result)) { throw new RuntimeException($result->get_error_message()); }'
+  run_checked_test "OK (WordPress ${WORDPRESS_VERSION}, PHP " "$RUNTIME" exec \
+    -e EXPECTED_YOAST_VERSION="$YOAST_VERSION" "$WORDPRESS" \
+    php -d display_errors=1 -d error_reporting=E_ALL /tmp/RunWordPressRuntimeTest.php seo-indexing-multisite
+fi
+
 test_redirects_and_angie() {
   download_zip 'https://downloads.wordpress.org/plugin/301-redirects.1.05.zip' 301-redirects '3423c49888af0d73e458fd9d5c1439ba7ca00d9da7ccb1b6c8ed0ac423011c8d' 301-redirects
   "$RUNTIME" cp "$BUILD_DIR/301-redirects/301-redirects" "$WORDPRESS:/var/www/html/wp-content/plugins/301-redirects"
