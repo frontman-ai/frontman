@@ -2,4 +2,5 @@
 "@frontman-ai/client": patch
 ---
 
-Explain that Planner is read-only and chat approval does not switch agents. The Execute plan banner now states that it switches to Executor to make changes.
+Clarify the read-only Planner handoff to Executor through Execute plan, not chat approval.
+Keep attachment errors visible until dismissal, add accessible recovery controls, and explain image-only attachments with a text-paste alternative.

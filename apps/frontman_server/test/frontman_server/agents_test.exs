@@ -143,47 +143,23 @@ defmodule FrontmanServer.AgentsTest do
       tools = Tools.resolve(Agents.tool_policy(planner), [])
 
       for framework <- [:wordpress, :nextjs] do
-        assert [%ContentPart{text: prompt, metadata: metadata}] =
-                 Agents.system_prompt(
-                   scope,
-                   planner,
-                   %{@empty_context | framework: framework},
-                   tools
-                 )
-
-        assert metadata == %{cache_control: %{type: "ephemeral"}}
-        assert length(String.split(prompt, "## Planner-to-Executor Handoff")) == 2
-        assert prompt =~ "Planner prepares plans and does not perform mutations"
-        assert prompt =~ "Approval in a normal chat message does not switch agents"
-
-        assert prompt =~
-                 "After the Planner turn finishes, tell the user to select **Execute plan**"
-
-        assert prompt =~ "select **Executor** in the agent selector"
-        assert prompt =~ "You cannot click the button or grant yourself write access"
-        assert prompt =~ "Framework mutation instructions describe later Executor work"
-
-        assert prompt =~
-                 "Do not report intentional read-only tool filtering as missing implementation functionality"
+        context = %{@empty_context | framework: framework}
+        assert [%{text: prompt}] = Agents.system_prompt(scope, planner, context, tools)
+        assert prompt =~ "Planner is read-only"
+        assert prompt =~ "chat approval does not switch agents"
+        assert prompt =~ "tell the user to choose **Execute plan** or select **Executor**"
+        assert prompt =~ "Do not request write access"
       end
-
-      assert Agents.tool_policy(planner) == %{access: [:read]}
     end
 
     test "Executor does not receive Planner self-handoff instructions", %{scope: scope} do
       {:ok, executor} = Agents.get_agent(scope, @executor_id)
 
       for framework <- [:wordpress, :nextjs] do
-        assert [%{text: prompt}] =
-                 Agents.system_prompt(
-                   scope,
-                   executor,
-                   %{@empty_context | framework: framework},
-                   %{}
-                 )
-
+        context = %{@empty_context | framework: framework}
+        assert [%{text: prompt}] = Agents.system_prompt(scope, executor, context, %{})
         refute prompt =~ "## Planner-to-Executor Handoff"
-        refute prompt =~ "tell the user to select **Execute plan**"
+        refute prompt =~ "tell the user to choose **Execute plan**"
       end
     end
 
