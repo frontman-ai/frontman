@@ -2,9 +2,9 @@
 
 ## Scope and status
 
-This runbook implements the documentation portion of [Plan 005](../advisor-plans/005-complete-staged-landing-page-qa.md#L54-L88).
+Use this runbook to assess a WordPress landing-page candidate against supplied baselines and approved references.
 It does not authorize site changes, publication, deployment, or external submissions.
-The [results record](../advisor-plans/005-acceptance-results.md#L1) separates documentation completion from operational acceptance.
+Record each run's evidence privately, with sanitized summaries for any shared records.
 
 | Status | Meaning |
 |---|---|
@@ -28,16 +28,15 @@ Automated regressions do not establish manual visual, real-device, customer-draf
 6. Record reference filenames and SHA-256 checksums privately.
 7. Use a sanitized artifact alias in the repository.
 8. Obtain separate permission before any form submission, including a synthetic local submission.
-9. Do not create an application fixture or change source files under this documentation scope.
+9. Do not create an application fixture or change source files under this runbook.
 10. Stop before unexpected notifications, emails, CRM entries, or conversions.
 
-No credentials are necessary for documentation work.
-Future operators must obtain separate authorization for staging, device access, and vendor operations.
+Obtain separate authorization for staging, device access, and vendor operations.
 Noindex is neither access control nor a guarantee about search-engine indexing.
 
 ## Required-input gate
 
-Before observations, complete the run header in the results record.
+Before observations, record these required inputs as the run header in the private evidence store.
 
 | Required input | Required provenance |
 |---|---|
@@ -71,7 +70,7 @@ A synthetic fixture cannot prove preservation of an actual draft's form or layou
 ### Fixture lifecycle
 
 1. Record the supplied fixture path and exact Make commands privately.
-2. Record a sanitized procedure alias and availability in the repository results.
+2. Record the procedure's availability and a sanitized alias in the run evidence.
 3. Check that the commands target only the disposable local environment.
 4. Run the supplied Make startup command from its documented directory.
 5. Open Frontman through the supplied preview procedure.
@@ -111,8 +110,6 @@ Form regressions cover discovery and fill tools.
 Screenshot regressions cover the capture tool.
 Neither command establishes landing-page visual acceptance.
 A runtime pass does not establish staging, vendor, or real-device acceptance.
-Documentation-only changes do not require expensive browser or runtime builds.
-Record commands omitted for that reason as NOT RUN.
 
 ### Form and consent preservation
 
@@ -173,7 +170,14 @@ Obtain explicit permission for the designated synthetic staging page and each pe
 Keep the normal candidate workflow in draft status.
 Do not publish a customer draft to inspect public output.
 
-Use [Plan 002](../advisor-plans/002-support-per-page-yoast-indexing.md#L55-L87) for the supported preference contract.
+Use the existing [`wp_read_seo` and `wp_update_seo` tools](../libs/frontman-wordpress/tools/class-tool-seo.php#L32-L61).
+For supported Yoast objects, `wp_update_seo` accepts optional `indexing`: `default`, `noindex`, or `index`.
+Omission preserves the stored preference.
+`default` clears the object override and inherits the provider policy.
+`index` is a stored preference, not an indexing guarantee.
+Obtain approval before writes.
+After a failed write, reread with `wp_read_seo` before any retry.
+
 Record each layer independently:
 
 | Layer | Required evidence |
@@ -261,13 +265,11 @@ The first deliverable is one Generic draft, not a set of sector clones.
 2. Deliver its 390px full-page screenshot.
 3. Deliver a concise summary with every FAIL, NOT RUN, and BLOCKED result.
 4. Obtain explicit layout feedback before any sector clone.
-5. Record approval privately and a sanitized decision in the results.
+5. Record approval privately and use a sanitized decision in any shared summary.
 
 Missing sector variants are expected before this gate.
 Do not create variants to make an incomplete acceptance record look complete.
-Track [Plan 001](../advisor-plans/001-clarify-planner-handoff.md#L150-L157), [Plan 002](../advisor-plans/002-support-per-page-yoast-indexing.md#L258-L268), and [Plan 003](../advisor-plans/003-characterize-screenshot-disclosure-state.md#L218-L226) as separate product dependencies.
-Documentation completion does not establish any dependency's product acceptance.
-Do not mark Plan 005 overall DONE without the required operational evidence and review.
+Close acceptance only after the required operational evidence and review meet the agreed criteria.
 
 Stop and report the blocker for missing inputs, unauthorized writes, unexpected side effects, or out-of-scope source defects.
 Request a separately scoped product change rather than editing the application.
