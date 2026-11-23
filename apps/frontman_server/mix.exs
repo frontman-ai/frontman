@@ -65,7 +65,7 @@ defmodule FrontmanServer.MixProject do
       {:bcrypt_elixir, "~> 3.0"},
       {:anubis_mcp, "== 2.2.0"},
       {:cloak_ecto, "~> 1.3"},
-      {:phoenix, "~> 1.8.1"},
+      {:phoenix, "~> 1.8.17"},
       {:phoenix_ecto, "~> 4.5"},
       {:ecto_sql, "~> 3.13"},
       {:polymorphic_embed, "~> 5.0"},
