@@ -65,20 +65,6 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   def types, do: @types
   def task_scoped_types, do: @task_scoped_types
 
-  def completed_edits(user_id, excluded_completion_id, names) do
-    from(r in __MODULE__,
-      join: c in __MODULE__,
-      on: c.task_id == r.task_id and c.turn_number == r.turn_number,
-      join: t in TaskSchema,
-      on: t.id == r.task_id,
-      where: t.user_id == ^user_id and c.type == :agent_completed,
-      where: c.id != ^excluded_completion_id and r.type == :tool_result,
-      where: fragment("?->>'tool_name'", r.data) in ^names,
-      where: fragment("?->>'is_error' = 'false'", r.data),
-      select: {fragment("?->>'tool_name'", r.data), fragment("?->'result'", r.data)}
-    )
-  end
-
   def changeset(%__MODULE__{} = interaction, attrs) when is_map(attrs) do
     interaction
     |> cast(attrs, [:id, :type, :turn_number])

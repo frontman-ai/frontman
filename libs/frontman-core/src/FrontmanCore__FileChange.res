@@ -6,7 +6,7 @@ module NodeBuffer = FrontmanBindings.NodeBuffer
 let maxSnapshotBytes = 500 * 1024
 
 /** A tool's structured output paired with the change it made to the filesystem. */
-type execution<'output> = {output: 'output, fileChange: FileChange.envelope}
+type execution<'output> = {output: 'output, fileChange: option<FileChange.envelope>}
 
 let isBinary = (text: string): bool => text->String.indexOf("\u0000") >= 0
 
@@ -43,15 +43,19 @@ let textResultWithFileChange = (
   ~message: string,
   ~output: 'output,
   ~outputSchema: S.t<'output>,
-  envelope: FileChange.envelope,
+  fileChange: option<FileChange.envelope>,
 ): Tool.MCP.CallToolResult.t => {
   let structuredContent =
     output
     ->S.decodeOrThrow(~from=outputSchema, ~to=S.json->S.noValidation(true))
     ->JSON.Decode.object
     ->Option.getOrThrow
-  let envelopeJson =
-    envelope->S.decodeOrThrow(~from=FileChange.envelopeSchema, ~to=S.json->S.noValidation(true))
-  structuredContent->Dict.set(FileChange.reservedKey, envelopeJson)
-  Tool.MCP.CallToolResult.makeTextWithStructured(message, structuredContent)
+  switch fileChange {
+  | None => Tool.MCP.CallToolResult.makeTextWithStructured(message, structuredContent)
+  | Some(envelope) =>
+    let envelopeJson =
+      envelope->S.decodeOrThrow(~from=FileChange.envelopeSchema, ~to=S.json->S.noValidation(true))
+    structuredContent->Dict.set(FileChange.reservedKey, envelopeJson)
+    Tool.MCP.CallToolResult.makeTextWithStructured(message, structuredContent, ~changed=true)
+  }
 }

@@ -118,6 +118,10 @@ defmodule FrontmanServer.Protocols.MCP do
   def error?(%{"isError" => is_error}), do: is_error
   def error?(_), do: false
 
+  @doc "True only when a non-error tool result explicitly reports a change."
+  def changed?(%{"changed" => true} = result), do: error?(result) == false
+  def changed?(_result), do: false
+
   @doc """
   Builds an MCP tool execution request.
 
