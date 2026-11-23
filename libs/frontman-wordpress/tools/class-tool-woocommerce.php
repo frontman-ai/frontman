@@ -340,7 +340,7 @@ class Frontman_Tool_WooCommerce {
 		$catalog['required'][] = 'value';
 		$this->add_custom_tool( $tools, 'update_catalog_display', 'Updates only a WooCommerce catalog display setting through its native Customizer save path. Ask the user for confirmation before calling with confirm=true.', $this->with_confirm( $catalog ),
 			function( array $input ) { return $this->catalog_display( $input, true ); },
-			new Frontman_Tool_Annotations( false, true, true, false ), false
+			new Frontman_Tool_Annotations( false, true, true, false ), false, true
 		);
 		$this->add_endpoint_tool( $tools, 'get_settings', 'Retrieves WooCommerce setting groups.', 'GET', '/settings', $this->empty_schema() );
 		$this->add_endpoint_tool( $tools, 'get_setting_options', 'Retrieves options in one WooCommerce setting group.', 'GET', '/settings/{group}', $this->object_schema( [ 'group' => $this->string_prop( 'The WooCommerce setting group ID.' ) ], [ 'group' ] ) );
@@ -407,7 +407,8 @@ class Frontman_Tool_WooCommerce {
 		if ( $after !== $value ) {
 			throw new Frontman_Tool_Error( 'Catalog display write could not be verified. Read current state before retrying.' );
 		}
-		return [ 'name' => $name, 'before' => $before, 'after' => $after, 'updated' => $before !== $after ];
+		$changed = $before !== $after;
+		return [ 'name' => $name, 'before' => $before, 'after' => $after, 'updated' => $changed, 'changed' => $changed ];
 	}
 
 	private function register_system_status( Frontman_Tools $tools ): void {
@@ -533,17 +534,17 @@ class Frontman_Tool_WooCommerce {
 			function( array $input ) use ( $http_method, $path_template, $options ) {
 				return $this->handle_endpoint_tool( $http_method, $path_template, $options, $input );
 			},
-			new Frontman_Tool_Annotations( ...self::ANNOTATIONS[ $source_method ] )
+			new Frontman_Tool_Annotations( ...self::ANNOTATIONS[ $source_method ] ), true, 'POST' === $http_method
 		);
 	}
 
-	private function add_custom_tool( Frontman_Tools $tools, string $source_method, string $description, array $schema, callable $handler, Frontman_Tool_Annotations $annotations, bool $mirrors_rest = true ): void {
+	private function add_custom_tool( Frontman_Tools $tools, string $source_method, string $description, array $schema, callable $handler, Frontman_Tool_Annotations $annotations, bool $mirrors_rest = true, bool $reports_change = false ): void {
 		$tools->add( new Frontman_Tool_Definition(
 			'wc_' . $source_method,
 			$description . ( $mirrors_rest ? ' Mirrors woocommerce-mcp-server method `' . $source_method . '`' : ' Uses the native WooCommerce Customizer setting' ) . ' using local WordPress authentication; no WooCommerce REST API keys are required.',
 			$schema,
 			$handler,
-			$annotations, null, true, true
+			$annotations, null, true, true, $reports_change
 		) );
 	}
 
@@ -730,6 +731,13 @@ class Frontman_Tool_WooCommerce {
 			throw new Frontman_Tool_Error( $message );
 		}
 
+		// A native 201 with a resource ID confirms creation; a generic 2xx does not.
+		if ( 'POST' === $method && is_array( $data ) ) {
+			unset( $data['changed'] ); // Do not promote extension-supplied fields to receipts.
+			if ( 201 === $status && ! empty( $data['id'] ) ) {
+				$data['changed'] = true;
+			}
+		}
 		return is_array( $data ) ? $data : [ 'value' => $data ];
 	}
 

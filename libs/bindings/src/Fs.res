@@ -8,7 +8,7 @@ module Promises = {
   external readFile: (string, @as("utf8") _) => promise<string> = "readFile"
 
   @module("fs") @scope("promises")
-  external readFileBuffer: string => promise<ArrayBuffer.t> = "readFile"
+  external readFileBuffer: string => promise<NodeBuffer.t> = "readFile"
 
   @module("fs") @scope("promises")
   external writeFile: (string, string, @as("utf8") _) => promise<unit> = "writeFile"

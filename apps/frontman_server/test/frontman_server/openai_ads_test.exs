@@ -24,12 +24,13 @@ defmodule FrontmanServer.OpenAIAdsTest do
     assert Repo.all(Oban.Job) == []
     {:ok, _} = OpenAIAds.grant(scope, nil, grant())
     Application.put_env(:frontman_server, OpenAIAds, enabled: true)
-    :ok = OpenAIAds.record(scope, original.kind, "later", fn -> flunk("rescanned") end)
+    :ok = OpenAIAds.record(scope, original.kind, "later")
     assert Repo.one!(Delivery) == original
   end
 
   test "grants preserve same-owner choices; foreign cookies start fresh; denial cannot replay" do
     scope = user_scope_fixture()
+    :ok = OpenAIAds.record(scope, "registration_completed", scope.user.id)
     {:ok, original} = OpenAIAds.grant(scope, nil, grant())
     params = Map.put(grant(), "oppref", nil)
     assert {:ok, ^original} = OpenAIAds.grant(scope, original.id, params)
@@ -44,16 +45,17 @@ defmodule FrontmanServer.OpenAIAdsTest do
     assert Repo.get!(Consent, original.id) == original
     :ok = OpenAIAds.record(scope, "first_successful_edit", "one")
     {:ok, _} = OpenAIAds.grant(scope, original.id, Map.put(grant(), "oppref", "new click"))
-    assert Repo.one!(Delivery).oppref == " opaque+/ "
+    edit = Delivery.milestone(scope.user.id, "first_successful_edit")
+    assert Repo.one!(edit).oppref == " opaque+/ "
     :ok = OpenAIAds.withdraw(scope, original.id)
-    assert %Delivery{status: "suppressed", oppref: nil} = Repo.one!(Delivery)
+    assert %Delivery{status: "suppressed", oppref: nil} = Repo.one!(edit)
     assert Repo.get!(Consent, original.id).oppref == nil
     {:ok, renewed} = OpenAIAds.grant(scope, original.id, grant())
     assert renewed.id != original.id
-    :ok = OpenAIAds.record(scope, "first_successful_edit", "later", fn -> flunk("rescanned") end)
-    assert Repo.one!(Delivery).status == "suppressed"
-    :ok = OpenAIAds.record(other, "registration_completed", "without permission", fn -> false end)
-    assert Repo.get_by!(Delivery, user_id: other.user.id).status == "suppressed"
+    :ok = OpenAIAds.record(scope, "first_successful_edit", "later")
+    assert Repo.one!(edit).status == "suppressed"
+    :ok = OpenAIAds.record(other, "first_successful_edit", "existing account with consent")
+    refute Repo.exists?(Delivery.milestone(other.user.id, "first_successful_edit"))
 
     assert {:error, :invalid_consent} =
              OpenAIAds.grant(scope, nil, Map.put(grant(), "consent_updated_at_ms", 0))
@@ -64,6 +66,7 @@ defmodule FrontmanServer.OpenAIAdsTest do
       scope = user_scope_fixture()
 
       try do
+        :ok = OpenAIAds.record(scope, "registration_completed", scope.user.id)
         {:ok, consent} = OpenAIAds.grant(%Scope{}, nil, grant())
         :ok = OpenAIAds.associate(scope, consent.id)
 
@@ -80,7 +83,7 @@ defmodule FrontmanServer.OpenAIAdsTest do
           |> Enum.to_list()
 
         assert Enum.all?(results, &(&1 == {:ok, :ok}))
-        delivery = Repo.get_by!(Delivery, user_id: scope.user.id)
+        delivery = Repo.one!(Delivery.milestone(scope.user.id, "first_successful_edit"))
         request = CAPI.request(delivery, "inert-pixel", "inert-header") |> Req.Request.prepare()
         assert request.url.host == "bzr.openai.com"
         assert request.url.path == "/v1/events"
@@ -113,7 +116,7 @@ defmodule FrontmanServer.OpenAIAdsTest do
         assert {:discard, :permission} =
                  DeliverConversion.perform(%Oban.Job{args: %{"delivery_id" => delivery.id}})
       after
-        if delivery = Repo.get_by(Delivery, user_id: scope.user.id) do
+        if delivery = Repo.one(Delivery.milestone(scope.user.id, "first_successful_edit")) do
           Repo.get_by!(Oban.Job, args: %{"delivery_id" => delivery.id}) |> Repo.delete!()
         end
 

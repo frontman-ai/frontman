@@ -111,43 +111,46 @@ defmodule FrontmanServerWeb.OpenAIAdsAttributionTest do
 
   test "embedded conversion waits for a successful editing terminal in the same turn" do
     scope = user_scope_fixture()
+    :ok = OpenAIAds.record(scope, "registration_completed", scope.user.id)
+    edit = Delivery.milestone(scope.user.id, "first_successful_edit")
     task = task_fixture(scope)
 
     for {name, payload, outcome} <- [
-          {"wp_read_post", %{"success" => true}, :completed},
-          {"wp_update_post", %{"dry_run" => true}, :completed},
-          {"write_file", %{"success" => true}, :cancelled}
+          {"wp_update_post", %{"content" => [%{"type" => "text", "text" => "updated"}]},
+           :completed},
+          {"wp_update_post", %{"changed" => false}, :completed},
+          {"write_file", %{"changed" => true}, :cancelled}
         ] do
       complete_tool(scope, task, name, payload, outcome)
-      assert Repo.all(Delivery) == []
+      refute Repo.exists?(edit)
     end
 
-    complete_tool(scope, task, "wc_update_product_meta", %{"success" => true}, :completed)
-    assert %Delivery{status: "suppressed"} = first = Repo.one!(Delivery)
+    complete_tool(scope, task, "wc_update_product_meta", %{"changed" => true}, :completed)
+    assert %Delivery{status: "suppressed"} = first = Repo.one!(edit)
     assert ads(build_conn() |> log_in_user(scope.user), :post, grant()).status == 204
-    complete_tool(scope, task, "wp_update_term_seo", %{"success" => true}, :completed)
-    assert Repo.one!(Delivery) == first
+    complete_tool(scope, task, "wp_update_term_seo", %{"changed" => true}, :completed)
+    assert Repo.one!(edit) == first
 
     permitted = user_scope_fixture()
+    :ok = OpenAIAds.record(permitted, "registration_completed", permitted.user.id)
     assert ads(build_conn() |> log_in_user(permitted.user), :post, grant()).status == 204
 
     complete_tool(
       permitted,
       task_fixture(permitted),
       "wp_update_post_type_archive_seo",
-      %{"success" => true},
+      %{"changed" => true},
       :completed
     )
 
     assert %Delivery{status: "pending", oppref: " opaque+/ "} =
-             Repo.get_by!(Delivery, user_id: permitted.user.id)
+             Repo.one!(Delivery.milestone(permitted.user.id, "first_successful_edit"))
   end
 
-  defp complete_tool(scope, task, name, payload, outcome) do
+  defp complete_tool(scope, task, name, result, outcome) do
     deliveries = Repo.all(Delivery)
     turn = start_turn_fixture(scope, task.id)
     call = %SwarmAi.ToolCall{id: Ecto.UUID.generate(), name: name, arguments: "{}"}
-    result = %{"content" => [%{"type" => "text", "text" => Jason.encode!(payload)}]}
     assert {:ok, _} = Tasks.request_client_tool(scope, task.id, turn, call, :synchronous)
     assert {:ok, _, :no_executor} = Tasks.resolve_tool_request(scope, task.id, call, result)
     assert Repo.all(Delivery) == deliveries

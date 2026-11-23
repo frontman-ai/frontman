@@ -16,8 +16,8 @@ defmodule FrontmanServerWeb.MCP.Server do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Billing
   alias FrontmanServer.OpenAIAds
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Protocols.MCP.Schema
-  alias FrontmanServer.Tasks
   alias FrontmanServer.WordPress
   alias FrontmanServer.WordPress.Onboarding
   alias FrontmanServerWeb.Endpoint
@@ -180,13 +180,8 @@ defmodule FrontmanServerWeb.MCP.Server do
   defp tool_list_result(_method, _status, result), do: result
 
   defp record_hosted_edit(scope, name, result) do
-    if Tasks.editing_success?(name, result) do
-      OpenAIAds.record(
-        scope,
-        "first_successful_edit",
-        "hosted_mcp:" <> name,
-        fn -> !Tasks.earlier_edit?(scope) end
-      )
+    if MCP.changed?(result) do
+      OpenAIAds.record(scope, "first_successful_edit", "hosted_mcp:" <> name)
     end
   end
 

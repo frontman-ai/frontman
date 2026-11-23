@@ -13,6 +13,9 @@ defmodule FrontmanServer.OpenAIAds.Delivery do
     field :status, :string
   end
 
+  def milestone(user_id, kind),
+    do: from(d in __MODULE__, where: d.user_id == ^user_id and d.kind == ^kind)
+
   def pending_for_consent(id),
     do: from(d in __MODULE__, where: d.consent_id == ^id and d.status == "pending")
 end

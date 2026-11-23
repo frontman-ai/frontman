@@ -2,78 +2,42 @@ defmodule FrontmanServer.Tasks.EditEligibilityTest do
   use FrontmanServer.DataCase, async: true
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
-  alias FrontmanServer.{Repo, Tasks}
+  alias FrontmanServer.{OpenAIAds, Repo, Tasks}
+  alias FrontmanServer.OpenAIAds.Delivery
 
-  test "history requires a successful editing result and completion in the same turn" do
+  test "only an explicit changed result in the completed turn claims the first edit" do
     scope = user_scope_fixture()
     task = task_fixture(scope)
+    :ok = OpenAIAds.record(scope, "registration_completed", scope.user.id)
+    claim = fn -> Repo.get_by(Delivery, user_id: scope.user.id, kind: "first_successful_edit") end
 
-    for {name, result, outcome} <- [
-          {"wp_update_post", native_result(%{"dry_run" => true}), :completed},
-          {"read_file", native_result(%{"content" => "read"}), :completed},
-          {"edit_file", %{"isError" => true, "content" => []}, :completed},
-          {"write_file", native_result(%{"success" => true}), :cancelled},
-          {"write_file", native_result(%{"success" => true}), {:failed, "failed"}}
+    for {fields, outcome} <- [
+          {%{"changed" => true}, :cancelled},
+          {%{"changed" => true}, {:failed, "failed"}},
+          {%{}, :completed},
+          {%{"changed" => false}, :completed},
+          {%{"changed" => "true"}, :completed},
+          {%{"changed" => true, "isError" => true}, :completed},
+          {%{"structuredContent" => %{"changed" => true}}, :completed},
+          {%{"content" => [%{"type" => "text", "text" => ~s({"changed":true})}]}, :completed}
         ] do
-      persist_result(scope, task, name, result, outcome)
-      refute Tasks.earlier_edit?(scope)
+      turn = resolve_result(scope, task, "write_file", fields)
+      assert {:ok, _} = Tasks.record_execution_outcome(scope, task.id, turn, outcome)
+      refute claim.()
     end
 
-    turn = start_turn_fixture(scope, task.id)
+    turn = resolve_result(scope, task, "new_tool", %{"changed" => true})
+    refute claim.()
     assert {:ok, _} = Tasks.record_execution_outcome(scope, task.id, turn, :completed)
-    refute Tasks.earlier_edit?(scope)
-
-    for _ <- 1..15 do
-      persist_result(scope, task, "write_file", native_result(%{"dry_run" => true}))
-    end
-
-    completion = persist_result(scope, task, "write_file", native_result(%{"success" => true}))
-    assert Tasks.earlier_edit?(scope)
-    refute Tasks.earlier_edit?(scope, completion.id)
-    refute Tasks.earlier_edit?(user_scope_fixture())
+    assert %Delivery{} = claim.()
   end
 
-  test "native result qualification is identical for persisted SEO and WooCommerce edits" do
-    for name <- ~w(wp_update_term_seo wp_update_post_type_archive_seo
-                    wc_update_product_meta wc_delete_product_meta wc_update_order_meta
-                    wc_delete_order_meta wc_update_customer_meta wc_delete_customer_meta) do
-      scope = user_scope_fixture()
-      task = task_fixture(scope)
-
-      for result <- [
-            %{"isError" => true, "content" => []},
-            native_result(%{"success" => false}),
-            native_result(%{"updated" => false}),
-            native_result(%{"dryRun" => true}),
-            native_result(%{"dry_run" => true}),
-            native_result(%{"before" => "same", "after" => "same"})
-          ] do
-        refute Tasks.editing_success?(name, result)
-        persist_result(scope, task, name, result)
-        refute Tasks.earlier_edit?(scope)
-      end
-
-      result = native_result(%{"success" => true})
-      assert Tasks.editing_success?(name, result)
-      persist_result(scope, task, name, result)
-      assert Tasks.earlier_edit?(scope)
-    end
-  end
-
-  defp persist_result(scope, task, name, result, outcome \\ :completed) do
+  defp resolve_result(scope, task, name, fields) do
     turn = start_turn_fixture(scope, task.id)
     call = %SwarmAi.ToolCall{id: Ecto.UUID.generate(), name: name, arguments: "{}"}
+    result = Map.put_new(fields, "content", [])
     assert {:ok, _} = Tasks.request_client_tool(scope, task.id, turn, call, :synchronous)
     assert {:ok, _, :no_executor} = Tasks.resolve_tool_request(scope, task.id, call, result)
-    assert {:ok, _} = Tasks.record_execution_outcome(scope, task.id, turn, outcome)
-
-    Repo.get_by(Tasks.InteractionSchema,
-      task_id: task.id,
-      turn_number: turn,
-      type: :agent_completed
-    )
+    turn
   end
-
-  defp native_result(payload),
-    do: %{"content" => [%{"type" => "text", "text" => Jason.encode!(payload)}]}
 end

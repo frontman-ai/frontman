@@ -77,12 +77,13 @@ defmodule FrontmanServer.OpenAIAds do
     end)
   end
 
-  @doc "Claims an event once; evaluates historical eligibility only for an unconsumed claim."
-  def record(%Scope{user: %{id: user_id}}, kind, source_ref, eligible \\ fn -> true end)
+  @doc "Claims a milestone once. First edits require a recorded signup, regardless of its delivery status."
+  def record(%Scope{user: %{id: user_id}}, kind, source_ref)
       when kind in ["registration_completed", "first_successful_edit"] do
     transact(user_id, fn ->
-      if is_nil(Repo.get_by(Delivery, user_id: user_id, kind: kind)) do
-        claim(user_id, kind, source_ref, eligible.())
+      if kind == "registration_completed" or
+           Repo.exists?(Delivery.milestone(user_id, "registration_completed")) do
+        claim(user_id, kind, source_ref)
       end
     end)
   end
@@ -92,9 +93,9 @@ defmodule FrontmanServer.OpenAIAds do
 
   def active?(_consent), do: false
 
-  defp claim(user_id, kind, source_ref, eligible) do
+  defp claim(user_id, kind, source_ref) do
     consent = Repo.one(Consent.latest_for_user(user_id))
-    reportable = Enum.all?([enabled?(), eligible, active?(consent)])
+    reportable = enabled?() and active?(consent)
 
     row = %{
       id: Ecto.UUID.generate(),

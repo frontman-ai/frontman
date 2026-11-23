@@ -44,6 +44,7 @@ foreach ( [ 'woocommerce_shop_page_display', 'woocommerce_category_archive_displ
 			$result = catalog_call( $tools, 'wc_update_catalog_display', compact( 'name', 'value' ) + [ 'confirm' => true ] );
 			catalog_assert( $value === get_option( $name ) && $value === $result['after'], 'Native save did not persist' );
 			catalog_assert( $before === $result['before'] && ( $before !== $value ) === $result['updated'], 'Incorrect no-op or change receipt' );
+			catalog_assert( ( $before !== $value ) === $result['changed'], 'Change flag did not match persisted catalog change' );
 		}
 		foreach ( [ 'products', null, false, [], new stdClass(), 1 ] as $invalid ) {
 			catalog_call( $tools, 'wc_update_catalog_display', [ 'name' => $name, 'value' => $invalid, 'confirm' => true ], true );

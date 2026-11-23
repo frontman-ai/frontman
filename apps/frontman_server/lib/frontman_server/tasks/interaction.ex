@@ -893,7 +893,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     defp scrub_result_metadata_value(result) do
       result
-      |> Map.take(["content", "structuredContent", "isError"])
+      |> Map.take(["content", "structuredContent", "isError", "changed"])
       |> Map.put_new("isError", false)
       |> Map.put("_meta", %{})
     end

@@ -53,15 +53,6 @@ type output = {
 
 let (visibleToAgent, outputJsonSchema) = (true, Some(outputSchema->S.toJSONSchema))
 
-let writeContent = (resolvedPath: string, content: string, encoding: option<[#base64]>) => {
-  switch encoding {
-  | Some(#base64) =>
-    let buffer = NodeBuffer.fromBase64(content)
-    Fs.Promises.writeFileBuffer(resolvedPath, buffer)
-  | None => Fs.Promises.writeFile(resolvedPath, content)
-  }
-}
-
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
   switch (input.content, input.image_ref) {
   | (None, None) =>
@@ -75,49 +66,67 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.C
     | Error(err) => Tool.MCP.CallToolResult.makeError(PathContext.formatError(err))
     | Ok(resolved) =>
       try {
-        let previousContent = await FsUtils.readFileIfExists(resolved.resolvedPath)
-        let guardResult = switch previousContent {
+        let previous = await FsUtils.readFileBufferIfExists(resolved.resolvedPath)
+        let guardResult = switch previous {
         | None => Ok()
         | Some(_) => await FileTracker.assertEditSafe(resolved.safePath)
         }
         switch guardResult {
         | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
         | Ok() =>
-          let _ = await Fs.Promises.mkdir(PathContext.dirname(resolved), {recursive: true})
-          await writeContent(resolved.resolvedPath, content, input.encoding)
-          let stats = await Fs.Promises.stat(resolved.resolvedPath)
-          FileTracker.recordWrite(
-            resolved.safePath,
-            ~mtimeMs=Fs.mtimeMs(stats),
-            ~size=Fs.size(stats),
-          )
-          let binary = switch input.encoding {
-          | Some(#base64) => true
-          | None =>
-            FileChange.isBinary(content) ||
-            previousContent->Option.mapOr(false, FileChange.isBinary)
+          let bytes = switch input.encoding {
+          | Some(#base64) => NodeBuffer.fromBase64(content)
+          | None => NodeBuffer.fromString(content)
           }
-          FileChange.textResultWithFileChange(
-            ~message="File written successfully.",
-            ~output={
-              _context: {
-                sourceRoot: resolved.sourceRoot,
-                resolvedPath: resolved.resolvedPath,
-                relativePath: resolved.relativePath,
-              },
+          let output: output = {
+            _context: {
+              sourceRoot: resolved.sourceRoot,
+              resolvedPath: resolved.resolvedPath,
+              relativePath: resolved.relativePath,
             },
-            ~outputSchema,
-            FileChange.make(
-              ~path=resolved.relativePath,
-              ~status=switch previousContent {
-              | None => ProtocolFileChange.Added
-              | Some(_) => ProtocolFileChange.Modified
-              },
-              ~oldText=previousContent,
-              ~currentText=Some(content),
-              ~binary,
-            ),
-          )
+          }
+          switch previous->Option.mapOr(false, old => NodeBuffer.equals(old, bytes)) {
+          | true =>
+            FileChange.textResultWithFileChange(
+              ~message="File is unchanged.",
+              ~output,
+              ~outputSchema,
+              None,
+            )
+          | false =>
+            let _ = await Fs.Promises.mkdir(PathContext.dirname(resolved), {recursive: true})
+            await Fs.Promises.writeFileBuffer(resolved.resolvedPath, bytes)
+            let stats = await Fs.Promises.stat(resolved.resolvedPath)
+            FileTracker.recordWrite(
+              resolved.safePath,
+              ~mtimeMs=Fs.mtimeMs(stats),
+              ~size=Fs.size(stats),
+            )
+            let previousContent = previous->Option.map(NodeBuffer.toUtf8)
+            let binary = switch input.encoding {
+            | Some(#base64) => true
+            | None =>
+              FileChange.isBinary(content) ||
+              previousContent->Option.mapOr(false, FileChange.isBinary)
+            }
+            FileChange.textResultWithFileChange(
+              ~message="File written successfully.",
+              ~output,
+              ~outputSchema,
+              Some(
+                FileChange.make(
+                  ~path=resolved.relativePath,
+                  ~status=switch previousContent {
+                  | None => ProtocolFileChange.Added
+                  | Some(_) => ProtocolFileChange.Modified
+                  },
+                  ~oldText=previousContent,
+                  ~currentText=Some(content),
+                  ~binary,
+                ),
+              ),
+            )
+          }
         }
       } catch {
       | exn =>

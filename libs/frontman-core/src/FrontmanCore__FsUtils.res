@@ -1,8 +1,8 @@
 module Fs = FrontmanBindings.Fs
 
-let readFileIfExists = async (path: string): option<string> => {
+let readFileBufferIfExists = async path => {
   try {
-    Some(await Fs.Promises.readFile(path))
+    Some(await Fs.Promises.readFileBuffer(path))
   } catch {
   | exn =>
     switch exn
