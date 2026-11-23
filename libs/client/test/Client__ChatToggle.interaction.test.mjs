@@ -8,6 +8,14 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 let root;
 let container;
 
+let Harness = () => {
+	let [chatOpen, setChatOpen] = React.useState(true);
+	return React.createElement(ChatToggle, {
+		chatOpen,
+		onToggle: () => setChatOpen((open) => !open),
+	});
+};
+
 afterEach(() => {
 	act(() => root?.unmount());
 	container?.remove();
@@ -37,13 +45,6 @@ describe("Client__ChatToggle interaction", () => {
 	});
 
 	test("preserves keyboard focus when the state changes", async () => {
-		let Harness = () => {
-			let [chatOpen, setChatOpen] = React.useState(true);
-			return React.createElement(ChatToggle, {
-				chatOpen,
-				onToggle: () => setChatOpen((open) => !open),
-			});
-		};
 		container = document.createElement("div");
 		document.body.append(container);
 		root = createRoot(container);
