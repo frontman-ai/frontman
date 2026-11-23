@@ -2,7 +2,6 @@
 .PHONY: help install test test-rendered test-browser dev build deploy indexnow blog-cover
 
 PORT ?= 4321
-RENDERED_TESTS ?= test/*.test.ts
 
 HELP_TARGETS := help install test test-rendered test-browser dev build deploy indexnow blog-cover
 HELP_help := Display available commands
@@ -27,7 +26,7 @@ test:
 
 test-rendered: build
 	# Multi-page DOM checks parse the full production stylesheets as well as the HTML.
-	yarn run -T vitest run --maxWorkers=2 --testTimeout=30000 $(RENDERED_TESTS)
+	yarn run -T vitest run --maxWorkers=2 --testTimeout=30000 test/*.test.ts
 
 test-browser: build
 	yarn run -T vitest run test/browser/*.test.ts

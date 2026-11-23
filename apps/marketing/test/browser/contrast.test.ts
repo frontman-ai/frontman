@@ -1,51 +1,24 @@
-import { createReadStream } from 'node:fs'
-import { access, stat } from 'node:fs/promises'
-import { createServer } from 'node:http'
+import { preview } from 'astro'
+import { stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { chromium, type Browser, type Page } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-const dist = resolve('dist')
-const mimeTypes: Record<string, string> = {
-	css: 'text/css',
-	html: 'text/html',
-	js: 'text/javascript',
-	svg: 'image/svg+xml',
-	webp: 'image/webp',
-	woff2: 'font/woff2',
-}
-
-// Serve the actual build, including its generated CSS and assets.
-const server = createServer(async (request, response) => {
-	try {
-		const pathname = decodeURIComponent(new URL(request.url!, 'http://localhost').pathname)
-		let path = resolve(dist, `.${pathname}`)
-		if (path !== dist && !path.startsWith(`${dist}/`)) throw new Error('Path outside build')
-		if ((await stat(path)).isDirectory()) path = resolve(path, 'index.html')
-		await access(path)
-		response.setHeader('Content-Type', mimeTypes[path.split('.').pop()!] ?? 'application/octet-stream')
-		createReadStream(path).pipe(response)
-	} catch {
-		response.writeHead(404).end()
-	}
-})
-
+let server: Awaited<ReturnType<typeof preview>>
 let browser: Browser
 let origin: string
 
 beforeAll(async () => {
-	await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
-	const address = server.address()
-	if (!address || typeof address === 'string') throw new Error('Missing test server address')
-	origin = `http://127.0.0.1:${address.port}`
+	server = await preview({ root: new URL('../../', import.meta.url).pathname, server: { host: '127.0.0.1', port: 0 }, logLevel: 'silent' })
+	origin = `http://127.0.0.1:${server.port}`
 	browser = await chromium.launch({
 		executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
 	})
-}, 30_000)
+}, 60_000)
 
 afterAll(async () => {
 	await browser?.close()
-	await new Promise<void>((done, reject) => server.close(error => error ? reject(error) : done()))
+	await server?.stop()
 })
 
 async function contrast(page: Page, selector: string) {
