@@ -6,7 +6,7 @@
 	},
 	"dependencies": {
 		"@frontman-ai/nextjs": "workspace:*",
-		"@opentelemetry/api": "^1.9.1",
+		"@opentelemetry/api": "^1.10.0",
 		"@opentelemetry/sdk-node": "^0.223.0",
 		"next": "catalog:",
 		"react": "^19.3.1",
