@@ -11657,7 +11657,7 @@ __metadata:
     prettier: "npm:^3.9.10"
     prettier-plugin-astro: "npm:^1.1.2"
     prettier-plugin-tailwindcss: "npm:^0.8.1"
-    satori: "npm:^0.35.0"
+    satori: "npm:^0.63.2"
     sharp: "npm:^0.35.5"
     sury: "catalog:"
     tailwindcss: "npm:^4.3.3"
@@ -14611,9 +14611,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"satori@npm:^0.35.0":
-  version: 0.35.0
-  resolution: "satori@npm:0.35.0"
+"satori@npm:^0.63.2":
+  version: 0.63.2
+  resolution: "satori@npm:0.63.2"
   dependencies:
     "@shuding/opentype.js": "npm:1.4.0-beta.0"
     css-background-parser: "npm:^0.1.0"
@@ -14627,8 +14627,7 @@ __metadata:
     linebreak: "npm:^1.1.0"
     parse-css-color: "npm:^0.2.1"
     postcss-value-parser: "npm:^4.2.0"
-    yoga-layout: "npm:^3.2.1"
-  checksum: 10c0/7bece31ff86a5f372ffb01fad650db22bceea6556acd016ff0b8cbc56953a0ec443c4dd4f68d1234bcad3d9f54104632bf87bbf9630dcb7a5d9b50b4d5930aa9
+  checksum: 10c0/be39b8c70a341703e4712069606efc6517a772dccf8d6cfd9e770cc9d8b79e1f3546952a811d1bbc6b11bf2869e918ca17a9bb71bc3f488e5be4095de8d965ce
   languageName: node
   linkType: hard
 
@@ -17251,13 +17250,6 @@ __metadata:
   version: 2.1.2
   resolution: "yoctocolors@npm:2.1.2"
   checksum: 10c0/b220f30f53ebc2167330c3adc86a3c7f158bcba0236f6c67e25644c3188e2571a6014ffc1321943bb619460259d3d27eb4c9cc58c2d884c1b195805883ec7066
-  languageName: node
-  linkType: hard
-
-"yoga-layout@npm:^3.2.1":
-  version: 3.2.1
-  resolution: "yoga-layout@npm:3.2.1"
-  checksum: 10c0/9001e51be993c85e03757e5a04a2b61b8b30c9e5a7865d0156ca87a6431a3b717d51eb4990bfe588189fcfeac688dd9c3de707bbd50d1c344a84e63974cc54a8
   languageName: node
   linkType: hard
 
