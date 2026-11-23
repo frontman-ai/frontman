@@ -515,6 +515,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           })
         )
 
+      :sys.get_state(socket.channel_pid)
       assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
       live_chunks = collect_all_pushes() |> user_message_updates()
 
@@ -613,6 +614,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       for {block, error_hint} <- [{%{"type" => "text", "text" => ""}, "Messages"} | blocks] do
         request = put_in(build_prompt_request(), ["params", "prompt"], [block])
         ref = push(context.socket, "acp:message", request)
+        :sys.get_state(context.socket.channel_pid)
         assert_reply(ref, :ok, %{"acp:message" => %{"error" => error}})
         assert error["code"] == JsonRpc.error_invalid_params()
         assert error["message"] =~ error_hint
@@ -728,6 +730,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           build_prompt_request(id: 11, message_id: first_message_id, text: "first")
         )
 
+      :sys.get_state(socket.channel_pid)
+
       assert_push("acp:message", %{
         "params" => %{
           "sessionId" => ^task_id,
@@ -736,7 +740,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
 
       assert_reply(first_ref, :ok, %{"acp:message" => %{"id" => 11, "result" => %{}}})
-      :sys.get_state(socket.channel_pid)
       assert_state_update_running(task_id)
 
       second_ref =
@@ -745,6 +748,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           "acp:message",
           build_prompt_request(id: 12, message_id: second_message_id, text: "second")
         )
+
+      :sys.get_state(socket.channel_pid)
 
       assert_push("acp:message", %{
         "params" => %{
