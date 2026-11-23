@@ -85,7 +85,7 @@ class Frontman_Tool_Blocks {
 				'required' => [ 'post_id', 'block_markup' ],
 			],
 			[ $this, 'update_block' ],
-			new Frontman_Tool_Annotations( false, true, true, false )
+			new Frontman_Tool_Annotations( false, true, true, false ), null, true, false, true
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -112,7 +112,7 @@ class Frontman_Tool_Blocks {
 				'required' => [ 'post_id', 'block_markup' ],
 			],
 			[ $this, 'insert_block' ],
-			new Frontman_Tool_Annotations( false, true, true, false )
+			new Frontman_Tool_Annotations( false, true, true, false ), null, true, false, true
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -131,7 +131,7 @@ class Frontman_Tool_Blocks {
 				'required' => [ 'post_id', 'to_index' ],
 			],
 			[ $this, 'move_block' ],
-			new Frontman_Tool_Annotations( false, true, true, false )
+			new Frontman_Tool_Annotations( false, true, true, false ), null, true, false, true
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -149,7 +149,7 @@ class Frontman_Tool_Blocks {
 				'required' => [ 'post_id', 'confirm' ],
 			],
 			[ $this, 'delete_block' ],
-			new Frontman_Tool_Annotations( false, true, true, false )
+			new Frontman_Tool_Annotations( false, true, true, false ), null, true, false, true
 		) );
 	}
 
@@ -369,8 +369,9 @@ class Frontman_Tool_Blocks {
 	}
 
 	/** Use the post writer for capability, content, and specialized post-type checks. */
-	private function save_post_content( int $post_id, string $content ): void {
-		( new Frontman_Tool_Posts() )->update_post( [ 'id' => $post_id, 'content' => $content ] );
+	private function save_post_content( int $post_id, string $content ): bool {
+		$result = ( new Frontman_Tool_Posts() )->update_post( [ 'id' => $post_id, 'content' => $content ] );
+		return $result['changed'];
 	}
 
 	/**
@@ -466,10 +467,11 @@ class Frontman_Tool_Blocks {
 		$this->replace_block_at_path( $all_blocks, $entry['path'], $new_block[0] );
 		$content = $this->serialize_blocks( $all_blocks );
 
-		$this->save_post_content( $post_id, $content );
+		$changed = $this->save_post_content( $post_id, $content );
 
 		return [
 			'updated' => true,
+			'changed' => $changed,
 			'before'  => $before,
 			'after'   => [
 				'post_id'      => $post_id,
@@ -521,10 +523,11 @@ class Frontman_Tool_Blocks {
 		$this->insert_block_at_path( $all_blocks, $parent_path, $raw_index, $new_block[0] );
 		$content = $this->serialize_blocks( $all_blocks );
 
-		$this->save_post_content( $post_id, $content );
+		$changed = $this->save_post_content( $post_id, $content );
 
 		return [
 			'inserted' => true,
+			'changed'  => $changed,
 			'before'   => $before,
 			'after'    => [
 				'post_id'      => $post_id,
@@ -582,10 +585,11 @@ class Frontman_Tool_Blocks {
 		$this->insert_block_at_path( $all_blocks, $to_parent_path, $to_index, $block );
 		$content = $this->serialize_blocks( $all_blocks );
 
-		$this->save_post_content( $post_id, $content );
+		$changed = $this->save_post_content( $post_id, $content );
 
 		return [
 			'moved'  => true,
+			'changed' => $changed,
 			'before' => $before,
 			'after'  => [
 				'post_id'      => $post_id,
@@ -624,10 +628,11 @@ class Frontman_Tool_Blocks {
 		$this->remove_block_at_path( $all_blocks, $entry['path'] );
 		$content = $this->serialize_blocks( $all_blocks );
 
-		$this->save_post_content( $post_id, $content );
+		$changed = $this->save_post_content( $post_id, $content );
 
 		return [
 			'deleted' => true,
+			'changed' => $changed,
 			'before'  => $before,
 			'after'   => [
 				'post_id'      => $post_id,

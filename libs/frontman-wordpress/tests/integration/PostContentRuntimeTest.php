@@ -21,6 +21,7 @@ $script = '<script src="https://example.test/embed.js" defer data-region="eu1"><
 $content = '<!-- wp:html -->' . $script . '<div>Été 日本語 \\path\\file "quoted"</div><!-- /wp:html -->';
 $page = [ 'title' => 'Embedded form', 'content' => $content, 'post_type' => 'page', 'status' => 'publish' ];
 $created = $call( 'wp_create_post', $page );
+frontman_runtime_same( true, $created['changed'], 'Creation reports the new post' );
 $id = $created['id'];
 frontman_runtime_same( $content, $call( 'wp_read_post', [ 'id' => $id ] )['content'], 'Create preserves embed bytes' );
 $rendered = frontman_runtime_http( 'GET', wp_make_link_relative( $created['permalink'] ) );
@@ -32,6 +33,9 @@ frontman_runtime_same( $content, $updated['before']['content'], 'Update captures
 $content .= '<p>Updated</p>';
 frontman_runtime_same( $content, $updated['after']['content'], 'Update preserves embed bytes' );
 $renamed = $call( 'wp_update_post', [ 'id' => $id, 'title' => 'Renamed form' ] );
+frontman_runtime_same( true, $renamed['changed'], 'A persisted rename reports a change' );
+$unchanged = $call( 'wp_update_post', [ 'id' => $id, 'title' => 'Renamed form' ] );
+frontman_runtime_same( false, $unchanged['changed'], 'An identical save is not an edit' );
 frontman_runtime_same( $content, $renamed['after']['content'], 'Omitted content preserves the embed' );
 
 $reject( 'wp_create_post', [ 'title' => 'Missing content' ], 'content is a required property' );
@@ -163,6 +167,7 @@ global $wpdb;
 try {
 	$preview = $call( 'wp_update_post', $request + [ 'dryRun' => true ], false, 'count-post-saves' );
 	frontman_runtime_same( true, $preview['dry_run'], 'Multiple-edit dry run is labeled as proposed' );
+	frontman_runtime_same( false, $preview['changed'], 'Proposed edits are not saved changes' );
 	frontman_runtime_same( 2, $preview['edit_count'], 'Dry run counts the requested edits' );
 	frontman_runtime_same( [ 0 => 3, 1 => strpos( $original, 'Old \\path' ) ], $preview['match_offsets'], 'Dry run reports original byte offsets by edit index' );
 	frontman_runtime_same( hash( 'sha256', $expected ), $preview['proposed_sha256'], 'Dry run hashes proposed bytes' );
@@ -176,6 +181,7 @@ try {
 	$saved = $call( 'wp_update_post', $request, false, 'count-post-saves' );
 	frontman_runtime_same( '1', $wpdb->get_var( "SELECT option_value FROM {$wpdb->options} WHERE option_name = 'frontman_multi_edit_save_count'" ), 'Multiple edits save the post once' );
 	frontman_runtime_same( false, $saved['dry_run'], 'Multiple-edit receipt reports a saved change' );
+	frontman_runtime_same( true, $saved['changed'], 'Compact receipt reports the observed content change' );
 	frontman_runtime_same( 2, $saved['edit_count'], 'Receipt counts saved edits' );
 	frontman_runtime_same( $request['expected_current_sha256'], $saved['before_sha256'], 'Receipt identifies original content' );
 	frontman_runtime_same( hash( 'sha256', $expected ), $saved['after_sha256'], 'Receipt hashes persisted content' );

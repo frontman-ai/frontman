@@ -164,7 +164,7 @@ class Frontman_Tool_Posts {
 				'required' => [ 'title', 'content' ],
 			],
 			[ $this, 'create_post' ],
-			new Frontman_Tool_Annotations( false, true, true, false )
+			new Frontman_Tool_Annotations( false, true, true, false ), null, true, false, true
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -186,7 +186,7 @@ class Frontman_Tool_Posts {
 				'required' => [ 'source_id' ],
 			],
 			[ $this, 'duplicate_post' ],
-			new Frontman_Tool_Annotations( false, true, false, false )
+			new Frontman_Tool_Annotations( false, true, false, false ), null, true, false, true
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -271,7 +271,7 @@ class Frontman_Tool_Posts {
 				'required' => [ 'id' ],
 			],
 			[ $this, 'update_post' ],
-			new Frontman_Tool_Annotations( false, true, true, false )
+			new Frontman_Tool_Annotations( false, true, true, false ), null, true, false, true
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -314,7 +314,7 @@ class Frontman_Tool_Posts {
 				'required' => [ 'id', 'confirm' ],
 			],
 			[ $this, 'delete_post' ],
-			new Frontman_Tool_Annotations( false, true, true, false )
+			new Frontman_Tool_Annotations( false, true, true, false ), null, true, false, true
 		) );
 	}
 
@@ -699,6 +699,7 @@ class Frontman_Tool_Posts {
 			'status'    => $post_data['post_status'],
 			'type'      => $post_data['post_type'],
 			'after'     => $this->assign_and_read( (int) $post_id, $assignments ),
+			'changed'   => true,
 			'permalink' => get_permalink( $post_id ),
 		];
 	}
@@ -743,6 +744,7 @@ class Frontman_Tool_Posts {
 
 		return [
 			'duplicated'       => true,
+			'changed'          => true,
 			'id'               => (int) $post_id,
 			'source'           => $this->read_post( [ 'id' => $source_id ] ),
 			'after'            => $this->read_post( [ 'id' => (int) $post_id ] ),
@@ -788,6 +790,7 @@ class Frontman_Tool_Posts {
 			return [
 				'id' => $id,
 				'dry_run' => true,
+				'changed' => false,
 				'edit_count' => count( $edit_plan['offsets'] ),
 				'match_offsets' => $edit_plan['offsets'],
 				'before_sha256' => $before['content_sha256'],
@@ -827,6 +830,7 @@ class Frontman_Tool_Posts {
 			return [
 				'id' => $id,
 				'dry_run' => false,
+				'changed' => $before['content_sha256'] !== $after['content_sha256'],
 				'edit_count' => count( $edit_plan['offsets'] ),
 				'before_sha256' => $before['content_sha256'],
 				'after_sha256' => $after['content_sha256'],
@@ -835,6 +839,9 @@ class Frontman_Tool_Posts {
 		return [
 			'before' => $before,
 			'after'  => $after,
+			// WordPress can touch the modified time even on an identical save.
+			'changed' => array_diff_key( $before, [ 'modified' => true, 'permalink' => true ] )
+				!== array_diff_key( $after, [ 'modified' => true, 'permalink' => true ] ),
 		];
 	}
 
@@ -985,6 +992,7 @@ class Frontman_Tool_Posts {
 		$observed = get_post( $id );
 		return [
 			'before'  => $before,
+			'changed' => null === $observed || ( 'trash' !== $before['status'] && 'trash' === $observed->post_status ),
 			'deleted' => true,
 			'id'      => $id,
 			'title'   => $post->post_title,

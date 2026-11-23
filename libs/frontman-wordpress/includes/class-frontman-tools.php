@@ -37,6 +37,7 @@ class Frontman_Tool_Definition {
 	public array  $input_schema;
 	public bool   $visible_to_agent;
 	public bool   $preserve_input_strings;
+	public bool   $reports_change;
 	public Frontman_Tool_Annotations $annotations;
 	/** @var callable(array): array */
 	public $handler;
@@ -50,6 +51,7 @@ class Frontman_Tool_Definition {
 	 * @param string|null $access              Tool access level: read, write, or read-write. Inferred from name when omitted.
 	 * @param bool     $visible_to_agent       Whether the agent can see this tool.
 	 * @param bool     $preserve_input_strings Whether schema sanitization should preserve raw string values for downstream API validation.
+	 * @param bool     $reports_change Whether the handler owns a trusted top-level changed flag.
 	 */
 	public function __construct(
 		string $name,
@@ -59,7 +61,8 @@ class Frontman_Tool_Definition {
 		Frontman_Tool_Annotations $annotations,
 		?string $access = null,
 		bool $visible_to_agent = true,
-		bool $preserve_input_strings = false
+		bool $preserve_input_strings = false,
+		bool $reports_change = false
 	) {
 		$this->name                   = $name;
 		$this->title                  = self::title_for_name( $name );
@@ -69,6 +72,7 @@ class Frontman_Tool_Definition {
 		$this->handler                = $handler;
 		$this->visible_to_agent       = $visible_to_agent;
 		$this->preserve_input_strings = $preserve_input_strings;
+		$this->reports_change         = $reports_change;
 		$this->annotations            = $annotations;
 	}
 
@@ -294,8 +298,12 @@ class Frontman_Tools {
 		}
 
 		try {
-			$data = ( $tool->handler )( $input );
-			return self::success_result( $data );
+			$data   = ( $tool->handler )( $input );
+			$result = self::success_result( $data );
+			if ( $tool->reports_change && is_array( $data ) && true === ( $data['changed'] ?? null ) ) {
+				$result['changed'] = true;
+			}
+			return $result;
 		} catch ( Frontman_Tool_Error $e ) {
 			return self::error_result( $e->getMessage() );
 		}

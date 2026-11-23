@@ -19,6 +19,17 @@ let typedRoundTrip = (schema, json) =>
   ->S.decodeOrThrow(~from=schema, ~to=S.json->S.noValidation(true))
 
 describe("MCP wire contracts", () => {
+  test("preserves the optional top-level changed flag through relay and JSON-RPC", t => {
+    [Some(true), Some(false), None]->Array.forEach(changed => {
+      let wire = MCP.CallToolResult.make(~content=[], ~changed?)
+        ->S.decodeOrThrow(~from=MCP.callToolResultSchema, ~to=S.jsonString)
+      let field = changed->Option.mapOr("", flag => `,"changed":${Bool.toString(flag)}`)
+      let expected = JSON.parseOrThrow(`{"resultType":"complete","content":[]${field}}`)
+      t->expect(typedRoundTrip(MCP.callToolResultSchema, wire))->Expect.toEqual(expected)
+      t->expect(typedRoundTrip(MCP.CallToolResult.jsonSchema, wire))->Expect.toEqual(expected)
+    })
+  })
+
   test("preserves all structured JSON values through opaque constructors and schemas", t => {
     ["{}", "[1,null]", `"hello"`, "2.5", "false", "null"]->Array.forEach(serialized => {
       let value = JSON.parseOrThrow(serialized)
