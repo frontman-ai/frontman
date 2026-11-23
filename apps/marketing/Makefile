@@ -21,7 +21,7 @@ install:
 	yarn install
 
 test:
-	yarn run -T vitest run src/integrations/*.test.ts src/integrations/*.test.mjs src/content/*.test.mjs src/utils/*.test.mjs
+	yarn run -T vitest run scripts/*.test.mjs src/integrations/*.test.ts src/integrations/*.test.mjs src/content/*.test.mjs src/utils/*.test.mjs
 
 test-rendered: build
 	yarn run -T vitest run test/*.test.ts
