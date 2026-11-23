@@ -10,6 +10,40 @@ const editableValue = (field) =>
 		? ""
 		: field.innerText;
 
+function Controlled({ initial, kind, onChange, save, timers }) {
+	const [value, setValue] = React.useState(initial);
+	return React.createElement(
+		React.Fragment,
+		null,
+		React.createElement("input", {
+			id: "field",
+			"aria-label": "Title",
+			value,
+			onChange(event) {
+				const next = event.target.value;
+				onChange(next);
+				setValue(next);
+				if (kind === "react-revert" || kind === "react-delayed-revert") {
+					timers.add(
+						setTimeout(
+							() => {
+								onChange("Original title");
+								setValue("Original title");
+							},
+							kind === "react-revert" ? 15 : 200,
+						),
+					);
+				}
+			},
+		}),
+		React.createElement(
+			"button",
+			{ id: "save", type: "button", onClick: save },
+			"Save",
+		),
+	);
+}
+
 export async function createFixture(kind) {
 	const frame = document.createElement("iframe");
 	frame.style.cssText = "width:800px;height:600px;border:0";
@@ -78,40 +112,20 @@ export async function createFixture(kind) {
 			button.type = "button";
 			doc.querySelector("#app").append(button);
 		} else if (kind.startsWith("react")) {
-			function Controlled() {
-				const [value, setValue] = React.useState(state);
-				return React.createElement(
-					React.Fragment,
-					null,
-					React.createElement("input", {
-						id: "field",
-						"aria-label": "Title",
-						value,
-						onChange(event) {
-							state = event.target.value;
-							setValue(state);
-							if (kind === "react-revert" || kind === "react-delayed-revert") {
-								timers.add(
-									setTimeout(
-										() => {
-											state = "Original title";
-											setValue(state);
-										},
-										kind === "react-revert" ? 15 : 200,
-									),
-								);
-							}
-						},
-					}),
-					React.createElement(
-						"button",
-						{ id: "save", type: "button", onClick: save },
-						"Save",
-					),
-				);
-			}
 			root = createRoot(doc.querySelector("#app"));
-			flushSync(() => root.render(React.createElement(Controlled)));
+			flushSync(() =>
+				root.render(
+					React.createElement(Controlled, {
+						initial: state,
+						kind,
+						onChange: (value) => {
+							state = value;
+						},
+						save,
+						timers,
+					}),
+				),
+			);
 		} else {
 			const field = doc.createElement(
 				kind === "textarea"
