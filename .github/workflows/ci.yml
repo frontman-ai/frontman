@@ -181,6 +181,9 @@ jobs:
       - name: Run tests with coverage
         run: make -C libs/frontman-nextjs test-coverage
 
+      - name: Check packed OpenTelemetry compatibility
+        run: make -C libs/frontman-nextjs test-otel-compat
+
       - name: Coverage report
         uses: clearlyip/code-coverage-report-action@3fd916c98ed8369fa58edd4159558009f4bde010
         with:
