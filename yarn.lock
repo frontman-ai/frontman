@@ -254,19 +254,19 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@astrojs/internal-helpers@npm:0.12.0":
-  version: 0.12.0
-  resolution: "@astrojs/internal-helpers@npm:0.12.0"
+"@astrojs/internal-helpers@npm:0.13.0":
+  version: 0.13.0
+  resolution: "@astrojs/internal-helpers@npm:0.13.0"
   dependencies:
-    "@types/hast": "npm:^3.0.4"
+    "@types/hast": "npm:^3.0.5"
     "@types/mdast": "npm:^4.0.4"
-    picomatch: "npm:^4.0.4"
+    picomatch: "npm:^4.0.7"
     retext-smartypants: "npm:^6.2.0"
-    shiki: "npm:^4.0.2"
-    smol-toml: "npm:^1.8.0"
+    shiki: "npm:^4.5.0"
+    smol-toml: "npm:^1.9.1"
     unified: "npm:^11.0.5"
     yaml: "npm:^2.9.1"
-  checksum: 10c0/931d0ffa642eaafc0fc0ef65427c6c784830f0b8cca6ff2a22779b4b7a88c37fa0e29541879cda5736dc5fe0d2b99faa74092a1b18bc8f15ba1bb1a8aab57ca7
+  checksum: 10c0/c0c930ef9b48d8d16da63b83da0e9c3c2b47b5c1821aa8067fde7eba4cfd55423743dbeb3f8455d9e1708389ed85047a01a5de334e6ecc7f75f8382deaddd9c8
   languageName: node
   linkType: hard
 
@@ -364,19 +364,19 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@astrojs/preact@npm:6.0.6":
-  version: 6.0.6
-  resolution: "@astrojs/preact@npm:6.0.6"
+"@astrojs/preact@npm:6.1.0":
+  version: 6.1.0
+  resolution: "@astrojs/preact@npm:6.1.0"
   dependencies:
-    "@astrojs/internal-helpers": "npm:0.12.0"
+    "@astrojs/internal-helpers": "npm:0.13.0"
     "@preact/preset-vite": "npm:^2.10.6"
-    "@preact/signals": "npm:^2.11.2"
-    devalue: "npm:^5.9.4"
-    preact-render-to-string: "npm:^6.7.0"
-    vite: "npm:^8.3.0"
+    "@preact/signals": "npm:^2.11.3"
+    devalue: "npm:^6.0.2"
+    preact-render-to-string: "npm:^6.8.0"
+    vite: "npm:^8.3.4"
   peerDependencies:
-    preact: ^10.6.5
-  checksum: 10c0/206f7e99178da76e29abb2adc1e2889cd9ac58ae47ae32cbf7219de2251f08945264be1d404a3edabf4d767a3e390a009e4044cb188c4f970487fa053c033b61
+    preact: ^10.6.5 || ^11.0.0
+  checksum: 10c0/db5cc91092adc7b079ac3160676407b825e7dff486f613abd1fb14f8cf1c33ebc56636ae21eea4da9deabce69a101be8edc262dd6250aa746e78090e0d9f1abd
   languageName: node
   linkType: hard
 
@@ -4709,21 +4709,21 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@preact/signals-core@npm:^1.14.4":
-  version: 1.14.4
-  resolution: "@preact/signals-core@npm:1.14.4"
-  checksum: 10c0/963622e5c1c98a6946ec1ad01e9901ebacf316ab0a7e3c56c6ebaefee5b2c8ea03c3bdb8ba74120612b5f8976f5dc94693134670e372dded79db9994045aadd1
+"@preact/signals-core@npm:^1.14.5":
+  version: 1.14.5
+  resolution: "@preact/signals-core@npm:1.14.5"
+  checksum: 10c0/44ec9338275092e4dfee5f534f1cef54132c024395e73a7ec33239dac87d91bd6920f9c53c53409331c8a55386e98dd68b2ec87e72dac35c1d5486dbe228a501
   languageName: node
   linkType: hard
 
-"@preact/signals@npm:^2.11.2":
-  version: 2.11.3
-  resolution: "@preact/signals@npm:2.11.3"
+"@preact/signals@npm:^2.11.3":
+  version: 2.11.4
+  resolution: "@preact/signals@npm:2.11.4"
   dependencies:
-    "@preact/signals-core": "npm:^1.14.4"
+    "@preact/signals-core": "npm:^1.14.5"
   peerDependencies:
     preact: ">= 10.25.0 || >=11.0.0-0"
-  checksum: 10c0/9e2c01153243e4aa4cf56005329c33942618d6ccd47bff92d82630f84c0d10663067ca9fd2ed2728a16317350e8d1ed853cd7d7ff4c0519189199964d108bdfb
+  checksum: 10c0/f3226e6a26d9bcc97dfd4bba96a58068073edb90e2b5a34b970c4cbe77142a3bfc654e71ef7f33425b66b4075d99db6b182975db6fdc4cbfa63cd5aeb41484c6
   languageName: node
   linkType: hard
 
@@ -8809,14 +8809,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"devalue@npm:^5.9.4":
-  version: 5.9.4
-  resolution: "devalue@npm:5.9.4"
-  checksum: 10c0/d621083acce13d7812418ed07d99f027f83ee00ba591a2d2eab4c9436e1491ebce7bc1a92aa4c1fb7903c31c0e3c0a3cdf8662bf31644742202e003c04c17e33
-  languageName: node
-  linkType: hard
-
-"devalue@npm:^6.0.3":
+"devalue@npm:^6.0.2, devalue@npm:^6.0.3":
   version: 6.0.3
   resolution: "devalue@npm:6.0.3"
   checksum: 10c0/c553d95469ea5d28211456991dc308bd09947ea47b39583e47d16073621f2ea5d09c1390eb8cfcf1757097ba83327d7dae652b6804e0625693430677c193f03f
@@ -11656,7 +11649,7 @@ __metadata:
   resolution: "marketing@workspace:apps/marketing"
   dependencies:
     "@astrojs/check": "npm:^0.9.10"
-    "@astrojs/preact": "npm:6.0.6"
+    "@astrojs/preact": "npm:6.1.0"
     "@astrojs/rss": "npm:4.0.19"
     "@astrojs/sitemap": "npm:^3.7.4"
     "@astrojs/starlight": "npm:0.42.7"
@@ -13464,12 +13457,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"preact-render-to-string@npm:^6.7.0":
-  version: 6.8.0
-  resolution: "preact-render-to-string@npm:6.8.0"
+"preact-render-to-string@npm:^6.8.0":
+  version: 6.8.3
+  resolution: "preact-render-to-string@npm:6.8.3"
   peerDependencies:
     preact: ">=10 || >= 11.0.0-0"
-  checksum: 10c0/25198990eae8c9bc1ab2fb64692421c1df4cb337c0cfaaad4a0cf9f05d8afa36b10c373d7da02ca582e2d6f0eece25afac168696a2407a328acede0a5fce28d9
+  checksum: 10c0/b7d18530c9cb6644fd23657ce1f2453fabbea37518ce284a243aff6b5be8bcea1bc2770a7f2f9c950333b0438f52453ea85faad60ad2140166706599aede244a
   languageName: node
   linkType: hard
 
@@ -15233,7 +15226,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"smol-toml@npm:^1.8.0, smol-toml@npm:^1.9.1":
+"smol-toml@npm:^1.9.1":
   version: 1.9.1
   resolution: "smol-toml@npm:1.9.1"
   checksum: 10c0/8acccf7bbc063f29405f58f5014ab39bf4eb9d7f0e000e5e3f140f7d4d6ead5696681a7c15260d1f2910213012c0af43b31a05bf94f704b0bdf39989fba08c02
@@ -16518,7 +16511,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vite@npm:^8.1.6, vite@npm:^8.3.0, vite@npm:^8.3.5":
+"vite@npm:^8.1.6, vite@npm:^8.3.4, vite@npm:^8.3.5":
   version: 8.3.8
   resolution: "vite@npm:8.3.8"
   dependencies:
