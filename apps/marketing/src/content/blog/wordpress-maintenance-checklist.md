@@ -70,15 +70,15 @@ The test followed the operating loop in this guide:
 
 The [published evidence record](/blog/wordpress-maintenance-playground-evidence.txt) lists the resolved environment, Site Health findings, browser procedure, measurements, screenshot hashes, and evidence limits.
 
-![Logged-out WordPress Playground page with the title Maintenance Loop Verified on desktop](/blog/wordpress-maintenance-playground-change-desktop.png)
+<img src="/blog/wordpress-maintenance-playground-change-desktop.png" alt="Logged-out WordPress Playground page with the title Maintenance Loop Verified on desktop" width="780" height="437" loading="lazy" decoding="async" />
 
 *Desktop screenshot of the changed title. The Playground dock remains visible to identify the disposable environment.*
 
-![Logged-out WordPress Playground page with the title Maintenance Loop Verified at a 390 by 844 mobile viewport](/blog/wordpress-maintenance-playground-change-mobile.png)
+<img src="/blog/wordpress-maintenance-playground-change-mobile.png" alt="Logged-out WordPress Playground page with the title Maintenance Loop Verified at a 390 by 844 mobile viewport" width="390" height="844" loading="lazy" decoding="async" />
 
 *Mobile screenshot of the changed title and original visible body copy. The measured viewport had no horizontal overflow.*
 
-![Restored WordPress Playground page with the original Sample Page title](/blog/wordpress-maintenance-playground-restored.png)
+<img src="/blog/wordpress-maintenance-playground-restored.png" alt="Restored WordPress Playground page with the original Sample Page title" width="1440" height="900" loading="lazy" decoding="async" />
 
 *After the ZIP import, the page showed the original title in a new Playground instance.*
 

@@ -168,7 +168,7 @@ h5 {
 h6 {
 	@apply text-base lg:text-lg;
 }
-main a:not(.text-white):not(.dark\:text-white):not([class*="-link"]):not([class*="cta-"]):not(.button) {
+main a:not(.text-white):not(.dark\:text-white):not([class*="-link"]):not([class*="cta-"]):not(.button):not(.badge) {
 	@apply text-primary-500 hover:text-primary-600;
 }
 .highlight {
@@ -182,6 +182,10 @@ main a:not(.text-white):not(.dark\:text-white):not([class*="-link"]):not([class*
 }
 .basic-text--lg {
 	@apply text-lg leading-relaxed [&_blockquote]:text-xl [&_blockquote]:leading-loose;
+}
+
+.basic-text a:not(.button) {
+	@apply underline underline-offset-4;
 }
 
 .basic-text table {

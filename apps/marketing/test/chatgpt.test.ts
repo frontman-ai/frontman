@@ -35,7 +35,8 @@ describe('ChatGPT landing page production HTML', () => {
 			expect(grid?.children[1].id).toBe('demo')
 
 			const preview = new JSDOM(hero?.querySelector('iframe')?.getAttribute('srcdoc') ?? '').window.document
-			expect(preview.querySelector('img')?.getAttribute('src')).toBe('/images/home-demo-poster.webp')
+			expect(preview.querySelector('img')?.getAttribute('src')).toMatch(/^\/_astro\/home-demo-poster\..+\.webp$/)
+			expect(preview.querySelector('img')?.getAttribute('srcset')).toContain('400w')
 			expect(preview.querySelector('a')?.getAttribute('href')).toBe(
 				'https://www.youtube-nocookie.com/embed/-4GD1GYwH8Y?autoplay=1&rel=0'
 			)

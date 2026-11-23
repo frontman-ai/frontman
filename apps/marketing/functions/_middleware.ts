@@ -1,4 +1,5 @@
 import { markdownPath } from '../src/content/markdownRoutes'
+import { restoreMarkdownHeaders } from '../src/content/markdownResponse'
 
 const agentModeBody = {
 	name: 'Frontman',
@@ -105,7 +106,8 @@ function negotiatedResponse(response: Response, request: Request, alternate?: st
 	headers.set('Cache-Control', 'no-store')
 	headers.set('CDN-Cache-Control', 'no-store')
 	headers.set('Cloudflare-CDN-Cache-Control', 'no-store')
-	headers.set('Link', `${headers.get('Link') ?? discoveryLink}${alternate ? `, <${alternate}>; rel="alternate"; type="text/markdown"` : ''}`)
+	if (!headers.get('Link')?.includes(discoveryLink)) headers.append('Link', discoveryLink)
+	if (alternate) headers.append('Link', `<${alternate}>; rel="alternate"; type="text/markdown"`)
 	return new Response(request.method === 'HEAD' ? null : response.body, { status: response.status, statusText: response.statusText, headers })
 }
 
@@ -128,9 +130,18 @@ export const onRequest = async (context: PagesContext) => {
 	if (html.status === 404 && wantsMarkdown) return negotiatedResponse(new Response('# Page not found\n\nThis Frontman resource does not exist. Find documentation and supported resources in [llms.txt](https://frontman.sh/llms.txt).\n', {
 		status: 404, headers: { 'Content-Type': 'text/markdown; charset=utf-8' },
 	}), request)
+	if (url.pathname.endsWith('.md') && html.ok && html.headers.get('Content-Type')?.split(';')[0] === 'text/markdown') {
+		const source = request.method === 'HEAD'
+			? await context.env.ASSETS.fetch(new Request(new URL(url.pathname, url.origin), { method: 'GET' }))
+			: html
+		const markdown = await restoreMarkdownHeaders(source)
+		return new Response(request.method === 'HEAD' ? null : markdown.body, {
+			status: markdown.status, statusText: markdown.statusText, headers: markdown.headers,
+		})
+	}
 	if (!alternate || html.status === 404) return html
 	if (html.status >= 300 && html.status < 400 && html.status !== 304) return negotiatedResponse(html, request)
 	const markdown = await context.env.ASSETS.fetch(new Request(new URL(alternate, url.origin), { method: 'GET' }))
 	if (!markdown.ok || markdown.headers.get('Content-Type')?.split(';')[0] !== 'text/markdown') return negotiatedResponse(html, request)
-	return negotiatedResponse(wantsMarkdown ? markdown : html, request, alternate)
+	return negotiatedResponse(wantsMarkdown ? await restoreMarkdownHeaders(markdown) : html, request, alternate)
 }
