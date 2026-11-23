@@ -35,7 +35,7 @@
 		"dist"
 	],
 	"devDependencies": {
-		"@babel/core": "^8.0.7",
+		"@babel/core": "^8.0.9",
 		"@base-ui/react": "^1.9.0",
 		"@biomejs/biome": "^2.5.15",
 		"@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main",
