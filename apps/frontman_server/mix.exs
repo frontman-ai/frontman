@@ -122,7 +122,7 @@ defmodule FrontmanServer.MixProject do
        ref: "a3b15e29b3067644bfd580246c87f7af7a90b3b8",
        only: :test,
        override: true},
-      {:ranch, "~> 1.8", only: :test, override: true},
+      {:ranch, "~> 2.3", only: :test, override: true},
       {:mox, "~> 1.2", only: :test}
     ]
   end
