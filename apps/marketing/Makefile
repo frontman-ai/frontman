@@ -22,10 +22,9 @@ install:
 	yarn install
 
 test:
-	yarn run -T vitest run src/integrations/*.test.ts src/integrations/*.test.mjs src/content/*.test.mjs src/utils/*.test.mjs
+	yarn run -T vitest run scripts/*.test.mjs src/integrations/*.test.ts src/integrations/*.test.mjs src/content/*.test.mjs src/utils/*.test.mjs
 
 test-rendered: build
-	# Multi-page DOM checks parse the full production stylesheets as well as the HTML.
 	yarn run -T vitest run --maxWorkers=2 --testTimeout=30000 test/*.test.ts
 
 test-browser: build

@@ -16,6 +16,7 @@ let initialize = (~transport: option<Bindings.transport>=?) => {
         environment: %raw(`process.env.NODE_ENV || "development"`),
         release: %raw(`process.env.npm_package_version || "unknown"`),
         sampleRate: 1.0,
+        enableOpenTelemetrySetup: false,
         transport: t,
         initialScope: scope,
         beforeSend: SentryFilter.beforeSend,
@@ -26,6 +27,7 @@ let initialize = (~transport: option<Bindings.transport>=?) => {
         environment: %raw(`process.env.NODE_ENV || "development"`),
         release: %raw(`process.env.npm_package_version || "unknown"`),
         sampleRate: 1.0,
+        enableOpenTelemetrySetup: false,
         initialScope: scope,
         beforeSend: SentryFilter.beforeSend,
       })

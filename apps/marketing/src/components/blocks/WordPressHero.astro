@@ -12,7 +12,6 @@ interface Props {
 
 const { headingLines, description, demoTitle, demoCaption } = Astro.props
 
-// Keep sizes relative to the srcdoc viewport, which is already the preview's width.
 const poster = await getImage({
 	src: demoPoster,
 	width: 960,

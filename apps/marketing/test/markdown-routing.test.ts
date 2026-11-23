@@ -8,8 +8,6 @@ let server: Awaited<ReturnType<typeof preview>>
 let origin: string
 
 beforeAll(async () => {
-	// Cloudflare serves extensionless static files such as /.well-known/api-catalog.
-	// Astro preview's trailing-slash guard otherwise rejects those existing files.
 	server = await preview({ root: new URL('../', import.meta.url).pathname, trailingSlash: 'ignore', server: { host: '127.0.0.1', port: 0 }, logLevel: 'silent' })
 	origin = `http://127.0.0.1:${server.port}`
 }, 60_000)
@@ -18,12 +16,8 @@ afterAll(async () => {
 	await server?.stop()
 })
 
-// Use Astro's real static server for both Pages' next() and ASSETS.fetch().
-// The built files have lost endpoint headers, just as they have on Cloudflare.
 const fetchAsset = (request: Request) => {
 	const url = new URL(request.url)
-	// Vite's directory-index fallback requires an HTML-compatible Accept header.
-	// Keep negotiation on the original request in onRequest(), not on asset lookup.
 	const headers = new Headers(request.headers)
 	headers.set('Accept', '*/*')
 	return fetch(new URL(url.pathname + url.search, origin), {

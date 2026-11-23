@@ -11,8 +11,6 @@ export function markdownResponse(body: string, canonicalPath: string, robots?: s
 	})
 }
 
-// Static prerendering keeps the Markdown body but discards endpoint response headers.
-// Read our JSON-quoted frontmatter fields to restore them at the Cloudflare boundary.
 export async function restoreMarkdownHeaders(response: Response): Promise<Response> {
 	const metadata = (await response.clone().text()).match(/^---\n([\s\S]*?)\n---\n/)?.[1]
 	const canonical = metadata?.match(/^canonical: (".*")$/m)?.[1]

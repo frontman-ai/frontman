@@ -112,6 +112,7 @@ const svg = await satori(
       style: {
         width: "100%",
         height: "100%",
+        boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -189,6 +190,9 @@ const svg = await satori(
             width: 80,
             height: 80,
             style: {
+              position: "relative",
+              zIndex: 1,
+              flexShrink: 0,
               marginBottom: "24px",
             },
           },
@@ -197,8 +201,11 @@ const svg = await satori(
           type: "div",
           props: {
             style: {
+              position: "relative",
+              zIndex: 1,
               display: "flex",
               flexDirection: "column",
+              flexShrink: 0,
               alignItems: "center",
               maxWidth: "900px",
             },
@@ -207,6 +214,8 @@ const svg = await satori(
                 type: "div",
                 props: {
                   style: {
+                    display: "flex",
+                    flexShrink: 0,
                     fontSize: title.length > 60 ? "34px" : title.length > 40 ? "40px" : "46px",
                     fontWeight: 300,
                     color: colors.text,
@@ -248,6 +257,7 @@ const svg = await satori(
           type: "div",
           props: {
             style: {
+              display: "flex",
               position: "absolute",
               bottom: "14px",
               right: "24px",

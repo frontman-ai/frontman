@@ -7,8 +7,32 @@ Optional OpenTelemetry processors that capture logs and spans into Frontman's ci
 Install OpenTelemetry peer dependencies:
 
 ```bash
-npm install @opentelemetry/sdk-node @opentelemetry/sdk-trace-base @opentelemetry/sdk-logs
+npm install @opentelemetry/api@^1.10.0 @opentelemetry/sdk-node@^0.300.0 @opentelemetry/sdk-trace@^3.0.0 @opentelemetry/sdk-logs@^3.0.0
 ```
+
+SDK 0.300 and SDK 3.x require Node.js 22.15 or later.
+Earlier SDK versions remain supported with their matching API versions.
+Do not combine API 1.10 with SDK versions that require API <1.10.
+
+The packed compatibility test covers these combinations:
+
+| Node SDK | API | Trace SDK | Logs SDK |
+| --- | --- | --- | --- |
+| 0.52.0 | 1.9.0 | `sdk-trace-base` 1.25.0 | 0.52.0 |
+| 0.223.0 | 1.9.1 | `sdk-trace-base` 2.12.0 | 0.223.0 |
+| 0.300.0 | 1.10.0 | `sdk-trace` 3.0.0 | 3.0.0 |
+
+OpenTelemetry 3.x replaces `sdk-trace-base` with `sdk-trace`.
+Frontman accepts both package names without requiring the old package in new applications.
+
+Run the packed compatibility test with `make -C libs/frontman-nextjs test-otel-compat`.
+The test installs real SDKs, checks TypeScript declarations, and captures spans and logs with Frontman enabled and disabled.
+
+### Tracer ownership
+
+The application owns the OpenTelemetry SDK and its global tracer provider.
+Frontman's Sentry client reports errors but does not register a tracer provider.
+This prevents the Sentry client from blocking the processors that the application passes to `NodeSDK`.
 
 ## Quick Start
 
@@ -41,7 +65,7 @@ If you need to export to external OTEL collectors AND capture in Frontman:
 import { setup } from '@frontman-ai/nextjs/Instrumentation';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
+import { BatchSpanProcessor } from '@opentelemetry/sdk-trace';
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
@@ -103,7 +127,7 @@ Captures Next.js request/response spans from the OpenTelemetry instrumentation:
 Captures logs from the OTEL Logger API (if you use it):
 
 ```typescript
-import { logs } from '@opentelemetry/api-logs';
+import { logs } from '@opentelemetry/api';
 
 const logger = logs.getLogger('my-app');
 logger.emit({
@@ -114,6 +138,7 @@ logger.emit({
 ```
 
 These logs are converted to Frontman log entries and stored in the buffer alongside console logs.
+API versions before 1.10 expose `logs` through the separate `@opentelemetry/api-logs` package.
 
 ## How It Works
 
