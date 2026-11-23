@@ -15,6 +15,7 @@ type initOptions = {
   tracesSampleRate?: float,
   debug?: bool,
   enabled?: bool,
+  enableOpenTelemetrySetup?: bool,
   initialScope?: scopeContext,
   beforeSend?: (sentryEvent, eventHint) => Nullable.t<sentryEvent>,
 }
@@ -27,6 +28,7 @@ type initOptionsWithTransport = {
   tracesSampleRate?: float,
   debug?: bool,
   enabled?: bool,
+  enableOpenTelemetrySetup?: bool,
   initialScope?: scopeContext,
   transport: transport,
   beforeSend?: (sentryEvent, eventHint) => Nullable.t<sentryEvent>,
