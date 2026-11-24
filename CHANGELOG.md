@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Remove the nonstandard robots.txt Schemamap directive; keep schema-map discovery in llms-full.txt.
 - Update Phoenix to 1.8.17 to fix shared-topic and Presence denial-of-service vulnerabilities (CVE-2026-129344 and CVE-2026-128361).
 - Update Phoenix LiveView to 1.2.14 to fix a `live_session` authorization-hook bypass (CVE-2026-126334).
 - Update IDNA to 8.0.0, JSV to 0.28.0, and Swoosh to 1.30.0 to fix a CPU denial-of-service vulnerability (CVE-2026-117678).
