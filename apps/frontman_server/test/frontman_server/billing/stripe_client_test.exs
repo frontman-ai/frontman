@@ -5,17 +5,14 @@ defmodule FrontmanServer.Billing.StripeClientTest do
   alias FrontmanServer.Billing.StripeClient
   alias FrontmanServer.Billing.StripeWebhookSignature
   alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
+  alias FrontmanServer.Test.HTTPFixture
 
   describe "start_checkout/5" do
-    setup :setup_stripe_bypass
-
-    test "constructs Stripe Managed Payments Checkout params from domain values", %{
-      bypass: bypass
-    } do
+    test "constructs Stripe Managed Payments Checkout params from domain values" do
       user = AccountsFixtures.user_fixture()
       customer = %Customer{stripe_customer_id: "cus_existing"}
 
-      Bypass.expect(bypass, "POST", "/v1/checkout/sessions", fn conn ->
+      start_stripe_server(%{{"POST", "/v1/checkout/sessions"} => 1}, fn conn ->
         assert ["Bearer sk_test_123"] = Plug.Conn.get_req_header(conn, "authorization")
 
         expected_api_version = Keyword.fetch!(stripe_config(), :api_version)
@@ -48,7 +45,7 @@ defmodule FrontmanServer.Billing.StripeClientTest do
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
-        |> Plug.Conn.resp(200, Jason.encode!(%{"id" => "cs_test_123"}))
+        |> Plug.Conn.send_resp(200, Jason.encode!(%{"id" => "cs_test_123"}))
       end)
 
       assert {:ok, %{"id" => "cs_test_123"}} =
@@ -67,12 +64,10 @@ defmodule FrontmanServer.Billing.StripeClientTest do
   end
 
   describe "checkout without a billing customer" do
-    setup :setup_stripe_bypass
-
-    test "prefills email only for a new customer and omits a consumed trial", %{bypass: bypass} do
+    test "prefills email only for a new customer and omits a consumed trial" do
       user = AccountsFixtures.user_fixture()
 
-      Bypass.expect(bypass, "POST", "/v1/checkout/sessions", fn conn ->
+      start_stripe_server(%{{"POST", "/v1/checkout/sessions"} => 1}, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = URI.decode_query(body)
 
@@ -83,7 +78,7 @@ defmodule FrontmanServer.Billing.StripeClientTest do
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
-        |> Plug.Conn.resp(200, Jason.encode!(%{"id" => "cs_new_customer"}))
+        |> Plug.Conn.send_resp(200, Jason.encode!(%{"id" => "cs_new_customer"}))
       end)
 
       assert {:ok, %{"id" => "cs_new_customer"}} =
@@ -101,12 +96,10 @@ defmodule FrontmanServer.Billing.StripeClientTest do
   end
 
   describe "create_customer_portal_url/2" do
-    setup :setup_stripe_bypass
-
-    test "constructs Stripe Customer Portal params from domain values", %{bypass: bypass} do
+    test "constructs Stripe Customer Portal params from domain values" do
       customer = %Customer{stripe_customer_id: "cus_existing"}
 
-      Bypass.expect(bypass, "POST", "/v1/billing_portal/sessions", fn conn ->
+      start_stripe_server(%{{"POST", "/v1/billing_portal/sessions"} => 1}, fn conn ->
         assert ["Bearer sk_test_123"] = Plug.Conn.get_req_header(conn, "authorization")
 
         expected_api_version = Keyword.fetch!(stripe_config(), :api_version)
@@ -122,7 +115,7 @@ defmodule FrontmanServer.Billing.StripeClientTest do
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
-        |> Plug.Conn.resp(
+        |> Plug.Conn.send_resp(
           200,
           Jason.encode!(%{"url" => "https://billing.stripe.test/p/session"})
         )
@@ -137,19 +130,20 @@ defmodule FrontmanServer.Billing.StripeClientTest do
   end
 
   describe "provider failures" do
-    setup :setup_stripe_bypass
-
-    test "preserves Stripe request IDs for checkout and portal failures", %{bypass: bypass} do
+    test "preserves Stripe request IDs for checkout and portal failures" do
       body = %{"error" => %{"code" => "api_key_expired", "message" => "Invalid API key"}}
 
-      for path <- ["/v1/checkout/sessions", "/v1/billing_portal/sessions"] do
-        Bypass.expect_once(bypass, "POST", path, fn conn ->
-          conn
-          |> Plug.Conn.put_resp_content_type("application/json")
-          |> Plug.Conn.put_resp_header("request-id", "req_test123")
-          |> Plug.Conn.resp(401, Jason.encode!(body))
-        end)
-      end
+      routes = %{
+        {"POST", "/v1/checkout/sessions"} => 1,
+        {"POST", "/v1/billing_portal/sessions"} => 1
+      }
+
+      start_stripe_server(routes, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.put_resp_header("request-id", "req_test123")
+        |> Plug.Conn.send_resp(401, Jason.encode!(body))
+      end)
 
       assert {:error, {:stripe_error, 401, ^body, ["req_test123"]}} =
                StripeClient.start_checkout(
@@ -233,21 +227,19 @@ defmodule FrontmanServer.Billing.StripeClientTest do
     Application.fetch_env!(:frontman_server, :stripe)
   end
 
-  defp setup_stripe_bypass(_context) do
-    bypass = Bypass.open()
+  defp start_stripe_server(routes, respond) do
+    base_url = HTTPFixture.start!(routes, respond)
     stripe_config = Application.fetch_env!(:frontman_server, :stripe)
 
     Application.put_env(
       :frontman_server,
       :stripe,
       Keyword.merge(stripe_config,
-        api_base_url: "http://localhost:#{bypass.port}/v1",
+        api_base_url: "#{base_url}/v1",
         secret_key: "sk_test_123"
       )
     )
 
     on_exit(fn -> Application.put_env(:frontman_server, :stripe, stripe_config) end)
-
-    %{bypass: bypass}
   end
 end

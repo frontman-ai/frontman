@@ -1,6 +1,7 @@
 defmodule FrontmanServerWeb.McpServerControllerTest do
   use FrontmanServerWeb.ConnCase
 
+  alias FrontmanServer.Test.SentryFixture
   alias FrontmanServerWeb.MCP.Server
   alias FrontmanServerWeb.MCP.WorkOSToken
 
@@ -296,7 +297,7 @@ defmodule FrontmanServerWeb.McpServerControllerTest do
   end
 
   test "an unexpected MCP boundary error reaches Sentry without request secrets" do
-    Sentry.Test.setup_sentry(dedup_events: false)
+    SentryFixture.start!()
     Sentry.Context.clear_all()
     Application.put_env(:frontman_server, :mcp_server, :invalid)
     handler = {__MODULE__, make_ref()}

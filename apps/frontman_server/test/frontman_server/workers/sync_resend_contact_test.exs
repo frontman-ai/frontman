@@ -6,13 +6,14 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.ResendContacts
   alias FrontmanServer.Test.Fixtures.Accounts
+  alias FrontmanServer.Test.SentryFixture
   alias FrontmanServer.Workers.SyncResendContact
 
   setup {Req.Test, :set_req_test_from_context}
   setup {Req.Test, :verify_on_exit!}
 
   setup do
-    Sentry.Test.setup_sentry(dedup_events: false)
+    SentryFixture.start!()
     Sentry.Context.clear_all()
   end
 

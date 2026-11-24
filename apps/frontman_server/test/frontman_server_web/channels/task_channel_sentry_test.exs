@@ -18,6 +18,7 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
   alias FrontmanServer.Protocols.{JsonRpc, MCP}
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks.InteractionSchema
+  alias FrontmanServer.Test.SentryFixture
 
   defp await_completion(task_id, runtime) do
     assert_receive {:interaction, %{task_id: ^task_id, type: :agent_completed}}, 5_000
@@ -25,7 +26,7 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
   end
 
   setup %{scope: scope, runtime: runtime} do
-    Sentry.Test.setup_sentry(dedup_events: false)
+    SentryFixture.start!()
     Sentry.Context.clear_all()
     Logger.reset_metadata([])
 

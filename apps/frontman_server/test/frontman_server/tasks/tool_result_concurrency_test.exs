@@ -12,6 +12,7 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.ToolExecutor
   alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Test.SentryFixture
   alias FrontmanServer.Tools.MCP, as: MCPTool
 
   test "two tasks with the same tool call id receive only their own result" do
@@ -125,7 +126,7 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
   end
 
   test "an answer racing cancellation ignores late failures without reporting or corrupting history" do
-    Sentry.Test.setup_sentry(dedup_events: false)
+    SentryFixture.start!()
 
     Sandbox.unboxed_run(Repo, fn ->
       scope = user_scope_fixture()

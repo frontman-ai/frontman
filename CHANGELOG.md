@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Update all Tiptap editor packages to 3.32.0 together to keep their required versions aligned.
 - Allow forced E2E OpenAI token refresh even when the access token is unexpired.
 - Update Plug to 1.20.4 to fix multipart length-limit enforcement (CVE-2026-120287).
+- Update DBConnection to 2.10.3 to fix a code execution vulnerability (CVE-2026-133555).
+- Use Bandit for HTTP fixtures in server tests. Remove Bypass and its Cowboy, Cowlib, and Ranch dependencies.
 - Use a shared responsive layout for sign-in, email verification, account confirmation, and WordPress connection instructions, with solid cards and consistent controls.
 - Check subscription or eligible trial access before continuing AI assistant authorization.
 - Hosted MCP tool requests require an active subscription or eligible trial; free editor turns do not grant access.

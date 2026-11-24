@@ -7,6 +7,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.{Providers, Repo}
   alias FrontmanServer.Providers.OAuthToken
+  alias FrontmanServer.Test.HTTPFixture
   alias ReqLLM.Providers.{Anthropic, OpenAICodex}
 
   setup {Req.Test, :set_req_test_from_context}
@@ -227,37 +228,37 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
 
         for entry <- Application.fetch_env!(:frontman_server, :providers)[group].models do
           id = elem(entry, 1)
-          bypass = Bypass.open()
 
-          Bypass.expect_once(bypass, "POST", "/v1/chat/completions", fn conn ->
-            {:ok, body, conn} = Plug.Conn.read_body(conn)
-            body = Jason.decode!(body)
-            assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer test-key"]
-            assert body["model"] == id
-            assert body["stream"] == true
-            assert body["messages"] == [%{"role" => "user", "content" => "Hello"}]
-            assert [%{"function" => %{"name" => "lookup"}}] = body["tools"]
+          base_url =
+            HTTPFixture.start!(%{{"POST", "/v1/chat/completions"} => 1}, fn conn ->
+              {:ok, body, conn} = Plug.Conn.read_body(conn)
+              body = Jason.decode!(body)
+              assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer test-key"]
+              assert body["model"] == id
+              assert body["stream"] == true
+              assert body["messages"] == [%{"role" => "user", "content" => "Hello"}]
+              assert [%{"function" => %{"name" => "lookup"}}] = body["tools"]
 
-            sse = ~S"""
-            data: {"choices":[{"delta":{"content":"Hello"}}]}
+              sse = ~S"""
+              data: {"choices":[{"delta":{"content":"Hello"}}]}
 
-            data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"lookup","arguments":"{\"q\":"}}]}}]}
+              data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"lookup","arguments":"{\"q\":"}}]}}]}
 
-            data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"elixir\"}"}}]}}]}
+              data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"elixir\"}"}}]}}]}
 
-            data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}
+              data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}
 
-            data: [DONE]
+              data: [DONE]
 
-            """
+              """
 
-            conn
-            |> Plug.Conn.put_resp_header("content-type", "text/event-stream")
-            |> Plug.Conn.send_resp(200, sse)
-          end)
+              conn
+              |> Plug.Conn.put_resp_header("content-type", "text/event-stream")
+              |> Plug.Conn.send_resp(200, sse)
+            end)
 
           {:ok, {model, opts}} = Providers.resolve_model_access(scope, "#{group}:#{id}")
-          opts = Keyword.merge(opts, base_url: "http://localhost:#{bypass.port}/v1", tools: tools)
+          opts = Keyword.merge(opts, base_url: "#{base_url}/v1", tools: tools)
           assert {:ok, stream} = ReqLLM.stream_text(model, "Hello", opts)
           assert {:ok, response} = ReqLLM.StreamResponse.to_response(stream)
           assert ReqLLM.Response.text(response) == "Hello"

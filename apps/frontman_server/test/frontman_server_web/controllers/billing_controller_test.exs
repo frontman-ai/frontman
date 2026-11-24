@@ -7,9 +7,10 @@ defmodule FrontmanServerWeb.BillingControllerTest do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Billing.Customer
   alias FrontmanServer.Test.BillingClientStub
+  alias FrontmanServer.Test.SentryFixture
 
   setup %{conn: conn} do
-    Sentry.Test.setup_sentry(dedup_events: false)
+    SentryFixture.start!()
     Sentry.Context.clear_all()
     billing_client = Application.fetch_env!(:frontman_server, :billing_client)
     Application.put_env(:frontman_server, :billing_client, BillingClientStub)
