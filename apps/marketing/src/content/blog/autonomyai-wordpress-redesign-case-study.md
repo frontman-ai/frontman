@@ -70,11 +70,11 @@ Frontman created a third option: keep the stack, keep control of the work, and s
 
 The homepage carried the largest part of the repositioning. It had to make the new product promise clear before a visitor reached the details.
 
-![AutonomyAI homepage before the Frontman redesign](/blog/autonomyai-homepage-before.webp)
+<img src="/blog/autonomyai-homepage-before.webp" alt="AutonomyAI homepage before the Frontman redesign" width="1600" height="1446" loading="lazy" decoding="async" />
 
 *Before: a dark homepage led with “The OS for Building in Production.” This case-study artifact does not include its original capture date.*
 
-![AutonomyAI homepage after the Frontman redesign](/blog/autonomyai-homepage-after.webp)
+<img src="/blog/autonomyai-homepage-after.webp" alt="AutonomyAI homepage after the Frontman redesign" width="1600" height="1506" loading="lazy" decoding="async" />
 
 *After: a brighter homepage leads with “Better Delivery, Built with Autonomy” and names product managers and designers as product builders. Frontman checked this capture against the live site on August 27, 2026.*
 

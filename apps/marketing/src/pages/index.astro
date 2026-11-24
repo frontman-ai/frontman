@@ -1,7 +1,10 @@
 ---
+import { Image } from 'astro:assets'
 import Layout from '../layouts/Layout.astro'
 import Button from '../components/ui/Button.astro'
 import WordPressHero from '../components/blocks/WordPressHero.astro'
+import autonomyBefore from '../../public/blog/autonomyai-homepage-before.webp'
+import autonomyAfter from '../../public/blog/autonomyai-homepage-after.webp'
 
 const pluginUrl = 'https://wordpress.org/plugins/frontman-agentic-ai-editor/'
 const setupGuideUrl = '/docs/integrations/wordpress/'
@@ -135,11 +138,11 @@ const pageJsonLd = {
 			<div class="wp-comparison">
 				<figure>
 					<figcaption>Before</figcaption>
-					<img src="/blog/autonomyai-homepage-before.webp" alt="AutonomyAI’s previous dark homepage, headed The OS for Building in Production" width="1600" height="1446" loading="lazy" decoding="async" />
+					<Image src={autonomyBefore} alt="AutonomyAI’s previous dark homepage, headed The OS for Building in Production" width={960} widths={[400, 640, 960, 1280, 1600]} sizes="(max-width: 767px) calc(100vw - 48px), (max-width: 1200px) calc((100vw - 72px) / 2), 564px" format="webp" quality={80} loading="lazy" decoding="async" />
 				</figure>
 				<figure>
 					<figcaption>After</figcaption>
-					<img src="/blog/autonomyai-homepage-after.webp" alt="AutonomyAI’s redesigned light homepage, headed Better Delivery, Built with Autonomy" width="1600" height="1506" loading="lazy" decoding="async" />
+					<Image src={autonomyAfter} alt="AutonomyAI’s redesigned light homepage, headed Better Delivery, Built with Autonomy" width={960} widths={[400, 640, 960, 1280, 1600]} sizes="(max-width: 767px) calc(100vw - 48px), (max-width: 1200px) calc((100vw - 72px) / 2), 564px" format="webp" quality={80} loading="lazy" decoding="async" />
 				</figure>
 			</div>
 			<p class="wp-disclosure">Customer-reported result in a Frontman-authored case study, not a controlled benchmark or guaranteed outcome. The original before capture date is unavailable; the after capture was checked August 27, 2026.</p>

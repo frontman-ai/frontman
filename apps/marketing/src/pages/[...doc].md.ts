@@ -15,7 +15,12 @@ export async function getStaticPaths() {
 	const paths = docs.map(({ id, data, body }) => {
 		if (body === undefined) throw new Error(`Documentation body is missing: ${id}`)
 		const path = id.replace(/(^|\/)index$/, '').replace(/\/$/, '')
-		return { params: { doc: path }, props: { markdown: docsMarkdown(data.title, body, snippets, images), canonical: `/${path}/` } }
+		const robots = data.head.findLast(({ tag, attrs }) => tag === 'meta' && attrs?.name === 'robots')?.attrs?.content
+		return { params: { doc: path }, props: {
+			markdown: docsMarkdown(data.title, body, snippets, images),
+			canonical: `/${path}/`,
+			robots: typeof robots === 'string' ? robots : undefined,
+		} }
 	})
 	return [...paths,
 		{ params: { doc: 'changelog' }, props: { markdown: changelog, canonical: '/changelog/' } },
@@ -26,5 +31,5 @@ export async function getStaticPaths() {
 		} },
 	]
 }
-export const GET: APIRoute = ({ props }) => markdownResponse(props.markdown, props.canonical)
+export const GET: APIRoute = ({ props }) => markdownResponse(props.markdown, props.canonical, props.robots)
 export const prerender = true

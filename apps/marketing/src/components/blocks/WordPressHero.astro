@@ -1,5 +1,7 @@
 ---
+import { getImage } from 'astro:assets'
 import gridNetBackground from '../../assets/grid-net-background.svg'
+import demoPoster from '../../../public/images/home-demo-poster.webp'
 
 interface Props {
 	headingLines: [string, string]
@@ -9,6 +11,14 @@ interface Props {
 }
 
 const { headingLines, description, demoTitle, demoCaption } = Astro.props
+
+const poster = await getImage({
+	src: demoPoster,
+	width: 960,
+	widths: [400, 640, 960, 1280, 1868],
+	format: 'webp',
+	quality: 80
+})
 
 const demoPreview = `
 	<style>
@@ -23,7 +33,7 @@ const demoPreview = `
 		@media (prefers-reduced-motion: reduce) { span { transition: none; } }
 	</style>
 	<a href="https://www.youtube-nocookie.com/embed/-4GD1GYwH8Y?autoplay=1&rel=0" aria-label="Play Frontman editing demo">
-		<img src="/images/home-demo-poster.webp" alt="Frontman conversation alongside the live storefront preview">
+		<img src="${poster.src}" srcset="${poster.srcSet.attribute}" sizes="100vw" width="${demoPoster.width}" height="${demoPoster.height}" loading="eager" fetchpriority="high" decoding="async" alt="Frontman conversation alongside the live storefront preview">
 		<span><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m9 5 11 7-11 7z"/></svg></span>
 	</a>
 `
@@ -52,7 +62,7 @@ const demoPreview = `
 					title={demoTitle}
 					width="960"
 					height="540"
-					loading="lazy"
+					loading="eager"
 					allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
 					referrerpolicy="strict-origin-when-cross-origin"
 					allowfullscreen
