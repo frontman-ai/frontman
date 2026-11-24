@@ -141,10 +141,6 @@ const frameworks = [
 							type="button"
 							class="agent-handoff__button"
 							data-copy-agent-instructions
-							data-ga-event="copy_agent_install_instructions"
-							data-ga-category="engagement"
-							data-ga-label="install_step"
-							data-ga-destination="nextjs"
 							aria-describedby="agent-copy-status"
 						>
 							<span data-copy-agent-icon>
@@ -470,10 +466,6 @@ const frameworks = [
 			tab.addEventListener('click', () => {
 				tabs.forEach((t) => t.classList.remove('active'))
 				tab.classList.add('active')
-				const framework = tab.getAttribute('data-framework')
-				if (framework) {
-					installRoot?.querySelector('[data-copy-agent-instructions]')?.setAttribute('data-ga-destination', framework)
-				}
 
 				const command = tab.getAttribute('data-command')
 				if (installCommand && command) {
