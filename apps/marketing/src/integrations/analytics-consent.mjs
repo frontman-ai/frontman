@@ -17,6 +17,7 @@ const runAnalytics = measurementId => {
   const analyticsAccepted = categories => categories?.analytics === true
 
   const loadAnalytics = () => {
+    if (window.location.hostname !== "frontman.sh") return
     if (!measurementId || analyticsLoaded || !analyticsAccepted(currentCategories())) return
     analyticsLoaded = true
 
