@@ -18,9 +18,10 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.StreamStallTimeout
+  alias FrontmanServer.Test.SentryFixture
 
   setup do
-    Sentry.Test.setup_sentry(dedup_events: false)
+    SentryFixture.start!()
     Sentry.Context.clear_all()
     Logger.reset_metadata([])
 

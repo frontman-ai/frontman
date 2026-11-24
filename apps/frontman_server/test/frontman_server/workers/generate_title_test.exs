@@ -8,6 +8,7 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
   alias FrontmanServer.Providers
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks.TaskSchema
+  alias FrontmanServer.Test.HTTPFixture
   alias FrontmanServer.Workers.GenerateTitle
 
   setup do
@@ -95,35 +96,34 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
   end
 
   defp with_openrouter_title_response(scope, content, callback) do
-    bypass = Bypass.open()
-    Application.put_env(:req_llm, :openrouter, base_url: "http://localhost:#{bypass.port}/v1")
+    base_url =
+      HTTPFixture.start!(%{{"POST", "/v1/chat/completions"} => 1}, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        decoded_body = Jason.decode!(body)
 
-    Bypass.expect_once(bypass, "POST", "/v1/chat/completions", fn conn ->
-      {:ok, body, conn} = Plug.Conn.read_body(conn)
-      decoded_body = Jason.decode!(body)
+        assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer sk-test"]
+        assert decoded_body["model"] == "openai/gpt-5.5"
+        assert decoded_body["max_tokens"] == 30
+        assert [_, %{"content" => user_prompt, "role" => "user"}] = decoded_body["messages"]
+        assert is_binary(user_prompt)
 
-      assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer sk-test"]
-      assert decoded_body["model"] == "openai/gpt-5.5"
-      assert decoded_body["max_tokens"] == 30
-      assert [_, %{"content" => user_prompt, "role" => "user"}] = decoded_body["messages"]
-      assert is_binary(user_prompt)
+        response = %{
+          id: "chatcmpl-title",
+          object: "chat.completion",
+          choices: [
+            %{
+              index: 0,
+              finish_reason: "stop",
+              message: %{role: "assistant", content: content}
+            }
+          ],
+          usage: %{prompt_tokens: 1, completion_tokens: 1, total_tokens: 2}
+        }
 
-      response = %{
-        id: "chatcmpl-title",
-        object: "chat.completion",
-        choices: [
-          %{
-            index: 0,
-            finish_reason: "stop",
-            message: %{role: "assistant", content: content}
-          }
-        ],
-        usage: %{prompt_tokens: 1, completion_tokens: 1, total_tokens: 2}
-      }
+        Plug.Conn.send_resp(conn, 200, Jason.encode!(response))
+      end)
 
-      Plug.Conn.send_resp(conn, 200, Jason.encode!(response))
-    end)
-
+    Application.put_env(:req_llm, :openrouter, base_url: "#{base_url}/v1")
     :ok = Providers.upsert_api_key(scope, "openrouter", "sk-test")
 
     callback.()

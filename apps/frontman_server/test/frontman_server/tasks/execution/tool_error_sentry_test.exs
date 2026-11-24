@@ -11,10 +11,11 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.ToolExecutor
   alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Test.SentryFixture
   alias FrontmanServer.Tools
 
   setup do
-    Sentry.Test.setup_sentry(dedup_events: false)
+    SentryFixture.start!()
     Sentry.Context.clear_all()
     Logger.reset_metadata([])
 
