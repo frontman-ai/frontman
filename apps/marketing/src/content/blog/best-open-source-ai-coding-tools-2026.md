@@ -5,7 +5,7 @@ pubDate: 2026-03-03T10:00:00Z
 description: 'Compare open-source AI coding tools in 2026 by workflow: agents, assistants, CLI, BYOK, local models, and self-hosted options, with current licenses.'
 image: '/blog/best-open-source-ai-coding-tools-2026-cover.png'
 tags: ['comparison', 'ai', 'developer-tools', 'open-source']
-updatedDate: 2026-09-03T00:00:00Z
+updatedDate: 2026-11-24T00:00:00Z
 faq:
   - question: 'What are the best open-source AI coding tools in 2026?'
     answer: 'The best choice depends on workflow: OpenCode or Aider for terminal work, Cline or Kilo Code for IDE and CLI agents, OpenHands for autonomous tasks, Goose for desktop and CLI automation, Tabby for self-hosted completion, and Stagewise for browser-centered frontend work.'
@@ -36,7 +36,24 @@ imageAlt: 'Open-source AI coding tools compared by terminal, IDE, autonomous, se
 
 **Source status checked:** August 15, 2026. Star counts are approximate snapshots from official GitHub repositories. Product status, licenses, interfaces, and model support use official repositories and documentation linked below. This is a source-backed workflow comparison, not a hands-on benchmark of every tool.
 
+**Focused update, November 24, 2026:** Added agent-versus-model definitions, deployment boundaries, and installation links. The older repository counts and status snapshots above were not all rechecked for this update.
+
 > **Release tracker:** See the [monthly open-source AI releases roundup](/open-source-ai-releases/) for recent project changes. For Cline specifically, use the source-backed [Cline review](/blog/cline-ai-coding-tool-review/). For archived Roo Code, read [Roo Code vs Cline](/blog/roo-code-vs-cline/).
+
+## An open-source agent is not an open model
+
+A **model** generates responses from its inputs. An **agent** supplies context, calls the model, runs permitted tools, and sends results back for another step. Cline and Aider are agent applications, not model families. Ollama is a model-serving route, not a substitute for the agent's file-editing and approval workflow.
+
+An Apache-2.0 agent can call a proprietary hosted model. A model with downloadable weights can have a separate license with usage restrictions. Neither the agent's license nor access to model weights establishes that the whole stack is open source, free to run, or offline.
+
+| Requirement | What to inspect | What does not prove it |
+| --- | --- | --- |
+| Modify and redistribute the agent | License for the exact component and release | A public repository alone |
+| Run inference yourself | Model weights, model license, serving software, and hardware requirements | BYOK support |
+| Keep prompts and code inside your network | Model endpoints, tools, telemetry, authentication, and outbound traffic | A local IDE extension or self-hosted agent server |
+| Run useful coding tasks locally | Tool-call support, context capacity, latency, and results on your repository | Downloading a model successfully |
+
+For concrete local-model configuration, compare [Cline's documented provider routes](https://github.com/cline/cline#works-with-every-model) and [Aider's Ollama setup](https://aider.chat/docs/llms/ollama.html). These document compatibility paths, not equal quality across models.
 
 ## What changed since July 2026
 
@@ -197,7 +214,13 @@ BYOK means connecting your own provider credentials instead of using only a bund
 - **Source-available browser agent with cloud-provider BYOK and source self-hosting:** Frontman.
 - **Historical BYOK support without active maintenance:** Continue, Roo Code, and Void.
 
-Self-hosting also has layers. Tabby self-hosts model-backed completion. OpenHands self-hosts agent runtimes and server components. bolt.diy can run through Node or Docker. Frontman can run its source stack. Those are different operational commitments, not one checkbox.
+Self-hosting also has layers. Tabby self-hosts model-backed completion. OpenHands self-hosts agent runtimes and server components. bolt.diy can run through Node or Docker. Those are different operational commitments, not one checkbox.
+
+For Frontman, installing a framework package is not self-hosting the agent service. The [self-hosting guide](/docs/reference/self-hosting/) describes a Phoenix orchestration server, PostgreSQL persistence, authentication, model-provider access, and telemetry egress. Browser tools still run in the browser, and file tools run through the framework integration. Self-hosting that server does not make inference local or remove external services.
+
+Before choosing a local deployment, record the model endpoint, tool permissions, outbound destinations, update process, and backup owner. Run a small task with your intended model and network policy. A successful local completion alone does not establish that a multi-step agent workflow works offline.
+
+For a hosted Frontman setup, start with [installation](/docs/installation/) and [provider configuration](/docs/api-keys/). For control of the orchestration server, use the separate [server deployment procedure](/docs/reference/self-hosting/). Neither route changes the server's supplementary license restrictions.
 
 ## How to choose
 
