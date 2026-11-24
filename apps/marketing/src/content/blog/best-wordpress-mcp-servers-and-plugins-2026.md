@@ -109,6 +109,46 @@ These are source-checked entry requirements, not estimates of total operating co
 | miniOrange Secure MCP Server | Free WordPress.org plugin; no paid tier documented                                         | WordPress 6.9+, PHP 7.4+                  | Install plugin, define identities and policies, then authorize client           |
 | InstaWP MCP Server           | Public Node.js repository; infrastructure cost is yours                                   | Node.js 18+ and WordPress REST API access | Run separate process, configure one or more site URLs and application passwords |
 
+### Reproduce a staging connection with Frontman
+
+**Documented procedure, not a hands-on result:** The steps below use Frontman's [installation guide](/docs/integrations/wordpress/#installation), [connection guide](/docs/wordpress/connect-agent/), and [post-reading reference](/docs/wordpress/posts-and-pages/#inspect-before-you-create). We did not execute this staging procedure for this article. The expected results are acceptance criteria, not observed outputs or evidence for the competitor rankings.
+
+This example covers hosted MCP, not the embedded editor. Installation and authorization change the staging configuration. Only the assistant requests below are read-only. A read-only prompt does not restrict the credential: Frontman requires administrator access and can expose write tools.
+
+#### Prepare and connect
+
+1. Use an HTTPS staging installation with a backup and non-sensitive sample content. Keep production credentials and customer data out of this exercise.
+2. Check the prerequisites: WordPress 6.0+, PHP 7.4+, and an administrator who can create Application Passwords. Hosted MCP requires an active Frontman subscription or eligible subscription trial. A trial with cancellation requested or recorded does not grant access. Free editor uses do not grant MCP access.
+3. In wp-admin, open **Plugins → Add New Plugin**. Search for **Frontman - AI Website Editor** ([official plugin listing](https://wordpress.org/plugins/frontman-agentic-ai-editor/)). Select **Install Now**, then **Activate Plugin**. Expected: Frontman appears in the admin menu.
+4. Open **Frontman** and sign in to the Frontman account with the qualifying subscription or trial. Open **Settings → General**, or **Connect your agent** if shown. Select **Enable MCP and connect** for a new connection. For a saved, disabled connection, select **Enable MCP**. Expected: the [connection setup page](https://api.frontman.sh/wordpress/connect) can read the site's tool catalog. Catalog access alone does not prove that individual tools work.
+5. Connect your assistant using the [ChatGPT guide](/docs/wordpress/chatgpt/) or a compatible client's custom remote MCP connection. Use `https://api.frontman.sh/mcp`, Streamable HTTP, and browser-based OAuth with the same Frontman account. No separate model API key is needed for hosted MCP. Never paste a WordPress password into an MCP bearer-token field.
+
+#### Verify discovery and one content read
+
+In wp-admin, choose an existing, non-sensitive draft page. Record its ID, title, status, and a distinctive sentence without saving changes. If no suitable draft exists, prepare a sample manually before this read-only phase.
+
+Send these requests separately, replacing the example URL and `PAGE_ID` with your staging values:
+
+> List my connected WordPress sites using list_sites. Do not change anything.
+
+**Expected:** the intended connection appears with an ID and hostname label. This is a saved connection, not proof that its WordPress credential still works.
+
+> Read site information for https://staging.example using the returned connection ID as site_id. Do not change anything.
+
+**Expected:** site information identifies the intended installation. If hostname labels repeat, inspect the candidate sites before proceeding. Stop if the installation is wrong or ambiguous.
+
+> On that staging site, use wp_read_post to read PAGE_ID, passing the selected site_id. Return its title, status, and stored content. Do not call any write tools.
+
+**Expected:** the ID, title, draft status, and distinctive sentence match wp-admin. Stored content can include block markup rather than rendered HTML. Inspect the client's tool-call details where available, rather than accepting only the assistant's summary. Reopen the draft without saving and check that those values remain unchanged.
+
+If discovery is empty, check that both connections use the same Frontman account. If a read fails, stop and use the [connection troubleshooting guide](/docs/wordpress/troubleshooting/). Do not weaken security controls or try a write to diagnose read access.
+
+#### End the exercise
+
+Follow the [revocation procedure](/docs/wordpress/permissions/#revoke-the-wordpress-credential) to revoke **Frontman MCP** in the authorizing WordPress user's **Profile → Application Passwords**. Then request a fresh read of the same page. Expected: the old credential can no longer authenticate that site request. `list_sites` can still show the saved connection, so discovery alone is not a revocation check. **Disable MCP** and assistant disconnection do not revoke the WordPress Application Password.
+
+For your own reproducibility record, note the date, WordPress/PHP/plugin versions, assistant version, requested tools, and actual pass/fail results. Exclude passwords, tokens, cookies, and private content. Passing this procedure establishes discovery and a content read for that environment—not write safety, rollback, visual-preview access, or compatibility with every plugin.
+
 ## What a WordPress MCP server actually does
 
 The [Model Context Protocol](https://modelcontextprotocol.io/docs/getting-started/intro) gives an AI client a standard way to discover and call tools and read resources. In WordPress, an MCP tool might retrieve a post, create a draft, update product stock, read an SEO field, or invoke a custom plugin action.

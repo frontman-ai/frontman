@@ -5,13 +5,14 @@ defmodule FrontmanServer.Workers.EnterActivationCampaignTest do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
   alias FrontmanServer.Test.Fixtures.Accounts, as: Fixtures
+  alias FrontmanServer.Test.SentryFixture
   alias FrontmanServer.Workers.{EnterActivationCampaign, SyncResendContact}
 
   setup {Req.Test, :set_req_test_from_context}
   setup {Req.Test, :verify_on_exit!}
 
   setup do
-    Sentry.Test.setup_sentry(dedup_events: false)
+    SentryFixture.start!()
     Sentry.Context.clear_all()
     %{user: Fixtures.user_fixture()}
   end

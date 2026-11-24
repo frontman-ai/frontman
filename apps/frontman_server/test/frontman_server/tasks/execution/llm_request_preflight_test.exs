@@ -5,6 +5,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
 
   alias FrontmanServer.CurrentPageContext
   alias FrontmanServer.Tasks.Execution.LLMRequestPreflight
+  alias FrontmanServer.Test.SentryFixture
   alias SwarmAi.Message
   alias SwarmAi.Message.ContentPart
 
@@ -42,7 +43,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
     end
 
     test "removes oversized images for constrained providers" do
-      Sentry.Test.setup_sentry(dedup_events: false)
+      SentryFixture.start!()
 
       messages = [
         %Message.User{
