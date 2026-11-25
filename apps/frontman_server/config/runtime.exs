@@ -43,6 +43,22 @@ if env_boolean.("PHX_SERVER", false) do
   config :frontman_server, FrontmanServerWeb.Endpoint, server: true
 end
 
+ads_enabled = env_boolean.("OPENAI_ADS_ATTRIBUTION_ENABLED", false)
+ads_reporting = config_env() == :prod and ads_enabled
+ads_pixel = if ads_reporting, do: env!("OPENAI_ADS_PIXEL_ID", :string!)
+ads_key = if ads_reporting, do: env!("OPENAI_ADS_CAPI_KEY", :string!)
+
+if ads_reporting do
+  unless is_binary(ads_key) and Regex.match?(~r/\A[\x21-\x7E]+\z/, ads_key) do
+    raise "OPENAI_ADS_CAPI_KEY must be a nonempty visible-ASCII secret"
+  end
+end
+
+config :frontman_server, FrontmanServer.OpenAIAds,
+  enabled: ads_enabled,
+  pixel_id: ads_pixel,
+  capi_key: ads_key
+
 config :frontman_server, cloak_key: env!("CLOAK_KEY", :string!)
 
 if config_env() in [:dev, :prod] do
