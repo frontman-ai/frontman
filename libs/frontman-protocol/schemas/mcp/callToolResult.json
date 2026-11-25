@@ -281,6 +281,9 @@
     "isError": {
       "type": "boolean"
     },
+    "changed": {
+      "type": "boolean"
+    },
     "_meta": {
       "type": "object",
       "additionalProperties": true

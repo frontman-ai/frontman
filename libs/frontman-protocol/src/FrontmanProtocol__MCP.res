@@ -286,10 +286,11 @@ module CallToolResult: {
     ~content: array<FrontmanProtocol__ContentBlock.t>,
     ~structuredContent: JSON.t=?,
     ~isError: bool=?,
+    ~changed: bool=?,
   ) => t
   let makeText: string => t
-  let makeTextWithStructured: (string, Dict.t<JSON.t>) => t
-  let makeTextWithStructuredJson: (string, JSON.t) => t
+  let makeTextWithStructured: (string, Dict.t<JSON.t>, ~changed: bool=?) => t
+  let makeTextWithStructuredJson: (string, JSON.t, ~changed: bool=?) => t
   let makeStructured: (Dict.t<JSON.t>, ~isError: bool=?) => t
   let makeStructuredJson: (JSON.t, ~isError: bool=?) => t
   let makeImage: (~data: string, ~mimeType: string) => t
@@ -302,6 +303,7 @@ module CallToolResult: {
     array<FrontmanProtocol__ContentBlock.t>,
     structuredContent?: JSON.t,
     isError?: bool,
+    changed?: bool,
     _meta?: Dict.t<JSON.t>,
   }
 
@@ -310,14 +312,16 @@ module CallToolResult: {
     content: s.field("content", S.array(FrontmanProtocol__ContentBlock.schema)),
     structuredContent: ?s.field("structuredContent", S.option(S.json)),
     isError: ?s.field("isError", S.option(S.bool)),
+    changed: ?s.field("changed", S.option(S.bool)),
     _meta: ?s.field("_meta", S.option(S.dict(S.json))),
   })
 
-  let make = (~content, ~structuredContent=?, ~isError=?) => {
+  let make = (~content, ~structuredContent=?, ~isError=?, ~changed=?) => {
     resultType: "complete",
     content,
     ?structuredContent,
     ?isError,
+    ?changed,
   }
 
   let makeText = text => {
@@ -337,14 +341,11 @@ module CallToolResult: {
   let makeStructured = (json, ~isError=?) =>
     makeStructuredJson(JSON.Encode.object(json), ~isError?)
 
-  let makeTextWithStructuredJson = (text, structuredContent) => {
-    resultType: "complete",
-    content: [TextContent({text, _meta: None, annotations: None})],
-    structuredContent,
-  }
+  let makeTextWithStructuredJson = (text, structuredContent, ~changed=?) =>
+    make(~content=[TextContent({text, _meta: None, annotations: None})], ~structuredContent, ~changed?)
 
-  let makeTextWithStructured = (text, structuredContent) =>
-    makeTextWithStructuredJson(text, JSON.Encode.object(structuredContent))
+  let makeTextWithStructured = (text, structuredContent, ~changed=?) =>
+    makeTextWithStructuredJson(text, JSON.Encode.object(structuredContent), ~changed?)
 
   let makeImage = (~data, ~mimeType) => {
     resultType: "complete",

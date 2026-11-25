@@ -27,11 +27,10 @@ $product = null;
 $order = null;
 $customer = null;
 try {
-	$product = new WC_Product_Simple();
-	$product->set_name( 'Metadata product fixture' );
-	$product->set_status( 'publish' );
-	$product->set_regular_price( '12' );
-	$product->save();
+	$created = $call( 'wc_create_product', [ 'productData' => [ 'name' => 'Metadata product fixture', 'status' => 'publish', 'regular_price' => '12' ] ] );
+	$product = wc_get_product( $created['id'] );
+	frontman_runtime_assert( $product instanceof WC_Product, 'Created product did not persist.' );
+	frontman_runtime_same( true, $created['changed'], 'Product creation change receipt' );
 	$order = wc_create_order();
 	frontman_runtime_assert( $order instanceof WC_Order, 'Could not create metadata order.' );
 	$customer = new WC_Customer();

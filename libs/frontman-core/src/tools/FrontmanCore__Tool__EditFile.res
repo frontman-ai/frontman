@@ -74,6 +74,8 @@ let findAndReplace = async (
     let coverageWarning = FileTracker.checkCoverage(resolved.safePath, ~content, ~oldText)
 
     switch Matcher.applyEdit(~content, ~oldText, ~newText, ~replaceAll) {
+    | Applied(newContent) if newContent == content =>
+      Ok({output: {message: "File is unchanged.", _context: toPathCtx(resolved)}, fileChange: None})
     | Applied(newContent) =>
       await Fs.Promises.writeFile(resolved.resolvedPath, newContent)
       let stats = await Fs.Promises.stat(resolved.resolvedPath)
@@ -84,12 +86,14 @@ let findAndReplace = async (
       }
       Ok({
         output: {message, _context: toPathCtx(resolved)},
-        fileChange: FileChange.make(
-          ~path=resolved.relativePath,
-          ~status=ProtocolFileChange.Modified,
-          ~oldText=Some(content),
-          ~currentText=Some(newContent),
-          ~binary=FileChange.isBinary(content) || FileChange.isBinary(newContent),
+        fileChange: Some(
+          FileChange.make(
+            ~path=resolved.relativePath,
+            ~status=ProtocolFileChange.Modified,
+            ~oldText=Some(content),
+            ~currentText=Some(newContent),
+            ~binary=FileChange.isBinary(content) || FileChange.isBinary(newContent),
+          ),
         ),
       })
     | NotFound =>

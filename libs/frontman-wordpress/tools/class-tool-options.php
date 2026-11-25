@@ -106,7 +106,7 @@ class Frontman_Tool_Options {
 				'required' => [ 'name', 'value' ],
 			],
 			[ $this, 'update_option' ],
-			new Frontman_Tool_Annotations( false, true, true, false )
+			new Frontman_Tool_Annotations( false, true, true, false ), null, true, false, true
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -185,7 +185,7 @@ class Frontman_Tool_Options {
 				'required'             => [ 'stylesheet', 'parent_post_id', 'revision_id', 'expected_current_sha256', 'confirm' ],
 			],
 			[ $this, 'restore_custom_css_revision' ],
-			new Frontman_Tool_Annotations( false, true, true, false ), null, true, true
+			new Frontman_Tool_Annotations( false, true, true, false ), null, true, true, true
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -208,7 +208,7 @@ class Frontman_Tool_Options {
 				'required'             => [ 'confirm' ],
 			],
 			[ $this, 'update_custom_css' ],
-			new Frontman_Tool_Annotations( false, true, true, false )
+			new Frontman_Tool_Annotations( false, true, true, false ), null, true, false, true
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -253,7 +253,7 @@ class Frontman_Tool_Options {
 				'required'             => [ 'name', 'value', 'stylesheet', 'confirm' ],
 			],
 			[ $this, 'update_theme_mod' ],
-			new Frontman_Tool_Annotations( false, true, true, false ), null, true, true
+			new Frontman_Tool_Annotations( false, true, true, false ), null, true, true, true
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -296,7 +296,7 @@ class Frontman_Tool_Options {
 				'required' => [ 'id', 'value', 'stylesheet', 'expected_fingerprint', 'confirm' ],
 			],
 			[ $this, 'update_customizer_setting' ],
-			new Frontman_Tool_Annotations( false, true, true, false ), null, true, true
+			new Frontman_Tool_Annotations( false, true, true, false ), null, true, true, true
 		) );
 	}
 
@@ -352,6 +352,7 @@ class Frontman_Tool_Options {
 		$updated = update_option( $name, $value );
 
 		return [
+			'changed' => $updated,
 			'before'  => $before,
 			'updated' => $updated,
 			'name'    => $name,
@@ -495,6 +496,7 @@ class Frontman_Tool_Options {
 
 		return [
 			'selected_revision_id' => (int) $revision->ID,
+			'changed'              => $before['persisted_css_sha256'] !== $after['persisted_css_sha256'],
 			'before'               => $before,
 			'after'                => $after,
 		];
@@ -605,6 +607,7 @@ class Frontman_Tool_Options {
 			'stylesheet'     => $stylesheet,
 			'parent_post_id' => (int) $post->ID,
 			'replacements'   => $replacements,
+			'changed'        => $before['persisted_css_sha256'] !== $after['persisted_css_sha256'],
 			'before'         => $before,
 			'after'          => $after,
 		];
@@ -681,6 +684,7 @@ class Frontman_Tool_Options {
 		return [
 			'name'       => $current['name'],
 			'stylesheet' => $current['stylesheet'],
+			'changed'    => $result['changed'],
 			'updated'    => ( $state['present'] ? $result['before'] : null ) !== $result['after'],
 			'before'     => $state['present'] ? $result['before'] : null,
 			'after'      => $result['after'],
@@ -921,6 +925,7 @@ class Frontman_Tool_Options {
 				'stylesheet' => $stylesheet,
 				'before' => $before['value'],
 				'after' => $after['value'],
+				'changed' => ! $before['present'] || $before['value'] !== $after['value'],
 				'updated' => $before['value'] !== $after['value'],
 			];
 		} finally {

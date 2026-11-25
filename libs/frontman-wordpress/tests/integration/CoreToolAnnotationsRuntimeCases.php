@@ -8,6 +8,20 @@ try {
 	$draft = $call( 'wp_create_post', [ 'title' => 'Safety draft', 'content' => '<p>Private draft</p>' ] );
 	$post_ids[] = $draft['id'];
 	frontman_runtime_same( 'draft', $call( 'wp_read_post', [ 'id' => $draft['id'] ] )['status'], 'Default creation remains private.' );
+	foreach ( [ 'embedded', 'hosted' ] as $transport ) {
+		$request = [ 'name' => 'wp_update_post', 'arguments' => [ 'id' => $draft['id'], 'title' => "Title via $transport" ] ];
+		foreach ( [ true, false ] as $first_write ) {
+			if ( 'embedded' === $transport ) {
+				$result = frontman_runtime_tool( $cookie, $nonce, $request )['body'];
+			} else {
+				$response = frontman_runtime_http( 'POST', '/?rest_route=/frontman/v1/tools/call', '', null, wp_json_encode( $request ), '', $mcp_credentials );
+				frontman_runtime_same( 200, $response['status'], 'Hosted post update succeeds.' );
+				$result = json_decode( $response['body'], true, 512, JSON_THROW_ON_ERROR );
+			}
+			frontman_runtime_same( false, $result['isError'], "$transport post update succeeds." );
+			frontman_runtime_same( $first_write, $result['changed'] ?? false, "$transport reports a top-level change only for the first write." );
+		}
+	}
 	$published = $call( 'wp_create_post', [ 'title' => 'Safety published', 'content' => '<p>Original public content</p>', 'status' => 'publish' ] );
 	$post_ids[] = $published['id'];
 	frontman_runtime_same( 'publish', $call( 'wp_read_post', [ 'id' => $published['id'] ] )['status'], 'The same create tool can publish immediately.' );
