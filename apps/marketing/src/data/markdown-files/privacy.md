@@ -59,6 +59,14 @@ Inside the authenticated hosted Frontman service, we use Heap Analytics to under
 
 You can manage cookie and analytics consent through the consent banner and browser settings. If you clear local storage or cookies, you may need to set your preferences again.
 
+### Optional Advertising Measurement
+
+When available, advertising measurement requires separate consent in Cookie preferences. Analytics consent does not grant it. Under Article 6(1)(a) GDPR, we associate consented OpenAI ad attribution with your account and send registration and first successful-edit events to OpenAI.
+
+Events contain a random ID, type, time, public Frontman URL and optional click reference. They opt out of future user-level personalization. We send no name, email, matching identifiers, customer URLs, prompts or code. Preferences last 180 days; attribution expires within 30 days. A signed, HttpOnly cookie on `api.frontman.sh` carries a record ID through installation and authentication.
+
+Reject optional or save an advertising opt-out to stop future sends and clear retained click references and queued snapshots. If an update fails, save preferences again to retry. Withdrawal cannot retract accepted events. Delivery expires after seven days. Minimal account-linked milestone records prevent duplicates until account deletion; we do not backfill historical activity.
+
 ## Error Monitoring and Diagnostics
 
 We use Sentry for error monitoring and diagnostics. Sentry may process error messages, stack traces, device and browser information, IP address, user identifiers, performance data, and related diagnostic metadata.
@@ -132,4 +140,4 @@ We may update this Privacy Policy from time to time. We will update the "Last up
 
 For privacy questions or requests, contact us at {{company.supportMailto}}.
 
-_Last updated: May 5, 2026_
+_Last updated: November 15, 2026_

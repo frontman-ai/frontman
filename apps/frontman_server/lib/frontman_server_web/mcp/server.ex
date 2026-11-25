@@ -15,6 +15,8 @@ defmodule FrontmanServerWeb.MCP.Server do
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Billing
+  alias FrontmanServer.OpenAIAds
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Protocols.MCP.Schema
   alias FrontmanServer.WordPress
   alias FrontmanServer.WordPress.Onboarding
@@ -149,6 +151,7 @@ defmodule FrontmanServerWeb.MCP.Server do
          {:ok, response} <- tool_response(result) do
       if response.isError == false do
         {:ok, :ok} = Accounts.record_activation(scope)
+        record_hosted_edit(scope, name, result)
       end
 
       {:reply, response, frame}
@@ -175,6 +178,12 @@ defmodule FrontmanServerWeb.MCP.Server do
   end
 
   defp tool_list_result(_method, _status, result), do: result
+
+  defp record_hosted_edit(scope, name, result) do
+    if MCP.changed?(result) do
+      OpenAIAds.record(scope, "first_successful_edit", "hosted_mcp:" <> name)
+    end
+  end
 
   defp tool_response(%{"resultType" => "complete", "content" => content} = result) do
     with true <- Schema.bounded?(result),

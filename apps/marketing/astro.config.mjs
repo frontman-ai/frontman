@@ -283,7 +283,9 @@ export default defineConfig({
         Head: "./src/components/starlight/Head.astro",
       },
     }),
-    consent(),
+    consent({
+      advertisingEnabled: process.env.OPENAI_ADS_ATTRIBUTION_ENABLED === "true",
+    }),
     frontman({
       projectRoot: appRoot,
       sourceRoot: monorepoRoot,

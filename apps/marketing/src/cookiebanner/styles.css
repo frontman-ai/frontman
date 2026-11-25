@@ -222,6 +222,8 @@
 
 .cb-modal {
 	width: min(100%, var(--cb-modal-width));
+	max-height: calc(100dvh - 2rem);
+	overflow-y: auto;
 	border-radius: calc(var(--cb-radius) + 0.45rem);
 	padding: 1.45rem;
 	background:
@@ -261,10 +263,6 @@
 
 .cb-row:first-child {
 	border-top: 0;
-}
-
-.cb-row:nth-child(3) {
-	display: none;
 }
 
 .cb-row span {
