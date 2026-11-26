@@ -15,7 +15,7 @@ type Props = {
 const { id = 'intro', title, text, classes } = Astro.props
 ---
 
-<Section id={id} classes=`page-header-section ${classes}`>
+<Section id={id} headerClearance classes=`page-header-section ${classes}`>
 	<div class="page-header__bg">
 		<img src={gridNetBackground.src} alt="Decorative grid background" aria-hidden="true" class="page-header__bg-image" width="1440" height="900" loading="eager" fetchpriority="high" decoding="async" />
 	</div>

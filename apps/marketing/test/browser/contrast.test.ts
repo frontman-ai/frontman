@@ -8,6 +8,11 @@ let server: Awaited<ReturnType<typeof preview>>
 let browser: Browser
 let origin: string
 
+const usabilityViewports = [
+	{ width: 390, height: 844 },
+	{ width: 1440, height: 1000 },
+]
+
 beforeAll(async () => {
 	server = await preview({ root: new URL('../../', import.meta.url).pathname, server: { host: '127.0.0.1', port: 0 }, logLevel: 'silent' })
 	origin = `http://127.0.0.1:${server.port}`
@@ -118,6 +123,93 @@ describe.each([390, 1440])('production contrast at %ipx', width => {
 			} finally {
 				await page.close()
 			}
+		}
+	})
+})
+
+describe.each(usabilityViewports)('marketing usability at $width×$height', viewport => {
+	it('keeps blog headings and article breadcrumbs below fixed navigation', async () => {
+		const page = await browser.newPage({ viewport })
+		try {
+			for (const [path, selector] of [
+				['/blog/', 'h1'],
+				['/blog/how-to-make-elementor-website-faster/', '.breadcrumbs'],
+				['/blog/play-video-on-scroll-elementor-with-frontman/', '.breadcrumbs'],
+			]) {
+				await page.goto(`${origin}${path}`)
+				await page.evaluate(() => document.fonts.ready)
+				const header = await page.locator('.header__nav').boundingBox()
+				const content = await page.locator(selector).boundingBox()
+				expect(content!.y, path).toBeGreaterThanOrEqual(header!.y + header!.height + 16)
+			}
+		} finally {
+			await page.close()
+		}
+	})
+
+	it('keeps direct article anchors and clicked topic anchors clear of navigation', async () => {
+		const page = await browser.newPage({ viewport, reducedMotion: 'reduce' })
+		try {
+			await page.goto(`${origin}/blog/how-to-make-elementor-website-faster/#diagnose-page-speed-and-choose-one-change`)
+			const assertClear = async (selector: string) => {
+				await expect.poll(async () => {
+					const target = await page.locator(selector).boundingBox()
+					const header = await page.locator('.header__nav').boundingBox()
+					return target!.y - (header!.y + header!.height)
+				}).toBeGreaterThanOrEqual(16)
+				const target = await page.locator(selector).boundingBox()
+				expect(target!.y).toBeLessThan(viewport.height / 2)
+			}
+			await assertClear('#diagnose-page-speed-and-choose-one-change')
+			await page.goto(`${origin}/blog/tags/`)
+			const topic = page.locator('#reading-guides section[id]').first()
+			expect(await topic.evaluate(element => getComputedStyle(element).scrollMarginTop)).toBe('112px')
+			await page.getByRole('navigation', { name: 'Jump to a blog topic' }).getByRole('link', { name: 'All tags' }).click()
+			await assertClear('#tag-directory')
+		} finally {
+			await page.close()
+		}
+	})
+
+	it('exposes the same comparison notes and status words at both sizes', async () => {
+		const page = await browser.newPage({ viewport: usabilityViewports[1] })
+		try {
+			await page.goto(`${origin}/vs/cursor/`)
+			const table = page.getByRole('table', { name: 'Feature comparison between Frontman and Cursor' })
+			const rows = await table.locator('tbody tr').evaluateAll(rows => rows.map(row => ({
+				name: row.querySelector('th')!.textContent!.trim(),
+				cells: Array.from(row.querySelectorAll('td')).map(cell => ({
+					status: cell.getAttribute('aria-label') ?? cell.querySelector('.sr-only')!.textContent!.trim(),
+					note: cell.querySelector('span:not(.sr-only)')?.textContent?.trim(),
+				})),
+			})))
+			expect(rows.length).toBeGreaterThan(0)
+			expect(rows.find(row => row.name === 'Built for non-technical users')?.cells).toEqual([
+				{ status: 'Yes', note: 'Site owners and product teams work from the live site' },
+				{ status: 'Partial', note: 'Visual controls inside a developer environment' },
+			])
+			await page.setViewportSize(viewport)
+			const comparison = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Feature Comparison', exact: true }) })
+			const snapshot = await comparison.ariaSnapshot()
+			for (const row of rows) {
+				const entry = viewport.width < 768
+					? comparison.locator('div.rounded-xl').filter({ has: page.getByRole('heading', { name: row.name, exact: true }) })
+					: table.getByRole('row').filter({ has: page.getByRole('rowheader', { name: row.name, exact: true }) })
+				for (const [index, cell] of row.cells.entries()) {
+					const value = viewport.width < 768 ? entry.locator('.grid > div').nth(index) : entry.getByRole('cell').nth(index)
+					const valueSnapshot = await value.ariaSnapshot()
+					expect(valueSnapshot).toContain(cell.status)
+					if (cell.note) {
+						expect(await value.getByText(cell.note, { exact: true }).isVisible()).toBe(true)
+						expect(valueSnapshot).toContain(cell.note)
+					}
+				}
+			}
+			expect(snapshot.includes('table "Feature comparison')).toBe(viewport.width >= 768)
+			expect(await comparison.locator('svg:not([aria-hidden="true"])').count()).toBe(0)
+			expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+		} finally {
+			await page.close()
 		}
 	})
 })
