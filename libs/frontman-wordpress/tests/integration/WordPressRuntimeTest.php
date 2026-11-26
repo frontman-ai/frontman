@@ -713,7 +713,7 @@ foreach ( [
 			$read_only_info = ( new Frontman_Tool_Templates() )->get_site_info( [] );
 			frontman_runtime_assert( [
 				'provider' => 'yoast', 'read' => true, 'write' => false,
-				'supported_fields' => [ 'title', 'description', 'focus_keyphrase' ],
+				'supported_fields' => [ 'title', 'description', 'focus_keyphrase', 'indexing' ],
 				'read_unavailable_reason' => null, 'write_unavailable_reason' => $reason,
 			] === array_diff_key( $read_only_info['seo_capabilities'], [ 'targets' => true ] ) && $reason === $read_only_info['seo_unavailable_reason'], 'Yoast read-only capabilities disagree with registration.' );
 			frontman_runtime_same(
@@ -748,7 +748,7 @@ $seo_handler = new Frontman_Tool_Seo();
 $seo_handler->register( $seo_tools );
 frontman_runtime_assert( 1 === $seo_tools->get( 'wp_read_seo' )->input_schema['properties']['id']['minimum']
 	&& [ 'id' ] === $seo_tools->get( 'wp_update_seo' )->input_schema['required']
-	&& false !== strpos( $seo_tools->get( 'wp_update_seo' )->description, 'Provide at least one of title, description, or focus_keyphrase.' ), 'SEO schemas do not match runtime requirements.' );
+	&& false !== strpos( $seo_tools->get( 'wp_update_seo' )->description, 'Provide at least one of title, description, or focus_keyphrase, or supported indexing.' ), 'SEO schemas do not match runtime requirements.' );
 foreach ( [
 	[ 'id' => 7, 'title' => "  Café %%title%% \\ \"quoted\"  ", 'description' => '' ],
 	[ 'id' => 7, 'focus_keyphrase' => "  Café \\ \"quoted\"  " ],
@@ -826,7 +826,7 @@ $silent = frontman_runtime_tool( $cookie, $nonce, $failure, null, 'silent-title'
 frontman_runtime_assert( true === $silent['isError'] && $unchanged === $snapshot( $target ), 'Silent first-write failure wrote state or allowed the next write.' );
 $partial = frontman_runtime_tool( $cookie, $nonce, $failure, null, 'fail-write' )['body']; $partial_state = $snapshot( $target );
 frontman_runtime_assert( true === $partial['isError'] && 'Partial [runtime-filter]' === $partial_state['title'] && null === $partial_state['description'], 'Second-field failure did not preserve only the first write.' );
-frontman_runtime_assert( false !== strpos( $partial['content'][0]['text'], '"before":{"title":"","description":"","focus_keyphrase":""}' ) && false !== strpos( $partial['content'][0]['text'], '"actualAfter":{"title":"Partial [runtime-filter]","description":"","focus_keyphrase":""}' ), 'Partial error snapshots are inaccurate.' );
+frontman_runtime_assert( false !== strpos( $partial['content'][0]['text'], '"before":{"title":"","description":"","focus_keyphrase":"","indexing":"default"}' ) && false !== strpos( $partial['content'][0]['text'], '"actualAfter":{"title":"Partial [runtime-filter]","description":"","focus_keyphrase":"","indexing":"default"}' ), 'Partial error snapshots are inaccurate.' );
 foreach ( [ 'deny-object', 'deny-meta' ] as $denial ) {
 	$denied = frontman_runtime_tool( $cookie, $nonce, [ 'name' => 'wp_read_seo', 'arguments' => [ 'id' => $target ] ], null, $denial )['body'];
 	frontman_runtime_assert( true === $denied['isError'] && false === strpos( $denied['content'][0]['text'], 'Partial' ) && $partial_state === $snapshot( $target ), 'Denied read disclosed or changed SEO state.' );
@@ -849,7 +849,7 @@ foreach ( $fixtures as $fixture ) {
 	$updated = json_decode( $request( [ 'id' => $id, 'title' => 'SEO %%title%% — "Café" \\ path' ] )['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
 	frontman_runtime_assert( 'SEO %%title%% — "Café" \\ path [runtime-filter]' === $updated['after']['title'] && 'Runtime “Café” \\ path' === $updated['after']['description'], 'Title-only update changed the seeded description or skipped custom sanitization.' );
 	$readback = json_decode( frontman_runtime_tool( $cookie, $nonce, [ 'name' => 'wp_read_seo', 'arguments' => [ 'id' => $id ] ] )['body']['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
-	frontman_runtime_assert( $updated['after'] === [ 'title' => $readback['title'], 'description' => $readback['description'], 'focus_keyphrase' => $readback['focus_keyphrase'] ], 'Quotes, slashes, or Unicode changed on persisted read-back.' );
+	frontman_runtime_assert( $updated['after'] === [ 'title' => $readback['title'], 'description' => $readback['description'], 'focus_keyphrase' => $readback['focus_keyphrase'], 'indexing' => 'default' ], 'Quotes, slashes, or Unicode changed on persisted read-back.' );
 	frontman_runtime_assert( $safe === $safety( $snapshot( $id ) ), 'Successful SEO update changed core, unrelated, or option SQL state.' );
 	$repeat = json_decode( $request( [ 'id' => $id, 'title' => 'SEO %%title%% — "Café" \\ path', 'description' => 'Runtime “Café” \\ path' ] )['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
 	frontman_runtime_assert( false === $repeat['changed'], 'Repeated SEO update was not idempotent.' );
@@ -882,7 +882,7 @@ foreach ( $fixtures as $fixture ) {
 	}
 	$cleared = json_decode( $request( [ 'id' => $id, 'title' => '', 'description' => '', 'focus_keyphrase' => '' ] )['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
 	$repeat  = json_decode( $request( [ 'id' => $id, 'title' => '', 'description' => '', 'focus_keyphrase' => '' ] )['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
-	frontman_runtime_assert( [ 'title' => '', 'description' => '', 'focus_keyphrase' => '' ] === $cleared['after'] && false === $repeat['changed'] && null === $snapshot( $id )['focus_keyphrase'], 'SEO clear or repeated clear failed.' );
+	frontman_runtime_assert( [ 'title' => '', 'description' => '', 'focus_keyphrase' => '', 'indexing' => 'default' ] === $cleared['after'] && false === $repeat['changed'] && null === $snapshot( $id )['focus_keyphrase'], 'SEO clear or repeated clear failed.' );
 	frontman_runtime_assert( $safe === $safety( $snapshot( $id ) ), 'SEO clear changed core, unrelated, or option SQL state.' );
 	if ( 'publish' === $fixture['status'] ) {
 		$default_after_clear = frontman_runtime_http( 'GET', str_replace( home_url(), '', get_permalink( $id ) ), '', null, null, 'render' );
@@ -906,6 +906,9 @@ $success = json_decode( $results[0]['content'][0]['text'], true, 512, JSON_THROW
 $failure_text = $results[1]['content'][0]['text'];
 $failure = json_decode( substr( $failure_text, strpos( $failure_text, '{' ) ), true, 512, JSON_THROW_ON_ERROR );
 frontman_runtime_assert( false === $results[0]['isError'] && $page === $success['id'] && 'Multi-page title [runtime-filter]' === $snapshot( $page )['title'] && 'Multi-page description' === $snapshot( $page )['description'], 'A failed sibling update obscured the persisted page success.' );
-frontman_runtime_assert( true === $results[1]['isError'] && $post_id === $failure['id'] && 'partial' === $failure['status'] && [ 'title' => $snapshot( $post_id )['title'], 'description' => $snapshot( $post_id )['description'] ?? '', 'focus_keyphrase' => $snapshot( $post_id )['focus_keyphrase'] ?? '' ] === $failure['actualAfter'] && '' === $failure['actualAfter']['description'], 'Multi-page results concealed the failed description or claimed complete success.' );
+frontman_runtime_assert( true === $results[1]['isError'] && $post_id === $failure['id'] && 'partial' === $failure['status'] && [ 'title' => $snapshot( $post_id )['title'], 'description' => $snapshot( $post_id )['description'] ?? '', 'focus_keyphrase' => $snapshot( $post_id )['focus_keyphrase'] ?? '', 'indexing' => 'default' ] === $failure['actualAfter'] && '' === $failure['actualAfter']['description'], 'Multi-page results concealed the failed description or claimed complete success.' );
 $wp_rewrite->set_permalink_structure( $runtime_permalink );
 fwrite( STDOUT, "Yoast $yoast HTTP SEO checks passed.\n" );
+( static function() use ( $cookie, $nonce, $admin, $subscriber_cookie ): void {
+	require __DIR__ . '/SeoIndexingRuntimeCases.php';
+} )();

@@ -83,7 +83,7 @@ describe("Next.js E2E", () => {
 				.getByRole("textbox", { name: "What would you like to change?" })
 				.boundingBox();
 			const attachBox = await selectorPage
-				.getByTitle("Attach files (images or PDFs up to 10MB)")
+				.getByRole("button", { name: "Attach images", exact: true })
 				.boundingBox();
 			expect(panelBox).not.toBeNull();
 			expect(selectorBox).not.toBeNull();

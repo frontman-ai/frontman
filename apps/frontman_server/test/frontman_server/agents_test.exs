@@ -138,6 +138,31 @@ defmodule FrontmanServer.AgentsTest do
       end
     end
 
+    test "Planner explains the explicit handoff for WordPress and code projects", %{scope: scope} do
+      {:ok, planner} = Agents.get_agent(scope, @planner_id)
+      tools = Tools.resolve(Agents.tool_policy(planner), [])
+
+      for framework <- [:wordpress, :nextjs] do
+        context = %{@empty_context | framework: framework}
+        assert [%{text: prompt}] = Agents.system_prompt(scope, planner, context, tools)
+        assert prompt =~ "Planner is read-only"
+        assert prompt =~ "chat approval does not switch agents"
+        assert prompt =~ "tell the user to choose **Execute plan** or select **Executor**"
+        assert prompt =~ "Do not request write access"
+      end
+    end
+
+    test "Executor does not receive Planner self-handoff instructions", %{scope: scope} do
+      {:ok, executor} = Agents.get_agent(scope, @executor_id)
+
+      for framework <- [:wordpress, :nextjs] do
+        context = %{@empty_context | framework: framework}
+        assert [%{text: prompt}] = Agents.system_prompt(scope, executor, context, %{})
+        refute prompt =~ "## Planner-to-Executor Handoff"
+        refute prompt =~ "tell the user to choose **Execute plan**"
+      end
+    end
+
     test "advertises catalog skills only when the resolved tools support loading them", %{
       scope: scope
     } do
