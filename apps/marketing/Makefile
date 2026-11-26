@@ -31,7 +31,7 @@ test-browser: build
 	yarn run -T vitest run test/browser/*.test.ts
 
 dev:
-	yarn dev --port $(PORT)
+	yarn dev --port $(PORT) --ignore-lock
 
 build:
 	yarn build

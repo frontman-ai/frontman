@@ -11,6 +11,14 @@ const readPage = (path: string) =>
 	JSDOM.fragment(readFileSync(join('dist', path, 'index.html'), 'utf8'))
 
 describe('crawlable production HTML', () => {
+	it('keeps schema-map discovery outside robots directives', () => {
+		const robots = readFileSync('dist/robots.txt', 'utf8')
+		expect(robots).toContain('Sitemap: https://frontman.sh/sitemap-index.xml')
+		expect(robots).not.toMatch(/^Schemamap:/mi)
+		expect(readFileSync('dist/llms-full.txt', 'utf8')).toContain('Schema map: https://frontman.sh/schema-map.xml')
+		expect(readFileSync('dist/schema-map.xml', 'utf8')).toContain('<loc>https://frontman.sh/feeds/structured-data.jsonl</loc>')
+	})
+
 	it.each(['/', '/pricing/', '/frameworks/', '/vs/openclaw/', '/blog/', '/docs/'])(
 		'prerenders a single nonempty page heading at %s',
 		(path) => {

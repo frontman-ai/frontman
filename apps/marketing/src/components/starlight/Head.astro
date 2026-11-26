@@ -4,6 +4,7 @@ import type { StarlightRouteData } from '@astrojs/starlight/route-data'
 import StarlightHead from '@astrojs/starlight/components/Head.astro'
 import { markdownPath } from '../../content/markdownRoutes'
 import { createWebPageSchema } from '../../utils/structuredData.mjs'
+import GoogleAnalytics from '../scripts/googleAnalytics.astro'
 
 type Props = StarlightRouteData
 
@@ -74,6 +75,7 @@ const pageSchema = {
 ---
 
 <StarlightHead {...Astro.props} />
+<GoogleAnalytics />
 <link rel="api-catalog" type="application/linkset+json" href="/.well-known/api-catalog" />
 <link rel="service-desc" type="application/json" href="/openapi.json" />
 <link rel="ard" type="application/json" title="Agent Resource Directory (proposal)" href="/.well-known/ard.json" />

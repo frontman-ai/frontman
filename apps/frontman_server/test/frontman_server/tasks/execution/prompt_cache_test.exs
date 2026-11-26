@@ -10,6 +10,7 @@ defmodule FrontmanServer.Tasks.Execution.PromptCacheTest do
   alias FrontmanServer.{Providers, Repo, Tasks}
   alias FrontmanServer.Providers.OAuthToken
   alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Test.HTTPFixture
 
   @cache %{"type" => "ephemeral"}
 
@@ -42,9 +43,19 @@ defmodule FrontmanServer.Tasks.Execution.PromptCacheTest do
     } do
       parent = self()
       skill = skill_fixture(scope)
-      bypass = Bypass.open()
+
+      base_url =
+        HTTPFixture.start!(%{{"POST", path} => 4}, fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          send(parent, {:provider_request, Jason.decode!(body)})
+
+          conn
+          |> Plug.Conn.put_resp_header("content-type", "text/event-stream")
+          |> Plug.Conn.send_resp(200, response_events(provider))
+        end)
+
       previous = Application.fetch_env(:req_llm, provider)
-      Application.put_env(:req_llm, provider, base_url: "http://localhost:#{bypass.port}")
+      Application.put_env(:req_llm, provider, base_url: base_url)
 
       on_exit(fn ->
         case previous do
@@ -62,15 +73,6 @@ defmodule FrontmanServer.Tasks.Execution.PromptCacheTest do
         )
 
       resolved_model = ReqLLM.model!(execution.model)
-
-      Bypass.expect(bypass, "POST", path, fn conn ->
-        {:ok, body, conn} = Plug.Conn.read_body(conn)
-        send(parent, {:provider_request, Jason.decode!(body)})
-
-        conn
-        |> Plug.Conn.put_resp_header("content-type", "text/event-stream")
-        |> Plug.Conn.send_resp(200, response_events(provider))
-      end)
 
       systems =
         for turn <- 1..4 do

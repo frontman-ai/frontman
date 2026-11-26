@@ -2,9 +2,9 @@ import {JSDOM} from "jsdom"
 import {afterEach, describe, expect, test} from "vitest"
 import {createAnalyticsScript} from "./analytics-consent.mjs"
 
-const createPage = ({analytics = false, globalPrivacyControl = false} = {}) => {
+const createPage = ({analytics = false, globalPrivacyControl = false, url = "https://frontman.sh/"} = {}) => {
   const dom = new JSDOM("<!doctype html><html><head></head><body></body></html>", {
-    url: "https://frontman.sh/",
+    url,
     runScripts: "outside-only",
   })
   const {window} = dom
@@ -34,6 +34,42 @@ afterEach(() => {
 })
 
 describe("analytics consent", () => {
+  test.each([
+    "http://localhost:4321/",
+    "http://127.0.0.1:4321/",
+    "http://[::1]:4321/",
+    "https://preview.frontman-marketing.pages.dev/",
+    "https://frontman.sh.example.com/",
+  ])("does not collect on non-production hosts even with consent: %s", url => {
+    const {dom, setCategories} = createPage({analytics: true, url})
+    pages.push(dom)
+    setCategories({essential: true, analytics: true})
+    dom.window.trackEvent("install_intent", {})
+
+    expect(dom.window.document.querySelector("script[src*='googletagmanager.com']")).toBeNull()
+    expect(dom.window.document.querySelector("link[rel='preconnect']")).toBeNull()
+    expect(dom.window.dataLayer.map(args => args[0])).not.toContain("config")
+    expect(dom.window.dataLayer.map(args => args[0])).not.toContain("event")
+  })
+
+  test("does not replay unconsented events or initialize twice after reacceptance", () => {
+    const {dom, setCategories} = createPage()
+    pages.push(dom)
+    const events = () => dom.window.dataLayer.map(args => Array.from(args)).filter(args => args[0] === "event")
+
+    dom.window.trackEvent("before_acceptance")
+    setCategories({essential: true, analytics: true})
+    expect(events()).toEqual([])
+    dom.window.trackEvent("accepted")
+    setCategories({essential: true, analytics: false})
+    dom.window.trackEvent("revoked")
+    setCategories({essential: true, analytics: true})
+
+    expect(events().map(args => args[1])).toEqual(["accepted"])
+    expect(dom.window.document.querySelectorAll("script[src*='googletagmanager.com']")).toHaveLength(1)
+    expect(dom.window.dataLayer.filter(args => args[0] === "config")).toHaveLength(1)
+  })
+
   test("does not load analytics without explicit consent", () => {
     const {dom} = createPage()
     pages.push(dom)
