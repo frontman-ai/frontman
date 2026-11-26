@@ -4,7 +4,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
   use FrontmanServerWeb.ChannelCase, async: true
 
   import FrontmanServer.ExecutionCase,
-    only: [submit_user_message_and_run: 3, refute_running_eventually: 2]
+    only: [refute_running_eventually: 2, turn_started_rows: 1]
 
   import FrontmanServer.Test.Fixtures.LLMProvider
 
@@ -22,7 +22,6 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
   alias FrontmanServer.Tasks.Execution.ToolExecutor
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Test.Fixtures.ReqLLMResponses
-  alias FrontmanServer.Tools.MCP
   alias FrontmanServerWeb.UserSocket
 
   describe "ToolExecutor MCP tool routing" do
@@ -87,7 +86,6 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
         })
 
       complete_mcp_handshake(socket, tools: [tool])
-      mcp_tool_def = %{MCP.from_map(tool) | timeout_ms: 60_000}
 
       expect_llm_responses([{:tool_calls, [mcp_tool_call], ""}])
 
@@ -101,21 +99,20 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
 
       :ok = Providers.upsert_api_key(scope, "openrouter", "test-key")
 
-      execution_request =
-        execution_request_fixture(
-          mcp_tools: [mcp_tool_def],
-          model: "openrouter:anthropic/claude-sonnet-4.6",
-          project_traits: [],
-          message: user_content("Implement the component"),
-          runtime: runtime
+      ref =
+        push(
+          socket,
+          "acp:message",
+          build_prompt_request(
+            text: "Implement the component",
+            _meta: %{
+              "model" => %{"provider" => "openrouter", "value" => "anthropic/claude-sonnet-4.6"},
+              "agent" => "test-frontman"
+            }
+          )
         )
 
-      {:ok, _interaction, _turn_number} =
-        submit_user_message_and_run(
-          scope,
-          task_id,
-          execution_request
-        )
+      assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
 
       assert_push(
         "mcp:message",
@@ -137,6 +134,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
 
       assert_receive_interaction(%Tasks.Interaction.AgentCompleted{}, _turn_number, 10_000)
       refute_running_eventually(task_id, runtime)
+      assert [_turn] = turn_started_rows(task_id)
 
       {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
