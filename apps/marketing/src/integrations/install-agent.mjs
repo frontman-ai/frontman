@@ -97,6 +97,12 @@ export const setupInstallAgent = (document, clipboard = globalThis.navigator.cli
 
     try {
       await clipboard.writeText(agentInstructions[framework])
+      document.defaultView?.trackEvent?.("copy_agent_install_instructions", {
+        event_category: "engagement",
+        event_label: "install_step",
+        destination: framework,
+        page_path: document.defaultView.location.pathname,
+      })
       if (requestVersion !== interactionVersion) return
 
       label.textContent = "Copied!"

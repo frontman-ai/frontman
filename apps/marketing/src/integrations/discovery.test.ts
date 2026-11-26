@@ -161,11 +161,13 @@ test('Schema Map uses the current proposal format and points to JSONL, not JSON 
 	}
 })
 
-test('robots adds only Schema Map discovery, leaving crawler policy bytes unchanged', async () => {
+test('robots keeps sitemap discovery and crawler policy without the nonstandard Schemamap directive', async () => {
 	const { GET } = await import('../pages/robots.txt')
 	const body = await (await call(GET)).text()
 	const source = read('src/pages/robots.txt.ts')
-	expect(body).toContain('Schemamap: https://frontman.sh/schema-map.xml')
+	expect(body).toContain('Sitemap: https://frontman.sh/sitemap-index.xml')
+	expect(body).not.toMatch(/^Schemamap:/mi)
+	expect(read('public/llms-full.txt')).toContain('Schema map: https://frontman.sh/schema-map.xml')
 	const groups = source.slice(source.indexOf('User-agent:'), source.indexOf('Sitemap:'))
 	expect(createHash('sha256').update(groups).digest('hex')).toBe('2ed3a1d6c913884b05ca2b2724e8f087402c4ee4361a75eeac216d6cf929b8be')
 })

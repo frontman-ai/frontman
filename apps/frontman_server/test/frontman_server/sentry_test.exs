@@ -8,9 +8,10 @@ defmodule FrontmanServer.SentryTest do
   alias FrontmanServer.Observability.Sentry, as: SentryReporting
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Tasks.InteractionSchema
+  alias FrontmanServer.Test.SentryFixture
 
   setup do
-    Sentry.Test.setup_sentry(dedup_events: false)
+    SentryFixture.start!()
     Sentry.Context.clear_all()
     Logger.reset_metadata([])
     :ok

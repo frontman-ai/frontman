@@ -8,11 +8,12 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
 
   alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tasks.InteractionSchema
+  alias FrontmanServer.Test.SentryFixture
   alias FrontmanServerWeb.ChannelCase
   alias FrontmanServerWeb.TaskChannel.MCPInitializer
 
   setup do
-    Sentry.Test.setup_sentry(dedup_events: false)
+    SentryFixture.start!()
     :ok
   end
 

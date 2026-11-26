@@ -8,7 +8,7 @@ articleSection: 'Comparison or Buyer Guide'
 image: '/blog/cline-ai-coding-tool-review-cover.png'
 imageAlt: 'Cline AI coding tool review and alternatives guide'
 tags: ['comparison', 'ai', 'developer-tools', 'open-source']
-updatedDate: 2026-09-03T00:00:00Z
+updatedDate: 2026-11-24T00:00:00Z
 comparisonItems:
   - name: 'Cline'
     url: 'https://cline.bot/'
@@ -26,13 +26,13 @@ faq:
   - question: 'What is Cline?'
     answer: 'Cline is an open-source AI coding agent for developer workflows. It started as a VS Code extension and now describes itself as an agent for IDE, terminal, SDK, and automation workflows.'
   - question: 'Is Cline a good AI coding tool in 2026?'
-    answer: 'Yes, Cline is a strong choice if you want an open-source, developer-first coding agent with human approval, BYOK model support, MCP, CLI, and broad provider flexibility. It is less ideal when the main task starts from browser-visible frontend UI rather than source files.'
+    answer: 'Cline is worth evaluating for developer-led tasks that need file edits, commands, browser tools, and provider choice. Its core is Apache-2.0, but the JetBrains plugin is not open source. Approval settings, model cost, and results on your own repository matter more than a blanket ranking.'
   - question: 'Does Cline support BYOK?'
     answer: 'Yes. Cline is built around bring-your-own-key model flexibility. Public Cline materials list support for major providers such as Anthropic, OpenAI, Google, OpenRouter, AWS Bedrock, Azure, Vertex, Ollama, LM Studio, and OpenAI-compatible APIs.'
   - question: 'Is Cline free?'
     answer: 'Cline has an open-source project and BYOK usage path, but model inference is not free. You still pay the model provider for API usage, and team or enterprise features may involve separate platform pricing. Always check the current Cline pricing page before rollout.'
   - question: 'What are the best Cline alternatives?'
-    answer: 'Common Cline alternatives include Roo-style forks such as ZooCode, Kilo Code, Aider, Continue, Cursor, Windsurf, Claude Code, GitHub Copilot, and Frontman for browser-aware frontend work.'
+    answer: 'Compare Kilo Code for a related agent workflow, Aider for terminal pair programming, Cursor or Windsurf for an AI-first IDE, and Frontman for browser-centered editing. Continue and the original Roo Code are historical options, not maintained defaults for new deployments.'
   - question: 'Is Cline better than Roo Code?'
     answer: 'For most new users in 2026, Cline is safer because it is active and Roo Code was shut down and archived in May 2026. Roo Code remains useful as a reference for role-based modes.'
   - question: 'When should you use Frontman instead of Cline?'
@@ -42,30 +42,32 @@ faq:
   - question: 'Does Cline work with VS Code?'
     answer: 'Yes. Cline is widely known as a VS Code AI coding agent, though public Cline materials now also mention CLI, SDK, JetBrains, and automation workflows.'
   - question: 'Does Cline support JetBrains?'
-    answer: 'Cline public materials list JetBrains plugin support. If JetBrains is a hard requirement, verify current IDE coverage and installation path before rollout.'
+    answer: 'Yes. The official repository links to the Cline JetBrains Marketplace plugin. The README explicitly says that the JetBrains plugin is not open source, unlike the Apache-2.0 core. Check the Marketplace listing for compatibility with your IDE version.'
   - question: 'Is Cline open source?'
-    answer: 'Yes. Cline has a public GitHub repository and open-source project. As with any open-source tool, verify license, release activity, and dependency risk before standardizing on it.'
+    answer: 'The Cline core repository uses Apache-2.0. The official README explicitly excludes the JetBrains plugin from its open-source code. Inspect the component you plan to deploy rather than treating every Cline product as identically licensed.'
   - question: 'Does Cline support MCP?'
     answer: 'Yes. Cline supports MCP and plugins for connecting external tools and context.'
   - question: 'Is Cline better than Cursor?'
     answer: 'Use Cline if you want open-source, BYOK, and agent control in your existing editor/terminal workflow. Use Cursor if you want a polished AI-first IDE experience and are comfortable with a closed product.'
   - question: 'Is Cline good for frontend development?'
-    answer: 'Cline is good for developer-led frontend code edits. It can change components, styles, and tests. It is less natural when the work starts from the browser UI or from a non-engineer pointing at the page.'
+    answer: 'Cline can edit frontend files and use browser tools. Evaluate it for developer-led UI work as well as backend work. An embedded browser editor offers a different interaction model for non-engineers; browser access is not exclusive to Frontman.'
 ---
 
 This Cline AI review covers the practical question: is Cline a good AI coding tool in 2026, what are its strengths and limits, how does BYOK pricing work, and which alternatives should you compare before adopting it?
 
-The short version: **Cline is a strong AI coding tool if you want an open-source, developer-first agent with BYOK, VS Code support, CLI workflows, MCP, and human approval. Its main limits are setup friction, variable model costs, and weaker fit when the task starts from browser-visible frontend UI rather than source files.**
+The short version: **Cline is worth evaluating for developer-led work that combines file edits, commands, browser tools, and model-provider choice. Its tradeoffs are configuration, variable inference costs, and responsibility for tool permissions. Browser-visible frontend work is not outside its capabilities.**
 
 We build [Frontman](/frameworks/), a browser-aware frontend agent. That creates a conflict of interest in any AI coding tool comparison, so this review separates the Cline recommendation from the Frontman wedge. If you are choosing a general-purpose developer agent, Cline deserves serious consideration. If your team needs to click a broken UI, inspect runtime layout, and produce a reviewable source edit, compare Cline with browser-aware tools later in this guide.
 
-Source status checked: June 28, 2026. This is a source-backed workflow review based on public Cline materials, the [Cline GitHub repository](https://github.com/cline/cline), the [Cline FAQ](https://cline.bot/faq), existing public review pages, and Search Console data showing demand around `cline ai coding tool`, `cline ai coding agent`, `cline byok`, `cline pricing`, and `cline vs roo code`. Pricing plans, model costs, and product packaging can change quickly; verify current pricing before making a purchasing decision.
+**Source status checked: November 24, 2026.** This is a documentation-based review, not a hands-on benchmark. The [official repository](https://github.com/cline/cline) documents capabilities and license boundaries. The [v4.1.27 release](https://github.com/cline/cline/releases/tag/v4.1.27), published November 21, provides dated maintenance evidence. Pricing and model availability can change; no fixed platform price is asserted here.
+
+That release adds an LM Studio authentication field and fixes provider reasoning settings, file-read truncation, and dependency issues. Its MCP “read-only” badge reflects a server declaration, not proof that a tool cannot write. Recent releases establish ongoing maintenance, not security or output quality.
 
 Author disclosure: [Danni Friedland](/about/) is co-founder of Frontman, a browser-aware frontend agent. That gives this review direct frontend-agent experience, but it also means Frontman is a competitor in one narrow use case: browser-visible UI edits.
 
 ## How We Evaluated This Cline Review
 
-We evaluated Cline as an AI coding tool by reviewing the current public Cline site, Cline FAQ, Cline GitHub README, and the search result pages ranking for `cline ai coding tool` and `cline ai coding tool review`. The review criteria came from those sources: Plan and Act workflow, BYOK provider support, VS Code and JetBrains positioning, CLI and SDK surfaces, MCP servers, pricing, model costs, total cost of ownership, and alternatives.
+We reviewed the official README and release notes for installation surfaces, provider support, approvals, browser use, and maintenance. These sources describe what Cline supports. They do not measure success rate, speed, cost per completed task, or comparative frontend quality.
 
 We also evaluated Cline against our own frontend-agent workflow experience. Frontman is built for browser-aware UI edits, so the frontend section asks a specific question: does the tool start from source code, or can it start from the rendered browser state that a PM, designer, or frontend developer is looking at?
 
@@ -77,8 +79,8 @@ We also evaluated Cline against our own frontend-agent workflow experience. Fron
 | Best fit | Developers who want an agent that edits files, runs commands, uses tools, and keeps human approval in the loop. |
 | Main strength | BYOK model flexibility, reviewable edits, CLI/IDE ecosystem, MCP/tool support. |
 | Main tradeoff | Model costs can be harder to predict than fixed-seat assistants; setup and approval loops add friction. |
-| Frontend fit | Good for developer-led frontend code edits; weaker when task starts from the rendered browser UI. |
-| Best alternative for browser UI edits | [Frontman](/frameworks/) or another browser-aware frontend agent category. |
+| Frontend fit | Can edit frontend code and use browser tools; evaluate the full inspect-edit-check loop. |
+| Different interaction model | [Frontman installation](/docs/installation/) for an embedded browser workflow in a supported project. |
 
 ## What Is Cline?
 
@@ -93,13 +95,13 @@ That matters because searchers asking for a “Cline AI coding tool” are not o
 | Feature | Cline support | Source signal | Why it matters |
 | --- | --- | --- | --- |
 | VS Code extension | Yes | Cline is widely distributed as an IDE extension. | Main developer adoption path. |
-| JetBrains plugin | Publicly listed by Cline | Cline and pricing-result pages reference VS Code and JetBrains. | Useful for WebStorm, IntelliJ, PyCharm, GoLand, and mixed-editor teams. |
+| JetBrains plugin | Yes; not open source | [Official README](https://github.com/cline/cline#index) links installation and states the license boundary. | Check compatibility and licensing separately from the core. |
 | CLI/headless workflows | Yes | The GitHub README has a “Headless CLI for CI/CD” section. | Enables terminal use, scripting, and CI/CD-style automation. |
-| BYOK | Yes | Public Cline materials and SERP pages emphasize own API keys and AI providers. | Lets teams choose model provider and control inference costs. |
+| BYOK | Yes | [Official provider table](https://github.com/cline/cline#works-with-every-model) includes cloud and local endpoints. | Provider choice does not guarantee local processing or low cost. |
 | MCP | Yes | The Cline FAQ includes “Model Context Protocol (MCP),” and the README references plugins or MCP servers. | Extends agent with external tools and data sources. |
-| Human approval | Yes | Cline workflow centers on reviewable edits, command approval, and Plan/Act. | Keeps edits and commands reviewable instead of fully autonomous by default. |
-| Open source | Yes | The GitHub repository is public. | Better inspectability than closed-only agents. |
-| Frontend browser context | Limited by workflow | Cline can edit frontend code, but the core workflow is IDE and terminal first. | Good for developer-led frontend code; less natural for clicked browser UI edits. |
+| Human approval | Configurable | The README documents approval and auto-approve. | Inspect settings before permitting tools; do not assume every action pauses. |
+| Open source | Apache-2.0 core | [Repository license](https://github.com/cline/cline/blob/main/LICENSE); README excludes JetBrains plugin. | A public repository is not the license for every product surface. |
+| Frontend browser context | Browser tools available | The README describes browsing from the extension and external tools through MCP. | Browser access is not exclusive to an embedded editor. |
 
 ## How Cline Works
 
@@ -112,7 +114,7 @@ Cline follows a developer-first agent loop:
 - It shows changes for approval.
 - You review, accept, reject, or redirect.
 
-The important part is control. Cline is agentic, but it is not meant to silently rewrite a repository without review. Its Plan and Act workflow is meant to separate exploration from execution. That is useful for teams that want AI speed without giving up diff review.
+The important part is configuration. Plan and Act separate exploration from execution, while auto-approve can permit actions without individual prompts. Inspect approval settings and connected MCP tools before starting. Diff review and test results remain necessary even when each action requires approval.
 
 This is where Cline differs from simple autocomplete tools. Autocomplete predicts the next lines while you type. Cline performs multi-step work: inspect, edit, run, observe, repeat.
 
@@ -170,10 +172,11 @@ If you need perfectly predictable monthly spend, a fixed-seat assistant such as 
 
 Cline is no longer only a VS Code extension story. The public repository describes several surfaces:
 
-- **VS Code extension:** the primary workflow most developers associate with Cline.
-- **JetBrains plugin:** useful for teams using WebStorm, IntelliJ IDEA, PyCharm, GoLand, or other JetBrains IDEs.
-- **CLI:** useful for terminal-native workflows, automation, and scripted tasks.
-- **SDK:** useful if your team wants to build custom agent workflows or internal tooling.
+- **VS Code extension:** [install the official Marketplace extension](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev).
+- **JetBrains plugin:** [check the official Marketplace listing](https://plugins.jetbrains.com/plugin/28247-cline) for your IDE version. This plugin is not open source.
+- **CLI:** use the [repository CLI instructions](https://github.com/cline/cline/tree/main/apps/cli) for terminal and headless operation.
+- **Desktop:** the README now links a [macOS and Windows app](https://cline.bot/desktop).
+- **SDK:** use the [official SDK documentation](https://docs.cline.bot/cline-sdk/overview) for custom integrations.
 
 This breadth is a competitive advantage. Many AI coding tools are excellent in one editor and weak everywhere else. Cline's broader surface makes it easier to standardize if your team has mixed workflows.
 
@@ -292,7 +295,7 @@ Cline can edit React, CSS, Astro, Next.js, Vue, Svelte, and other frontend files
 
 This is the [runtime context gap](/blog/runtime-context-gap/): the gap between source code and what the browser actually renders.
 
-Cline can help if a developer describes the problem and verifies the output. A browser-aware tool starts closer to the problem.
+Cline can use browser tools as part of its developer workflow. The practical comparison is how you capture the failing state, direct the edit, and check the result—not whether only one tool can see a browser.
 
 ## Cline vs Roo Code
 
@@ -344,7 +347,7 @@ Kilo Code is another Cline-family tool with VS Code and JetBrains positioning. I
 
 ### Continue
 
-[Continue](https://docs.continue.dev/) is relevant if your team wants IDE assistance, autocomplete, and AI checks more than autonomous file-editing workflows.
+[Continue's official repository](https://github.com/continuedev/continue) now states that it is no longer actively maintained and describes 2.0.0 as the final release. Existing deployments need an explicit maintenance plan. Do not choose it as a maintained alternative merely because its source and documentation remain available.
 
 ### Cursor
 
@@ -364,7 +367,7 @@ Windsurf is another AI IDE/productivity environment. Compare it when product pol
 
 ## When Frontman Makes More Sense Than Cline
 
-Use Frontman instead of Cline when the task depends on rendered UI context:
+Consider Frontman's embedded interaction model when:
 
 - A PM wants to adjust product copy on an existing page.
 - A designer wants spacing or layout changes without opening VS Code.
@@ -372,27 +375,16 @@ Use Frontman instead of Cline when the task depends on rendered UI context:
 - A team wants non-engineers to propose UI changes while developers keep merge control.
 - A bug only appears after CSS, DOM, hydration, viewport, and runtime state interact.
 
-That is not the same job as “write a migration” or “refactor a service.” Cline is the better fit for many developer-led code tasks. Frontman is the better fit when browser context is the missing input.
+Those needs do not establish that Cline cannot perform the task. Cline also offers browser tools. Frontman's distinction is an embedded workflow beside the running application, rather than a general-purpose IDE or terminal agent.
 
-If this is the problem you are solving, read the [best frontend coding agent guide](/blog/best-frontend-coding-agent/) or compare [browser-aware AI tools](/blog/browser-aware-ai-tools-2026/).
+For that workflow, follow the [Frontman installation guide](/docs/installation/) for Next.js, Astro, or Vite. WordPress uses a [separate plugin installation](/docs/integrations/wordpress/), not the JavaScript source-editing setup.
 
 ## Cline Verdict
 
-Cline is worth using in 2026 if you want an open-source AI coding agent with strong model flexibility, BYOK support, human approvals, MCP, CLI, and a developer-first workflow.
+**Shortlist Cline for general-purpose developer work, including frontend work.** The November release and current documentation support an actively maintained agent with provider choice, file edits, commands, browser tools, and configurable approvals. They do not establish that Cline is faster or more accurate than alternatives.
 
-It is strongest for:
+Before adopting it, run one bounded task in a disposable branch. Record the Cline version, model, provider, approval settings, elapsed time, and inference cost. Review the diff and run your repository's normal checks. For a UI task, also inspect the affected route at the failing viewport.
 
-- Developers who want reviewable source edits.
-- Teams that want provider flexibility.
-- Open-source-first AI coding workflows.
-- Repos where command execution, tests, and diffs matter.
-- Engineers comfortable managing model choice and API spend.
+Choose a different workflow if your team cannot manage tool permissions and variable inference spend. Choose a different component if open-source JetBrains code is mandatory. Evaluate Frontman when an embedded browser interface fits your collaborators better—not because Cline lacks browser access.
 
-It is weaker for:
-
-- Non-developers who want to edit a running UI.
-- Teams that need fixed predictable pricing more than model control.
-- Frontend changes where the browser-rendered state is the source of truth.
-- Organizations that want a fully managed, closed enterprise suite.
-
-Final recommendation: **use Cline as a general-purpose developer AI coding agent. Use Frontman when the job is specifically browser-visible frontend work that needs reviewable source edits.**
+Start with the [official Cline installation links](#cline-setup-vs-code-jetbrains-and-cli). For the embedded alternative, follow [Frontman's framework installation paths](/docs/installation/) and compare the same task under the same review criteria.
