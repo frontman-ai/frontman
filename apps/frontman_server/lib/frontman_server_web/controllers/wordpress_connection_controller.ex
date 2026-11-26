@@ -1,8 +1,6 @@
 defmodule FrontmanServerWeb.WordPressConnectionController do
   use FrontmanServerWeb, :controller
 
-  alias FrontmanServerWeb.Analytics
-
   def status(conn, %{"catalog_url" => catalog_url})
       when is_binary(catalog_url) and catalog_url != "" do
     conn
@@ -20,25 +18,14 @@ defmodule FrontmanServerWeb.WordPressConnectionController do
   end
 
   def create(conn, params) do
-    conn =
-      conn
-      |> put_resp_header("cache-control", "no-store")
-      |> Analytics.track("site_connection_started", %{framework: "wordpress"})
+    conn = put_resp_header(conn, "cache-control", "no-store")
 
     case FrontmanServer.WordPress.connect(conn.assigns.current_scope, params) do
       {:ok, id} ->
-        conn
-        |> Analytics.track("site_connection_completed", %{framework: "wordpress"})
-        |> json(%{id: id})
+        json(conn, %{id: id})
 
       {:error, _} ->
-        conn
-        |> Analytics.track("site_connection_failed", %{
-          framework: "wordpress",
-          reason_code: "connection_failed"
-        })
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Connection failed"})
+        conn |> put_status(:unprocessable_entity) |> json(%{error: "Connection failed"})
     end
   end
 end

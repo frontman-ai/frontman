@@ -5,7 +5,7 @@ let envId = if Client__Env.isDev {
   "218974947"
 }
 
-let initUnsafe = () => {
+let init = () => {
   let _: unit = %raw(`
     (function(envId) {
       window.heapReadyCb=window.heapReadyCb||[];
@@ -34,21 +34,6 @@ type heapApi = {identify: string => unit, track: (string, JSON.t) => unit}
 
 let getHeap = () => heap->Nullable.toOption->Option.getOrThrow(~message="Heap is not initialized")
 
-let init = () => {
-  try {initUnsafe()} catch {
-  | _ => ()
-  }
-}
+let identify = userId => getHeap().identify(userId)
 
-// Heap is optional, including when an extension blocks or replaces its SDK.
-let identify = userId => {
-  try {getHeap().identify(userId)} catch {
-  | _ => ()
-  }
-}
-
-let track = (eventName, properties) => {
-  try {getHeap().track(eventName, properties)} catch {
-  | _ => ()
-  }
-}
+let track = (eventName, properties) => getHeap().track(eventName, properties)

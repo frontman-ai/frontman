@@ -60,7 +60,6 @@ defmodule FrontmanServerWeb.Router do
     pipe_through(:browser)
 
     get("/", PageController, :home)
-    post("/analytics/page-view", AnalyticsController, :page_view, log: false)
     get("/billing/stripe-return/success", BillingController, :stripe_return_success)
     get("/billing/stripe-return/cancel", BillingController, :stripe_return_cancel)
 

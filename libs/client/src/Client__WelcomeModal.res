@@ -21,25 +21,14 @@ let make = (~loginUrl: string, ~onSignIn: unit => unit) => {
       authorization: Client__EmbeddedAuthPopup.authorization,
     ) => authorization.cancel())
     setWaiting(_ => true)
-    Client__State.Actions.trackAnalytics(EditorHandoffStarted)
     authorizationRef.current = Some(
       Client__EmbeddedAuthPopup.start(
         ~loginUrl,
         ~onSuccess=() => {
-          Client__State.Actions.trackAnalytics(EditorHandoffCompleted)
           authorizationRef.current = None
           onSignIn()
         },
-        ~onError=error => {
-          Client__State.Actions.trackAnalytics(
-            EditorHandoffFailed(
-              switch error {
-              | PopupBlocked => PopupBlocked
-              | PopupClosed => PopupClosed
-              | AuthorizationTimedOut => AuthorizationTimedOut
-              },
-            ),
-          )
+        ~onError=_error => {
           authorizationRef.current = None
           setWaiting(_ => false)
         },

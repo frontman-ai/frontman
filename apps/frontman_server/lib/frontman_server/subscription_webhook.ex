@@ -13,7 +13,6 @@ defmodule FrontmanServer.SubscriptionWebhook do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Analytics
   alias FrontmanServer.Billing
   alias FrontmanServer.{Repo, Tasks}
 
@@ -42,20 +41,6 @@ defmodule FrontmanServer.SubscriptionWebhook do
     result
   end
 
-  defp normalize_process_result({:ok, {:processed, scope, previous_access, access, attempt_id}}) do
-    if previous_access != access do
-      Analytics.track("subscription_access_changed", %{
-        user_id: Scope.user_id(scope),
-        onboarding_attempt_id: attempt_id,
-        previous_access_status: access_status(previous_access),
-        access_status: access_status(access),
-        subscription_status: subscription_status(access)
-      })
-    end
-
-    normalize_process_result({:ok, {:processed, scope}})
-  end
-
   defp normalize_process_result({:ok, {:processed, scope}}) do
     :ok = Tasks.broadcast_status_changed(scope)
     {:ok, :processed}
@@ -64,12 +49,6 @@ defmodule FrontmanServer.SubscriptionWebhook do
   defp normalize_process_result({:ok, result}), do: {:ok, result}
 
   defp normalize_process_result({:error, reason}), do: {:error, reason}
-
-  defp access_status(:none), do: "none"
-  defp access_status({status, _}), do: Atom.to_string(status)
-
-  defp subscription_status(:none), do: "none"
-  defp subscription_status({_, status}), do: status
 
   defp log_event_result(event_id, type, {:ok, result}) do
     Logger.info("stripe webhook #{result} event_id=#{event_id} type=#{type}")
@@ -111,28 +90,18 @@ defmodule FrontmanServer.SubscriptionWebhook do
         with %Scope{} = scope <-
                Scope.for_user(Accounts.get_user(user_id)) || {:error, :account_unavailable},
              {:ok, customer} <- Billing.upsert_customer(scope, subscription["customer"]),
-             previous_access = Billing.subscription_access(scope),
              {:ok, _subscription} <-
                Billing.upsert_subscription(
                  scope,
                  customer,
                  subscription_attrs(subscription)
                ) do
-          {:ok,
-           {:processed, scope, previous_access, Billing.subscription_access(scope),
-            onboarding_attempt_id(subscription)}}
+          {:ok, {:processed, scope}}
         end
     end
   end
 
   defp handle_event(_type, _event), do: {:ok, :ignored}
-
-  defp onboarding_attempt_id(subscription) do
-    case Ecto.UUID.cast(get_in(subscription, ["metadata", "onboarding_attempt_id"])) do
-      {:ok, id} -> id
-      :error -> nil
-    end
-  end
 
   defp subscription_attrs(subscription) do
     first_item =

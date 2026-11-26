@@ -37,22 +37,15 @@ defmodule FrontmanServer.Billing.Subscriptions do
     |> Kernel.not()
   end
 
-  def start_checkout(%Scope{} = scope, interval, return_urls, context \\ %{})
-      when is_map(return_urls) and is_map(context) do
+  def start_checkout(%Scope{} = scope, interval, return_urls) when is_map(return_urls) do
     case current(scope) do
       %Subscription{status: status} when status in ["trialing", "active", "past_due"] ->
         {:error, :subscription_already_active}
 
       _subscription ->
-        opts = [trial_eligible: trial_eligible?(scope)]
-
-        opts =
-          case Ecto.UUID.cast(Map.get(context, :onboarding_attempt_id)) do
-            {:ok, id} -> Keyword.put(opts, :onboarding_attempt_id, id)
-            :error -> opts
-          end
-
-        Billing.start_checkout(scope, interval, return_urls, opts)
+        Billing.start_checkout(scope, interval, return_urls,
+          trial_eligible: trial_eligible?(scope)
+        )
     end
   end
 

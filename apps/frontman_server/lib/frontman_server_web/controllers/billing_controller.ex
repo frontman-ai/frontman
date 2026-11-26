@@ -8,7 +8,6 @@ defmodule FrontmanServerWeb.BillingController do
   use FrontmanServerWeb, :controller
 
   alias FrontmanServer.Billing
-  alias FrontmanServerWeb.Analytics
   alias FrontmanServerWeb.BillingJSON
 
   action_fallback FrontmanServerWeb.BillingFallbackController
@@ -34,17 +33,11 @@ defmodule FrontmanServerWeb.BillingController do
     end
   end
 
-  def stripe_return_success(conn, _params) do
-    conn
-    |> Analytics.track("checkout_returned", %{outcome: "success"})
-    |> stripe_return("Checkout complete. Back to your next improvement.")
-  end
+  def stripe_return_success(conn, _params),
+    do: stripe_return(conn, "Checkout complete. Back to your next improvement.")
 
-  def stripe_return_cancel(conn, _params) do
-    conn
-    |> Analytics.track("checkout_returned", %{outcome: "cancel"})
-    |> stripe_return("Your request is still waiting for you.")
-  end
+  def stripe_return_cancel(conn, _params),
+    do: stripe_return(conn, "Your request is still waiting for you.")
 
   def stripe_return_customer_portal(conn, _params),
     do: stripe_return(conn, "Return to your work in Frontman.")
@@ -55,17 +48,9 @@ defmodule FrontmanServerWeb.BillingController do
       cancel_url: url(~p"/billing/stripe-return/cancel")
     }
 
-    # Only the authenticated bearer token's server-side issuance context can cross origins.
-    context = Map.get(conn.assigns, :embedded_client_context, %{})
-
-    case Billing.start_checkout(conn.assigns.current_scope, interval, return_urls, context) do
-      {:ok, %{"url" => url}} when is_binary(url) ->
-        conn
-        |> Analytics.track("checkout_started", %{interval: Atom.to_string(interval)})
-        |> json(%{url: url})
-
-      {:error, reason} ->
-        {:error, {:billing, :checkout, reason}}
+    case Billing.start_checkout(conn.assigns.current_scope, interval, return_urls) do
+      {:ok, %{"url" => url}} when is_binary(url) -> json(conn, %{url: url})
+      {:error, reason} -> {:error, {:billing, :checkout, reason}}
     end
   end
 

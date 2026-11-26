@@ -83,18 +83,6 @@ test:
 	MIX_ENV=test mix ecto.migrate --quiet
 	mix test $(TEST_ARGS)
 
-.PHONY: test-hosted-analytics-browser
-test-hosted-analytics-browser:
-	@set -eu; \
-	export MIX_ENV=test MIX_TEST_PARTITION=""; \
-	export MIX_TEST_DB_SUFFIX="_analytics_browser_$$(elixir -e 'IO.write(Base.encode16(:crypto.strong_rand_bytes(8), case: :lower))')"; \
-	$(MAKE) assets-build; \
-	mix run --no-start test/browser/analytics_fixture.exs
-
-.PHONY: test-hosted-analytics-ownership
-test-hosted-analytics-ownership:
-	MIX_ENV=test mix run --no-start test/browser/analytics_ownership.exs
-
 .PHONY: test-application-restart
 test-application-restart:
 	@set -eu; \

@@ -537,23 +537,8 @@ describe("Client State Reducer - Plan Handoff", () => {
 
     t->expect(executing.selectedAgentId)->Expect.toEqual(Some(executor.id))
     t->expect(Reducer.Selectors.isAgentRunning(executing))->Expect.toBe(true)
-    t
-    ->expect(effects->Array.get(0))
-    ->Expect.toEqual(
-      Some(
-        Reducer.TrackAnalyticsEffect(
-          MessageSubmitAttempted(UserMessageId.toString(testUserMessageId)),
-        ),
-      ),
-    )
 
-    switch effects->Array.find(
-      effect =>
-        switch effect {
-        | Reducer.SendMessage(_) => true
-        | _ => false
-        },
-    ) {
+    switch effects->Array.get(0) {
     | Some(Reducer.SendMessage({taskId: "test-task-1", submission: {content, agentId}})) => {
         t
         ->expect(TaskReducer.extractTextFromUserContent(content))
@@ -2033,16 +2018,12 @@ describe("Client State Reducer - Annotations on Messages", () => {
         t->expect(Reducer.Selectors.isSubmitting(nextState))->Expect.toBe(false)
         t->expect(Reducer.Selectors.annotations(nextState))->Expect.toEqual([])
         switch effects {
-        | [
-            Reducer.TrackAnalyticsEffect(MessageSubmitAttempted(messageId)),
-            Reducer.SendMessage({taskId, submission: {annotations, agentId}}),
-          ] =>
-          t->expect(messageId)->Expect.toBe(UserMessageId.toString(testUserMessageId))
+        | [Reducer.SendMessage({taskId, submission: {annotations, agentId}})] =>
           t->expect(taskId)->Expect.toBe("test-task-1")
           t->expect(agentId)->Expect.toBe("executor-id")
           t->expect(annotations->Array.length)->Expect.toBe(annotationId->Option.isSome ? 1 : 2)
           t->expect((annotations->Array.getUnsafe(0)).id)->Expect.toBe("ann-1")
-        | _ => failwith("Expected a submission attempt and direct SendMessage effect")
+        | _ => failwith("Expected only a direct SendMessage effect")
         }
       },
     )

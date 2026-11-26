@@ -192,7 +192,7 @@ config :frontman_server, FrontmanServer.Workers.SendAgentFeedbackToDiscord,
 config :frontman_server, Oban,
   repo: FrontmanServer.Repo,
   plugins: [{Oban.Plugins.Pruner, max_age: 7 * 24 * 60 * 60}],
-  queues: [default: 10, mailers: 5, notifications: 5, support: 10, analytics: 2]
+  queues: [default: 10, mailers: 5, notifications: 5, support: 10]
 
 config :esbuild,
   version: "0.25.4",

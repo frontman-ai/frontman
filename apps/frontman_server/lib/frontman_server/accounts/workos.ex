@@ -20,7 +20,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
   alias FrontmanServer.Accounts.User
   alias FrontmanServer.Accounts.UserIdentity
   alias FrontmanServer.Accounts.WorkOS.AuthError
-  alias FrontmanServer.Analytics
   alias FrontmanServer.Repo
   alias FrontmanServer.Workers.EnterActivationCampaign
   alias FrontmanServer.Workers.NotifyDiscordNewUser
@@ -338,22 +337,8 @@ defmodule FrontmanServer.Accounts.WorkOS do
     multi = build_oauth_multi(identity, existing_user, profile, signup_framework)
 
     case Repo.transaction(multi) do
-      {:ok, %{user: user, welcome_email: _job}} ->
-        Analytics.track("signup_completed", %{
-          user_id: user.id,
-          is_new_user: true,
-          auth_provider: profile.provider,
-          framework: signup_framework,
-          outcome: "succeeded"
-        })
-
-        {:ok, user}
-
-      {:ok, %{user: user}} ->
-        {:ok, user}
-
-      {:error, _step, changeset, _changes} ->
-        {:error, changeset}
+      {:ok, %{user: user}} -> {:ok, user}
+      {:error, _step, changeset, _changes} -> {:error, changeset}
     end
   end
 

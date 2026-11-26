@@ -30,20 +30,10 @@ defmodule FrontmanServer.Billing do
   defdelegate start_checkout(scope, interval, return_urls), to: Subscriptions
   defdelegate upsert_subscription(scope, customer, attrs), to: Subscriptions
 
-  @doc "Starts checkout with optional trusted server context, never request parameters."
-  def start_checkout(%Scope{} = scope, interval, return_urls, context)
-      when is_map(return_urls) and is_map(context) do
-    Subscriptions.start_checkout(scope, interval, return_urls, context)
-  end
-
-  def start_checkout(%Scope{} = scope, interval, return_urls, opts)
-      when is_map(return_urls) and is_list(opts) do
-    billing_client().start_checkout(
-      Scope.user(scope),
-      customer(scope),
-      interval,
-      return_urls,
-      opts
+  def start_checkout(%Scope{} = scope, interval, return_urls, trial_eligible: trial_eligible)
+      when is_map(return_urls) do
+    billing_client().start_checkout(Scope.user(scope), customer(scope), interval, return_urls,
+      trial_eligible: trial_eligible
     )
   end
 

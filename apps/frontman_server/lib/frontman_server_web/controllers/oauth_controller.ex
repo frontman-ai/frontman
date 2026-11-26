@@ -9,7 +9,6 @@ defmodule FrontmanServerWeb.OAuthController do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.WorkOS.AuthError
-  alias FrontmanServerWeb.Analytics
   alias FrontmanServerWeb.EmbeddedClientAuth
   alias FrontmanServerWeb.UserAuth
 
@@ -20,20 +19,16 @@ defmodule FrontmanServerWeb.OAuthController do
   plug(FrontmanServerWeb.ConnectHandoff)
 
   def request(conn, %{"provider" => provider}) do
-    conn
-    |> Analytics.start_attempt()
-    |> Analytics.track("auth_started", %{auth_provider: auth_provider(provider)})
-    |> authorize(provider, url(~p"/auth/callback"), :oauth_signin_state)
+    authorize(conn, provider, url(~p"/auth/callback"), :oauth_signin_state)
   end
 
   def callback(conn, params) do
     if valid_state?(conn, params, :oauth_signin_state) do
-      saved = get_session(conn, :oauth_signin_state)
+      request = get_session(conn, :oauth_signin_state)["embedded_request"]
 
       conn
       |> delete_session(:oauth_signin_state)
-      |> assign(:embedded_request, saved["embedded_request"])
-      |> assign(:analytics_auth_provider, saved["auth_provider"])
+      |> assign(:embedded_request, request)
       |> assign(:oauth_signin_state, params["state"])
       |> complete_sign_in(params)
     else
@@ -49,10 +44,6 @@ defmodule FrontmanServerWeb.OAuthController do
     case Accounts.authenticate_with_oauth(code, signup_framework) do
       {:ok, user} ->
         conn
-        |> Analytics.track("auth_completed", %{
-          auth_provider: current_auth_provider(conn),
-          user_id: user.id
-        })
         |> put_flash(:info, "Welcome!")
         |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
 
@@ -64,7 +55,6 @@ defmodule FrontmanServerWeb.OAuthController do
           "token" => error.pending_authentication_token,
           "email" => error.email,
           "request" => conn.assigns.embedded_request,
-          "auth_provider" => current_auth_provider(conn),
           "state" => conn.assigns.oauth_signin_state
         })
         |> redirect(to: ~p"/auth/verify-email")
@@ -91,10 +81,6 @@ defmodule FrontmanServerWeb.OAuthController do
       end
 
     conn
-    |> Analytics.track("auth_failed", %{
-      auth_provider: current_auth_provider(conn),
-      reason_code: "authentication_failed"
-    })
     |> put_flash(:error, message)
     |> redirect(to: ~p"/users/log-in?#{query}")
   end
@@ -119,20 +105,10 @@ defmodule FrontmanServerWeb.OAuthController do
     signup_framework = get_session(conn, :signup_framework)
 
     case get_session(conn, :pending_auth) do
-      %{"state" => ^state, "token" => token, "request" => request} = pending
-      when is_binary(state) ->
-        conn =
-          conn
-          |> assign(:embedded_request, request)
-          |> assign(:analytics_auth_provider, pending["auth_provider"])
-
+      %{"state" => ^state, "token" => token, "request" => request} when is_binary(state) ->
         case Accounts.authenticate_with_email_verification(code, token, signup_framework) do
           {:ok, user} ->
             conn
-            |> Analytics.track("auth_completed", %{
-              auth_provider: current_auth_provider(conn),
-              user_id: user.id
-            })
             |> assign(:embedded_request, request)
             |> delete_session(:pending_auth)
             |> put_flash(:info, "Email verified. Welcome!")
@@ -140,26 +116,17 @@ defmodule FrontmanServerWeb.OAuthController do
 
           {:error, %AuthError{message: message}} ->
             conn
-            |> Analytics.track("auth_failed", %{
-              auth_provider: current_auth_provider(conn),
-              reason_code: "verification_failed"
-            })
             |> put_flash(:error, message || "Invalid verification code. Please try again.")
             |> redirect(to: ~p"/auth/verify-email")
 
           {:error, _reason} ->
             conn
-            |> Analytics.track("auth_failed", %{
-              auth_provider: current_auth_provider(conn),
-              reason_code: "verification_failed"
-            })
             |> put_flash(:error, "Verification failed. Please try again.")
             |> redirect(to: ~p"/auth/verify-email")
         end
 
       _ ->
         conn
-        |> Analytics.track("auth_failed", %{auth_provider: "oauth", reason_code: "invalid_state"})
         |> put_flash(:error, "No pending verification. Please sign in again.")
         |> redirect(to: ~p"/users/log-in")
     end
@@ -232,7 +199,6 @@ defmodule FrontmanServerWeb.OAuthController do
         conn
         |> put_session(key, %{
           "state" => state,
-          "auth_provider" => auth_provider(provider),
           "embedded_request" => conn.assigns[:embedded_request]
         })
         |> redirect(external: url)
@@ -255,14 +221,4 @@ defmodule FrontmanServerWeb.OAuthController do
 
   defp provider_display_name("github"), do: "GitHub"
   defp provider_display_name("google"), do: "Google"
-
-  defp auth_provider(provider) when provider in ["github", "google"], do: provider
-  defp auth_provider(_provider), do: "unsupported"
-
-  defp current_auth_provider(conn) do
-    case conn.assigns[:analytics_auth_provider] do
-      provider when provider in ["github", "google"] -> provider
-      _ -> "oauth"
-    end
-  end
 end

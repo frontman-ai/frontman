@@ -26,8 +26,6 @@ type promptInput = {
 }
 
 type rec action =
-  | TrackAnalytics(Client__Analytics.event)
-  | SubmitMessage(promptInput)
   | InitializeConnection(Connection.config)
   | WordPressAuthenticationRequired(option<string>)
   | ReloadAfterWordPressLogin
@@ -142,18 +140,13 @@ type customProviderMutationRequest =
   | DeleteCustomProviderRequest({id: string, lockVersion: int})
 
 type effect =
-  | TrackAnalyticsEffect(Client__Analytics.event)
   | ReloadFrontman
   | ObserveWordPressWarning
   | PersistSelectedModel(option<string>)
   | ConnectionEffect(Connection.effect)
   | CreateSession({taskId: string, input: promptInput})
   | SendMessage({taskId: string, submission: Client__State__Types.submission})
-  | SubmissionCompleted({
-      id: Message.UserMessageId.t,
-      onComplete: result<unit, string> => unit,
-      result: result<unit, string>,
-    })
+  | SubmissionCompleted({onComplete: result<unit, string> => unit, result: result<unit, string>})
   | AbortBillingRequest(option<WebAPI.EventTypes.abortController>)
   | FetchBillingStatus({signal: WebAPI.EventTypes.abortSignal, apiBaseUrl: string})
   | OpenBillingTabAndFetchUrl({

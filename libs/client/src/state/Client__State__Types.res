@@ -252,7 +252,6 @@ type wordPressConnectionStatus =
   | WordPressConnectionFailed(string)
 
 type state = {
-  analyticsRunningTasks: array<string>,
   tasks: Dict.t<Task.t>,
   currentTask: Task.currentTask,
   connection: option<Client__ConnectionReducer.state>,
