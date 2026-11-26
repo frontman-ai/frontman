@@ -162,6 +162,8 @@ describe.each(usabilityViewports)('marketing usability at $width×$height', view
 			}
 			await assertClear('#diagnose-page-speed-and-choose-one-change')
 			await page.goto(`${origin}/blog/tags/`)
+			const topic = page.locator('#reading-guides section[id]').first()
+			expect(await topic.evaluate(element => getComputedStyle(element).scrollMarginTop)).toBe('112px')
 			await page.getByRole('navigation', { name: 'Jump to a blog topic' }).getByRole('link', { name: 'All tags' }).click()
 			await assertClear('#tag-directory')
 		} finally {
@@ -181,6 +183,11 @@ describe.each(usabilityViewports)('marketing usability at $width×$height', view
 					note: cell.querySelector('span:not(.sr-only)')?.textContent?.trim(),
 				})),
 			})))
+			expect(rows.length).toBeGreaterThan(0)
+			expect(rows.find(row => row.name === 'Built for non-technical users')?.cells).toEqual([
+				{ status: 'Yes', note: 'Site owners and product teams work from the live site' },
+				{ status: 'Partial', note: 'Visual controls inside a developer environment' },
+			])
 			await page.setViewportSize(viewport)
 			const comparison = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Feature Comparison', exact: true }) })
 			const snapshot = await comparison.ariaSnapshot()

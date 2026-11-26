@@ -89,8 +89,10 @@ html {
 		--navigation-top: 14px;
 	}
 }
-:where([id]) {
-	scroll-margin-top: var(--navigation-clearance);
+@layer base {
+	:where([id]) {
+		scroll-margin-top: var(--navigation-clearance);
+	}
 }
 body {
 	@apply overflow-x-hidden bg-neutral-950 text-neutral-400 has-[.header\_\_menu--open]:overflow-hidden lg:has-[.header\_\_menu--open]:overflow-auto;
