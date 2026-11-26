@@ -8,6 +8,7 @@ type BgProps =  {
 }
 type Props = {
 	id?: string
+	headerClearance?: boolean
 	fullWidth?: boolean
 	stickyCol?: boolean
 	mode?: 'dark' | 'light'
@@ -19,6 +20,7 @@ type Props = {
 }
 const {
 	id,
+	headerClearance = false,
 	fullWidth,
 	stickyCol = false,
 	mode,
@@ -44,6 +46,7 @@ const bgStyle = bg
 	{...id ? { id } : {}}
 	class:list={[
 		'section',
+		{ 'section--header-clearance': headerClearance },
 		{ 'section--sticky-col': stickyCol },
 		{ 'section--fullwidth': fullWidth },
 		{ 'section--padded': padding === 'both' },
@@ -73,6 +76,14 @@ const bgStyle = bg
 	}
 	.section--padded-b {
 		@apply pb-12 lg:pb-24;
+	}
+	.section--header-clearance {
+		padding-top: max(3rem, var(--navigation-clearance));
+	}
+	@media (min-width: 1024px) {
+		.section--header-clearance {
+			padding-top: max(6rem, var(--navigation-clearance));
+		}
 	}
 	.section__bg {
 		@apply absolute inset-0 bg-cover;
