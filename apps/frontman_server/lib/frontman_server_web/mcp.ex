@@ -5,7 +5,7 @@ defmodule FrontmanServerWeb.MCP do
   alias Anubis.Server.Supervisor, as: AnubisSupervisor
   alias Anubis.Server.Transport.StreamableHTTP.Plug, as: AnubisPlug
   alias Anubis.Server.Transport.WellKnown
-  alias FrontmanServerWeb.MCP.{Origin, Server, WorkOSToken}
+  alias FrontmanServerWeb.MCP.{Lifecycle, Origin, Server, WorkOSToken}
 
   def child_specs do
     {:ok, resource, issuer, _origin} = config()
@@ -83,7 +83,7 @@ defmodule FrontmanServerWeb.MCP do
     if conn.halted do
       conn
     else
-      AnubisPlug.call(conn, AnubisPlug.init(server: Server))
+      Lifecycle.call(conn, &AnubisPlug.call(&1, AnubisPlug.init(server: Server)))
     end
   end
 

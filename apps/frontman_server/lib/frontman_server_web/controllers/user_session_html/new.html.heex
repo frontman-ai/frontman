@@ -40,7 +40,12 @@
         Signing in does not connect a new website or start a subscription.
       </p>
     </:intro>
-    <div class="space-y-6">
+    <div
+      class="space-y-6"
+      data-page-view-receipt={
+        FrontmanServerWeb.Analytics.page_view_receipt(@conn, "auth_screen_viewed")
+      }
+    >
       <div class="space-y-2">
         <h2 class="text-2xl font-semibold tracking-tight text-white">
           <%= cond do %>

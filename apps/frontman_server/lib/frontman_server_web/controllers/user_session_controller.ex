@@ -11,6 +11,7 @@ defmodule FrontmanServerWeb.UserSessionController do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Frameworks
+  alias FrontmanServerWeb.Analytics
   alias FrontmanServerWeb.ConnectHandoff
   alias FrontmanServerWeb.EmbeddedClientAuth
   alias FrontmanServerWeb.UserAuth
@@ -24,6 +25,7 @@ defmodule FrontmanServerWeb.UserSessionController do
 
     conn =
       conn
+      |> Analytics.start_attempt()
       |> maybe_put_user_return_to(params["return_to"])
       |> maybe_put_signup_framework(params["framework"])
 
@@ -41,12 +43,20 @@ defmodule FrontmanServerWeb.UserSessionController do
     user_id = params["user_id"]
 
     case {conn.assigns.current_scope, conn.assigns.embedded_request} do
-      {%{user: %{id: ^user_id} = user}, %{"origin" => _}} -> UserAuth.log_in_user(conn, user)
-      _ -> send_resp(conn, :unauthorized, "Sign in to connect this site")
+      {%{user: %{id: ^user_id} = user}, %{"origin" => _}} ->
+        conn |> Analytics.start_attempt() |> UserAuth.log_in_user(user)
+
+      _ ->
+        send_resp(conn, :unauthorized, "Sign in to connect this site")
     end
   end
 
   def create(conn, %{"user" => %{"token" => token} = user_params} = params) do
+    conn =
+      conn
+      |> Analytics.start_attempt()
+      |> start_magic_link_auth()
+
     info =
       case params do
         %{"_action" => "confirmed"} -> "User confirmed successfully."
@@ -56,38 +66,70 @@ defmodule FrontmanServerWeb.UserSessionController do
     case Accounts.login_user_by_magic_link(token) do
       {:ok, {user, _expired_tokens}} ->
         conn
+        |> Analytics.track("auth_completed", %{auth_provider: "magic_link", user_id: user.id})
         |> put_flash(:info, info)
         |> UserAuth.log_in_user(user, user_params)
 
       {:error, :not_found} ->
         conn
+        |> Analytics.track("auth_failed", %{
+          auth_provider: "magic_link",
+          reason_code: "invalid_token"
+        })
         |> put_flash(:error, "The link is invalid or it has expired.")
         |> render(:new, form: Phoenix.Component.to_form(%{}, as: "user"))
     end
   end
 
   def create(conn, %{"user" => %{"email" => email, "password" => password} = user_params}) do
+    conn =
+      conn
+      |> Analytics.start_attempt()
+      |> Analytics.track("auth_started", %{auth_provider: "password"})
+
     if user = Accounts.get_user_by_email_and_password(email, password) do
       conn
+      |> Analytics.track("auth_completed", %{
+        auth_provider: "password",
+        user_id: user.id,
+        is_new_user: false
+      })
       |> put_flash(:info, "Welcome back!")
       |> UserAuth.log_in_user(user, user_params)
     else
       form = Phoenix.Component.to_form(Map.delete(user_params, "password"), as: "user")
 
       conn
+      |> Analytics.track("auth_failed", %{
+        auth_provider: "password",
+        reason_code: "invalid_credentials"
+      })
       |> put_flash(:error, "Invalid email or password")
       |> render(:new, form: form)
     end
   end
 
   def create(conn, %{"user" => %{"email" => email}}) do
+    conn =
+      conn
+      |> Analytics.start_attempt()
+      |> start_magic_link_auth()
+
     if user = Accounts.get_user_by_email(email) do
       case Accounts.deliver_login_instructions(
              user,
              &url(~p"/users/log-in/#{&1}")
            ) do
-        {:ok, _email} -> :ok
-        {:error, _reason} -> Logger.error("Login email delivery failed")
+        {:ok, _email} ->
+          :ok
+
+        {:error, _reason} ->
+          Analytics.track(conn, "auth_failed", %{
+            auth_provider: "magic_link",
+            reason_code: "delivery_failed"
+          })
+
+          Logger.error("Login email delivery failed")
       end
     end
 
@@ -150,6 +192,20 @@ defmodule FrontmanServerWeb.UserSessionController do
   end
 
   defp maybe_put_user_return_to(conn, _), do: conn
+
+  defp start_magic_link_auth(conn) do
+    attempt = get_session(conn, :onboarding_attempt_id)
+
+    case get_session(conn, :magic_link_auth_attempt) do
+      ^attempt ->
+        conn
+
+      _ ->
+        conn
+        |> Analytics.track("auth_started", %{auth_provider: "magic_link"})
+        |> put_session(:magic_link_auth_attempt, attempt)
+    end
+  end
 
   defp maybe_put_signup_framework(conn, framework) when is_binary(framework) do
     case Frameworks.valid_signup_id?(framework) do

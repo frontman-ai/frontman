@@ -14,30 +14,123 @@ defmodule FrontmanServerWeb.MCP.Server do
   alias Anubis.Server.{Component.Tool, Frame, Handlers, Response}
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Analytics
   alias FrontmanServer.Billing
   alias FrontmanServer.Protocols.MCP.Schema
   alias FrontmanServer.WordPress
   alias FrontmanServer.WordPress.Onboarding
   alias FrontmanServerWeb.Endpoint
+  alias FrontmanServerWeb.MCP.ConsentIdentity
 
   @impl true
   def handle_request(%{"method" => method} = request, frame)
       when method in ["tools/list", "tools/call"] do
-    with {:ok, scope} <- resolve_scope(frame),
-         true <- match?({:allowed, _}, Billing.subscription_access(scope)) do
-      handle_tools_request(request, frame, scope)
-    else
+    case resolve_scope(frame) do
+      {:ok, scope} ->
+        started_at = System.monotonic_time(:millisecond)
+        track_connected(scope, frame)
+        result = authorized_tools_request(request, frame, scope)
+        track_completed(scope, request, result, started_at)
+        result
+
       :error ->
         {:error, Error.execution("Account unavailable"), frame}
+    end
+  end
 
-      false ->
+  def handle_request(request, frame), do: Handlers.handle(request, __MODULE__, frame)
+
+  defp authorized_tools_request(request, frame, scope) do
+    case Billing.subscription_access(scope) do
+      {:allowed, _} ->
+        handle_tools_request(request, frame, scope)
+
+      _ ->
         {:error,
          Error.execution("An active subscription or eligible trial is required for hosted MCP"),
          frame}
     end
   end
 
-  def handle_request(request, frame), do: Handlers.handle(request, __MODULE__, frame)
+  # Authenticated client IDs identify registrations, not brands. Never infer a
+  # brand from clientInfo, an auth provider, or a redirect URL.
+  defp track_connected(scope, %{context: %{auth: %{client_id: client_id}}} = frame)
+       when is_binary(client_id) do
+    <<uuid::binary-size(16), _::binary>> =
+      :crypto.hash(:sha256, "mcp_client_connected:" <> scope.user.id <> ":" <> client_id)
+
+    track(scope, "mcp_client_connected", %{event_id: Ecto.UUID.load!(uuid)}, frame)
+  end
+
+  defp track_connected(_scope, _frame), do: :ok
+
+  defp track_completed(scope, request, {status, result, frame}, started_at) do
+    properties = %{
+      outcome: completion_outcome(status, result),
+      duration_ms: System.monotonic_time(:millisecond) - started_at
+    }
+
+    case request do
+      %{"method" => "tools/list"} ->
+        track(scope, "mcp_tools_list_completed", properties, frame)
+
+      %{"method" => "tools/call", "params" => %{"name" => "list_sites"}} ->
+        track(
+          scope,
+          "mcp_tool_call_completed",
+          Map.put(properties, :tool_name, "list_sites"),
+          frame
+        )
+
+      %{"method" => "tools/call"} ->
+        track(
+          scope,
+          "mcp_tool_call_completed",
+          Map.put(properties, :operation_kind, "unknown"),
+          frame
+        )
+    end
+  end
+
+  defp completion_outcome(:reply, %Response{isError: true}), do: "failed"
+  defp completion_outcome(:reply, %Response{isError: false}), do: "succeeded"
+
+  defp completion_outcome(:reply, result) do
+    if Map.get(result, "isError", false), do: "failed", else: "succeeded"
+  end
+
+  defp completion_outcome(:error, _result), do: "failed"
+
+  defp track(scope, event, properties, frame) do
+    Analytics.track(
+      event,
+      properties
+      |> Map.merge(consent_properties(frame))
+      |> Map.merge(%{
+        user_id: scope.user.id,
+        entry_surface: "mcp",
+        mcp_client: client_label(frame)
+      })
+    )
+  end
+
+  defp client_label(%{context: %{auth: %{client_id: client_id}}}) when is_binary(client_id) do
+    case Analytics.config()[:mcp_clients] do
+      %{} = clients ->
+        clients |> Map.get(client_id) |> safe_client_label()
+
+      _ ->
+        "unknown"
+    end
+  end
+
+  defp client_label(_frame), do: "unknown"
+
+  defp safe_client_label(label) when is_binary(label) and byte_size(label) <= 64 do
+    if Regex.match?(~r/\A[a-z0-9_-]+\z/, label), do: label, else: "unknown"
+  end
+
+  defp safe_client_label(_label), do: "unknown"
 
   defp handle_tools_request(%{"method" => method} = request, frame, scope) do
     previous = Map.take(frame.assigns, [:mcp_catalog, :current_scope])
@@ -118,6 +211,13 @@ defmodule FrontmanServerWeb.MCP.Server do
       {:ok, scope} ->
         sites = WordPress.list_sites(scope)
 
+        track(
+          scope,
+          "mcp_sites_list_completed",
+          %{outcome: "succeeded", count: length(sites)},
+          frame
+        )
+
         result =
           case sites do
             [] ->
@@ -149,6 +249,14 @@ defmodule FrontmanServerWeb.MCP.Server do
          {:ok, response} <- tool_response(result) do
       if response.isError == false do
         {:ok, :ok} = Accounts.record_activation(scope)
+
+        # Remote annotations are hints, not verified read/mutation semantics.
+        # Discovery never enters this branch: tools/list and list_sites are separate.
+        Analytics.record_mcp_activation(
+          scope,
+          authenticated_client_id(frame),
+          Map.put(consent_properties(frame), :mcp_client, client_label(frame))
+        )
       end
 
       {:reply, response, frame}
@@ -196,6 +304,14 @@ defmodule FrontmanServerWeb.MCP.Server do
 
   defp scope(%Frame{assigns: %{current_scope: %Scope{} = scope}}), do: {:ok, scope}
   defp scope(_frame), do: :error
+
+  defp authenticated_client_id(%{context: %{auth: %{client_id: client_id}}}), do: client_id
+  defp authenticated_client_id(_frame), do: nil
+
+  defp consent_properties(%{context: %{auth: auth}}),
+    do: ConsentIdentity.properties(auth)
+
+  defp consent_properties(_frame), do: %{}
 
   defp resolve_scope(frame) do
     with subject when is_binary(subject) <- Frame.subject(frame),

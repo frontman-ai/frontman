@@ -225,7 +225,7 @@ if [[ ${#PUBLISH[@]} -gt 0 && "$FIXTURE" != astra ]]; then
   export FRONTMAN_WP_RUNTIME_PASSWORD="$BUILD_DIR/mcp-password" FRONTMAN_WP_RUNTIME_CA="$BUILD_DIR/ca.crt"
   umask 077
   "$RUNTIME" exec "$WORDPRESS" php -r 'require "/var/www/html/wp-load.php"; update_option("frontman_mcp_enabled", true); $user = get_user_by("login", "admin"); $password = WP_Application_Passwords::create_new_application_password($user->ID, ["name" => "SDK runtime"]); if (is_wp_error($password)) { exit(1); } echo $password[0];' > "$BUILD_DIR/mcp-password"
-  make -C "$ROOT_DIR/apps/frontman_server" test TEST_ARGS="test/frontman_server_web/mcp_sites_test.exs --only wordpress_runtime"
+  make -C "$ROOT_DIR/apps/frontman_server" test TEST_ARGS="test/frontman_server_web/mcp_sites_test.exs test/frontman_server_web/mcp_analytics_test.exs --only wordpress_runtime"
   REQUESTS="$("$RUNTIME" logs "$WORDPRESS" 2>&1 | grep -c 'rest_route=/frontman/v1/tools' || true)"
   (( REQUESTS >= 33 ))
 fi

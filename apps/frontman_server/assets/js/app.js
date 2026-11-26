@@ -26,6 +26,39 @@ window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 
 liveSocket.connect()
 
+// Older browsers must still complete authentication if observation APIs are absent.
+if (typeof IntersectionObserver === "function" &&
+    typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {
+  // Report only elements observed in a visible document, never an inferred render.
+  const pageViewElements = new Set(document.querySelectorAll("[data-page-view-receipt]"))
+  const pageViewObserver = new IntersectionObserver(entries => {
+    if (document.visibilityState !== "visible") return
+    for (const entry of entries) {
+      if (!entry.isIntersecting || !pageViewElements.delete(entry.target)) continue
+      pageViewObserver.unobserve(entry.target)
+      fetch("/analytics/page-view", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {"content-type": "application/json", "x-csrf-token": csrfToken},
+        body: JSON.stringify({receipt: entry.target.dataset.pageViewReceipt}),
+        keepalive: true,
+        signal: AbortSignal.timeout(5000),
+      }).catch(() => {
+        // Analytics delivery must not interrupt sign-in or authorization.
+      })
+    }
+  })
+  const observePageViews = () => {
+    if (document.visibilityState !== "visible") return
+    for (const element of pageViewElements) {
+      pageViewObserver.unobserve(element)
+      pageViewObserver.observe(element)
+    }
+  }
+  document.addEventListener("visibilitychange", observePageViews)
+  observePageViews()
+}
+
 document.querySelectorAll("form[data-auto-submit]").forEach(form => {
   form.requestSubmit()
 })

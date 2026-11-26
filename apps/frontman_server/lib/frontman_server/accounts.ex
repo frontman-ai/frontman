@@ -241,10 +241,17 @@ defmodule FrontmanServer.Accounts do
 
   The returned raw token is shown once. Only its hash is stored.
   """
-  def generate_embedded_client_token(%User{} = user, approved_origin)
+  def generate_embedded_client_token(%User{} = user, approved_origin, context \\ %{})
       when is_binary(approved_origin) do
     {token, user_token} = UserToken.build_embedded_client_token(user, approved_origin)
-    Repo.insert!(user_token)
+
+    attempt_id =
+      case Ecto.UUID.cast(Map.get(context, :onboarding_attempt_id)) do
+        {:ok, id} -> id
+        :error -> nil
+      end
+
+    Repo.insert!(%{user_token | onboarding_attempt_id: attempt_id})
     token
   end
 
@@ -253,11 +260,33 @@ defmodule FrontmanServer.Accounts do
   """
   def get_scope_by_embedded_client_token(token, approved_origin)
       when is_binary(token) and is_binary(approved_origin) do
+    case get_scope_and_context_by_embedded_client_token(token, approved_origin) do
+      {scope, token_id, _context} -> {scope, token_id}
+      nil -> nil
+    end
+  end
+
+  @doc "Returns trusted issuance context only after validating the bearer token and origin."
+  def get_scope_and_context_by_embedded_client_token(token, approved_origin)
+      when is_binary(token) and is_binary(approved_origin) do
     with {:ok, query} <- UserToken.verify_embedded_client_token_query(token, approved_origin),
-         {%User{} = user, %UserToken{id: token_id}} <- Repo.one(query) do
-      {Scope.for_user(user), token_id}
+         {%User{} = user, %UserToken{id: token_id} = user_token} <- Repo.one(query) do
+      {Scope.for_user(user), token_id, embedded_client_context(user_token)}
     else
       _ -> nil
+    end
+  end
+
+  # Bearer tokens outlive onboarding. Later checkout still has user identity, not an old attempt.
+  defp embedded_client_context(%UserToken{} = token) do
+    age = DateTime.diff(DateTime.utc_now(:second), token.inserted_at, :second)
+
+    case age do
+      age when age >= 0 and age <= 900 ->
+        %{onboarding_attempt_id: token.onboarding_attempt_id}
+
+      _age ->
+        %{onboarding_attempt_id: nil}
     end
   end
 

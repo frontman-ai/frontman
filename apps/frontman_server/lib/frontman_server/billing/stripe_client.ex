@@ -99,7 +99,20 @@ defmodule FrontmanServer.Billing.StripeClient do
       {"metadata[interval]", Atom.to_string(interval)}
     ]
 
-    customer_params(customer, user) ++ trial_params(opts) ++ base_params
+    customer_params(customer, user) ++ trial_params(opts) ++ attempt_params(opts) ++ base_params
+  end
+
+  defp attempt_params(opts) do
+    case Ecto.UUID.cast(Keyword.get(opts, :onboarding_attempt_id)) do
+      {:ok, id} ->
+        [
+          {"metadata[onboarding_attempt_id]", id},
+          {"subscription_data[metadata][onboarding_attempt_id]", id}
+        ]
+
+      :error ->
+        []
+    end
   end
 
   defp trial_params(opts) do

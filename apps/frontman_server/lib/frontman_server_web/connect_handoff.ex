@@ -5,6 +5,8 @@ defmodule FrontmanServerWeb.ConnectHandoff do
   def init(opts), do: opts
 
   def call(conn, _opts) do
+    conn = observe_expiration(conn)
+
     assistant_connection =
       case conn.assigns[:embedded_request] do
         nil -> match?({:ok, _}, pending(conn))
@@ -35,6 +37,29 @@ defmodule FrontmanServerWeb.ConnectHandoff do
 
       _ ->
         :error
+    end
+  end
+
+  # Expiration is observable only when the browser returns, not when it closes.
+  defp observe_expiration(conn) do
+    case get_session(conn, :connect_handoff) do
+      %{"started_at" => started_at} when is_integer(started_at) ->
+        if System.system_time(:second) - started_at > 900 do
+          conn
+          |> FrontmanServerWeb.Analytics.track("mcp_connection_expired", %{
+            entry_surface: "mcp",
+            mcp_client: "unknown",
+            reason_code: "handoff_expired"
+          })
+          |> delete_session(:connect_handoff)
+          |> delete_session(:onboarding_attempt_id)
+          |> delete_session(:mcp_access_status)
+        else
+          conn
+        end
+
+      _ ->
+        conn
     end
   end
 end

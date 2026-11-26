@@ -43,6 +43,15 @@ if env_boolean.("PHX_SERVER", false) do
   config :frontman_server, FrontmanServerWeb.Endpoint, server: true
 end
 
+# Both switches require a deployment privacy/consent review. Self-hosted installs
+# and tests never send analytics merely because an app ID is present.
+config :frontman_server, FrontmanServer.Analytics,
+  enabled: env_boolean.("HEAP_SERVER_ENABLED", false),
+  anonymous_enabled: env_boolean.("HEAP_SERVER_ANONYMOUS_ENABLED", false),
+  app_id: env!("HEAP_APP_ID", :string?, nil),
+  mcp_clients: JSON.decode!(env!("HEAP_MCP_CLIENT_LABELS", :string, "{}")),
+  release_version: env!("RELEASE_VERSION", :string?, nil)
+
 config :frontman_server, cloak_key: env!("CLOAK_KEY", :string!)
 
 if config_env() in [:dev, :prod] do

@@ -37,6 +37,8 @@ defmodule FrontmanServerWeb.UserAuth do
   """
   def log_in_user(conn, user, params \\ %{}) do
     user_return_to = get_session(conn, :user_return_to)
+    onboarding_attempt_id = get_session(conn, :onboarding_attempt_id)
+    onboarding_attempt_started_at = get_session(conn, :onboarding_attempt_started_at)
 
     pending_connect_handoff =
       case get_session(conn, :connect_handoff) do
@@ -47,8 +49,17 @@ defmodule FrontmanServerWeb.UserAuth do
 
     conn
     |> create_or_extend_session(user, params)
+    |> restore_onboarding_attempt(onboarding_attempt_id)
+    |> put_session(:onboarding_attempt_started_at, onboarding_attempt_started_at)
     |> put_session(:connect_handoff, pending_connect_handoff)
     |> complete_login(user, user_return_to)
+  end
+
+  defp restore_onboarding_attempt(conn, attempt_id) do
+    case Ecto.UUID.cast(attempt_id) do
+      {:ok, id} -> put_session(conn, :onboarding_attempt_id, id)
+      :error -> conn
+    end
   end
 
   defp complete_login(
@@ -62,7 +73,14 @@ defmodule FrontmanServerWeb.UserAuth do
     |> render(:popup_complete,
       origin: origin,
       state: state,
-      token: Accounts.generate_embedded_client_token(user, origin)
+      token:
+        Accounts.generate_embedded_client_token(
+          user,
+          origin,
+          conn
+          |> assign(:current_scope, Scope.for_user(user))
+          |> FrontmanServerWeb.Analytics.token_context()
+        )
     )
   end
 
@@ -387,13 +405,14 @@ defmodule FrontmanServerWeb.UserAuth do
   def require_embedded_client_bearer_token(conn, _opts) do
     with {:ok, token} <- embedded_client_bearer_token(conn),
          {:ok, origin} <- embedded_client_origin(conn),
-         {%Scope{} = scope, token_id} <-
-           Accounts.get_scope_by_embedded_client_token(token, origin) do
+         {%Scope{} = scope, token_id, context} <-
+           Accounts.get_scope_and_context_by_embedded_client_token(token, origin) do
       :ok = Accounts.touch_embedded_client_token(scope, token_id)
 
       conn
       |> assign(:current_scope, scope)
       |> assign(:embedded_client_token_id, token_id)
+      |> assign(:embedded_client_context, context)
     else
       _ -> unauthorized_api(conn)
     end

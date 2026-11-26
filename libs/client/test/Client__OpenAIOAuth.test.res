@@ -31,7 +31,11 @@ describe("OpenAI OAuth - Stale Poll Rejection", () => {
     switch nextState.openaiOAuthStatus {
     | Types.OpenAIConnected({expiresAt}) => {
         t->expect(expiresAt)->Expect.toBe(Date.fromString("2026-02-11T00:00:00Z")->Date.getTime)
-        t->expect(_effects->Array.length)->Expect.toBe(0)
+        t
+        ->expect(_effects)
+        ->Expect.toEqual([
+          Client__State__Protocol.TrackAnalyticsEffect(ProviderConnectionCompleted(OpenAI)),
+        ])
       }
     | _ => t->expect("OpenAIConnected")->Expect.toBe("got different status")
     }

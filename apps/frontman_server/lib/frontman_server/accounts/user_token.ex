@@ -33,6 +33,7 @@ defmodule FrontmanServer.Accounts.UserToken do
     field :approved_origin, :string
     field :expires_at, :utc_datetime
     field :last_used_at, :utc_datetime
+    field :onboarding_attempt_id, Ecto.UUID
     belongs_to :user, FrontmanServer.Accounts.User
 
     timestamps(type: :utc_datetime, updated_at: false)

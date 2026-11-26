@@ -14,7 +14,12 @@
         </p>
       </div>
     </:intro>
-    <div class="mb-7 border-b border-white/10 pb-7">
+    <div
+      class="mb-7 border-b border-white/10 pb-7"
+      data-page-view-receipt={
+        FrontmanServerWeb.Analytics.page_view_receipt(@conn, "mcp_checkpoint_viewed")
+      }
+    >
       <div class="min-w-0">
         <p class="text-xs uppercase tracking-[0.16em] text-base-content/50">Signed in as</p>
         <p id="connect-account" class="mt-2 break-words text-lg font-medium">
@@ -75,7 +80,18 @@
         </button>
       </.form>
     </div>
-    <div :if={!match?({:allowed, _}, @access_status)} id="connect-access">
+    <div
+      :if={!match?({:allowed, _}, @access_status)}
+      id="connect-access"
+      data-page-view-receipt={
+        FrontmanServerWeb.Analytics.page_view_receipt(@conn, "billing_setup_viewed", %{
+          access_status: "blocked",
+          entry_surface: "mcp",
+          reason_code: "subscription_instructions",
+          subscription_status: @billing_status
+        })
+      }
+    >
       <FrontmanServerWeb.ConnectionAccessComponents.instructions
         status={@billing_status}
         site_links={@site_links}

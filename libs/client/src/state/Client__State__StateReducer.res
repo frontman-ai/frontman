@@ -112,6 +112,7 @@ let clearPendingQuestions = (state: state) => {
 let clearConnectionState = (state: state) => {
   {
     ...clearPendingQuestions(state),
+    analyticsRunningTasks: [],
     wordPressConnectionStatus: WordPressNotChecked,
     wordPressConnectionRequestId: state.wordPressConnectionRequestId + 1,
     wordPressAssistantSetupSelected: false,
@@ -130,6 +131,16 @@ let clearConnectionState = (state: state) => {
 
 let rec next = (state: state, action) => {
   switch action {
+  | TrackAnalytics(event) => state->StateReducer.update(~sideEffect=TrackAnalyticsEffect(event))
+  | AddUserMessage(input) =>
+    let (updated, effects) = next(state, SubmitMessage(input))
+    (
+      updated,
+      Array.concat(
+        [TrackAnalyticsEffect(MessageSubmitAttempted(Message.UserMessageId.toString(input.id)))],
+        effects,
+      ),
+    )
   | WordPressAuthenticationRequired(loginUrl) =>
     switch state.wordPressLoginRecovery {
     | Some(_) => state->StateReducer.update
@@ -171,6 +182,14 @@ let rec next = (state: state, action) => {
     | Some(previous) =>
       let (connection, effects) = Connection.next(previous, action)
       let updated = {...state, connection: Some(connection)}
+      let readyEffects = switch (action, previous.connection, connection.connection) {
+      | (
+          ConnectionResultReceived({result: Ok(_)}),
+          Ok(Some({phase: Connecting | Authenticating(_)})),
+          Ok(Some({phase: Ready(_)})),
+        ) if connection !== previous => [TrackAnalyticsEffect(EditorReady)]
+      | _ => []
+      }
       let warningEffects = switch (
         state.wordPressWarningReady,
         connection.config.acp.clientInfo._meta->Option.flatMap(
@@ -194,7 +213,7 @@ let rec next = (state: state, action) => {
       (
         updated,
         Array.concat(
-          warningEffects,
+          Array.concat(readyEffects, warningEffects),
           Array.concat(configEffects, effects->Array.map(effect => ConnectionEffect(effect))),
         ),
       )
@@ -379,7 +398,42 @@ let rec next = (state: state, action) => {
   | TaskAction({target: ForTask(taskId), action: QuestionDetached(_)})
     if !(state.tasks->Dict.has(taskId)) =>
     state->StateReducer.update
-  | TaskAction({target, action: taskAction}) => state->Lens.delegateToTask(target, taskAction)
+  | TaskAction({target, action: taskAction}) =>
+    let taskId = switch target {
+    | CurrentTask => Selectors.currentTaskId(state)
+    | ForTask(id) => Some(id)
+    }
+    // Track server observations separately from optimistic UI running state.
+    // History replay must not count as a new run.
+    let analytics = switch taskId->Option.flatMap(id =>
+      state.tasks->Dict.get(id)->Option.map(task => (id, task))
+    ) {
+    | Some((id, Task.Loaded({live: {pendingUserMessageIds}}))) =>
+      switch (taskAction, state.analyticsRunningTasks->Array.includes(id)) {
+      | (UserMessageReceived({id: messageId}), _)
+        if pendingUserMessageIds->Array.includes(messageId) => [
+          TrackAnalyticsEffect(MessageAccepted(messageId)),
+        ]
+      | (ExecutionStateRunning(_), false) => [TrackAnalyticsEffect(TaskRunStarted(id))]
+      | (ExecutionStateIdle, true) => [TrackAnalyticsEffect(TaskRunCompleted(id))]
+      | _ => []
+      }
+    | _ => []
+    }
+    let (updated, effects) = state->Lens.delegateToTask(target, taskAction)
+    let analyticsRunningTasks = switch analytics {
+    | [TrackAnalyticsEffect(TaskRunStarted(id))] =>
+      Array.concat(updated.analyticsRunningTasks, [id])
+    | [TrackAnalyticsEffect(TaskRunCompleted(id))] =>
+      updated.analyticsRunningTasks->Array.filter(existing => existing != id)
+    | _ =>
+      switch taskAction {
+      | LoadStarted(_) => updated.analyticsRunningTasks->Array.filter(id => Some(id) != taskId)
+      | _ => updated.analyticsRunningTasks
+      }
+    }
+    let updated = {...updated, analyticsRunningTasks}
+    (updated, Array.concat(analytics, effects))
 
   | PromptFailed({requestId, taskId, id, error}) =>
     let failed = (state, error) =>
@@ -393,19 +447,20 @@ let rec next = (state: state, action) => {
       failed(state, Connection.ACP.requestErrorMessage(error))
     | _ => state->StateReducer.update
     }
-  | AddUserMessage({onComplete}) if Client__Billing.turnStartBlocked(state.billingStatus) =>
+  | SubmitMessage({id, onComplete}) if Client__Billing.turnStartBlocked(state.billingStatus) =>
     {...state, settingsModalTab: Some(Billing)}->StateReducer.update(
       ~sideEffect=SubmissionCompleted({
+        id,
         onComplete,
         result: Error("Start a Frontman trial to continue."),
       }),
     )
   | ExecutePendingPlan(_) if Client__Billing.turnStartBlocked(state.billingStatus) =>
     {...state, settingsModalTab: Some(Billing)}->StateReducer.update
-  | AddUserMessage({id, timestamp, content, annotationId, onComplete} as input) =>
+  | SubmitMessage({id, timestamp, content, annotationId, onComplete} as input) =>
     let reject = error =>
       state->StateReducer.update(
-        ~sideEffect=SubmissionCompleted({onComplete, result: Error(error)}),
+        ~sideEffect=SubmissionCompleted({id, onComplete, result: Error(error)}),
       )
     switch (Selectors.isSubmitting(state), state.selectedAgentId) {
     | (false, Some(agentId)) if !Selectors.hasEnrichingAnnotations(state) =>
@@ -439,6 +494,7 @@ let rec next = (state: state, action) => {
               effects,
               [
                 SubmissionCompleted({
+                  id,
                   onComplete,
                   result: Error("Loading this conversation. Send again when it is ready."),
                 }),
@@ -460,7 +516,7 @@ let rec next = (state: state, action) => {
   | ExecutePendingPlan({id, timestamp}) =>
     switch (state.selectedModelValue, Selectors.pendingPlanHandoff(state)) {
     | (Some(_), Some({taskId, executorAgentId})) =>
-      addUserMessageToState(
+      let (updated, effects) = addUserMessageToState(
         {...state, selectedAgentId: Some(executorAgentId)},
         ~sessionId=taskId,
         {
@@ -471,6 +527,13 @@ let rec next = (state: state, action) => {
           agentId: executorAgentId,
           onComplete: _ => (),
         },
+      )
+      (
+        updated,
+        Array.concat(
+          [TrackAnalyticsEffect(MessageSubmitAttempted(Message.UserMessageId.toString(id)))],
+          effects,
+        ),
       )
     | _ => state->StateReducer.update
     }
@@ -519,6 +582,7 @@ let rec next = (state: state, action) => {
       ) =>
     state->StateReducer.update
   | SwitchTask({taskId}) => {
+      let state = {...state, analyticsRunningTasks: []}
       let (state, connectionEffects) = next(state, ConnectionAction(ClearSession))
       let (updatedState, taskEffects) =
         state->Lens.delegateToTask(
@@ -570,6 +634,7 @@ let rec next = (state: state, action) => {
         {
           ...state,
           tasks: updatedTasks,
+          analyticsRunningTasks: state.analyticsRunningTasks->Array.filter(id => id != taskId),
           currentTask: newCurrentTask,
           highlightedAnnotation: None,
         },
@@ -1015,7 +1080,7 @@ let rec next = (state: state, action) => {
       {
         ...state,
         openaiOAuthStatus: Client__State__Types.OpenAIConnected({expiresAt: expiresAtMs}),
-      }->StateReducer.update
+      }->StateReducer.update(~sideEffect=TrackAnalyticsEffect(ProviderConnectionCompleted(OpenAI)))
     | _ => state->StateReducer.update
     }
 
@@ -1035,7 +1100,12 @@ let rec next = (state: state, action) => {
         ...state,
         openaiOAuthStatus: Client__State__Types.OpenAIError(error),
         pendingProviderAutoSelect: None,
-      }->StateReducer.update
+      }->StateReducer.update(
+        ~sideEffects=switch deviceAuthId {
+        | Some(_) => [TrackAnalyticsEffect(ProviderConnectionFailed(OpenAI))]
+        | None => []
+        },
+      )
     }
 
   | DisconnectOpenAIOAuth =>

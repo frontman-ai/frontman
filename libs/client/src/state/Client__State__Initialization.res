@@ -2,6 +2,7 @@ module Task = Client__State__Types.Task
 type state = Client__State__Types.state
 
 let defaultState: state = {
+  analyticsRunningTasks: [],
   tasks: Dict.make(),
   currentTask: Task.New(
     Task.makeNew(

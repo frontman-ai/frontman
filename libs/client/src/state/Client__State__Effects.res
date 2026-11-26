@@ -150,7 +150,19 @@ let fetchApiKeySettingsImpl = (dispatch, ~apiBaseUrl) => {
 }
 
 let saveApiKeyImpl = (dispatch, ~apiBaseUrl, ~provider: apiKeyProvider, ~key) => {
+  // Only known analytics categories may leave this effect; never send provider IDs.
+  let analyticsProvider = Some(
+    switch provider {
+    | Anthropic => Client__Analytics.Anthropic
+    | OpenRouter => Client__Analytics.OpenRouter
+    | Fireworks => Client__Analytics.Fireworks
+    | Nvidia => Client__Analytics.Nvidia
+    },
+  )
   let save = async () => {
+    analyticsProvider->Option.forEach(provider =>
+      Client__Analytics.track(ProviderConnectionStarted(provider))
+    )
     dispatch(ApiKeySaveStarted({provider: provider}))
     let url = `${apiBaseUrl}/api/user/api-keys`
 
@@ -171,18 +183,32 @@ let saveApiKeyImpl = (dispatch, ~apiBaseUrl, ~provider: apiKeyProvider, ~key) =>
 
         switch response.ok {
         | false =>
+          analyticsProvider->Option.forEach(provider =>
+            Client__Analytics.track(ProviderConnectionFailed(provider))
+          )
           dispatch(
             ApiKeySaveError({
               provider,
               error: `HTTP ${response.status->Int.toString}: ${response.statusText}`,
             }),
           )
-        | true => dispatch(ApiKeySaved({provider: provider}))
+        | true =>
+          analyticsProvider->Option.forEach(provider =>
+            Client__Analytics.track(ProviderConnectionCompleted(provider))
+          )
+          dispatch(ApiKeySaved({provider: provider}))
         }
-      | None => dispatch(ApiKeySaveError({provider, error: embeddedAuthRequiredError}))
+      | None =>
+        analyticsProvider->Option.forEach(provider =>
+          Client__Analytics.track(ProviderConnectionFailed(provider))
+        )
+        dispatch(ApiKeySaveError({provider, error: embeddedAuthRequiredError}))
       }
     } catch {
     | exn =>
+      analyticsProvider->Option.forEach(provider =>
+        Client__Analytics.track(ProviderConnectionFailed(provider))
+      )
       let msg =
         exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
       dispatch(ApiKeySaveError({provider, error: `Failed to save API key: ${msg}`}))
@@ -259,11 +285,22 @@ let handleCustomProviderMutationError = async (dispatch, response, ~operation) =
   }
 
 let customProviderMutationImpl = (dispatch, ~apiBaseUrl, ~request) => {
+  let dispatch = action => {
+    switch (request, action) {
+    | (SaveCustomProviderRequest(_), CustomProviderMutationSucceeded(_)) =>
+      Client__Analytics.track(ProviderConnectionCompleted(Custom))
+    | (SaveCustomProviderRequest(_), CustomProviderMutationFailed(_)) =>
+      Client__Analytics.track(ProviderConnectionFailed(Custom))
+    | _ => ()
+    }
+    dispatch(action)
+  }
   let run = async () => {
     let operation = customProviderMutationOperation(request)
     try {
       switch request {
       | SaveCustomProviderRequest(draft) =>
+        Client__Analytics.track(ProviderConnectionStarted(Custom))
         switch Client__EmbeddedAuth.jsonHeaders() {
         | Some(headers) =>
           let (url, method) = customProviderSaveTarget(~apiBaseUrl, draft)
@@ -471,7 +508,14 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
       )
     }
   | FetchUserProfileEffect({apiBaseUrl}) => fetchUserProfileImpl(dispatch, ~apiBaseUrl)
-  | SubmissionCompleted({onComplete, result}) => onComplete(result)
+  | TrackAnalyticsEffect(event) => Client__Analytics.track(event)
+  | SubmissionCompleted({id, onComplete, result}) =>
+    switch result {
+    | Error(_) =>
+      Client__Analytics.track(MessageRejected(Message.UserMessageId.toString(id), NotReady))
+    | Ok() => ()
+    }
+    onComplete(result)
   | ConnectionEffect(effect) =>
     ConnectionEffects.handleEffect(
       effect,
@@ -486,8 +530,12 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
           sessionId: taskId,
           onComplete: result =>
             switch result {
-            | Ok(_) => dispatch(AddUserMessage(input))
-            | Error(error) => input.onComplete(Error(error))
+            | Ok(_) => dispatch(SubmitMessage(input))
+            | Error(error) =>
+              Client__Analytics.track(
+                MessageRejected(Message.UserMessageId.toString(input.id), SessionFailed),
+              )
+              input.onComplete(Error(error))
             },
         }),
       ),
@@ -514,7 +562,10 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
         )
         if session.sessionId == taskId &&
           Connection.isCurrentSessionRequest(connection, requestId) =>
-        let fail = error => dispatch(PromptFailed({requestId, taskId, id, error}))
+        let fail = error => {
+          // A transport error can arrive after acceptance; it is not rejection evidence.
+          dispatch(PromptFailed({requestId, taskId, id, error}))
+        }
         let send = async () => {
           try {
             switch await Connection.ACP.sendPrompt(session, text, ~additionalBlocks, ~_meta) {
@@ -534,6 +585,7 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
     }
     switch result {
     | Error(error) =>
+      Client__Analytics.track(MessageRejected(Message.UserMessageId.toString(id), NotReady))
       dispatch(TaskAction({target: ForTask(taskId), action: UserMessageSendFailed({id, error})}))
     | Ok() => ()
     }
@@ -570,6 +622,7 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
     )->ignore
 
   | GetAnthropicOAuthUrlEffect({apiBaseUrl}) =>
+    Client__Analytics.track(ProviderConnectionStarted(Anthropic))
     let fetch = async () => {
       let url = `${apiBaseUrl}/api/oauth/anthropic/authorize-url`
 
@@ -588,15 +641,20 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
               )
             dispatch(AnthropicOAuthUrlReceived({authorizeUrl, verifier}))
           | false =>
+            Client__Analytics.track(ProviderConnectionFailed(Anthropic))
             switch response.status {
             | 401 => requireEmbeddedAuthentication(dispatch)
             | _ => dispatch(AnthropicOAuthError({error: "Failed to get authorization URL"}))
             }
           }
-        | None => requireEmbeddedAuthentication(dispatch)
+        | None =>
+          Client__Analytics.track(ProviderConnectionFailed(Anthropic))
+          requireEmbeddedAuthentication(dispatch)
         }
       } catch {
-      | _ => dispatch(AnthropicOAuthError({error: "Failed to get authorization URL"}))
+      | _ =>
+        Client__Analytics.track(ProviderConnectionFailed(Anthropic))
+        dispatch(AnthropicOAuthError({error: "Failed to get authorization URL"}))
       }
     }
     fetch()->ignore
@@ -631,10 +689,13 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
                 ~from=S.json,
                 ~to=Client__State__Types.anthropicOAuthExchangeResponseSchema,
               )
+            Client__Analytics.track(ProviderConnectionCompleted(Anthropic))
             dispatch(AnthropicOAuthConnected({expiresAt: expiresAt}))
           | false =>
             switch response.status {
-            | 401 => requireEmbeddedAuthentication(dispatch)
+            | 401 =>
+              Client__Analytics.track(ProviderConnectionFailed(Anthropic))
+              requireEmbeddedAuthentication(dispatch)
             | _ =>
               let json = await response->WebAPI.Response.json
               let {error} =
@@ -642,13 +703,18 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
                   ~from=S.json,
                   ~to=Client__State__Types.anthropicOAuthErrorResponseSchema,
                 )
+              Client__Analytics.track(ProviderConnectionFailed(Anthropic))
               dispatch(AnthropicOAuthError({error: error}))
             }
           }
-        | None => requireEmbeddedAuthentication(dispatch)
+        | None =>
+          Client__Analytics.track(ProviderConnectionFailed(Anthropic))
+          requireEmbeddedAuthentication(dispatch)
         }
       } catch {
-      | _ => dispatch(AnthropicOAuthError({error: "Failed to exchange authorization code"}))
+      | _ =>
+        Client__Analytics.track(ProviderConnectionFailed(Anthropic))
+        dispatch(AnthropicOAuthError({error: "Failed to exchange authorization code"}))
       }
     }
     exchange()->ignore
@@ -687,6 +753,7 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
     )->ignore
 
   | InitiateOpenAIDeviceAuthEffect({apiBaseUrl}) =>
+    Client__Analytics.track(ProviderConnectionStarted(OpenAI))
     let fetch = async () => {
       let url = `${apiBaseUrl}/api/oauth/openai/initiate`
 
@@ -705,6 +772,7 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
               )
             dispatch(OpenAIDeviceCodeReceived({deviceAuthId, userCode, verificationUrl}))
           | false =>
+            Client__Analytics.track(ProviderConnectionFailed(OpenAI))
             switch response.status {
             | 401 => requireEmbeddedAuthentication(dispatch)
             | _ =>
@@ -713,10 +781,13 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
               )
             }
           }
-        | None => requireEmbeddedAuthentication(dispatch)
+        | None =>
+          Client__Analytics.track(ProviderConnectionFailed(OpenAI))
+          requireEmbeddedAuthentication(dispatch)
         }
       } catch {
       | _ =>
+        Client__Analytics.track(ProviderConnectionFailed(OpenAI))
         dispatch(OpenAIOAuthError({deviceAuthId: None, error: "Failed to initiate authentication"}))
       }
     }
@@ -775,7 +846,14 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
                   await waitForNextPoll()
                   await pollLoop(attempt + 1)
                 }
-              | (false, 401) => requireEmbeddedAuthentication(dispatch)
+              | (false, 401) =>
+                dispatch(
+                  OpenAIOAuthError({
+                    deviceAuthId: Some(deviceAuthId),
+                    error: embeddedAuthRequiredError,
+                  }),
+                )
+                requireEmbeddedAuthentication(dispatch)
               | (false, 403) =>
                 dispatch(
                   OpenAIOAuthError({
@@ -787,7 +865,14 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
                 await waitForNextPoll()
                 await pollLoop(attempt + 1)
               }
-            | None => requireEmbeddedAuthentication(dispatch)
+            | None =>
+              dispatch(
+                OpenAIOAuthError({
+                  deviceAuthId: Some(deviceAuthId),
+                  error: embeddedAuthRequiredError,
+                }),
+              )
+              requireEmbeddedAuthentication(dispatch)
             }
           } catch {
           | _ =>
