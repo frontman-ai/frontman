@@ -35,23 +35,23 @@ type MatrixFeature = {
 const matrixFeatures: MatrixFeature[] = [
 	{
 		name: 'Sees live DOM',
-		values: { 'Frontman': 'yes', 'Cursor': 'no', 'Claude Code': 'partial', 'GitHub Copilot': 'no', 'Windsurf': 'partial', 'Stagewise': 'yes' }
+		values: { 'Frontman': 'yes', 'Cursor': 'yes', 'Claude Code': 'partial', 'GitHub Copilot': 'no', 'Windsurf': 'partial', 'Stagewise': 'yes' }
 	},
 	{
 		name: 'Sees computed CSS',
-		values: { 'Frontman': 'yes', 'Cursor': 'no', 'Claude Code': 'no', 'GitHub Copilot': 'no', 'Windsurf': 'partial', 'Stagewise': 'partial' }
+		values: { 'Frontman': 'yes', 'Cursor': 'yes', 'Claude Code': 'no', 'GitHub Copilot': 'no', 'Windsurf': 'partial', 'Stagewise': 'partial' }
 	},
 	{
 		name: 'Click-to-select elements',
-		values: { 'Frontman': 'yes', 'Cursor': 'no', 'Claude Code': 'no', 'GitHub Copilot': 'no', 'Windsurf': 'yes', 'Stagewise': 'yes' }
+		values: { 'Frontman': 'yes', 'Cursor': 'yes', 'Claude Code': 'no', 'GitHub Copilot': 'no', 'Windsurf': 'yes', 'Stagewise': 'yes' }
 	},
 	{
-		name: 'Framework-aware (component tree)',
-		values: { 'Frontman': 'yes', 'Cursor': 'partial', 'Claude Code': 'no', 'GitHub Copilot': 'no', 'Windsurf': 'no', 'Stagewise': 'no' }
+		name: 'Framework component context',
+		values: { 'Frontman': 'yes', 'Cursor': 'yes', 'Claude Code': 'no', 'GitHub Copilot': 'no', 'Windsurf': 'no', 'Stagewise': 'no' }
 	},
 	{
 		name: 'Hot reload feedback loop',
-		values: { 'Frontman': 'yes', 'Cursor': 'partial', 'Claude Code': 'no', 'GitHub Copilot': 'partial', 'Windsurf': 'partial', 'Stagewise': 'partial' }
+		values: { 'Frontman': 'yes', 'Cursor': 'yes', 'Claude Code': 'no', 'GitHub Copilot': 'partial', 'Windsurf': 'partial', 'Stagewise': 'partial' }
 	},
 	{
 		name: 'Autocomplete',
@@ -67,7 +67,7 @@ const matrixFeatures: MatrixFeature[] = [
 	},
 	{
 		name: 'Multi-file refactoring',
-		values: { 'Frontman': 'partial', 'Cursor': 'yes', 'Claude Code': 'yes', 'GitHub Copilot': 'yes', 'Windsurf': 'yes', 'Stagewise': 'no' }
+		values: { 'Frontman': 'yes', 'Cursor': 'yes', 'Claude Code': 'yes', 'GitHub Copilot': 'yes', 'Windsurf': 'yes', 'Stagewise': 'no' }
 	},
 	{
 		name: 'Backend coding',
@@ -86,8 +86,8 @@ const matrixFeatures: MatrixFeature[] = [
 		values: { 'Frontman': 'yes', 'Cursor': 'no', 'Claude Code': 'no', 'GitHub Copilot': 'no', 'Windsurf': 'no', 'Stagewise': 'no' }
 	},
 	{
-		name: 'Works in the browser',
-		values: { 'Frontman': 'yes', 'Cursor': 'no', 'Claude Code': 'partial', 'GitHub Copilot': 'no', 'Windsurf': 'no', 'Stagewise': 'yes' }
+		name: 'Browser-based visual workflow',
+		values: { 'Frontman': 'yes', 'Cursor': 'yes', 'Claude Code': 'partial', 'GitHub Copilot': 'no', 'Windsurf': 'no', 'Stagewise': 'yes' }
 	},
 	{
 		name: 'No IDE required',
@@ -100,7 +100,7 @@ const matrixFeatures: MatrixFeature[] = [
 ]
 
 const pricing = [
-	{ name: 'Frontman', price: '€15/seat/mo', model: 'Hosted subscription, BYOK', detail: 'Five free uses, no card. 7-day free Pro trial (card required). AI costs separate.' },
+	{ name: 'Frontman', price: '€15/seat/mo', model: 'Hosted subscription, BYOK', detail: 'Five free uses, no card. Separately, eligible users can start a 7-day free Pro trial with a card; renews at the selected paid rate unless canceled. AI costs separate.' },
 	{ name: 'Cursor', price: '$0–$200/mo', model: 'Freemium', detail: 'Free tier limited; Pro $20/mo' },
 	{ name: 'Claude Code', price: '$20–$200/mo', model: 'Subscription', detail: 'No free tier for Claude Code' },
 	{ name: 'GitHub Copilot', price: '$0–$39/mo', model: 'Freemium', detail: 'Free: 50 chats, 2k completions/mo' },
@@ -123,7 +123,7 @@ const faqs = [
 	},
 	{
 		question: 'How is Frontman priced?',
-		answer: 'Frontman: five free uses, no card. Try Pro free for 7 days with a credit card. Then EUR 15/seat/month or EUR 150/seat/year unless canceled. Self-hosting is available under the repository terms. The browser client and JavaScript framework integrations are Apache-2.0, the WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms. You bring your own API keys to Claude, ChatGPT, OpenRouter, or any OpenAI-compatible provider and pay those providers directly. Hosted Frontman Pro is available now.'
+		answer: 'Hosted Frontman includes five free uses per user, no card required. These are lifetime agent turns, not a monthly allowance or the Pro trial. Separately, eligible users can start a 7-day free Pro trial with a credit card, then pay EUR 15/seat/month or EUR 150/seat/year on the selected plan unless canceled. AI-provider costs are separate for both offers. Self-hosting is available under the repository terms. The browser client and JavaScript framework integrations are Apache-2.0, the WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms.'
 	}
 ]
 
@@ -236,6 +236,12 @@ const linkCardClass =
 		<div class="w-full max-w-[1100px]">
 			<h2 class={darkSectionTitleClass}>Full Feature Matrix</h2>
 			<p class={darkSectionDescriptionClass}>How each tool handles 16 capabilities that matter for AI-assisted development.</p>
+			<p class={darkSectionDescriptionClass}>
+				Cursor's <a href="https://cursor.com/docs/agent/design-mode" class={textLinkClass}>Design Mode</a> supplies selected-element DOM attributes, computed styles, component names and stacks, and screenshots. Its <a href="https://cursor.com/docs/agent/tools/browser" class={textLinkClass}>Browser tools</a> add page interaction and diagnostics. This browser workflow lives inside Cursor; it is not an IDE-free workflow. Hot reload requires a dev server that supports it.
+			</p>
+			<p class={darkSectionDescriptionClass}>
+				Frontman supports multi-file edits through search, read, edit, and write tools within the configured source root of Next.js, Astro, and Vite projects. Its focus is browser-led website work, not only visual tweaks. It has no arbitrary terminal execution, so tests and command-based migrations need a separate workflow. WordPress uses supported content and settings tools rather than this source-file workflow. Capability marks are not guarantees of refactoring quality.
+			</p>
 
 			<div class="overflow-x-auto [-webkit-overflow-scrolling:touch]">
 				<table class="w-full min-w-[800px] border-separate border-spacing-0">
@@ -377,7 +383,7 @@ const linkCardClass =
 	<section class="flex justify-center border-t border-zinc-800 bg-[#09090b] px-5 py-20 text-zinc-50 md:px-6 max-md:py-12">
 		<div class="w-full max-w-[720px]">
 			<h2 class="mb-2 text-[28px] font-bold tracking-[-0.02em] text-zinc-50 md:text-[36px]">Try Frontman</h2>
-			<p class="mb-8 text-[17px] text-zinc-300">Self-host in one command or use hosted Frontman Pro now.</p>
+			<p class="mb-8 text-[17px] text-zinc-300">Install a project integration to get started. Hosted Frontman includes five free uses without a card; the separate 7-day Pro trial requires a card. Self-hosting the agent server requires additional setup.</p>
 			<div class="mb-8 flex flex-col gap-3">
 				<div class="flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-3 max-md:flex-col max-md:items-start max-md:gap-1">
 					<code class="font-mono text-sm text-zinc-50"><span class="mr-2 text-primary-500">$</span> npx @frontman-ai/nextjs install</code>

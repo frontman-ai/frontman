@@ -55,7 +55,7 @@ const features: ComparisonFeature[] = [
   { name: 'Source-file editing for code projects', frontman: 'yes', competitor: 'yes', frontmanNote: 'Edits Next.js, Astro, and Vite project files', competitorNote: 'Full file system access' },
   { name: 'WordPress-native editing', frontman: 'yes', competitor: 'no', frontmanNote: 'Posts, pages, blocks, Elementor, menus, settings, and more', competitorNote: 'No WordPress-native tools documented' },
   { name: 'Autocomplete', frontman: 'no', competitor: 'yes', competitorNote: 'Tab completion, inline suggestions' },
-  { name: 'Multi-file refactoring', frontman: 'yes', competitor: 'yes', frontmanNote: 'Full agent harness with cross-file tools; capability follows the selected model', competitorNote: 'Cross-file edits, Composer, agent mode' },
+  { name: 'Multi-file refactoring', frontman: 'yes', competitor: 'yes', frontmanNote: 'Search, read, edit, and write across the configured source root; no arbitrary terminal execution', competitorNote: 'Cross-file edits, Composer, agent mode' },
   { name: 'Terminal integration', frontman: 'no', competitor: 'yes', competitorNote: 'Built-in terminal, agent mode, cloud agents' },
   { name: 'Backend coding', frontman: 'partial', competitor: 'yes', frontmanNote: 'Can read/write any project file, but frontend-focused', competitorNote: 'Any language, any framework' },
   { name: 'Source availability', frontman: 'yes', competitor: 'no', frontmanNote: frontmanLicenseShort, competitorNote: 'Proprietary' },
@@ -70,7 +70,7 @@ const faqs: FAQ[] = [
   },
   {
     question: 'Does Cursor have a visual editor like Frontman?',
-    answer: 'Yes. Cursor Design Mode lets users select one or more elements in a running app, draw on the page, or dictate a prompt. It gives the agent element attributes, computed styles, component information, React Fiber props when available, and a screenshot, then shows edits through hot reload. Frontman is no longer differentiated simply by seeing the browser.',
+    answer: 'Yes. Cursor Design Mode lets users select one or more elements in a running app, mark an area, edit text or CSS properties, or dictate a note. It gives the agent element attributes, selected computed styles, component names and stacks in React, Vue, and Svelte apps, and a screenshot. Changes appear as the dev server hot reloads. Frontman is not differentiated simply by seeing the browser.',
   },
   {
     question: 'Why use Frontman if Cursor already has Design Mode?',
@@ -94,7 +94,7 @@ const faqs: FAQ[] = [
   },
 	{
 		question: 'How does pricing work for a team with designers, PMs, and engineers?',
-    answer: 'Frontman: five free uses, no card. Try Pro free for 7 days with a credit card. Then EUR 15/seat/month or EUR 150/seat/year unless canceled. AI-provider costs are separate. Frontman is source-available, self-hostable, and BYOK. Cursor has a free Hobby tier and paid individual plans starting at $20 per month. Cursor supports BYOK for supported chat models, but Tab still uses Cursor models and BYOK requests pass through Cursor servers for final prompt building.',
+    answer: 'Hosted Frontman includes five free uses per user, no card required. These are lifetime agent turns, not a monthly allowance or the Pro trial. Separately, eligible users can start a 7-day free Pro trial with a credit card, then pay EUR 15/seat/month or EUR 150/seat/year on the selected plan unless canceled. AI-provider costs are separate for both offers. Frontman is source-available, self-hostable, and BYOK. Cursor has a free Hobby tier and paid individual plans starting at $20 per month. Cursor supports BYOK for supported chat models, but Tab still uses Cursor models and BYOK requests pass through Cursor servers for final prompt building.',
 	},
 ]
 
@@ -125,7 +125,7 @@ const alternatives: Alternative[] = [
       <a href="https://frontman.sh" class="text-link">Frontman</a> starts from the website itself. WordPress site owners install its plugin from <code>wp-admin</code>; developers add its Next.js, Astro, or Vite integration to code-backed sites. From there, site owners, marketers, designers, PMs, and engineers request and review changes from the live site without opening an editor, navigating a source tree, or using a terminal.
     </p>
     <p>
-      <a href="https://cursor.com/docs/agent/design-mode" class="text-link" rel="nofollow">Cursor Design Mode</a> lives in the browser inside the Cursor Agents Window. It supports element selection, multi-select, drawing, and voice prompts. Cursor supplies the agent with the selected element's attributes, computed styles, component information, React Fiber props when available, and a screenshot. Its native Browser also exposes console logs and network traffic without an external MCP installation.
+      <a href="https://cursor.com/docs/agent/design-mode" class="text-link" rel="nofollow">Cursor Design Mode</a> lives in the browser inside the Cursor Agents Window. It supports element selection, multi-select, area markup, text and CSS edits, and dictated notes. Cursor supplies selected-element attributes, six computed styles, component names and stacks in React, Vue, and Svelte apps, and a screenshot. Its native Browser also exposes console logs and network traffic without an external MCP installation.
     </p>
     <p class="summary-emphasis">
       The honest difference is no longer "browser versus files." It is a website-first tool for the people responsible for a site versus visual features inside a full developer platform. Cursor includes a broader developer surface with autocomplete and a terminal; Frontman keeps the person requesting the change on the website while its full agent harness works across the codebase.
@@ -177,11 +177,11 @@ const alternatives: Alternative[] = [
 
   <Fragment slot="competitor-strengths">
     <p>Cursor is no longer limited to reasoning from source files. Its visual workflow now overlaps directly with Frontman's core interaction model.</p>
-    <p><strong>Design Mode is a capable visual editor.</strong> Select one or more elements, draw on a frozen viewport, or describe a change by voice. Cursor gives the agent element identity, attributes, computed styles, component context, React Fiber props when available, and a screenshot. Multiple requests can run in parallel while the app hot reloads.</p>
+    <p><strong>Design Mode supports visual editing.</strong> Select elements, mark an area, edit text or CSS properties, or dictate a note. Cursor gives the agent element attributes, selected computed styles, component names and stacks, and a screenshot. Send notes individually or batch them together; changes appear if the dev server supports hot reload.</p>
     <p><strong>The native Browser closes the runtime gap.</strong> Cursor Agent can navigate and interact with pages, capture screenshots, inspect console output and network traffic, detect development servers, and verify its work without installing a separate browser MCP server.</p>
     <p><strong>Autocomplete is best-in-class.</strong> Tab completion understands your codebase, predicts multi-line edits, and learns from your patterns. For raw typing speed, nothing in this comparison comes close.</p>
     <p><strong>Agent mode is powerful.</strong> Cursor's agent can plan multi-step changes, run terminal commands, interpret output, and iterate on errors — all within the IDE. Cloud agents and background agents let work continue asynchronously. Frontman's full agent harness can also plan and edit across a codebase, but it does not provide arbitrary terminal execution.</p>
-    <p><strong>Multi-file refactoring works in both tools.</strong> Cursor's Composer and agent mode can rename a prop across 15 files, update imports, and fix type errors in one pass. Frontman is model-agnostic and provides a full agent harness with codebase search, file reading, and cross-file editing tools, so it can perform the same class of refactor. The practical result depends on the selected model, not a Frontman limitation.</p>
+    <p><strong>Both tools support multi-file edits.</strong> Frontman's Next.js, Astro, and Vite integrations expose search, read, edit, and write tools across the configured source root. It is not restricted to single-component visual tweaks. Results depend on the model, available context, task complexity, and validation. Cursor also provides terminal tools; Frontman requires a separate workflow for arbitrary test commands and migrations. Neither tool guarantees a correct refactor.</p>
     <p><strong>Backend and general-purpose coding.</strong> Cursor handles Python, Go, Rust, SQL, infrastructure-as-code — any language, any project. Frontman is frontend-focused. It can read and write any project file, but its strengths are in visual editing where browser context matters.</p>
     <p><strong>Terminal integration.</strong> Cursor's terminal agent can run commands, read output, and fix errors automatically. Frontman has no terminal — it captures console logs and build errors from the dev server, but cannot run arbitrary commands.</p>
     <p>Cursor supports plugins, skills, hooks, rules, and MCP servers for project-specific workflows and external integrations.</p>

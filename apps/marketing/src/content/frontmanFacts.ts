@@ -10,7 +10,8 @@ export const frontmanLicensePricingFeature =
 	'Apache-2.0 browser/JS; GPL-2.0-or-later WordPress; AGPL-3.0-only server plus AI Supplementary Terms'
 
 export const frontmanPricingFeatures = [
-	'Five free uses, no card. 7-day free Pro trial (card required).',
+	'Five free uses, no card: a lifetime allowance per user, separate from Pro.',
+	'Eligible users can start a 7-day free Pro trial (card required); renews at the selected paid rate unless canceled.',
 	'Bring your own API keys (Claude, ChatGPT, OpenRouter)',
 	'Or sign in with Claude/ChatGPT subscription via OAuth',
 	frontmanLicensePricingFeature,
