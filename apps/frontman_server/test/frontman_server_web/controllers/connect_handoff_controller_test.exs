@@ -1,5 +1,6 @@
 defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
-  use FrontmanServerWeb.ConnCase, async: true
+  use FrontmanServerWeb.ConnCase, async: false
+  use Oban.Testing, repo: FrontmanServer.Repo
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.BillingFixtures
@@ -378,6 +379,10 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
   end
 
   test "rechecks subscription changes before continuing", %{conn: conn} do
+    previous = Application.get_env(:frontman_server, :heap_app_id)
+    on_exit(fn -> Application.put_env(:frontman_server, :heap_app_id, previous) end)
+    Application.put_env(:frontman_server, :heap_app_id, "handoff-test")
+
     event = [:frontman_server, :mcp, :handoff]
     handler = :telemetry_test.attach_event_handlers(self(), [event])
     on_exit(fn -> :telemetry.detach(handler) end)
@@ -395,6 +400,20 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
 
     assert_receive {^event, ^handler, %{count: 1},
                     %{stage: :checkpoint, outcome: :blocked, reason: :ineligible_subscription}}
+
+    assert [%Oban.Job{args: payload}] = all_enqueued(worker: FrontmanServerWeb.HeapHandoff)
+    assert payload["identity"] == user.id
+    assert payload["event"] == "mcp_handoff"
+    assert payload["app_id"] == "handoff-test"
+    assert {:ok, _} = Ecto.UUID.cast(payload["idempotency_key"])
+    assert {:ok, _, 0} = DateTime.from_iso8601(payload["timestamp"])
+
+    assert payload["properties"] == %{
+             "stage" => "checkpoint",
+             "outcome" => "blocked",
+             "reason" => "ineligible_subscription",
+             "client" => "unknown"
+           }
 
     subscription = subscription |> Ecto.Changeset.change(status: "trialing") |> Repo.update!()
     active = shown |> recycle() |> get("/auth/mcp/workos/pending", ref: pending["ref"])

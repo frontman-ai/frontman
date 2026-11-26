@@ -33,7 +33,7 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
     case pending(conn, ref) do
       {:ok, _pending} ->
         status = Billing.subscription_access(conn.assigns.current_scope)
-        record_access(:checkpoint, status)
+        record_access(conn, :checkpoint, status)
         render_checkpoint(conn, ref, status)
 
       :error ->
@@ -51,7 +51,7 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
             conn |> delete_session(:connect_handoff) |> complete_pending(pending)
 
           status ->
-            record_access(:completion, status)
+            record_access(conn, :completion, status)
             conn |> put_status(:forbidden) |> render_checkpoint(ref, status)
         end
 
@@ -99,27 +99,40 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
              pending["external_auth_id"]
            ),
          true <- FrontmanServerWeb.MCP.trusted_redirect?(url) do
-      record(:completion, :redirected, :authorized)
+      record(conn, :completion, :redirected, :authorized)
       redirect(conn, external: url)
     else
       _ ->
-        record(:completion, :failed, :authorization_failed)
+        record(conn, :completion, :failed, :authorization_failed)
         send_resp(conn, 400, "Authorization could not continue")
     end
   end
 
-  defp record_access(stage, {:allowed, _}), do: record(stage, :allowed, :eligible_subscription)
-  defp record_access(stage, :none), do: record(stage, :blocked, :no_subscription)
-  defp record_access(stage, {:inactive, _}), do: record(stage, :blocked, :ineligible_subscription)
+  defp record_access(conn, stage, {:allowed, _}),
+    do: record(conn, stage, :allowed, :eligible_subscription)
+
+  defp record_access(conn, stage, :none), do: record(conn, stage, :blocked, :no_subscription)
+
+  defp record_access(conn, stage, {:inactive, _}),
+    do: record(conn, stage, :blocked, :ineligible_subscription)
 
   defp invalid_handoff(conn, stage, message \\ "Invalid or expired request") do
-    record(stage, :failed, :invalid_request)
+    record(conn, stage, :failed, :invalid_request)
     send_resp(conn, 400, message)
   end
 
-  defp record(stage, outcome, reason) do
+  defp record(conn, stage, outcome, reason) do
     # This handoff has no verified assistant identity. Never infer one from request parameters.
-    metadata = %{stage: stage, outcome: outcome, reason: reason, client: :unknown}
+    scope = conn.assigns.current_scope
+
+    metadata = %{
+      stage: stage,
+      outcome: outcome,
+      reason: reason,
+      client: :unknown,
+      user_id: scope && scope.user.id
+    }
+
     :telemetry.execute([:frontman_server, :mcp, :handoff], %{count: 1}, metadata)
     Logger.info("MCP handoff stage=#{stage} outcome=#{outcome} reason=#{reason} client=unknown")
   end
