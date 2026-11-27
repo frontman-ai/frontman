@@ -404,7 +404,7 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
                     }}
 
     assert [%Oban.Job{args: payload}] =
-             all_enqueued(worker: FrontmanServer.Observability.HeapHandoff)
+             all_enqueued(worker: FrontmanServer.Observability.Heap)
 
     assert payload["identity"] == user.id
     assert payload["event"] == "mcp_handoff"

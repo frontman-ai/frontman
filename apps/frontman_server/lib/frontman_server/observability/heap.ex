@@ -1,4 +1,4 @@
-defmodule FrontmanServer.Observability.HeapHandoff do
+defmodule FrontmanServer.Observability.Heap do
   @moduledoc "Delivers signed-in MCP handoff events to the same Heap identity as the embedded client."
   use Oban.Worker, queue: :default, max_attempts: 8
   require Logger
