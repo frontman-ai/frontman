@@ -22,8 +22,6 @@ afterEach(() => {
   setRuntime(Window.current, previousRuntime.contents)
 })
 
-// Synthetic local states exercise the production card and state actions.
-// Card-only fixtures do not mount App's connection-fetch effect.
 let _ = [
   ("unlinked", Client__State__Types.WordPressUnlinked),
   ("linked", WordPressLinked({enabled: true})),

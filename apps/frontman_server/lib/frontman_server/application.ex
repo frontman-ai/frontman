@@ -10,7 +10,7 @@ defmodule FrontmanServer.Application do
   use Boundary, top_level?: true, deps: [FrontmanServer, FrontmanServerWeb]
   use Application
 
-  alias FrontmanServer.Observability.ConsoleHandler
+  alias FrontmanServer.Observability.{ConsoleHandler, Heap}
 
   @sentry_metadata [
     :file,
@@ -32,6 +32,7 @@ defmodule FrontmanServer.Application do
   def start(_type, _args) do
     env = Application.get_env(:frontman_server, :env)
 
+    Heap.attach()
     if env in [:dev, :test], do: ConsoleHandler.setup_wordpress()
 
     if env == :dev do

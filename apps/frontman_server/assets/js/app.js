@@ -49,7 +49,6 @@ if (embeddedClientAuthCompletion && window.opener) {
 
 window.liveSocket = liveSocket
 
-// Observation never authorizes an assistant or runs site tools.
 const setup = document.getElementById("hosted-setup")
 let setupSubmitting = false
 if (setup) {
@@ -133,7 +132,8 @@ document.querySelector("form[data-site-launch]")?.addEventListener("submit", eve
         site.password || site.search || site.hash) throw new Error("Invalid site URL")
     const basePath = site.pathname.replace(/\/(?:wp-admin(?:\/.*)?|frontman)\/?$/, "").replace(/\/$/, "")
     if (event.submitter?.value === "open") {
-      site.pathname = basePath + "/frontman"
+      site.pathname = basePath.replace(/\/index\.php$/, "") + "/wp-admin/admin.php"
+      site.searchParams.set("page", "frontman")
       site.searchParams.set("frontman_intent", "assistant")
     } else {
       site.pathname = basePath + "/wp-admin/plugin-install.php"

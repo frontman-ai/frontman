@@ -11,7 +11,6 @@ unless Regex.match?(~r/\A_onboarding_browser_[0-9a-f]{16}\z/, suffix),
 
 expected_database = "frontman_server_test" <> suffix
 
-# Real browser requests need independent connections, not a single-connection sandbox.
 Application.put_env(
   :frontman_server,
   Repo,
@@ -19,8 +18,6 @@ Application.put_env(
   |> Keyword.put(:pool, DBConnection.ConnectionPool)
 )
 
-# Runtime dotenv settings are already loaded. Verify effective configuration before
-# creating, migrating, or dropping anything; only this fresh local database is owned.
 owned_config! = fn ->
   config = Repo.config()
 

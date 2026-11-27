@@ -10,12 +10,10 @@ const closed = new Promise(resolve => browser.once("disconnected", resolve))
 const entry = new URL("/auth/mcp/workos?external_auth_id=local-onboarding-preview", base)
 
 async function screen(label, scenario, suffix = "") {
-  // Separate contexts prevent accounts in different windows sharing a session.
   const context = await browser.newContext({viewport: null})
   await context.route("**/*", async route => {
     const url = new URL(route.request().url())
     if (url.origin === base.origin) {
-      // Checkout and consent are intentionally boundaries of this local UI preview.
       if (!["/auth/mcp/workos/pending", "/wordpress/connect/checkout", "/wordpress/connect/portal"].includes(url.pathname)
           || route.request().method() !== "POST") return route.continue()
     }
@@ -44,7 +42,6 @@ async function screen(label, scenario, suffix = "") {
 }
 
 try {
-  // Open in reverse order, leaving sign-in in front.
   await screen("Plan without another trial", cases.find(c => c.name === "returning"))
   await screen("Choose an existing site", cases.find(c => c.name === "choose-site"))
   await screen("Continue to your assistant", cases.find(c => c.name === "ready"))

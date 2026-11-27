@@ -29,17 +29,36 @@ try {
   await page.locator("#hosted-setup").waitFor()
 
   switch (scenario) {
-    case "new-site":
+    case "new-site": {
       await page.locator("#connect-no-sites").waitFor()
       assert.equal(await page.locator("#connect-continue").count(), 0)
       assert.equal(await page.locator("#connect-site-launch input[type=url]").count(), 1)
+      await context.route("https://localhost/**", route => route.abort())
+      for (const prefix of ["", "/blog"]) {
+        for (const path of ["", "/", "/index.php", "/index.php/frontman/", "/frontman", "/wp-admin/", "/wp-admin/admin.php"]) {
+          await page.locator("#connect-site-launch input[type=url]").fill(`https://localhost${prefix}${path}`)
+          const [request, popup] = await Promise.all([
+            context.waitForEvent("request", request => request.url().startsWith("https://localhost/")),
+            context.waitForEvent("page"),
+            page.locator("#connect-site-launch button[value=open]").click(),
+          ])
+          assert.equal(request.isNavigationRequest(), true)
+          assert.equal(
+            request.url(),
+            `https://localhost${prefix}/wp-admin/admin.php?page=frontman&frontman_intent=assistant`,
+          )
+          assert.notEqual(popup, page)
+          await popup.close()
+        }
+      }
+      await context.unroute("https://localhost/**")
       break
+    }
     case "trial-offer": {
       await page.locator("#connect-selected-site").waitFor()
       await page.locator("#checkout-plan").waitFor()
       assert.equal(await page.locator("#connect-continue").count(), 0)
 
-      // A return URL is not payment proof. No external checkout is performed here.
       const returned = new URL(page.url())
       returned.searchParams.set("checkout", "success")
       await page.goto(returned.href)
@@ -54,8 +73,6 @@ try {
       assert.equal(await page.locator("#checkout-plan").count(), 0)
       assert.equal(await page.locator("#connect-continue").count(), 0)
 
-      // Exercise the actual signed webhook and browser polling. This fixture is
-      // local-only; no payment provider response or browser request is mocked.
       const userId = process.env.ONBOARDING_USER_ID
       const now = Math.floor(Date.now() / 1000)
       const payload = JSON.stringify({
@@ -106,7 +123,6 @@ try {
       await page.locator("#connect-selected-site").waitFor()
       await page.reload()
       assert.equal(await page.locator("#connect-handoff input[name=site_id]").inputValue(), siteIds[1])
-      // Selecting a site is not authorization; never submit the WorkOS handoff.
       break
     default:
       throw new Error(`Unknown local onboarding case: ${scenario}`)

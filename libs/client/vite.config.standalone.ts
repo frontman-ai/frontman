@@ -13,6 +13,7 @@ import path from "node:path";
 import { transformAsync } from "@babel/core";
 import tailwindcss from "@tailwindcss/vite";
 import * as vite from "vite";
+import { requireHeapAppId } from "./heapBuildConfig";
 
 const ReactCompilerConfig = {};
 
@@ -35,9 +36,10 @@ function reactCompilerPlugin(): vite.Plugin {
 	};
 }
 
-export default vite.defineConfig({
+export default vite.defineConfig(({ mode }) => ({
 	plugins: [reactCompilerPlugin(), tailwindcss()],
 	define: {
+		...requireHeapAppId(mode),
 		"globalThis.__FRONTMAN_INTERNAL_DEV__": JSON.stringify(
 			process.env.FRONTMAN_INTERNAL_DEV === "true",
 		),
@@ -69,4 +71,4 @@ export default vite.defineConfig({
 		minify: "esbuild",
 		sourcemap: false,
 	},
-});
+}));

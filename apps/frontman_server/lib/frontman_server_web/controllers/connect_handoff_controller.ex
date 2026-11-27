@@ -4,6 +4,7 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
   alias FrontmanServer.Billing
   alias FrontmanServer.WordPress
   alias FrontmanServerWeb.{ConnectHandoff, UserAuth}
+  alias FrontmanServerWeb.MCP.HandoffEvent
 
   def create(conn, %{"external_auth_id" => id})
       when is_binary(id) and byte_size(id) > 0 and byte_size(id) <= 512 do
@@ -130,15 +131,15 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
     case pending(conn, ref) do
       {:ok, _pending} ->
         status = Billing.subscription_access(conn.assigns.current_scope)
-
+        HandoffEvent.access(conn.assigns.current_scope, :checkpoint, status)
         render_checkpoint(conn, ref, status)
 
       :error ->
-        expired(conn)
+        invalid_handoff(conn, :checkpoint)
     end
   end
 
-  def show(conn, _params), do: expired(conn)
+  def show(conn, _params), do: invalid_handoff(conn, :checkpoint)
 
   def complete(conn, %{"ref" => ref} = params) do
     case pending(conn, ref) do
@@ -150,6 +151,8 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
             conn |> put_session(:setup_site_id, id) |> complete_pending(pending)
 
           {status, _site} ->
+            record_blocked_access(conn.assigns.current_scope, status)
+
             conn
             |> put_flash(
               :error,
@@ -160,11 +163,11 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
         end
 
       :error ->
-        expired(conn)
+        invalid_handoff(conn, :completion)
     end
   end
 
-  def complete(conn, _params), do: expired(conn)
+  def complete(conn, _params), do: invalid_handoff(conn, :completion)
 
   def switch_account(conn, %{"ref" => ref}) do
     case pending(conn, ref) do
@@ -295,11 +298,15 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
              pending["external_auth_id"]
            ),
          true <- FrontmanServerWeb.MCP.trusted_redirect?(url) do
+      HandoffEvent.redirected(conn.assigns.current_scope)
+
       conn
       |> delete_session(:connect_handoff)
       |> redirect(external: url)
     else
       _ ->
+        HandoffEvent.authorization_failed(conn.assigns.current_scope)
+
         conn
         |> put_flash(
           :error,
@@ -311,6 +318,16 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
           Billing.subscription_access(conn.assigns.current_scope)
         )
     end
+  end
+
+  defp record_blocked_access(_scope, {:allowed, _}), do: :ok
+
+  defp record_blocked_access(scope, status),
+    do: HandoffEvent.access(scope, :completion, status)
+
+  defp invalid_handoff(conn, stage) do
+    HandoffEvent.invalid(conn.assigns.current_scope, stage)
+    expired(conn)
   end
 
   defp pending(conn, ref) do

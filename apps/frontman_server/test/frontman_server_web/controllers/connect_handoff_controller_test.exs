@@ -1,5 +1,6 @@
 defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
   use FrontmanServerWeb.ConnCase, async: false
+  use Oban.Testing, repo: FrontmanServer.Repo
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.BillingFixtures
@@ -307,7 +308,16 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
         conn |> recycle() |> log_in_user(user) |> get("/auth/mcp/workos?external_auth_id=private")
 
       pending = get_session(started, :connect_handoff)
-      shown = started |> recycle() |> get(redirected_to(started))
+
+      {shown, log} =
+        ExUnit.CaptureLog.with_log([level: :info], fn ->
+          started |> recycle() |> get(redirected_to(started))
+        end)
+
+      expected_reason =
+        if status == "none", do: "no_subscription", else: "ineligible_subscription"
+
+      assert log =~ "MCP handoff stage=checkpoint outcome=blocked reason=#{expected_reason}"
       assert html_response(shown, 200) =~ ~s(id="connect-access")
       refute shown.resp_body =~ ~s(id="connect-continue")
 
@@ -344,6 +354,86 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
     assert html_response(blocked, 403)
     assert get_session(blocked, :connect_handoff) == pending
     refute get_session(blocked, :setup_site_id)
+  end
+
+  test "rechecks subscription changes and records handoff telemetry", %{conn: conn} do
+    event = [:frontman_server, :mcp, :handoff]
+    handler = :telemetry_test.attach_event_handlers(self(), [event])
+    on_exit(fn -> :telemetry.detach(handler) end)
+
+    user = user_fixture()
+    user_id = user.id
+    scope = user_scope_fixture(user)
+    subscription = subscription_for_scope_fixture(scope, %{status: "past_due"})
+    insert_site(user)
+    identity_fixture(user, %{provider: "github"})
+    identity_fixture(user, %{provider: "google"})
+    started = conn |> log_in_user(user) |> get("/auth/mcp/workos?external_auth_id=private")
+    pending = get_session(started, :connect_handoff)
+    shown = started |> recycle() |> get(redirected_to(started))
+    assert html_response(shown, 200) =~ ~s(id="connect-access")
+
+    assert_receive {^event, ^handler, %{count: 1},
+                    %{
+                      user_id: ^user_id,
+                      stage: :checkpoint,
+                      outcome: :blocked,
+                      reason: :ineligible_subscription
+                    }}
+
+    assert [%Oban.Job{args: payload}] =
+             all_enqueued(worker: FrontmanServer.Observability.Heap)
+
+    assert payload["identity"] == user.id
+    assert payload["event"] == "mcp_handoff"
+    assert payload["app_id"] == "handoff-test"
+    assert {:ok, _} = Ecto.UUID.cast(payload["idempotency_key"])
+    assert {:ok, _, 0} = DateTime.from_iso8601(payload["timestamp"])
+
+    assert payload["properties"] == %{
+             "stage" => "checkpoint",
+             "outcome" => "blocked",
+             "reason" => "ineligible_subscription",
+             "client" => "unknown"
+           }
+
+    subscription = subscription |> Ecto.Changeset.change(status: "trialing") |> Repo.update!()
+    active = shown |> recycle() |> get("/auth/mcp/workos/pending", ref: pending["ref"])
+    assert html_response(active, 200) =~ "Continue to your assistant"
+    assert active.resp_body =~ ~s(id="connect-continue")
+
+    assert_receive {^event, ^handler, %{count: 1},
+                    %{user_id: ^user_id, stage: :checkpoint, outcome: :allowed, client: :unknown}}
+
+    subscription = subscription |> Ecto.Changeset.change(status: "canceled") |> Repo.update!()
+    blocked = active |> recycle() |> post("/auth/mcp/workos/pending", ref: pending["ref"])
+    assert html_response(blocked, 403) =~ "Connect a site and activate assistant access"
+
+    assert_receive {^event, ^handler, %{count: 1},
+                    %{
+                      user_id: ^user_id,
+                      stage: :completion,
+                      outcome: :blocked,
+                      reason: :ineligible_subscription
+                    }}
+
+    assert get_session(blocked, :connect_handoff) == pending
+    refute get_session(blocked, :setup_site_id)
+
+    subscription |> Ecto.Changeset.change(status: "trialing") |> Repo.update!()
+
+    assert blocked
+           |> recycle()
+           |> post("/auth/mcp/workos/pending", ref: pending["ref"])
+           |> html_response(400) =~ "Your assistant could not authorize this account"
+
+    assert_receive {^event, ^handler, %{count: 1},
+                    %{
+                      user_id: ^user_id,
+                      stage: :completion,
+                      outcome: :failed,
+                      reason: :authorization_failed
+                    }}
   end
 
   test "access is rechecked on POST after a trial is canceled", %{conn: conn} do

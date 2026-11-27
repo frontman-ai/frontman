@@ -119,12 +119,7 @@ function isActivePath(currentPath: string | undefined): boolean {
 
 	.header {
 		@apply fixed top-0 left-0 right-0 z-[999] w-full;
-		padding: 12px 0 0;
-	}
-	@media (min-width: 1024px) {
-		.header {
-			padding: 14px 0 0;
-		}
+		padding: var(--navigation-top) 0 0;
 	}
 	.header__container {
 		@apply mx-auto max-w-marketing px-page-gutter;
@@ -132,7 +127,7 @@ function isActivePath(currentPath: string | undefined): boolean {
 	.header__nav {
 		@apply flex items-center;
 		font-family: var(--font-sans);
-		height: 56px;
+		height: var(--navigation-height);
 		padding: 0 8px 0 16px;
 		border-radius: 16px;
 		position: relative;

@@ -1,7 +1,5 @@
 module State = Client__State
 
-// Presentation only: connection approval, access changes and validation use the
-// same actions and effects as regular Settings.
 @react.component
 let make = () => {
   let status = State.useSelector(state => state.wordPressConnectionStatus)

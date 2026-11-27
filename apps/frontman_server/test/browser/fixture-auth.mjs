@@ -1,7 +1,5 @@
 import assert from "node:assert/strict"
 
-// Local fixture authentication uses the existing CSRF-protected endpoint.
-// It does not add a production bypass or claim to exercise Google/GitHub OAuth.
 export async function signInFixture(page, base, email, password) {
   assert(["localhost", "127.0.0.1"].includes(base.hostname), "Use a local test server")
   const csrf = await page.locator("meta[name=csrf-token]").getAttribute("content")

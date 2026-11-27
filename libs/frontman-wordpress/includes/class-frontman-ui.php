@@ -99,7 +99,6 @@ class Frontman_UI {
 	 * Ignore all other values, including array-shaped query parameters.
 	 */
 	private static function assistant_setup_requested(): bool {
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only UI navigation.
 		return isset( $_GET['frontman_intent'] ) && 'assistant' === $_GET['frontman_intent'];
 	}
 

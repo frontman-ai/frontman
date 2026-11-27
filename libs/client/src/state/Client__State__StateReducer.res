@@ -118,7 +118,6 @@ let clearConnectionState = (state: state) => {
     billingFlow: Client__Billing.Idle,
     billingAbortController: None,
     billingStatusAbortController: None,
-    // UI intent survives authentication recovery; it never grants account access.
     settingsModalTab: state.wordPressAssistantSetupSelected && !state.wordPressAssistantArrival ? Some(General) : None,
   }->StateReducer.update(
     ~sideEffects=[

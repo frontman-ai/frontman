@@ -1,7 +1,5 @@
 unless Mix.env() == :test, do: raise("Database ownership check requires MIX_ENV=test")
 
-# Pin this sentinel independently of runtime dotenv settings. It is always local,
-# freshly created, and never contains application or user data.
 {:ok, _dependencies} = Application.ensure_all_started(:postgrex)
 suffix = Base.encode16(:crypto.strong_rand_bytes(8), case: :lower)
 database = "frontman_server_test_onboarding_guard_" <> suffix

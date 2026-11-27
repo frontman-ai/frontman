@@ -32,6 +32,7 @@ config :workos, WorkOS.Client,
   client_id: "client_test_workos"
 
 config :frontman_server, Oban, testing: :manual
+config :frontman_server, :heap_app_id, "handoff-test"
 
 config :frontman_server,
   billing_client: FrontmanServer.Billing.StripeClient

@@ -1,13 +1,7 @@
 @@live
-let envId = if Client__Env.isDev {
-  "349428408"
-} else {
-  "218974947"
-}
+let configuredId: unit => string = %raw(`() => import.meta.env.VITE_HEAP_APP_ID`)
 
-let init = () => {
-  let _: unit = %raw(`
-    (function(envId) {
+let load: string => unit = %raw(`function(envId) {
       window.heapReadyCb=window.heapReadyCb||[];
       window.heap=window.heap||[];
       heap.load=function(e,t){
@@ -25,9 +19,9 @@ let init = () => {
         for(var p=0;p<n.length;p++) heap[n[p]]=i(n[p]);
       };
       heap.load(envId);
-    })(envId)
-  `)
-}
+    }`)
+
+let init = () => load(configuredId())
 
 type heapApi = {identify: string => unit, track: (string, JSON.t) => unit}
 @scope("window") @val external heap: Nullable.t<heapApi> = "heap"

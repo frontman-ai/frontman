@@ -51,7 +51,6 @@ defmodule FrontmanServer.Test.Fixtures.Onboarding do
   end
 
   defp site(user_id, hostname) do
-    # A saved connection fixture does not claim a live credential or permission check.
     Repo.insert!(%Connection{
       user_id: user_id,
       catalog_url: "https://#{hostname}/wp-json/frontman/v1/mcp",

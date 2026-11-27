@@ -338,7 +338,7 @@ test_redirects_and_angie() {
 test_redirects_and_angie
 
 if [[ ${#PUBLISH[@]} -gt 0 && "$FIXTURE" != astra ]]; then
-  (umask 022; make -C "$ROOT_DIR/libs/client" build-standalone)
+  (umask 022; VITE_HEAP_APP_ID=wordpress-runtime-test make -C "$ROOT_DIR/libs/client" build-standalone)
   "$RUNTIME" cp "$ROOT_DIR/libs/client/dist" "$WORDPRESS:/var/www/html/frontman-client"
   export FRONTMAN_WP_RUNTIME_DIRECTORY="$BUILD_DIR" FRONTMAN_WP_RUNTIME_CONTAINER="$WORDPRESS"
   export FRONTMAN_WP_RUNTIME_CERT="$BUILD_DIR/frontman-test.crt" FRONTMAN_WP_RUNTIME_KEY="$BUILD_DIR/frontman-test.key"

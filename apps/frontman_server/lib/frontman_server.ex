@@ -36,6 +36,8 @@ defmodule FrontmanServer do
     Encrypted.Binary,
     {Tools, []},
     Observability.ConsoleHandler,
+    Observability.Heap,
+    Observability.MCPHandoff,
     Observability.SentryContext,
     Workers.GenerateTitle,
     Workers.EnterActivationCampaign,

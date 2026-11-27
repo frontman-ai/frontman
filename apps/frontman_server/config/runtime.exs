@@ -45,6 +45,10 @@ end
 
 config :frontman_server, cloak_key: env!("CLOAK_KEY", :string!)
 
+if config_env() != :test do
+  config :frontman_server, :heap_app_id, env!("HEAP_APP_ID", :string?, nil)
+end
+
 if config_env() in [:dev, :prod] do
   config :workos, WorkOS.Client,
     api_key: env!("WORKOS_API_KEY", :string!),

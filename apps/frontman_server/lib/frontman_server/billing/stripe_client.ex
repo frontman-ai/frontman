@@ -131,7 +131,6 @@ defmodule FrontmanServer.Billing.StripeClient do
 
   defp price_label(_price, _period), do: {:error, :unsupported_checkout_price}
 
-  # Explicit supported currencies avoid guessing minor units for unfamiliar currencies.
   defp currency_digits(currency)
        when currency in ~w(usd eur gbp cad aud nzd chf sek nok dkk pln czk inr brl mxn sgd hkd),
        do: {:ok, 2}

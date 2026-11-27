@@ -16,7 +16,7 @@ faq:
   - question: 'Can these tools be used together?'
     answer: 'Yes. A team can use Frontman to identify and iterate on a visual target, Cursor for IDE-centered implementation, and Claude Code for terminal-heavy investigation, tests, git, or cross-cutting work. Review overlapping edits carefully because all three may modify the same source files.'
   - question: 'Can Cursor and Claude Code inspect a browser?'
-    answer: 'Yes. Cursor documents browser tools, and Claude Code documents a Chrome integration for DOM state, console and network evidence, screenshots, and browser interaction. Generic browser access does not necessarily provide framework component provenance or direct user-led element-to-source selection.'
+    answer: 'Yes. Cursor documents Browser tools and Design Mode with direct element selection, computed styles, component names and stacks, and screenshots. Claude Code documents a Chrome integration for DOM state, console and network evidence, screenshots, and browser interaction. Compare the documented context and workflow rather than assuming browser access is exclusive to Frontman.'
   - question: 'Where is the exact Frontman vs Claude Code comparison?'
     answer: 'The dedicated /vs/claude-code/ page owns the detailed two-way feature, architecture, pricing, and licensing comparison. This article compares three workflow starting points and helps route tasks among them.'
 ---
@@ -100,7 +100,7 @@ These are starting points, not exclusive assignments.
 
 ### Frontman Plus Cursor
 
-Use Frontman to identify the rendered target and inspect visual evidence. Use Cursor when the resulting change expands into component restructuring or a larger refactor. Both edit normal source files, so inspect current diffs before switching tools.
+Use Frontman to identify the rendered target and inspect visual evidence. Both tools support multi-file edits: Frontman's code-project integrations provide search, read, edit, and write tools across the configured source root. Use Cursor when you want IDE navigation or terminal-driven validation, not simply because a change touches multiple files. Cursor also offers direct visual selection through [Design Mode](https://cursor.com/docs/agent/design-mode). Inspect current diffs before switching tools.
 
 ### Frontman Plus Claude Code
 
