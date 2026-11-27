@@ -37,7 +37,7 @@ test-heap-builds:
 	@output=$$(VITE_HEAP_APP_ID='' $(MAKE) build-standalone 2>&1) && exit 1; \
 	grep -Fq 'VITE_HEAP_APP_ID is required' <<< "$$output"
 	VITE_HEAP_APP_ID=heap-browser-test $(MAKE) build-standalone
-	node test/browser/check-heap-build.mjs heap-browser-test
+	node test/browser/Client__CheckHeapBuild.res.mjs
 
 test-screenshots: build
 	VITE_HEAP_APP_ID=screenshot-test $(MAKE) build-lib
