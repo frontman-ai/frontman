@@ -1,13 +1,13 @@
-defmodule FrontmanServerWeb.HeapHandoff do
+defmodule FrontmanServer.Observability.HeapHandoff do
   @moduledoc "Delivers signed-in MCP handoff events to the same Heap identity as the embedded client."
   use Oban.Worker, queue: :default, max_attempts: 8
   require Logger
-  alias FrontmanServerWeb.MCP.HandoffEvent
+  alias FrontmanServer.Observability.MCPHandoff
 
   def attach do
     case :telemetry.attach(
            __MODULE__,
-           HandoffEvent.telemetry_name(),
+           MCPHandoff.telemetry_name(),
            &__MODULE__.enqueue/4,
            nil
          ) do
@@ -16,11 +16,18 @@ defmodule FrontmanServerWeb.HeapHandoff do
     end
   end
 
-  def enqueue(_, _, %HandoffEvent{user_id: nil}, _), do: :ok
+  def enqueue(_, _, %MCPHandoff{user_id: nil}, _), do: :ok
 
-  def enqueue(_, _, %HandoffEvent{} = event, _) do
+  def enqueue(_, _, %MCPHandoff{} = event, _) do
     if app_id = Application.get_env(:frontman_server, :heap_app_id) do
-      payload = HandoffEvent.heap_payload(event, app_id)
+      payload = %{
+        app_id: app_id,
+        event: "mcp_handoff",
+        identity: event.user_id,
+        properties: Map.take(event, [:stage, :outcome, :reason, :client]),
+        timestamp: DateTime.utc_now() |> DateTime.to_iso8601(),
+        idempotency_key: Ecto.UUID.generate()
+      }
 
       case Oban.insert(new(payload), timeout: 500) do
         {:ok, _} -> :ok

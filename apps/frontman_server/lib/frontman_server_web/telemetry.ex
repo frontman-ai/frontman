@@ -14,8 +14,6 @@ defmodule FrontmanServerWeb.Telemetry do
 
   @impl true
   def init(_arg) do
-    FrontmanServerWeb.HeapHandoff.attach()
-
     children = [
       {:telemetry_poller, measurements: periodic_measurements(), period: 10_000}
     ]

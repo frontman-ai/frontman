@@ -403,7 +403,9 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
                       reason: :ineligible_subscription
                     }}
 
-    assert [%Oban.Job{args: payload}] = all_enqueued(worker: FrontmanServerWeb.HeapHandoff)
+    assert [%Oban.Job{args: payload}] =
+             all_enqueued(worker: FrontmanServer.Observability.HeapHandoff)
+
     assert payload["identity"] == user.id
     assert payload["event"] == "mcp_handoff"
     assert payload["app_id"] == "handoff-test"
