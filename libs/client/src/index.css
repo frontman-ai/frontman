@@ -3,55 +3,6 @@
 @import "shadcn/tailwind.css";
 @import "./styles/frontman-theme.css";
 
-.assistant-setup {
-  min-height: 100dvh;
-  display: grid;
-  place-items: center;
-  padding: 32px 20px;
-  background: #020617;
-  color: #ededee;
-}
-.assistant-setup-card {
-  width: 100%;
-  max-width: 560px;
-  padding: 32px;
-  border-radius: 24px;
-  background: #18181b;
-}
-.assistant-setup-card h1 {
-  margin: 24px 0 12px;
-  font-size: 30px;
-  font-weight: 500;
-  line-height: 1.25;
-  letter-spacing: -0.025em;
-}
-.assistant-setup-intro, .assistant-setup-account {
-  color: #aaa9b0;
-  font-size: 14px;
-  line-height: 1.6;
-  margin-bottom: 20px;
-}
-.assistant-setup-account { color: #d1c6fa; overflow-wrap: anywhere; }
-.assistant-setup-card [data-slot="button"] {
-  width: 100%;
-  min-height: 56px;
-  border-radius: 9999px;
-  padding: 12px 24px;
-  font-size: 16px;
-  font-weight: 500;
-  background: #e4dbff;
-  color: #201532;
-}
-.assistant-setup-exit {
-  margin-top: 28px;
-  color: #aaa9b0;
-  font-size: 13px;
-  text-decoration: underline;
-  text-underline-offset: 4px;
-  cursor: pointer;
-}
-.assistant-setup-exit:hover { color: #ededee; }
-
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

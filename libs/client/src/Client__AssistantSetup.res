@@ -13,14 +13,18 @@ let make = () => {
   let site = config.wordpressSettingsUrl->Option.map(url =>
     WebAPI.URL.make(~url, ~base=(WebAPI.Window.current->WebAPI.Window.location).href).host
   )
-  <main className="assistant-setup">
-    <section className="assistant-setup-card" ariaLabel="WordPress assistant connection">
+  <main className="grid min-h-dvh place-items-center bg-[#020617] px-5 py-8 text-[#ededee]">
+    <section
+      className="assistant-setup-card w-full max-w-[560px] rounded-3xl bg-[#18181b] p-8 [&_[data-slot=button]]:w-full [&_[data-slot=button]]:min-h-14 [&_[data-slot=button]]:rounded-full [&_[data-slot=button]]:px-6 [&_[data-slot=button]]:py-3 [&_[data-slot=button]]:text-base [&_[data-slot=button]]:font-medium [&_[data-slot=button]]:bg-[#e4dbff] [&_[data-slot=button]]:text-[#201532]"
+      ariaLabel="WordPress assistant connection">
       <Client__FrontmanLogo size=36 />
-      <h1> {React.string("Connect your WordPress site")} </h1>
-      <p className="assistant-setup-intro">
+      <h1 className="mt-6 mb-3 text-3xl leading-tight font-medium tracking-tight">
+        {React.string("Connect your WordPress site")}
+      </h1>
+      <p className="mb-5 text-sm leading-[1.6] text-[#aaa9b0]">
         {React.string("Give your AI assistant access to this site through Frontman.")}
       </p>
-      <div className="assistant-setup-account">
+      <div className="mb-5 text-sm leading-[1.6] text-[#d1c6fa] [overflow-wrap:anywhere]">
         {site->Option.mapOr(React.null, site => <p> {React.string(site)} </p>)}
         {profile->Option.mapOr(React.null, profile =>
           <p> {React.string(profile.email)} </p>
@@ -54,7 +58,9 @@ let make = () => {
           settingsUrl=config.wordpressSettingsUrl
         />
       }}
-      <button className="assistant-setup-exit" onClick={_ => State.Actions.exitWordPressAssistantArrival()}>
+      <button
+        className="mt-7 cursor-pointer text-[13px] text-[#aaa9b0] underline underline-offset-4 hover:text-[#ededee]"
+        onClick={_ => State.Actions.exitWordPressAssistantArrival()}>
         {React.string("Open Frontman editor instead")}
       </button>
     </section>
