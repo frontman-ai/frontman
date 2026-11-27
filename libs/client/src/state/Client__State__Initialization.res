@@ -16,7 +16,7 @@ let defaultState: state = {
   wordPressPendingMutation: None,
   wordPressCredentialWarning: false,
   wordPressAssistantSetupSelected: false,
-  wordPressAssistantArrival: None,
+  wordPressAssistantArrival: false,
   wordPressWarningReady: false,
   userProfile: None,
   settingsModalTab: None,

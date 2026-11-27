@@ -6,6 +6,7 @@ let make = (~status: Client__State__Types.wordPressConnectionStatus, ~focused=fa
   | WordPressUpdatingAccess(_) => true
   | _ => false
   }
+  let className = focused ? "w-full min-h-14 rounded-full px-6 py-3 text-base bg-[#e4dbff] text-[#201532]" : ""
   <div className={focused ? "space-y-4" : "rounded-lg border border-zinc-800 px-4 py-4 space-y-3"}>
     {focused ? React.null : <div className="text-sm font-medium"> {React.string("WordPress connection")} </div>}
     {credentialWarning
@@ -16,7 +17,7 @@ let make = (~status: Client__State__Types.wordPressConnectionStatus, ~focused=fa
     {switch status {
     | WordPressLinked({enabled: true}) if focused =>
       <p className="text-sm text-zinc-200" role="status">
-        {React.string("Connected. Your original assistant setup tab updates automatically. You can close this tab.")}
+        {React.string("Connection saved to your Frontman account. Return to your AI assistant to continue.")}
       </p>
     | WordPressLinked(_) | WordPressUpdatingAccess(_) =>
       <p className="text-sm text-zinc-400">
@@ -44,7 +45,7 @@ let make = (~status: Client__State__Types.wordPressConnectionStatus, ~focused=fa
       {switch status {
       | WordPressLinked({enabled: true}) if focused => React.null
       | WordPressLinked({enabled}) | WordPressUpdatingAccess({enabled}) =>
-        <Button type_="button" disabled={updating} onClick={_ => onSetAccess(!enabled)}>
+        <Button className type_="button" disabled={updating} onClick={_ => onSetAccess(!enabled)}>
           {React.string(
             updating
               ? (enabled ? "Disabling MCP..." : "Enabling MCP...")
@@ -52,11 +53,11 @@ let make = (~status: Client__State__Types.wordPressConnectionStatus, ~focused=fa
           )}
         </Button>
       | WordPressUnlinked | WordPressLinking =>
-        <Button type_="button" disabled={status == WordPressLinking} onClick={_ => onConnect()}>
+        <Button className type_="button" disabled={status == WordPressLinking} onClick={_ => onConnect()}>
           {React.string(status == WordPressLinking ? "Connecting..." : "Enable MCP and connect")}
         </Button>
       | WordPressConnectionFailed(_) =>
-        <Button type_="button" onClick={_ => onCheck()}> {React.string("Check again")} </Button>
+        <Button className type_="button" onClick={_ => onCheck()}> {React.string("Check again")} </Button>
       | WordPressNotChecked | WordPressChecking => React.null
       }}
       {(focused ? None : settingsUrl)->Option.mapOr(React.null, href =>
@@ -74,7 +75,7 @@ let make = (~status: Client__State__Types.wordPressConnectionStatus, ~focused=fa
       <p className={updating ? "sr-only" : "text-sm text-zinc-400"} role="status">
         {React.string(updating
           ? (enabled ? "Disabling MCP access..." : "Enabling MCP access...")
-          : (enabled ? "Connection saved to your Frontman account. Return to your original assistant setup tab to continue." : "Your saved connection is retained. Enable MCP to continue assistant setup."))}
+          : (enabled ? "Connection saved to your Frontman account. MCP access is enabled." : "Your saved connection is retained. Enable MCP to allow assistant access."))}
       </p>
     | _ => React.null
     }}

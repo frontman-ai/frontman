@@ -47,6 +47,13 @@ try {
       assert.equal(await page.locator("#connect-continue").count(), 0)
       assert.equal(await page.locator("#checkout-plan").count(), 0)
 
+      await page.locator("#hosted-setup > details > summary").click()
+      await page.getByRole("link", {name: "Refresh setup status"}).click()
+      await page.locator("#checkout-pending").waitFor()
+      assert.equal(new URL(page.url()).searchParams.get("checkout"), "success")
+      assert.equal(await page.locator("#checkout-plan").count(), 0)
+      assert.equal(await page.locator("#connect-continue").count(), 0)
+
       // Exercise the actual signed webhook and browser polling. This fixture is
       // local-only; no payment provider response or browser request is mocked.
       const userId = process.env.ONBOARDING_USER_ID

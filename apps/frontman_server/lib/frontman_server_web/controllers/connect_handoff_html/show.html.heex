@@ -19,9 +19,7 @@
     </:intro>
     <section
       id="hosted-setup"
-      data-setup-page-url={
-        if @ref, do: ~p"/auth/mcp/workos/pending?#{%{ref: @ref}}", else: ~p"/wordpress/connect"
-      }
+      data-setup-page-url={@page_url}
       data-setup-status-url={~p"/wordpress/connect/status?#{%{ref: @ref}}"}
       data-setup-revision={@revision}
       class="space-y-5"
@@ -242,11 +240,7 @@
           This request expires after 15 minutes. Restart from your original AI assistant if needed. Your connected sites and plan are saved.
         </p>
         <a
-          href={
-            if @ref,
-              do: ~p"/auth/mcp/workos/pending?#{%{ref: @ref}}",
-              else: ~p"/wordpress/connect"
-          }
+          href={@page_url}
           class="mt-2 inline-block text-primary-200 underline"
         >Refresh setup status</a>
       </details>

@@ -109,14 +109,18 @@ defmodule FrontmanServerWeb.Router do
   end
 
   scope "/", FrontmanServerWeb do
-    pipe_through([:browser, :require_authenticated_user])
+    pipe_through([:connect_handoff, :browser, :require_authenticated_user])
 
     get("/wordpress/connect", ConnectHandoffController, :setup)
-    post("/wordpress/connect", ConnectHandoffController, :finish_setup)
     post("/wordpress/connect/site", ConnectHandoffController, :select_site, log: false)
     get("/wordpress/connect/status", ConnectHandoffController, :status, log: false)
     post("/wordpress/connect/checkout", ConnectHandoffController, :checkout, log: false)
     post("/wordpress/connect/portal", ConnectHandoffController, :portal, log: false)
+  end
+
+  scope "/", FrontmanServerWeb do
+    pipe_through([:browser, :require_authenticated_user])
+
     get("/users/settings", UserSettingsController, :edit)
     put("/users/settings", UserSettingsController, :update)
     get("/users/settings/confirm-email/:token", UserSettingsController, :confirm_email)

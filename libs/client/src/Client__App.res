@@ -15,9 +15,7 @@ let make = () => {
   let assistantSetupSelected = Client__State.useSelector(state =>
     state.wordPressAssistantSetupSelected
   )
-  let assistantArrival = Client__State.useSelector(state =>
-    state.wordPressAssistantArrival->Option.getOr(runtimeConfig.assistantSetupRequested)
-  )
+  let assistantArrival = runtimeConfig.assistantSetupRequested
   let apiBaseUrl = Client__State.useSelector(Client__State.Selectors.apiBaseUrl)
   let hasActiveSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
 

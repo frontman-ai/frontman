@@ -26,11 +26,16 @@ defmodule FrontmanServer.Billing do
 
   @doc """
   Returns configured checkout offers with current provider prices and eligible trial days.
+  Returns no offers when an existing subscription prevents checkout.
   Returns an error if either configured offer cannot be retrieved or represented accurately.
   """
   @spec checkout_offers(Scope.t()) :: {:ok, [checkout_offer()]} | {:error, term()}
   def checkout_offers(%Scope{} = scope) do
-    billing_client().checkout_offers(trial_eligible: trial_eligible?(scope))
+    if Subscriptions.checkout_eligible?(scope) do
+      billing_client().checkout_offers(trial_eligible: trial_eligible?(scope))
+    else
+      {:ok, []}
+    end
   end
 
   defdelegate get_current_subscription(scope), to: Subscriptions, as: :current

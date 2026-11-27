@@ -17,6 +17,22 @@ defmodule FrontmanServerWeb.WordPressOnboardingControllerTest do
     assert get_session(conn, :user_return_to) == "/wordpress/connect?check=1"
   end
 
+  test "setup routes always prevent caching and referrer disclosure", %{conn: conn} do
+    conn = log_in_user(conn, Accounts.user_fixture())
+
+    for {method, path} <- [
+          {:get, "/wordpress/connect"},
+          {:get, "/wordpress/connect/status"},
+          {:post, "/wordpress/connect/site"},
+          {:post, "/wordpress/connect/checkout"},
+          {:post, "/wordpress/connect/portal"}
+        ] do
+      response = conn |> recycle() |> dispatch(@endpoint, method, path, %{})
+      assert get_resp_header(response, "cache-control") == ["no-store"]
+      assert get_resp_header(response, "referrer-policy") == ["no-referrer"]
+    end
+  end
+
   test "site instructions precede purchase even without a subscription", %{conn: conn} do
     user = Accounts.user_fixture()
     conn = conn |> log_in_user(user) |> get(~p"/wordpress/connect")
@@ -77,7 +93,7 @@ defmodule FrontmanServerWeb.WordPressOnboardingControllerTest do
     assert get_session(rejected, :connect_handoff) == pending
   end
 
-  test "site setup finishes without buying access or naming a particular assistant", %{conn: conn} do
+  test "site selection does not buy access or name a particular assistant", %{conn: conn} do
     for status <- ["none", "past_due", "unpaid", "canceled", "trialing", "active"] do
       user = Accounts.user_fixture()
       scope = Scope.for_user(user)
@@ -87,8 +103,8 @@ defmodule FrontmanServerWeb.WordPressOnboardingControllerTest do
 
       site = insert_site(user, "https://owned.example/wp-json/frontman/v1/tools")
       signed_in = conn |> recycle() |> log_in_user(user) |> get(~p"/wordpress/connect")
-      result = signed_in |> recycle() |> post(~p"/wordpress/connect", %{site_id: site.id})
-      page = html_response(result, 200)
+      result = signed_in |> recycle() |> post(~p"/wordpress/connect/site", %{site_id: site.id})
+      page = result |> recycle() |> get(redirected_to(result)) |> html_response(200)
       assert page =~ ~s(id="connect-selected-site")
       assert page =~ "owned.example"
 
@@ -123,14 +139,18 @@ defmodule FrontmanServerWeb.WordPressOnboardingControllerTest do
     refute page =~ "private.example"
 
     for id <- ["", "bad-id", Ecto.UUID.generate(), foreign.id] do
-      result = conn |> recycle() |> post(~p"/wordpress/connect", %{site_id: id})
-      assert html_response(result, 200) =~ "Choose a connected WordPress site"
-      refute result.resp_body =~ ~s(id="connect-finished")
+      result = conn |> recycle() |> post(~p"/wordpress/connect/site", %{site_id: id})
+      page = result |> recycle() |> get(redirected_to(result)) |> html_response(200)
+      assert page =~ "Choose a site connected to this account."
+      refute page =~ ~s(id="connect-finished")
       refute get_session(result, :setup_site_id)
     end
 
-    result = conn |> recycle() |> post(~p"/wordpress/connect", %{site_id: first.id})
-    assert html_response(result, 200) =~ "first.example"
+    result = conn |> recycle() |> post(~p"/wordpress/connect/site", %{site_id: first.id})
+
+    assert result |> recycle() |> get(redirected_to(result)) |> html_response(200) =~
+             "first.example"
+
     assert get_session(result, :setup_site_id) == first.id
   end
 
@@ -193,10 +213,12 @@ defmodule FrontmanServerWeb.WordPressOnboardingControllerTest do
       LazyHTML.query(document, "#hosted-setup") |> LazyHTML.attribute("data-setup-page-url")
 
     refreshed = returned |> recycle() |> get(refresh)
+    assert html_response(refreshed, 200) =~ ~s(id="checkout-pending")
+    refute refreshed.resp_body =~ ~s(id="checkout-plan")
     assert get_session(refreshed, :setup_site_id) == second.id
   end
 
-  test "finish, checkout and portal require CSRF", %{conn: conn} do
+  test "selection, checkout and portal require CSRF", %{conn: conn} do
     user = Accounts.user_fixture()
     site = insert_site(user, "https://owned.example/wp-json/frontman/v1/tools")
     conn = conn |> log_in_user(user) |> get(~p"/wordpress/connect")
@@ -207,7 +229,6 @@ defmodule FrontmanServerWeb.WordPressOnboardingControllerTest do
       |> LazyHTML.attribute("value")
 
     for path <- [
-          "/wordpress/connect",
           "/wordpress/connect/site",
           "/wordpress/connect/checkout",
           "/wordpress/connect/portal"
@@ -225,9 +246,10 @@ defmodule FrontmanServerWeb.WordPressOnboardingControllerTest do
       conn
       |> recycle()
       |> put_private(:plug_skip_csrf_protection, false)
-      |> post("/wordpress/connect", %{site_id: site.id, _csrf_token: token})
+      |> post("/wordpress/connect/site", %{site_id: site.id, _csrf_token: token})
 
-    assert html_response(result, 200) =~ ~s(id="connect-selected-site")
+    assert get_session(result, :setup_site_id) == site.id
+    assert redirected_to(result) == "/wordpress/connect"
   end
 
   test "polling observes persisted sites and access without finishing setup", %{conn: conn} do
@@ -259,7 +281,11 @@ defmodule FrontmanServerWeb.WordPressOnboardingControllerTest do
   end
 
   test "hosted actions and polling require authentication", %{conn: conn} do
-    for path <- ["/wordpress/connect", "/wordpress/connect/checkout", "/wordpress/connect/portal"] do
+    for path <- [
+          "/wordpress/connect/site",
+          "/wordpress/connect/checkout",
+          "/wordpress/connect/portal"
+        ] do
       assert conn |> post(path, %{}) |> redirected_to() == "/users/log-in"
     end
 

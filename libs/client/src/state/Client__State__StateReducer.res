@@ -119,7 +119,7 @@ let clearConnectionState = (state: state) => {
     billingAbortController: None,
     billingStatusAbortController: None,
     // UI intent survives authentication recovery; it never grants account access.
-    settingsModalTab: state.wordPressAssistantSetupSelected && state.wordPressAssistantArrival != Some(true) ? Some(General) : None,
+    settingsModalTab: state.wordPressAssistantSetupSelected && !state.wordPressAssistantArrival ? Some(General) : None,
   }->StateReducer.update(
     ~sideEffects=[
       AbortBillingRequest(state.billingAbortController),
@@ -598,13 +598,11 @@ let rec next = (state: state, action) => {
 
   | SetSettingsModalTab({tab}) => {...state, settingsModalTab: tab}->StateReducer.update
   | StartWordPressAssistantArrival =>
-    switch state.wordPressAssistantArrival {
-    | None =>
-      {...state, wordPressAssistantArrival: Some(true), wordPressAssistantSetupSelected: true, settingsModalTab: None}->StateReducer.update
-    | Some(_) => state->StateReducer.update
-    }
-  | ExitWordPressAssistantArrival =>
-    {...state, wordPressAssistantArrival: Some(false), wordPressAssistantSetupSelected: false}->StateReducer.update
+    {...state, wordPressAssistantArrival: true, wordPressAssistantSetupSelected: true, settingsModalTab: None}->StateReducer.update
+  | OpenFrontmanEditor(href) =>
+    let url = WebAPI.URL.make(~url=href)
+    url.searchParams->WebAPI.URLSearchParams.delete(~name="frontman_intent")
+    state->StateReducer.update(~sideEffects=[NavigateFrontman(url.href)])
   | OpenWordPressAssistantSetup =>
     {
       ...state,

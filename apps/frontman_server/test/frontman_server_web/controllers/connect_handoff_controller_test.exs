@@ -311,6 +311,12 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
       assert html_response(shown, 200) =~ ~s(id="connect-access")
       refute shown.resp_body =~ ~s(id="connect-continue")
 
+      if status == "past_due" do
+        refute shown.resp_body =~ ~s(id="checkout-plan")
+      else
+        assert shown.resp_body =~ ~s(id="checkout-plan")
+      end
+
       blocked =
         shown
         |> recycle()
@@ -357,6 +363,13 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
       |> post("/auth/mcp/workos/pending", ref: pending["ref"], site_id: site.id)
 
     assert html_response(blocked, 403) =~ ~s(id="connect-access")
+    assert blocked.resp_body =~ ~s(id="connect-billing-portal")
+    refute blocked.resp_body =~ ~s(id="checkout-plan")
+    assert FrontmanServer.Billing.checkout_offers(user_scope_fixture(user)) == {:ok, []}
+
+    assert FrontmanServer.Billing.start_checkout(user_scope_fixture(user), :monthly, %{}) ==
+             {:error, :subscription_already_active}
+
     assert get_session(blocked, :connect_handoff) == pending
   end
 

@@ -5,8 +5,6 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
   alias FrontmanServer.WordPress
   alias FrontmanServerWeb.{ConnectHandoff, UserAuth}
 
-  plug(ConnectHandoff)
-
   def create(conn, %{"external_auth_id" => id})
       when is_binary(id) and byte_size(id) > 0 and byte_size(id) <= 512 do
     ref = Base.url_encode64(:crypto.strong_rand_bytes(24), padding: false)
@@ -36,28 +34,21 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
 
     case ConnectHandoff.pending(conn) do
       {:ok, pending} ->
-        redirect(conn, to: journey_path(pending["ref"]))
+        redirect(conn,
+          to:
+            checkpoint_path(
+              pending["ref"],
+              Billing.subscription_access(conn.assigns.current_scope),
+              params["checkout"]
+            )
+        )
 
       :error ->
         render_checkpoint(conn, nil, Billing.subscription_access(conn.assigns.current_scope))
     end
   end
 
-  def finish_setup(conn, params) do
-    case selected_site(conn, params["site_id"]) do
-      nil ->
-        conn |> put_flash(:error, "Choose a connected WordPress site.") |> setup(%{})
-
-      site ->
-        conn
-        |> put_session(:setup_site_id, site.id)
-        |> render_checkpoint(nil, Billing.subscription_access(conn.assigns.current_scope), true)
-    end
-  end
-
   def status(conn, params) do
-    conn = put_resp_header(conn, "cache-control", "no-store")
-
     case valid_journey?(conn, params["ref"]) do
       true ->
         json(conn, %{revision: revision(conn), expired: false})
@@ -191,7 +182,11 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
 
   def switch_account(conn, _params), do: expired(conn)
 
-  defp render_checkpoint(conn, ref, status, finished \\ false) do
+  defp render_checkpoint(%{params: %{"checkout" => "success"}} = conn, ref, {:allowed, _}) do
+    redirect(conn, to: journey_path(ref))
+  end
+
+  defp render_checkpoint(conn, ref, status) do
     scope = conn.assigns.current_scope
     sites = WordPress.list_sites(scope)
 
@@ -212,10 +207,6 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
         {_, _status, "success"} ->
           {:ok, []}
 
-        {_, {:inactive, state}, _return}
-        when state in ["past_due", "unpaid", "incomplete", "paused"] ->
-          {:ok, []}
-
         _ ->
           Billing.checkout_offers(scope)
       end
@@ -225,7 +216,7 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
       ref: ref,
       sites: sites,
       selected: selected,
-      finished: finished,
+      page_url: checkpoint_path(ref, status, conn.params["checkout"]),
       offers: offers,
       has_customer: Billing.has_customer?(scope),
       revision: revision(scope, sites, status),
@@ -262,6 +253,16 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
   defp valid_journey?(conn, ref), do: match?({:ok, _}, pending(conn, ref))
   defp journey_path(ref) when ref in [nil, ""], do: ~p"/wordpress/connect"
   defp journey_path(ref), do: ~p"/auth/mcp/workos/pending?#{%{ref: ref}}"
+
+  defp checkpoint_path(ref, {:allowed, _}, _checkout), do: journey_path(ref)
+
+  defp checkpoint_path(ref, _status, "success") do
+    separator = if ref in [nil, ""], do: "?", else: "&"
+    journey_path(ref) <> separator <> "checkout=success"
+  end
+
+  defp checkpoint_path(ref, _status, _checkout), do: journey_path(ref)
+
   defp checkout_interval("monthly"), do: {:ok, :monthly}
   defp checkout_interval("yearly"), do: {:ok, :yearly}
   defp checkout_interval(_), do: :error

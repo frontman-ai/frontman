@@ -15,7 +15,7 @@ let make = () => {
   )
   <main className="grid min-h-dvh place-items-center bg-[#020617] px-5 py-8 text-[#ededee]">
     <section
-      className="assistant-setup-card w-full max-w-[560px] rounded-3xl bg-[#18181b] p-8 [&_[data-slot=button]]:w-full [&_[data-slot=button]]:min-h-14 [&_[data-slot=button]]:rounded-full [&_[data-slot=button]]:px-6 [&_[data-slot=button]]:py-3 [&_[data-slot=button]]:text-base [&_[data-slot=button]]:font-medium [&_[data-slot=button]]:bg-[#e4dbff] [&_[data-slot=button]]:text-[#201532]"
+      className="assistant-setup-card w-full max-w-[560px] rounded-3xl bg-[#18181b] p-8"
       ariaLabel="WordPress assistant connection">
       <Client__FrontmanLogo size=36 />
       <h1 className="mt-6 mb-3 text-3xl leading-tight font-medium tracking-tight">
@@ -60,7 +60,7 @@ let make = () => {
       }}
       <button
         className="mt-7 cursor-pointer text-[13px] text-[#aaa9b0] underline underline-offset-4 hover:text-[#ededee]"
-        onClick={_ => State.Actions.exitWordPressAssistantArrival()}>
+        onClick={_ => State.Actions.openFrontmanEditor()}>
         {React.string("Open Frontman editor instead")}
       </button>
     </section>

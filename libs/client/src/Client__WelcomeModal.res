@@ -6,7 +6,7 @@ let make = (~loginUrl: string, ~onSignIn: unit => unit) => {
   let assistantSetupSelected = Client__State.useSelector(state =>
     state.wordPressAssistantSetupSelected
   )
-  let assistantArrival = Client__State.useSelector(state => state.wordPressAssistantArrival == Some(true))
+  let assistantArrival = Client__RuntimeConfig.read().assistantSetupRequested
   let (waiting, setWaiting) = React.useState(() => false)
   let authorizationRef = React.useRef(None)
 

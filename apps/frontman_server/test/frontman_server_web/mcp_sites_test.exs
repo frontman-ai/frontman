@@ -251,7 +251,8 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     record_requests()
     conn = conn |> log_in_user(user) |> get("/wordpress/connect")
 
-    conn = conn |> recycle() |> post("/wordpress/connect", %{site_id: site.id})
+    conn = conn |> recycle() |> post("/wordpress/connect/site", %{site_id: site.id})
+    conn = conn |> recycle() |> get(redirected_to(conn))
     assert html_response(conn, 200) =~ ~s(id="connect-selected-site")
     assert get_session(conn, :setup_site_id) == site.id
     assert Billing.subscription_access(Scope.for_user(user)) == :none
@@ -260,8 +261,9 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     BillingFixtures.subscription_for_scope_fixture(Scope.for_user(user))
 
     for id <- ["bad-id", foreign.id] do
-      result = conn |> recycle() |> post("/wordpress/connect", %{site_id: id})
-      assert html_response(result, 200) =~ "Choose a connected WordPress site"
+      result = conn |> recycle() |> post("/wordpress/connect/site", %{site_id: id})
+      result = result |> recycle() |> get(redirected_to(result))
+      assert html_response(result, 200) =~ "Choose a site connected to this account."
       assert result.resp_body =~ ~s(id="connect-selected-site")
       assert get_session(result, :setup_site_id) == site.id
       refute_received {:wordpress_event, :catalog, _, _}
@@ -358,7 +360,8 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
     conn = conn |> log_in_user(user) |> get("/wordpress/connect")
     refute html_response(conn, 200) =~ "Verified read access"
-    conn = conn |> recycle() |> post("/wordpress/connect", %{site_id: site.id})
+    conn = conn |> recycle() |> post("/wordpress/connect/site", %{site_id: site.id})
+    conn = conn |> recycle() |> get(redirected_to(conn))
     page = html_response(conn, 200)
     assert page =~ ~s(id="connect-finished")
     assert page =~ URI.parse(site.catalog_url).host

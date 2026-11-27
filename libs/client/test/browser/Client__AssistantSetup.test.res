@@ -45,10 +45,13 @@ let _ = [
     ->Expect.toBe(false)
     render(<Client__AssistantSetup />)
     t->expect(query("[data-slot='dialog-content']")->Option.isNone)->Expect.toBe(true)
-    await page->getByRole("button", {name: "Open Frontman editor instead"})->click
-    let state = StateStore.getState(Client__State__Store.store)
-    t->expect(state.wordPressAssistantArrival)->Expect.toEqual(Some(false))
-    t->expect(state.wordPressAssistantSetupSelected)->Expect.toBe(false)
+    let (_, effects) = Client__State__StateReducer.next(
+      state,
+      OpenFrontmanEditor("https://example.test/wp-admin/admin.php?page=frontman&frontman_intent=assistant&other=keep#preview"),
+    )
+    t->expect(effects)->Expect.toEqual([
+      Client__State__Protocol.NavigateFrontman("https://example.test/wp-admin/admin.php?page=frontman&other=keep#preview"),
+    ])
   })
 )
 

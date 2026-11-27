@@ -261,8 +261,7 @@ type state = {
   wordPressPendingMutation: option<int>,
   wordPressCredentialWarning: bool,
   wordPressAssistantSetupSelected: bool,
-  // None until the server-provided arrival intent has been consumed.
-  wordPressAssistantArrival: option<bool>,
+  wordPressAssistantArrival: bool,
   wordPressWarningReady: bool,
   userProfile: option<userProfile>,
   settingsModalTab: option<settingsTab>,

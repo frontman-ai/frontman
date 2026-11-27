@@ -62,6 +62,12 @@ defmodule FrontmanServerWeb.HostedCheckoutTest do
       |> get("/auth/mcp/workos/pending", ref: pending["ref"], checkout: "success")
 
     assert html_response(returned, 200) =~ "checking payment confirmation"
+    waiting_url = "/auth/mcp/workos/pending?ref=#{pending["ref"]}&checkout=success"
+    assert_refresh_url(returned, waiting_url)
+    refreshed = returned |> recycle() |> get(waiting_url)
+    assert html_response(refreshed, 200) =~ ~s(id="checkout-pending")
+    refute refreshed.resp_body =~ ~s(id="checkout-plan")
+    refute refreshed.resp_body =~ ~s(id="connect-continue")
     assert Billing.subscription_access(scope) == :none
     before = returned |> recycle() |> get("/wordpress/connect/status", ref: pending["ref"])
     revision = json_response(before, 200)["revision"]
@@ -84,6 +90,32 @@ defmodule FrontmanServerWeb.HostedCheckoutTest do
     after_webhook = returned |> recycle() |> get("/wordpress/connect/status", ref: pending["ref"])
     assert json_response(after_webhook, 200)["revision"] != revision
     assert get_session(after_webhook, :connect_handoff) == pending
+    confirmed = after_webhook |> recycle() |> get(waiting_url)
+    assert redirected_to(confirmed) == "/auth/mcp/workos/pending?ref=#{pending["ref"]}"
+    confirmed = confirmed |> recycle() |> get(redirected_to(confirmed))
+    assert html_response(confirmed, 200) =~ ~s(id="connect-continue")
+    refute confirmed.resp_body =~ ~s(id="checkout-pending")
+    assert_refresh_url(confirmed, "/auth/mcp/workos/pending?ref=#{pending["ref"]}")
+  end
+
+  test "generic success refresh remains informational until persisted access is allowed", %{
+    conn: conn
+  } do
+    scope = user_scope_fixture()
+    insert_site(scope.user)
+    waiting_url = "/wordpress/connect?checkout=success"
+    returned = conn |> log_in_user(scope.user) |> get(waiting_url)
+    assert html_response(returned, 200) =~ ~s(id="checkout-pending")
+    assert_refresh_url(returned, waiting_url)
+    refute returned.resp_body =~ ~s(id="connect-finished")
+    assert Billing.subscription_access(scope) == :none
+
+    subscription_for_scope_fixture(scope)
+    confirmed = returned |> recycle() |> get(waiting_url)
+    assert redirected_to(confirmed) == "/wordpress/connect"
+    confirmed = confirmed |> recycle() |> get(redirected_to(confirmed))
+    assert html_response(confirmed, 200) =~ ~s(id="connect-finished")
+    assert_refresh_url(confirmed, "/wordpress/connect")
   end
 
   test "checkout and portal require authenticated browser sessions and CSRF", %{conn: conn} do
@@ -183,6 +215,16 @@ defmodule FrontmanServerWeb.HostedCheckoutTest do
     assert params["return_url"] =~ "/auth/mcp/workos/pending?ref=#{pending["ref"]}"
     assert get_session(portal, :connect_handoff) == pending
     assert Billing.subscription_access(scope) == {:inactive, "past_due"}
+  end
+
+  defp assert_refresh_url(conn, url) do
+    document = LazyHTML.from_document(conn.resp_body)
+
+    assert LazyHTML.query(document, "#hosted-setup")
+           |> LazyHTML.attribute("data-setup-page-url") == [url]
+
+    assert LazyHTML.query(document, "#hosted-setup details a")
+           |> LazyHTML.attribute("href") == [url]
   end
 
   defp insert_site(user) do
