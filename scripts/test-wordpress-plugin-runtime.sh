@@ -58,7 +58,17 @@ case "$YOAST_VERSION" in
   19.9) YOAST_SHA256="8494a158e4bb9fcea9bb2198cc4c5908e92f3a5a2ccfffd989db05cf4e016af9" ;;
   *) printf 'Unsupported Yoast runtime test version: %s\n' "$YOAST_VERSION" >&2; exit 1 ;;
 esac
-PLUGIN_VERSION="$(bash "$ROOT_DIR/scripts/validate-wordpress-plugin-release.sh")"
+PLUGIN_DIR="${FRONTMAN_WP_PLUGIN_DIR:-}"
+if [[ -z "$PLUGIN_DIR" ]]; then
+  make -C "$ROOT_DIR" package-wordpress-plugin
+  PLUGIN_DIR="$ROOT_DIR/dist/frontman-wordpress-package/github/frontman-agentic-ai-editor"
+fi
+for file in frontman.php vendor/autoload.php assets/bridge.js; do
+  if [[ ! -s "$PLUGIN_DIR/$file" ]]; then
+    printf 'Missing packaged WordPress plugin file: %s/%s\n' "$PLUGIN_DIR" "$file" >&2
+    exit 1
+  fi
+done
 RUN_ID="frontman-wp-runtime-$$"
 NETWORK="${RUN_ID}-network"
 DATABASE="${RUN_ID}-database"
@@ -110,7 +120,6 @@ openssl x509 -req -in "$BUILD_DIR/frontman-test.csr" -CA "$BUILD_DIR/ca.crt" \
   -CAkey "$BUILD_DIR/ca.key" -CAcreateserial -days 1 -extfile "$BUILD_DIR/extensions" \
   -out "$BUILD_DIR/frontman-test.crt" >/dev/null 2>&1
 
-make -C "$ROOT_DIR" package-wordpress-plugin VERSION="$PLUGIN_VERSION" >/dev/null
 curl -fsSL "https://wordpress.org/wordpress-${WORDPRESS_VERSION}.tar.gz" -o "$BUILD_DIR/wordpress.tar.gz"
 download_zip "https://downloads.wordpress.org/plugin/megamenu.${MEGAMENU_VERSION}.zip" megamenu "$MEGAMENU_SHA256" megamenu
 download_zip 'https://downloads.wordpress.org/plugin/elementor.3.18.3.zip' elementor '3db1ec40c89c042083f58153bad711b567fae2871f1870180f0914fe3703b834' elementor
@@ -188,7 +197,9 @@ fi
 download_zip 'https://downloads.wordpress.org/theme/astra.4.7.1.zip' astra-runtime '55f2d01b78c3b9ac83417145308b11c254d7fd43b9b414ea95f9eea3fcd5bfff' astra-runtime
 "$RUNTIME" cp "$BUILD_DIR/astra-runtime/astra" "$WORDPRESS:/var/www/html/wp-content/themes/astra"
 "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/plugins/frontman-agentic-ai-editor
-"$RUNTIME" cp "$ROOT_DIR/dist/frontman-wordpress-package/github/frontman-agentic-ai-editor/." "$WORDPRESS:/var/www/html/wp-content/plugins/frontman-agentic-ai-editor/"
+"$RUNTIME" cp "$PLUGIN_DIR/." "$WORDPRESS:/var/www/html/wp-content/plugins/frontman-agentic-ai-editor/"
+# The HTTP tests run as Apache, not root; a local checkout can have private directory modes.
+"$RUNTIME" exec "$WORDPRESS" chmod -R a+rX /var/www/html/wp-content/plugins/frontman-agentic-ai-editor
 "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/mu-plugins
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/SentryRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-sentry-test.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ToolAnnotationsRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-annotations-test.php"
