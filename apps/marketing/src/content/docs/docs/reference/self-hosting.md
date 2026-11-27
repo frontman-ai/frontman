@@ -73,9 +73,9 @@ Production registration is disabled; users sign in through configured OAuth prov
 Self-hosting does not make the supplied source telemetry-free:
 
 - In production, [`config/runtime.exs`](https://github.com/frontman-ai/frontman/blob/main/apps/frontman_server/config/runtime.exs) assigns the server Sentry DSN directly to Frontman's `o4510512511320064.ingest.de.sentry.io` project. Server exceptions and reported errors can therefore leave the deployment for that Sentry project. The runtime source does not read a Sentry DSN or disable flag from the environment.
-- The browser client calls `Client__Heap.init()` at startup. [`Client__Heap.res`](https://github.com/frontman-ai/frontman/blob/main/libs/client/src/Client__Heap.res) loads `https://cdn.us.heap-api.com/config/<env-id>/heap_config.js` and uses Heap environment `349428408` when `import.meta.env.DEV` is true (or unavailable, because [`Client__Env.isDev`](https://github.com/frontman-ai/frontman/blob/main/libs/client/src/Client__Env.res) falls back to `true`) and `218974947` in a production Vite build. The source provides no runtime setting to replace the Heap environment or disable initialization.
+- Set `VITE_HEAP_APP_ID` to your own Heap environment ID before building or serving the browser client. The build fails if the value is missing; browser tracking is enabled. Set `HEAP_APP_ID` on the server to send signed-in MCP handoff events.
 
-The documented environment variables cannot disable either integration. If policy forbids this egress, modify and rebuild the relevant server/client source before deployment and enforce outbound network policy as defense in depth. Blocking the destinations without rebuilding can produce failed telemetry requests in server or browser logs; it is not a supported disable control.
+If policy forbids the server's Sentry egress, modify and rebuild the server before deployment and enforce outbound network policy as defense in depth.
 
 ## Deploy with Railway
 

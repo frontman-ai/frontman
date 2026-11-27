@@ -137,7 +137,7 @@ export async function setup() {
   const viteBin = resolveBin(CLIENT_DIR, "vite");
   clientProc = spawn(process.execPath, [viteBin, "--port", String(CLIENT_PORT), "--strictPort"], {
     cwd: CLIENT_DIR,
-    env: { ...process.env },
+    env: { ...process.env, VITE_HEAP_APP_ID: "frontman-e2e-test" },
     stdio: "pipe",
   });
   clientProc.stdout?.on("data", (d: Buffer) => {

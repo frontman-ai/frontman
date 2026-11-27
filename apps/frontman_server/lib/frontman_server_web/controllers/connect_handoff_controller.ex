@@ -4,6 +4,7 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
   alias FrontmanServer.Billing
   alias FrontmanServer.WordPress
   alias FrontmanServerWeb.{ConnectHandoff, UserAuth}
+  alias FrontmanServerWeb.MCP.HandoffEvent
 
   def create(conn, %{"external_auth_id" => id})
       when is_binary(id) and byte_size(id) > 0 and byte_size(id) <= 512 do
@@ -31,14 +32,16 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
   def show(conn, %{"ref" => ref}) do
     case pending(conn, ref) do
       {:ok, _pending} ->
-        render_checkpoint(conn, ref, Billing.subscription_access(conn.assigns.current_scope))
+        status = Billing.subscription_access(conn.assigns.current_scope)
+        HandoffEvent.access(conn.assigns.current_scope, :checkpoint, status)
+        render_checkpoint(conn, ref, status)
 
       :error ->
-        send_resp(conn, 400, "Invalid or expired request")
+        invalid_handoff(conn, :checkpoint)
     end
   end
 
-  def show(conn, _params), do: send_resp(conn, 400, "Invalid request")
+  def show(conn, _params), do: invalid_handoff(conn, :checkpoint, "Invalid request")
 
   def complete(conn, %{"ref" => ref}) do
     case pending(conn, ref) do
@@ -48,15 +51,16 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
             conn |> delete_session(:connect_handoff) |> complete_pending(pending)
 
           status ->
+            HandoffEvent.access(conn.assigns.current_scope, :completion, status)
             conn |> put_status(:forbidden) |> render_checkpoint(ref, status)
         end
 
       :error ->
-        send_resp(conn, 400, "Invalid or expired request")
+        invalid_handoff(conn, :completion)
     end
   end
 
-  def complete(conn, _params), do: send_resp(conn, 400, "Invalid request")
+  def complete(conn, _params), do: invalid_handoff(conn, :completion, "Invalid request")
 
   def switch_account(conn, %{"ref" => ref}) do
     case pending(conn, ref) do
@@ -95,10 +99,18 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
              pending["external_auth_id"]
            ),
          true <- FrontmanServerWeb.MCP.trusted_redirect?(url) do
+      HandoffEvent.redirected(conn.assigns.current_scope)
       redirect(conn, external: url)
     else
-      _ -> send_resp(conn, 400, "Authorization could not continue")
+      _ ->
+        HandoffEvent.authorization_failed(conn.assigns.current_scope)
+        send_resp(conn, 400, "Authorization could not continue")
     end
+  end
+
+  defp invalid_handoff(conn, stage, message \\ "Invalid or expired request") do
+    HandoffEvent.invalid(conn.assigns.current_scope, stage)
+    conn |> put_status(:bad_request) |> text(message)
   end
 
   defp pending(conn, ref) do

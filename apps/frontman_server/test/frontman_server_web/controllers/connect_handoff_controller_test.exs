@@ -1,5 +1,6 @@
 defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
   use FrontmanServerWeb.ConnCase, async: true
+  use Oban.Testing, repo: FrontmanServer.Repo
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.BillingFixtures
@@ -340,7 +341,14 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
         conn |> log_in_user(user) |> get("/auth/mcp/workos?external_auth_id=private-request")
 
       pending = get_session(started, :connect_handoff)
-      shown = started |> recycle() |> get(redirected_to(started))
+
+      {shown, log} =
+        ExUnit.CaptureLog.with_log([level: :info], fn ->
+          started |> recycle() |> get(redirected_to(started))
+        end)
+
+      expected_reason = if status, do: "ineligible_subscription", else: "no_subscription"
+      assert log =~ "MCP handoff stage=checkpoint outcome=blocked reason=#{expected_reason}"
       document = shown |> html_response(200) |> LazyHTML.from_document()
       assert LazyHTML.query(document, "#connect-access") |> LazyHTML.text() =~ reason
       assert LazyHTML.query(document, "#connect-account") |> LazyHTML.text() =~ user.email
@@ -371,7 +379,12 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
   end
 
   test "rechecks subscription changes before continuing", %{conn: conn} do
+    event = [:frontman_server, :mcp, :handoff]
+    handler = :telemetry_test.attach_event_handlers(self(), [event])
+    on_exit(fn -> :telemetry.detach(handler) end)
+
     user = user_fixture()
+    user_id = user.id
     scope = user_scope_fixture(user)
     subscription = subscription_for_scope_fixture(scope, %{status: "past_due"})
     identity_fixture(user, %{provider: "github"})
@@ -382,15 +395,51 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
     shown = started |> recycle() |> get(redirected_to(started))
     assert html_response(shown, 200) =~ "subscription payment failed"
 
+    assert_receive {^event, ^handler, %{count: 1},
+                    %{
+                      user_id: ^user_id,
+                      stage: :checkpoint,
+                      outcome: :blocked,
+                      reason: :ineligible_subscription
+                    }}
+
+    assert [%Oban.Job{args: payload}] =
+             all_enqueued(worker: FrontmanServer.Observability.Heap)
+
+    assert payload["identity"] == user.id
+    assert payload["event"] == "mcp_handoff"
+    assert payload["app_id"] == "handoff-test"
+    assert {:ok, _} = Ecto.UUID.cast(payload["idempotency_key"])
+    assert {:ok, _, 0} = DateTime.from_iso8601(payload["timestamp"])
+
+    assert payload["properties"] == %{
+             "stage" => "checkpoint",
+             "outcome" => "blocked",
+             "reason" => "ineligible_subscription",
+             "client" => "unknown"
+           }
+
     subscription = subscription |> Ecto.Changeset.change(status: "trialing") |> Repo.update!()
     active = shown |> recycle() |> get("/auth/mcp/workos/pending", ref: pending["ref"])
     assert html_response(active, 200) =~ "Assistant access available"
     assert active.resp_body =~ ~s(id="connect-continue")
     assert active.resp_body =~ "Your Frontman trial includes assistant access"
 
+    assert_receive {^event, ^handler, %{count: 1},
+                    %{user_id: ^user_id, stage: :checkpoint, outcome: :allowed, client: :unknown}}
+
     subscription = subscription |> Ecto.Changeset.change(status: "canceled") |> Repo.update!()
     blocked = active |> recycle() |> post("/auth/mcp/workos/pending", ref: pending["ref"])
     assert html_response(blocked, 403) =~ "subscription has ended"
+
+    assert_receive {^event, ^handler, %{count: 1},
+                    %{
+                      user_id: ^user_id,
+                      stage: :completion,
+                      outcome: :blocked,
+                      reason: :ineligible_subscription
+                    }}
+
     assert get_session(blocked, :connect_handoff) == pending
 
     subscription |> Ecto.Changeset.change(status: "trialing") |> Repo.update!()
@@ -399,6 +448,14 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
            |> recycle()
            |> post("/auth/mcp/workos/pending", ref: pending["ref"])
            |> response(400) == "Authorization could not continue"
+
+    assert_receive {^event, ^handler, %{count: 1},
+                    %{
+                      user_id: ^user_id,
+                      stage: :completion,
+                      outcome: :failed,
+                      reason: :authorization_failed
+                    }}
   end
 
   test "trial cancellation after GET blocks POST without consuming the handoff", %{conn: conn} do
