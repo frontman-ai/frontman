@@ -35,7 +35,6 @@ defmodule FrontmanServer.Observability.HeapHandoff do
       end
     end
   rescue
-    # A failed observer must not break login or be detached by :telemetry.
     _error in [DBConnection.ConnectionError, Postgrex.Error] ->
       Logger.warning("Database unavailable for Heap handoff event")
   end

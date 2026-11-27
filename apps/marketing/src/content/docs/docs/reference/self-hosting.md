@@ -73,7 +73,7 @@ Production registration is disabled; users sign in through configured OAuth prov
 Self-hosting does not make the supplied source telemetry-free:
 
 - In production, [`config/runtime.exs`](https://github.com/frontman-ai/frontman/blob/main/apps/frontman_server/config/runtime.exs) assigns the server Sentry DSN directly to Frontman's `o4510512511320064.ingest.de.sentry.io` project. Server exceptions and reported errors can therefore leave the deployment for that Sentry project. The runtime source does not read a Sentry DSN or disable flag from the environment.
-- Heap is opt-in when building from source. To send browser analytics to your own Heap environment, set `VITE_HEAP_APP_ID` when building the client. To send signed-in MCP handoff events from the server, set `HEAP_APP_ID` at runtime. Leave both unset to disable both paths.
+- Set `VITE_HEAP_APP_ID` to your own Heap environment ID before building or serving the browser client. The build fails if the value is missing; browser tracking is enabled. Set `HEAP_APP_ID` on the server to send signed-in MCP handoff events.
 
 If policy forbids the server's Sentry egress, modify and rebuild the server before deployment and enforce outbound network policy as defense in depth.
 

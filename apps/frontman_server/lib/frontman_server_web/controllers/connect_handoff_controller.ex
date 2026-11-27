@@ -110,7 +110,7 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
 
   defp invalid_handoff(conn, stage, message \\ "Invalid or expired request") do
     HandoffEvent.invalid(conn.assigns.current_scope, stage)
-    send_resp(conn, 400, message)
+    conn |> put_status(:bad_request) |> text(message)
   end
 
   defp pending(conn, ref) do

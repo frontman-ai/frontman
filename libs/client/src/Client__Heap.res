@@ -1,5 +1,5 @@
 @@live
-let configuredId: unit => string = %raw(`() => import.meta.env?.VITE_HEAP_APP_ID?.trim() || ""`)
+let configuredId: unit => string = %raw(`() => import.meta.env.VITE_HEAP_APP_ID`)
 
 let load: string => unit = %raw(`function(envId) {
       window.heapReadyCb=window.heapReadyCb||[];
@@ -21,18 +21,13 @@ let load: string => unit = %raw(`function(envId) {
       heap.load(envId);
     }`)
 
-let init = () => {
-  let id = configuredId()
-  if id != "" {
-    load(id)
-  }
-}
+let init = () => load(configuredId())
 
 type heapApi = {identify: string => unit, track: (string, JSON.t) => unit}
 @scope("window") @val external heap: Nullable.t<heapApi> = "heap"
 
-let getHeap = () => if configuredId() == "" { None } else { heap->Nullable.toOption }
+let getHeap = () => heap->Nullable.toOption->Option.getOrThrow(~message="Heap is not initialized")
 
-let identify = userId => getHeap()->Option.forEach(api => api.identify(userId))
+let identify = userId => getHeap().identify(userId)
 
-let track = (eventName, properties) => getHeap()->Option.forEach(api => api.track(eventName, properties))
+let track = (eventName, properties) => getHeap().track(eventName, properties)
