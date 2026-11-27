@@ -7,6 +7,7 @@ RUN if grep -q '^VERSION_CODENAME=bullseye$' /etc/os-release; then \
   && apt-get update && apt-get install -y --no-install-recommends libpng-dev \
   && rm -rf /var/lib/apt/lists/* \
   && docker-php-ext-install mysqli gd \
+  && (php -r 'exit(extension_loaded("Zend OPcache") ? 0 : 1);' || docker-php-ext-enable opcache) \
   && printf '%s\n' 'opcache.validate_timestamps=1' 'opcache.revalidate_freq=0' \
     > /usr/local/etc/php/conf.d/frontman-runtime.ini \
   && a2enmod rewrite ssl \
