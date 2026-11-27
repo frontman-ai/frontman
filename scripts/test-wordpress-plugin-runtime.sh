@@ -198,7 +198,6 @@ download_zip 'https://downloads.wordpress.org/theme/astra.4.7.1.zip' astra-runti
 "$RUNTIME" cp "$BUILD_DIR/astra-runtime/astra" "$WORDPRESS:/var/www/html/wp-content/themes/astra"
 "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/plugins/frontman-agentic-ai-editor
 "$RUNTIME" cp "$PLUGIN_DIR/." "$WORDPRESS:/var/www/html/wp-content/plugins/frontman-agentic-ai-editor/"
-# The HTTP tests run as Apache, not root; a local checkout can have private directory modes.
 "$RUNTIME" exec "$WORDPRESS" chmod -R a+rX /var/www/html/wp-content/plugins/frontman-agentic-ai-editor
 "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/mu-plugins
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/SentryRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-sentry-test.php"

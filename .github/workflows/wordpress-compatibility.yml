@@ -60,7 +60,6 @@ jobs:
       - run: corepack enable && corepack install && yarn install --immutable
       - run: |
           make package-wordpress-plugin
-          # Sentry coexistence tests also load the unscoped SDK as a site dependency.
           tar -czf wordpress-runtime.tar.gz "$FRONTMAN_WP_PLUGIN_DIR" dist/wordpress-dependencies-source/vendor
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
@@ -124,8 +123,6 @@ jobs:
           install: true
           cache: true
 
-      # These two jobs compile the same server before exercising different WooCommerce versions.
-      # Keep hosted-runner builds separate from the self-hosted CI cache (native dependencies).
       - name: Cache SDK test dependencies
         if: env.FRONTMAN_REQUIRE_WP_SDK == '1'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -159,7 +156,6 @@ jobs:
 
       - name: Run isolated PHP tests
         run: |
-          # The isolated tests load the plugin relative to the checkout's tests directory.
           cp -a "$FRONTMAN_WP_PLUGIN_DIR/." libs/frontman-wordpress/
           docker run --rm \
             -v "$PWD:/workspace:ro" \

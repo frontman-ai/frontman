@@ -544,7 +544,6 @@ jobs:
       - name: Install Hex/Rebar
         run: make setup-elixir-tools
 
-      # Cache fetched and compiled dependencies together, never the app under test.
       - name: Restore Mix dependencies
         id: mix-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -636,7 +635,6 @@ jobs:
       - name: Install Hex/Rebar
         run: make setup-elixir-tools
 
-      # Rebuild the server and its in-repo path dependencies from this checkout.
       - name: Restore Mix dependencies
         id: mix-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
