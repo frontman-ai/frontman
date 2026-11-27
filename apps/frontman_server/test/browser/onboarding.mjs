@@ -36,19 +36,21 @@ try {
       await context.route("https://localhost/**", route => route.abort())
       for (const prefix of ["", "/blog"]) {
         for (const path of ["", "/", "/index.php", "/index.php/frontman/", "/frontman", "/wp-admin/", "/wp-admin/admin.php"]) {
-          await page.locator("#connect-site-launch input[type=url]").fill(`https://localhost${prefix}${path}`)
-          const [request, popup] = await Promise.all([
-            context.waitForEvent("request", request => request.url().startsWith("https://localhost/")),
-            context.waitForEvent("page"),
-            page.locator("#connect-site-launch button[value=open]").click(),
-          ])
-          assert.equal(request.isNavigationRequest(), true)
-          assert.equal(
-            request.url(),
-            `https://localhost${prefix}/wp-admin/admin.php?page=frontman&frontman_intent=assistant`,
-          )
-          assert.notEqual(popup, page)
-          await popup.close()
+          for (const [action, target] of [
+            ["open", "/wp-admin/admin.php?page=frontman&frontman_intent=assistant"],
+            ["install", "/wp-admin/plugin-install.php?tab=plugin-information&plugin=frontman-agentic-ai-editor"],
+          ]) {
+            await page.locator("#connect-site-launch input[type=url]").fill(`https://localhost${prefix}${path}`)
+            const [request, popup] = await Promise.all([
+              context.waitForEvent("request", request => request.url().startsWith("https://localhost/")),
+              context.waitForEvent("page"),
+              page.locator(`#connect-site-launch button[value=${action}]`).click(),
+            ])
+            assert.equal(request.isNavigationRequest(), true)
+            assert.equal(request.url(), `https://localhost${prefix}${target}`)
+            assert.notEqual(popup, page)
+            await popup.close()
+          }
         }
       }
       await context.unroute("https://localhost/**")

@@ -130,9 +130,9 @@ document.querySelector("form[data-site-launch]")?.addEventListener("submit", eve
     const site = new URL(new FormData(form).get("site_url"))
     if (site.protocol !== "https:" || !site.hostname || site.username ||
         site.password || site.search || site.hash) throw new Error("Invalid site URL")
-    const basePath = site.pathname.replace(/\/(?:wp-admin(?:\/.*)?|frontman)\/?$/, "").replace(/\/$/, "")
+    const basePath = site.pathname.replace(/\/(?:wp-admin(?:\/.*)?|frontman)\/?$/, "").replace(/\/$/, "").replace(/\/index\.php$/, "")
     if (event.submitter?.value === "open") {
-      site.pathname = basePath.replace(/\/index\.php$/, "") + "/wp-admin/admin.php"
+      site.pathname = basePath + "/wp-admin/admin.php"
       site.searchParams.set("page", "frontman")
       site.searchParams.set("frontman_intent", "assistant")
     } else {

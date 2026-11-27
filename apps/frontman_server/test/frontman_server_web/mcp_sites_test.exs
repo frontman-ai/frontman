@@ -466,7 +466,9 @@ defmodule FrontmanServerWeb.MCPSitesTest do
   @tag :wordpress_client
   @tag skip: System.get_env("FRONTMAN_WP_RUNTIME_URL") == nil
   @tag timeout: 180_000
-  test "the real client approves, restores and changes WordPress access" do
+  test "the real client approves, restores and changes WordPress access", %{
+    sandbox_owner: owner
+  } do
     user = AccountsFixtures.user_fixture()
     BillingFixtures.subscription_for_scope_fixture(Scope.for_user(user))
     assert FrontmanServer.Providers.available_models(Scope.for_user(user)) == %{groups: []}
@@ -480,7 +482,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     server =
       start_supervised!(
         {Bandit,
-         plug: {FrontmanServerWeb.WordPressRuntime, self()},
+         plug: {FrontmanServerWeb.WordPressRuntime, owner},
          scheme: :https,
          port: 0,
          ip: {127, 0, 0, 1},
