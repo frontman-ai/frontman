@@ -1,13 +1,7 @@
 @@live
-let envId = if Client__Env.isDev {
-  "349428408"
-} else {
-  "218974947"
-}
+let configuredId: unit => string = %raw(`() => import.meta.env?.VITE_HEAP_APP_ID?.trim() || ""`)
 
-let init = () => {
-  let _: unit = %raw(`
-    (function(envId) {
+let load: string => unit = %raw(`function(envId) {
       window.heapReadyCb=window.heapReadyCb||[];
       window.heap=window.heap||[];
       heap.load=function(e,t){
@@ -25,15 +19,20 @@ let init = () => {
         for(var p=0;p<n.length;p++) heap[n[p]]=i(n[p]);
       };
       heap.load(envId);
-    })(envId)
-  `)
+    }`)
+
+let init = () => {
+  let id = configuredId()
+  if id != "" {
+    load(id)
+  }
 }
 
 type heapApi = {identify: string => unit, track: (string, JSON.t) => unit}
 @scope("window") @val external heap: Nullable.t<heapApi> = "heap"
 
-let getHeap = () => heap->Nullable.toOption->Option.getOrThrow(~message="Heap is not initialized")
+let getHeap = () => if configuredId() == "" { None } else { heap->Nullable.toOption }
 
-let identify = userId => getHeap().identify(userId)
+let identify = userId => getHeap()->Option.forEach(api => api.identify(userId))
 
-let track = (eventName, properties) => getHeap().track(eventName, properties)
+let track = (eventName, properties) => getHeap()->Option.forEach(api => api.track(eventName, properties))
