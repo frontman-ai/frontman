@@ -93,8 +93,7 @@ try do
             {"ONBOARDING_CASE", scenario.name},
             {"ONBOARDING_USER_ID", scenario.user_id},
             {"ONBOARDING_WEBHOOK_SECRET", Keyword.fetch!(stripe, :webhook_secret)},
-            {"ONBOARDING_SITE_IDS", JSON.encode!(scenario.site_ids)},
-            {"ONBOARDING_SCREENSHOT_DIR", System.get_env("ONBOARDING_SCREENSHOT_DIR", "")}
+            {"ONBOARDING_SITE_IDS", JSON.encode!(scenario.site_ids)}
           ],
           stderr_to_stdout: true
         )

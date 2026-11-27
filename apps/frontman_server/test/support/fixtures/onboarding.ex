@@ -1,5 +1,5 @@
 defmodule FrontmanServer.Test.Fixtures.Onboarding do
-  @moduledoc "Persisted synthetic accounts for hosted setup browser checks and screenshots."
+  @moduledoc "Persisted synthetic accounts for hosted setup browser checks and interactive preview."
 
   use Boundary,
     top_level?: true,

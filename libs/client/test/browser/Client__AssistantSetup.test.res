@@ -7,9 +7,6 @@ open Client__ActivationBrowserHelpers
 
 let previousRuntime = ref(Nullable.null)
 let previousHtmlClass = ref("")
-let disableAnimations = React.string(
-  "*, *::before, *::after { animation: none !important; transition: none !important; }",
-)
 
 beforeEach(() => {
   let html = query("html")->Option.getOrThrow
@@ -32,14 +29,13 @@ afterEach(() => {
   setRuntime(Window.current, previousRuntime.contents)
 })
 
-let captureSetup = async (t, path: string, expectedText) => {
+let expectSetup = async (t, expectedText) => {
   await waitFor(() => {
     let content = query(".assistant-setup-card, [data-slot='dialog-content']")->Option.getOrThrow
     let text = (content->Element.asNode).textContent->Null.getOrThrow
     t->expect(text->String.includes(expectedText))->Expect.toBe(true)
     t->expect(Window.getComputedStyle(Window.current, ~elt=content).opacity)->Expect.toBe("1")
   })
-  let _ = await page->screenshot({path: path})
 }
 
 // Synthetic local states exercise the production card, CSS and state actions.
@@ -64,15 +60,9 @@ let _ = [
     t
     ->expect(Client__State__Selectors.providerSetupPromptRequired(state, Wordpress))
     ->Expect.toBe(false)
-    render(
-      <>
-        <style> {disableAnimations} </style>
-        <Client__AssistantSetup />
-      </>,
-    )
-    await captureSetup(
+    render(<Client__AssistantSetup />)
+    await expectSetup(
       t,
-      `node_modules/.cache/frontman-assistant-${name}.png`,
       name == "linked"
         ? "Your original assistant setup tab updates automatically"
         : "Enable MCP and connect",
@@ -197,14 +187,11 @@ testAsync("direct editor keeps provider setup", async t => {
   force(Initialization.defaultState)
   t->expect(Client__RuntimeConfig.read().assistantSetupRequested)->Expect.toBe(false)
   render(
-    <>
-      <style> {disableAnimations} </style>
-      <Client__ProviderSetupModal
-        open_=true onOpenSettings=Client__State.Actions.openSettingsModalOnProviders
-      />
-    </>,
+    <Client__ProviderSetupModal
+      open_=true onOpenSettings=Client__State.Actions.openSettingsModalOnProviders
+    />,
   )
-  await captureSetup(t, "node_modules/.cache/frontman-direct-editor-provider.png", "Connect AI provider")
+  await expectSetup(t, "Connect AI provider")
   await page->getByRole("button", {name: "Connect AI provider"})->click
   let state = StateStore.getState(Client__State__Store.store)
   t->expect(state.wordPressAssistantSetupSelected)->Expect.toBe(false)
