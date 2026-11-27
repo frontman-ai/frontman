@@ -83,6 +83,21 @@ test:
 	MIX_ENV=test mix ecto.migrate --quiet
 	mix test $(TEST_ARGS)
 
+.PHONY: test-onboarding-browser
+test-onboarding-browser:
+	@set -eu; \
+	export MIX_ENV=test MIX_TEST_PARTITION=""; \
+	export MIX_TEST_DB_SUFFIX="_onboarding_browser_$$(elixir -e 'IO.write(Base.encode16(:crypto.strong_rand_bytes(8), case: :lower))')"; \
+	$(MAKE) assets-build; \
+	mix run --no-start test/browser/onboarding_fixture.exs
+
+.PHONY: test-onboarding-ownership preview-onboarding
+test-onboarding-ownership:
+	MIX_ENV=test mix run --no-start test/browser/onboarding_ownership.exs
+
+preview-onboarding:
+	ONBOARDING_PREVIEW=1 $(MAKE) test-onboarding-browser
+
 .PHONY: test-application-restart
 test-application-restart:
 	@set -eu; \

@@ -12,6 +12,11 @@ defmodule FrontmanServer.Billing.Client do
   alias FrontmanServer.Accounts.User
   alias FrontmanServer.Billing.Customer
 
+  @callback checkout_offers(trial_eligible: boolean()) ::
+              {:ok, [FrontmanServer.Billing.checkout_offer()]} | {:error, term()}
+
+  @optional_callbacks checkout_offers: 1
+
   @callback start_checkout(
               User.t(),
               Customer.t() | nil,

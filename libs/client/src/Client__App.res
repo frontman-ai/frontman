@@ -3,7 +3,21 @@ module SettingsModal = Client__SettingsModal
 @react.component
 let make = () => {
   let authRedirectUrl = Client__State.useSelector(Client__State.Selectors.getAuthRedirectUrl)
-  let framework = Client__RuntimeConfig.read().framework
+  let runtimeConfig = Client__RuntimeConfig.read()
+  let framework = runtimeConfig.framework
+  React.useEffect(() => {
+    switch runtimeConfig.assistantSetupRequested {
+    | true => Client__State.Actions.startWordPressAssistantArrival()
+    | false => ()
+    }
+    None
+  }, [])
+  let assistantSetupSelected = Client__State.useSelector(state =>
+    state.wordPressAssistantSetupSelected
+  )
+  let assistantArrival = Client__State.useSelector(state =>
+    state.wordPressAssistantArrival->Option.getOr(runtimeConfig.assistantSetupRequested)
+  )
   let apiBaseUrl = Client__State.useSelector(Client__State.Selectors.apiBaseUrl)
   let hasActiveSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
 
@@ -51,13 +65,14 @@ let make = () => {
   React.useEffect(() => {
     switch billingStatus {
     | Client__Billing.Loaded(status)
-      if !Client__Billing.canStartTurn(status) &&
+      if !assistantArrival && !assistantSetupSelected &&
+      !Client__Billing.canStartTurn(status) &&
       Client__Billing.pretrialRunsRemaining(status)->Option.isNone =>
       Client__State.Actions.openSettingsModalOnBilling()
     | _ => ()
     }
     None
-  }, [billingStatus])
+  }, (billingStatus, assistantSetupSelected, assistantArrival))
 
   let providerSetupRequired = Client__State.useSelector(state =>
     Client__State.Selectors.providerSetupPromptRequired(state, framework)
@@ -84,7 +99,16 @@ let make = () => {
     }
   }
 
-  <div className="flex flex-col h-screen w-screen bg-background text-foreground">
+  switch assistantArrival {
+  | true =>
+    <div className="min-h-screen bg-background text-foreground">
+      {switch authRedirectUrl {
+      | Some(loginUrl) =>
+        <Client__WelcomeModal loginUrl onSignIn={() => Client__State.Actions.connection(RetryAuthentication)} />
+      | None => <Client__AssistantSetup />
+      }}
+    </div>
+  | false => <div className="flex flex-col h-screen w-screen bg-background text-foreground">
     <SettingsModal
       open_={settingsOpen} onOpenChange={handleSettingsOpenChange} initialTab=?{settingsInitialTab}
     />
@@ -140,4 +164,5 @@ let make = () => {
       </div>
     </div>
   </div>
+  }
 }

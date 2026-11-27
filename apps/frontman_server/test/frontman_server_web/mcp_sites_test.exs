@@ -1,6 +1,8 @@
 defmodule FrontmanServerWeb.MCPSitesTest do
-  use FrontmanServerWeb.ConnCase, async: true
+  use FrontmanServerWeb.ConnCase, async: false
   use Oban.Testing, repo: FrontmanServer.Repo
+
+  import FrontmanServer.StripeIntegrationCase
 
   alias Anubis.Server.{Context, Frame}
   alias Anubis.Server.Handlers.Tools
@@ -19,6 +21,8 @@ defmodule FrontmanServerWeb.MCPSitesTest do
   alias FrontmanServer.WordPress.Connection
   alias FrontmanServer.Workers.SyncResendContact
   alias FrontmanServerWeb.MCP.Server
+
+  setup :setup_paper_tiger
 
   test "SDK lists only the authenticated account's sites without credentials or endpoints" do
     owner = AccountsFixtures.user_fixture()
@@ -237,9 +241,10 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     end
   end
 
-  test "onboarding rejects ineligible and foreign site checks without catalog requests", %{
-    conn: conn
-  } do
+  test "onboarding saves owned sites without purchase and rejects foreign sites without catalog requests",
+       %{
+         conn: conn
+       } do
     user = AccountsFixtures.user_fixture()
     site = insert_site(user, "owned.invalid")
     foreign = insert_site(AccountsFixtures.user_fixture(), "foreign.invalid")
@@ -247,14 +252,18 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     conn = conn |> log_in_user(user) |> get("/wordpress/connect")
 
     conn = conn |> recycle() |> post("/wordpress/connect", %{site_id: site.id})
-    assert html_response(conn, 200) =~ "active subscription or eligible trial is required"
+    assert html_response(conn, 200) =~ ~s(id="connect-selected-site")
+    assert get_session(conn, :setup_site_id) == site.id
+    assert Billing.subscription_access(Scope.for_user(user)) == :none
     refute_received {:wordpress_event, :catalog, _, _}
 
     BillingFixtures.subscription_for_scope_fixture(Scope.for_user(user))
 
     for id <- ["bad-id", foreign.id] do
       result = conn |> recycle() |> post("/wordpress/connect", %{site_id: id})
-      assert html_response(result, 400)
+      assert html_response(result, 200) =~ "Choose a connected WordPress site"
+      assert result.resp_body =~ ~s(id="connect-selected-site")
+      assert get_session(result, :setup_site_id) == site.id
       refute_received {:wordpress_event, :catalog, _, _}
     end
   end
@@ -340,7 +349,7 @@ defmodule FrontmanServerWeb.MCPSitesTest do
 
   @tag :wordpress_runtime
   @tag skip: System.get_env("FRONTMAN_WP_RUNTIME_URL") == nil
-  test "onboarding verifies only the selected site's catalog", %{conn: conn} do
+  test "onboarding saves the selected runtime site without fetching its catalog", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     BillingFixtures.subscription_for_scope_fixture(Scope.for_user(user))
     [site] = connect_wordpress_runtime(user, 1)
@@ -351,13 +360,13 @@ defmodule FrontmanServerWeb.MCPSitesTest do
     refute html_response(conn, 200) =~ "Verified read access"
     conn = conn |> recycle() |> post("/wordpress/connect", %{site_id: site.id})
     page = html_response(conn, 200)
-    assert page =~ "Verified read access"
+    assert page =~ ~s(id="connect-finished")
     assert page =~ URI.parse(site.catalog_url).host
-    assert page =~ "tool catalog for"
-    assert LazyHTML.text(LazyHTML.query(LazyHTML.from_document(page), "#saved-site-count")) =~ "2"
-    assert page =~ "Check my connected WordPress sites"
-    assert page =~ "https://chatgpt.com/"
-    assert_received {:wordpress_event, :catalog, %{status_code: 200}, %{outcome: :ok}}
+    assert get_session(conn, :setup_site_id) == site.id
+    assert length(WordPress.list_sites(Scope.for_user(user))) == 2
+    assert page =~ "Return to your AI assistant"
+    refute page =~ "https://chatgpt.com/"
+    refute_received {:wordpress_event, :catalog, _, _}
     refute_received {:wordpress_event, :call, _, _}
     refute_received {:outbound, _, _, "offline.invalid"}
     assert_inactive(user)

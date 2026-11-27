@@ -31,6 +31,8 @@ type rec action =
   | ReloadAfterWordPressLogin
   | WordPressWarningCleared(WebAPI.EventTypes.abortSignal)
   | OpenWordPressAssistantSetup
+  | StartWordPressAssistantArrival
+  | ExitWordPressAssistantArrival
   | ConnectWordPress
   | FetchWordPressConnection
   | SetWordPressAccess(bool)

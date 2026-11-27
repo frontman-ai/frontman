@@ -1,53 +1,36 @@
 defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
-  use FrontmanServerWeb.ConnCase, async: true
+  use FrontmanServerWeb.ConnCase, async: false
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.BillingFixtures
+  import FrontmanServer.StripeIntegrationCase
 
-  alias FrontmanServer.BillingFixtures
   alias FrontmanServer.Repo
   alias FrontmanServer.WordPress.Connection
 
+  setup :setup_paper_tiger
+
   test "retains a pending provider request through Frontman login", %{conn: conn} do
     user = user_fixture()
-
-    subscription_for_scope_fixture(user_scope_fixture(user), %{
-      cancel_at: ~U[2030-01-01 00:00:00Z]
-    })
-
-    token =
-      extract_user_token(fn url ->
-        FrontmanServer.Accounts.deliver_login_instructions(user, url)
-      end)
-
+    subscription_for_scope_fixture(user_scope_fixture(user))
+    insert_site(user)
+    {token, _hashed_token} = generate_user_magic_link_token(user)
     conn = get(conn, "/auth/mcp/workos?external_auth_id=unverified-request")
     assert redirected_to(conn) == "/users/log-in"
     pending = get_session(conn, :connect_handoff)
     assert pending["external_auth_id"] == "unverified-request"
-
     conn = conn |> recycle() |> get("/users/log-in")
     conn = conn |> recycle() |> post("/users/log-in", user: %{token: token})
     assert redirected_to(conn) == "/auth/mcp/workos/pending?ref=#{pending["ref"]}"
-
     conn = conn |> recycle() |> get(redirected_to(conn))
     document = conn |> html_response(200) |> LazyHTML.from_document()
     assert LazyHTML.query(document, "#connect-account") |> LazyHTML.text() =~ user.email
-
-    assert LazyHTML.query(document, "#connect-heading") |> LazyHTML.text() =~
-             "Confirm your Frontman account"
-
-    assert conn.resp_body =~
-             "This does not connect a new website, start a subscription, or change your site content"
-
-    value = LazyHTML.query(document, "#connect-value") |> LazyHTML.text()
-    assert value =~ "One site. Two ways to work."
-    assert value =~ "visual editor for hands-on changes"
-    assert value =~ "AI assistant for conversational updates"
-    assert value =~ "Continue to authorize assistant access to your connected sites"
-
-    assert conn.resp_body =~ "read, change, and delete site content"
+    assert conn.resp_body =~ "Connect your WordPress site"
+    assert conn.resp_body =~ "read, change, and delete"
+    assert conn.resp_body =~ "This selection does not restrict access to only one site"
     refute conn.resp_body =~ "unverified-request"
     assert get_resp_header(conn, "referrer-policy") == ["no-referrer"]
+    assert get_resp_header(conn, "cache-control") == ["no-store"]
 
     assert get_resp_header(conn, "content-security-policy") == [
              "base-uri 'self'; frame-ancestors 'self';"
@@ -57,50 +40,25 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
     assert conn.resp_body =~ ~s(name="ref" value="#{pending["ref"]}")
   end
 
-  test "explains assistant setup only for a live session-backed handoff", %{conn: conn} do
+  test "assistant login context requires a live session-backed handoff", %{conn: conn} do
     generic = get(conn, "/users/log-in?from=chatgpt")
-    refute html_response(generic, 200) =~ ~s(id="assistant-setup-steps")
-
+    refute html_response(generic, 200) =~ ~s(id="assistant-requirements")
     conn = get(conn, "/auth/mcp/workos?external_auth_id=private-request")
     pending = get_session(conn, :connect_handoff)
     conn = conn |> recycle() |> get("/users/log-in")
-    document = conn |> html_response(200) |> LazyHTML.from_document()
-
-    assert LazyHTML.query(document, "h1") |> LazyHTML.text() =~
-             "Edit your WordPress site, your way"
-
-    assert LazyHTML.query(document, "#assistant-setup-steps li") |> LazyHTML.to_tree() |> length() ==
-             3
-
-    requirements = LazyHTML.query(document, "#assistant-requirements") |> LazyHTML.text()
-
-    assert requirements =~
-             "No separate AI-provider API key is needed to use Frontman through your assistant"
-
-    assert requirements =~ "An active Frontman subscription or eligible trial is required"
-
-    assert LazyHTML.query(document, "p") |> LazyHTML.text() =~
-             "Work in Frontman's visual editor, or update your site from the AI assistant"
-
-    assert LazyHTML.query(document, "h2") |> LazyHTML.text() =~
-             "Connect Frontman to your AI assistant"
-
-    assert conn.resp_body =~
-             "Sign in, confirm your account, then choose a connected WordPress site"
-
-    assert conn.resp_body =~ "Use your Frontman email to receive a sign-in link"
-    assert conn.resp_body =~ "Continue with Google or GitHub to create an account"
-    assert conn.resp_body =~ "Return to your assistant"
-    refute conn.resp_body =~ "Enter the runtime era"
-    refute conn.resp_body =~ "private-request"
-    assert get_resp_header(conn, "cache-control") == ["no-store"]
-
+    page = html_response(conn, 200)
+    assert page =~ "Sign in to Frontman"
+    assert page =~ "no separate AI-provider API key"
+    assert page =~ "active Frontman plan or eligible trial"
+    assert page =~ "Continue with Google"
+    assert page =~ "Continue with GitHub"
+    refute page =~ "private-request"
     expired = Map.put(pending, "started_at", System.system_time(:second) - 901)
 
     conn =
       conn |> recycle() |> init_test_session(connect_handoff: expired) |> get("/users/log-in")
 
-    refute html_response(conn, 200) =~ ~s(id="assistant-setup-steps")
+    refute html_response(conn, 200) =~ ~s(id="assistant-requirements")
   end
 
   test "Google and GitHub cancellation retain the setup context for retry", %{conn: conn} do
@@ -118,8 +76,9 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
       assert redirected_to(returned) == "/users/log-in"
       assert get_session(returned, :connect_handoff) == pending
       assert get_session(returned, :user_return_to) =~ pending["ref"]
-      returned = returned |> recycle() |> get("/users/log-in")
-      assert html_response(returned, 200) =~ ~s(id="assistant-setup-steps")
+
+      assert returned |> recycle() |> get("/users/log-in") |> html_response(200) =~
+               ~s(id="assistant-requirements")
     end
   end
 
@@ -136,18 +95,18 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
         "request" => embedded_request
       }
 
-      response =
+      page =
         conn
         |> recycle()
         |> init_test_session(connect_handoff: pending, pending_auth: verification)
         |> get("/auth/verify-email")
         |> html_response(200)
 
-      assert response =~ "Verify your email"
+      assert page =~ "Verify your email"
 
       case embedded_request do
-        nil -> assert response =~ "Next, confirm the Frontman account"
-        _request -> refute response =~ "Next, confirm the Frontman account"
+        nil -> assert page =~ "Next, connect your WordPress site"
+        _ -> refute page =~ "Next, connect your WordPress site"
       end
     end
   end
@@ -157,9 +116,7 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
     next_user = user_fixture()
 
     conn =
-      conn
-      |> log_in_user(first_user)
-      |> get("/auth/mcp/workos?external_auth_id=private-request")
+      conn |> log_in_user(first_user) |> get("/auth/mcp/workos?external_auth_id=private-request")
 
     pending = get_session(conn, :connect_handoff)
     previous_token = get_session(conn, :user_token)
@@ -168,57 +125,66 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
     form = LazyHTML.query(document, "#connect-switch-account")
     [action] = LazyHTML.attribute(form, "action")
     [csrf] = LazyHTML.attribute(LazyHTML.query(form, "input[name=_csrf_token]"), "value")
-    [ref] = LazyHTML.attribute(LazyHTML.query(form, "input[name=ref]"), "value")
 
     conn =
       conn
       |> recycle()
       |> put_private(:plug_skip_csrf_protection, false)
-      |> post(action, %{ref: ref, _csrf_token: csrf})
+      |> post(action, %{ref: pending["ref"], _csrf_token: csrf})
 
     assert redirected_to(conn) == "/users/log-in"
     refute get_session(conn, :user_token)
     refute FrontmanServer.Accounts.get_user_by_session_token(previous_token)
     assert get_session(conn, :connect_handoff) == Map.put(pending, "user_id", nil)
-
     conn = conn |> recycle() |> get("/users/log-in")
-    assert html_response(conn, 200) =~ ~s(id="assistant-setup-steps")
-
     {token, _hashed_token} = generate_user_magic_link_token(next_user)
     conn = conn |> recycle() |> post("/users/log-in", user: %{token: token})
     assert redirected_to(conn) == "/auth/mcp/workos/pending?ref=#{pending["ref"]}"
     conn = conn |> recycle() |> get(redirected_to(conn))
-    document = conn |> html_response(200) |> LazyHTML.from_document()
-    assert LazyHTML.query(document, "#connect-account") |> LazyHTML.text() =~ next_user.email
-    refute LazyHTML.query(document, "#connect-account") |> LazyHTML.text() =~ first_user.email
+    page = html_response(conn, 200)
+    assert page =~ next_user.email
+    refute page =~ first_user.email
     assert get_session(conn, :connect_handoff)["user_id"] == next_user.id
   end
 
-  test "account switching rejects invalid references and requires CSRF", %{conn: conn} do
-    conn =
-      conn
-      |> log_in_user(user_fixture())
-      |> get("/auth/mcp/workos?external_auth_id=private-request")
-
+  test "continuation and account switching require CSRF and valid references", %{conn: conn} do
+    user = user_fixture()
+    subscription_for_scope_fixture(user_scope_fixture(user))
+    insert_site(user)
+    conn = conn |> log_in_user(user) |> get("/auth/mcp/workos?external_auth_id=private")
     pending = get_session(conn, :connect_handoff)
     token = get_session(conn, :user_token)
+    conn = conn |> recycle() |> get(redirected_to(conn))
+    document = conn |> html_response(200) |> LazyHTML.from_document()
 
-    assert_raise Plug.CSRFProtection.InvalidCSRFTokenError, fn ->
-      conn
-      |> recycle()
-      |> put_private(:plug_skip_csrf_protection, false)
-      |> post("/auth/mcp/workos/switch-account", ref: pending["ref"])
+    [csrf] =
+      LazyHTML.query(document, "#connect-handoff input[name=_csrf_token]")
+      |> LazyHTML.attribute("value")
+
+    for path <- ["/auth/mcp/workos/pending", "/auth/mcp/workos/switch-account"] do
+      assert_raise Plug.CSRFProtection.InvalidCSRFTokenError, fn ->
+        conn
+        |> recycle()
+        |> put_private(:plug_skip_csrf_protection, false)
+        |> post(path, ref: pending["ref"])
+      end
+
+      rejected =
+        conn
+        |> recycle()
+        |> put_private(:plug_skip_csrf_protection, false)
+        |> post(path, ref: "wrong", _csrf_token: csrf)
+
+      assert html_response(rejected, 400) =~ ~s(id="connect-expired")
+      assert get_session(rejected, :user_token) == token
+      assert get_session(rejected, :connect_handoff) == pending
     end
-
-    rejected = conn |> recycle() |> post("/auth/mcp/workos/switch-account", ref: "wrong")
-    assert response(rejected, 400)
-    assert get_session(rejected, :user_token) == token
-    assert get_session(rejected, :connect_handoff) == pending
   end
 
   test "escapes the pending reference in the continuation form", %{conn: conn} do
     user = user_fixture()
     subscription_for_scope_fixture(user_scope_fixture(user))
+    insert_site(user)
     ref = ~s|" autofocus onfocus="alert('handoff')|
 
     conn =
@@ -234,185 +200,188 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
 
     document = conn |> html_response(200) |> LazyHTML.from_document()
 
-    assert LazyHTML.attribute(
-             LazyHTML.query(document, "#connect-handoff input[name=ref]"),
-             "value"
-           ) ==
-             [ref]
+    assert LazyHTML.query(document, "#connect-handoff input[name=ref]")
+           |> LazyHTML.attribute("value") == [ref]
 
     assert LazyHTML.query(document, "#connect-handoff input[autofocus]") |> LazyHTML.to_tree() ==
              []
   end
 
-  test "requires a valid CSRF token for the continuation form", %{conn: conn} do
-    user = user_fixture()
-    subscription_for_scope_fixture(user_scope_fixture(user))
-
-    conn =
-      conn
-      |> log_in_user(user)
-      |> get("/auth/mcp/workos?external_auth_id=unverified")
-
-    conn = conn |> recycle() |> get(redirected_to(conn))
-    document = conn |> html_response(200) |> LazyHTML.from_document()
-
-    [csrf_token] =
-      LazyHTML.attribute(
-        LazyHTML.query(document, "#connect-handoff input[name=_csrf_token]"),
-        "value"
-      )
-
-    assert_raise Plug.CSRFProtection.InvalidCSRFTokenError, fn ->
-      conn
-      |> recycle()
-      |> put_private(:plug_skip_csrf_protection, false)
-      |> post("/auth/mcp/workos/pending", ref: "mismatch")
-    end
-
-    assert conn
-           |> recycle()
-           |> put_private(:plug_skip_csrf_protection, false)
-           |> post("/auth/mcp/workos/pending", %{ref: "mismatch", _csrf_token: csrf_token})
-           |> response(400)
-  end
-
-  test "rejects missing, oversized, and mismatched requests", %{conn: conn} do
-    assert conn |> get("/auth/mcp/workos") |> response(400)
-
-    assert conn
-           |> get("/auth/mcp/workos?external_auth_id=" <> String.duplicate("x", 513))
-           |> response(400)
-
-    conn = conn |> log_in_user(user_fixture()) |> get("/auth/mcp/workos?external_auth_id=opaque")
-    conn = conn |> recycle() |> get("/auth/mcp/workos/pending?ref=other")
-    assert response(conn, 400)
-    assert get_resp_header(conn, "cache-control") == ["no-store"]
-  end
-
-  test "rejects ambiguous linked provider identities", %{conn: conn} do
-    user = user_fixture()
-    subscription_for_scope_fixture(user_scope_fixture(user))
-    identity_fixture(user, %{provider: "github"})
-    identity_fixture(user, %{provider: "google"})
-
-    conn = conn |> log_in_user(user) |> get("/auth/mcp/workos?external_auth_id=opaque")
-    ref = get_session(conn, :connect_handoff)["ref"]
-
-    assert conn
-           |> recycle()
-           |> post("/auth/mcp/workos/pending", ref: ref)
-           |> response(400) == "Authorization could not continue"
-  end
-
-  test "rejects a provider identity linked to another account", %{conn: conn} do
-    user = user_fixture()
-    subscription_for_scope_fixture(user_scope_fixture(user))
-    identity = identity_fixture(user, %{provider: "github"})
-    identity_fixture(user_fixture(), %{provider: "google", provider_id: identity.provider_id})
-
-    conn = conn |> log_in_user(user) |> get("/auth/mcp/workos?external_auth_id=opaque")
-    ref = get_session(conn, :connect_handoff)["ref"]
-
-    assert conn
-           |> recycle()
-           |> post("/auth/mcp/workos/pending", ref: ref)
-           |> response(400) == "Authorization could not continue"
-  end
-
-  test "blocks inactive subscriptions on GET and POST without consuming the handoff", %{
+  test "missing, oversized, stale, expired and cross-account requests render recovery", %{
     conn: conn
   } do
-    for {status, reason} <- [
-          {nil, "No active subscription is linked"},
-          {"past_due", "subscription payment failed"},
-          {"unpaid", "unpaid invoice"},
-          {"canceled", "subscription has ended"},
-          {"incomplete", "Billing setup did not produce"},
-          {"incomplete_expired", "Billing setup did not produce"},
-          {"paused", "subscription is paused"},
-          {"unknown", "cannot confirm an active subscription"}
+    for params <- [%{}, %{external_auth_id: String.duplicate("x", 513)}] do
+      assert conn |> get("/auth/mcp/workos", params) |> html_response(400) =~
+               "Your setup is saved"
+    end
+
+    conn = conn |> log_in_user(user_fixture()) |> get("/auth/mcp/workos?external_auth_id=first")
+    first = get_session(conn, :connect_handoff)
+    conn = conn |> recycle() |> get("/auth/mcp/workos?external_auth_id=second")
+    second = get_session(conn, :connect_handoff)
+
+    for {pending, ref} <- [
+          {second, first["ref"]},
+          {Map.put(second, "started_at", System.system_time(:second) - 901), second["ref"]},
+          {Map.put(second, "user_id", user_fixture().id), second["ref"]}
         ] do
+      for method <- [:get, :post] do
+        result =
+          conn
+          |> recycle()
+          |> init_test_session(connect_handoff: pending)
+          |> dispatch(@endpoint, method, "/auth/mcp/workos/pending", %{ref: ref})
+
+        page = html_response(result, 400)
+        assert page =~ ~s(id="connect-expired")
+        assert page =~ "View saved site setup"
+        refute page =~ "external_auth_id"
+        refute get_session(result, :setup_site_id)
+      end
+    end
+  end
+
+  test "pending GET and POST require authentication", %{conn: conn} do
+    assert conn |> get("/auth/mcp/workos/pending?ref=private") |> redirected_to() ==
+             "/users/log-in"
+
+    assert conn |> post("/auth/mcp/workos/pending", ref: "private") |> redirected_to() ==
+             "/users/log-in"
+  end
+
+  test "ambiguous or cross-account identities render authorization failure and retain handoff", %{
+    conn: conn
+  } do
+    for kind <- [:ambiguous, :cross_account] do
       user = user_fixture()
-      scope = user_scope_fixture(user)
-      if status, do: subscription_for_scope_fixture(scope, %{status: status})
+      subscription_for_scope_fixture(user_scope_fixture(user))
+      site = insert_site(user)
+      identity = identity_fixture(user, %{provider: "github"})
+
+      case kind do
+        :ambiguous ->
+          identity_fixture(user, %{provider: "google"})
+
+        :cross_account ->
+          identity_fixture(user_fixture(), %{
+            provider: "google",
+            provider_id: identity.provider_id
+          })
+      end
 
       started =
-        conn |> log_in_user(user) |> get("/auth/mcp/workos?external_auth_id=private-request")
+        conn |> recycle() |> log_in_user(user) |> get("/auth/mcp/workos?external_auth_id=private")
+
+      pending = get_session(started, :connect_handoff)
+
+      result =
+        started
+        |> recycle()
+        |> post("/auth/mcp/workos/pending", ref: pending["ref"], site_id: site.id)
+
+      assert html_response(result, 400) =~ "Your assistant could not authorize this account"
+      assert get_session(result, :connect_handoff) == pending
+      refute result.resp_body =~ "secret-password"
+    end
+  end
+
+  test "inactive access and foreign sites cannot authorize", %{conn: conn} do
+    for status <- [
+          "none",
+          "past_due",
+          "unpaid",
+          "canceled",
+          "incomplete",
+          "incomplete_expired",
+          "paused",
+          "unknown"
+        ] do
+      user = user_fixture()
+
+      if status != "none",
+        do: subscription_for_scope_fixture(user_scope_fixture(user), %{status: status})
+
+      site = insert_site(user)
+
+      started =
+        conn |> recycle() |> log_in_user(user) |> get("/auth/mcp/workos?external_auth_id=private")
 
       pending = get_session(started, :connect_handoff)
       shown = started |> recycle() |> get(redirected_to(started))
-      document = shown |> html_response(200) |> LazyHTML.from_document()
-      assert LazyHTML.query(document, "#connect-access") |> LazyHTML.text() =~ reason
-      assert LazyHTML.query(document, "#connect-account") |> LazyHTML.text() =~ user.email
-      assert LazyHTML.query(document, "#connect-handoff") |> LazyHTML.to_tree() == []
-      recheck = LazyHTML.query(document, "#connect-recheck-form")
-      assert LazyHTML.attribute(recheck, "method") == ["get"]
+      assert html_response(shown, 200) =~ ~s(id="connect-access")
+      refute shown.resp_body =~ ~s(id="connect-continue")
 
-      assert LazyHTML.query(recheck, "button#connect-recheck[type=submit]") |> LazyHTML.text() =~
-               "Check access again"
+      blocked =
+        shown
+        |> recycle()
+        |> post("/auth/mcp/workos/pending", ref: pending["ref"], site_id: site.id)
 
-      [recheck_action] = LazyHTML.attribute(recheck, "action")
-      [recheck_ref] = LazyHTML.attribute(LazyHTML.query(recheck, "input[name=ref]"), "value")
-      assert recheck_ref == pending["ref"]
-      assert LazyHTML.query(document, "#connect-switch-account") |> LazyHTML.to_tree() != []
-      refute shown.resp_body =~ "private-request"
-      refute shown.resp_body =~ "/checkout"
-      refute shown.resp_body =~ "Upgrade"
-
-      blocked = shown |> recycle() |> post("/auth/mcp/workos/pending", ref: pending["ref"])
-      assert html_response(blocked, 403) =~ reason
+      assert html_response(blocked, 403) =~ "Connect a site and activate assistant access"
       assert get_session(blocked, :connect_handoff) == pending
-
-      assert blocked
-             |> recycle()
-             |> get(recheck_action, ref: recheck_ref)
-             |> html_response(200) =~ reason
     end
-  end
 
-  test "rechecks subscription changes before continuing", %{conn: conn} do
     user = user_fixture()
-    scope = user_scope_fixture(user)
-    subscription = subscription_for_scope_fixture(scope, %{status: "past_due"})
-    identity_fixture(user, %{provider: "github"})
-    identity_fixture(user, %{provider: "google"})
+    subscription_for_scope_fixture(user_scope_fixture(user))
+    insert_site(user)
+    foreign = insert_site(user_fixture())
 
-    started = conn |> log_in_user(user) |> get("/auth/mcp/workos?external_auth_id=private")
+    started =
+      conn |> recycle() |> log_in_user(user) |> get("/auth/mcp/workos?external_auth_id=private")
+
     pending = get_session(started, :connect_handoff)
-    shown = started |> recycle() |> get(redirected_to(started))
-    assert html_response(shown, 200) =~ "subscription payment failed"
 
-    subscription = subscription |> Ecto.Changeset.change(status: "trialing") |> Repo.update!()
-    active = shown |> recycle() |> get("/auth/mcp/workos/pending", ref: pending["ref"])
-    assert html_response(active, 200) =~ "Assistant access available"
-    assert active.resp_body =~ ~s(id="connect-continue")
-    assert active.resp_body =~ "Your Frontman trial includes assistant access"
+    blocked =
+      started
+      |> recycle()
+      |> post("/auth/mcp/workos/pending", ref: pending["ref"], site_id: foreign.id)
 
-    subscription = subscription |> Ecto.Changeset.change(status: "canceled") |> Repo.update!()
-    blocked = active |> recycle() |> post("/auth/mcp/workos/pending", ref: pending["ref"])
-    assert html_response(blocked, 403) =~ "subscription has ended"
+    assert html_response(blocked, 403)
     assert get_session(blocked, :connect_handoff) == pending
-
-    subscription |> Ecto.Changeset.change(status: "trialing") |> Repo.update!()
-
-    assert blocked
-           |> recycle()
-           |> post("/auth/mcp/workos/pending", ref: pending["ref"])
-           |> response(400) == "Authorization could not continue"
+    refute get_session(blocked, :setup_site_id)
   end
 
-  test "trial cancellation after GET blocks POST without consuming the handoff", %{conn: conn} do
+  test "access is rechecked on POST after a trial is canceled", %{conn: conn} do
     user = user_fixture()
     subscription = subscription_for_scope_fixture(user_scope_fixture(user), %{status: "trialing"})
-    conn = conn |> log_in_user(user) |> get("/auth/mcp/workos?external_auth_id=opaque")
+    site = insert_site(user)
+    conn = conn |> log_in_user(user) |> get("/auth/mcp/workos?external_auth_id=private")
     pending = get_session(conn, :connect_handoff)
     shown = conn |> recycle() |> get(redirected_to(conn))
-    assert html_response(shown, 200) =~ "Your Frontman trial includes assistant access"
-
+    assert html_response(shown, 200) =~ "Continue to your assistant"
+    refute shown.resp_body =~ "/wordpress/connect/checkout"
     subscription |> Ecto.Changeset.change(canceled_at: ~U[2020-01-01 00:00:00Z]) |> Repo.update!()
-    blocked = shown |> recycle() |> post("/auth/mcp/workos/pending", ref: pending["ref"])
-    assert html_response(blocked, 403) =~ "Your trial is canceled or otherwise ineligible"
+
+    blocked =
+      shown
+      |> recycle()
+      |> post("/auth/mcp/workos/pending", ref: pending["ref"], site_id: site.id)
+
+    assert html_response(blocked, 403) =~ ~s(id="connect-access")
     assert get_session(blocked, :connect_handoff) == pending
+  end
+
+  test "polling reports persisted revisions without authorizing or consuming the request", %{
+    conn: conn
+  } do
+    user = user_fixture()
+    conn = conn |> log_in_user(user) |> get("/auth/mcp/workos?external_auth_id=private")
+    pending = get_session(conn, :connect_handoff)
+    first = conn |> recycle() |> get("/wordpress/connect/status", ref: pending["ref"])
+    revision = json_response(first, 200)["revision"]
+    insert_site(user)
+    second = first |> recycle() |> get("/wordpress/connect/status", ref: pending["ref"])
+    refute json_response(second, 200)["revision"] == revision
+    subscription_for_scope_fixture(user_scope_fixture(user))
+    third = second |> recycle() |> get("/wordpress/connect/status", ref: pending["ref"])
+    refute json_response(third, 200)["revision"] == json_response(second, 200)["revision"]
+    assert get_session(third, :connect_handoff) == pending
+    refute get_session(third, :setup_site_id)
+    assert get_resp_header(third, "cache-control") == ["no-store"]
+
+    assert third
+           |> recycle()
+           |> get("/wordpress/connect/status", ref: "wrong")
+           |> json_response(200) == %{"expired" => true}
   end
 
   test "scrubs request and referrer from Sentry", %{conn: conn} do
@@ -429,119 +398,14 @@ defmodule FrontmanServerWeb.ConnectHandoffControllerTest do
     refute inspect(Sentry.PlugContext.build_request_interface_data(conn, [])) =~ "private"
   end
 
-  test "rechecks subscription after the handoff page is shown", %{conn: conn} do
-    scope = BillingFixtures.scope_with_allowed_access_fixture()
-    subscription = FrontmanServer.Billing.get_current_subscription(scope)
-    conn = conn |> log_in_user(scope.user) |> get("/auth/mcp/workos?external_auth_id=opaque")
-    pending = get_session(conn, :connect_handoff)
-    ref = pending["ref"]
-
-    assert conn |> recycle() |> get("/auth/mcp/workos/pending", %{ref: ref}) |> html_response(200) =~
-             "Continue to your assistant"
-
-    subscription |> Ecto.Changeset.change(status: "canceled") |> Repo.update!()
-    result = conn |> recycle() |> post("/auth/mcp/workos/pending", %{ref: ref})
-    page = html_response(result, 403)
-    assert page =~ scope.user.email
-    assert page =~ "active subscription or eligible trial is required"
-    refute page =~ "Continue to your assistant"
-    assert get_session(result, :connect_handoff) == pending
-    assert page =~ "existing active subscription"
-    assert page =~ "No site has been changed"
-    document = LazyHTML.from_document(page)
-    recheck = LazyHTML.query(document, "#connect-recheck-form")
-    [path] = LazyHTML.attribute(recheck, "action")
-    assert LazyHTML.attribute(LazyHTML.query(recheck, "input[name=ref]"), "value") == [ref]
-
-    subscription |> Repo.reload!() |> Ecto.Changeset.change(status: "active") |> Repo.update!()
-
-    assert result |> recycle() |> get(path, ref: ref) |> html_response(200) =~
-             "Continue to your assistant"
-  end
-
-  test "blocked handoff explains billing recovery and preserves account switching", %{conn: conn} do
-    scope = BillingFixtures.scope_with_subscription_fixture("past_due")
-    conn = conn |> log_in_user(scope.user) |> get("/auth/mcp/workos?external_auth_id=opaque")
-    pending = get_session(conn, :connect_handoff)
-    conn = conn |> recycle() |> get(redirected_to(conn))
-    page = html_response(conn, 200)
-    document = LazyHTML.from_document(page)
-
-    assert page =~ "WordPress Dashboard"
-    assert page =~ "Select Manage in Stripe"
-    assert page =~ "Use a different account"
-    refute page =~ "Signing out ends this connection attempt"
-    assert page =~ "original AI assistant"
-    assert page =~ "expires after 15 minutes"
-    assert page =~ "It does not start a subscription or retry a payment"
-    assert page =~ "mailto:support@frontman.sh"
-    refute page =~ "opaque"
-    refute page =~ "/billing/checkout"
-    refute page =~ "Continue to your assistant"
-
-    recheck = LazyHTML.query(document, "#connect-recheck-form")
-    [retry_path] = LazyHTML.attribute(recheck, "action")
-    [ref] = LazyHTML.attribute(LazyHTML.query(recheck, "input[name=ref]"), "value")
-    assert ref == pending["ref"]
-    result = conn |> recycle() |> get(retry_path, ref: ref)
-    assert get_session(result, :connect_handoff) == pending
-
-    result =
-      result
-      |> recycle()
-      |> post("/auth/mcp/workos/switch-account", %{ref: ref})
-
-    assert redirected_to(result) == "/users/log-in"
-    assert get_session(result, :connect_handoff) == Map.put(pending, "user_id", nil)
-  end
-
-  test "blocked handoff links to the account's existing WordPress site", %{conn: conn} do
-    scope = BillingFixtures.scope_with_subscription_fixture("past_due")
-
-    %Connection{user_id: scope.user.id}
+  defp insert_site(user) do
+    %Connection{user_id: user.id}
     |> Connection.changeset(%{
-      catalog_url: "https://northstar.example/blog/?rest_route=/frontman/v1/tools",
-      call_url: "https://northstar.example/blog/?rest_route=/frontman/v1/tools/call",
-      username: "site-user",
-      password: "site-password"
+      catalog_url: "https://owned.example/wp-json/frontman/v1/tools",
+      call_url: "https://owned.example/wp-json/frontman/v1/tools/call",
+      username: "secret-user",
+      password: "secret-password"
     })
     |> Repo.insert!()
-
-    conn = conn |> log_in_user(scope.user) |> get("/auth/mcp/workos?external_auth_id=opaque")
-    conn = conn |> recycle() |> get(redirected_to(conn))
-    document = conn |> html_response(200) |> LazyHTML.from_document()
-
-    assert LazyHTML.attribute(LazyHTML.query(document, "#frontman-site-links a"), "href") ==
-             ["https://northstar.example/blog/index.php/frontman"]
-
-    assert LazyHTML.text(LazyHTML.query(document, "#subscription-next-steps")) =~ "Then open"
-    refute conn.resp_body =~ "site-password"
-    refute conn.resp_body =~ "Continue to your assistant"
-  end
-
-  test "rejects stale references, expired requests and a different user", %{conn: conn} do
-    user = user_fixture()
-    subscription_for_scope_fixture(user_scope_fixture(user))
-    conn = conn |> log_in_user(user) |> get("/auth/mcp/workos?external_auth_id=first")
-    first = get_session(conn, :connect_handoff)
-    conn = conn |> recycle() |> get("/auth/mcp/workos?external_auth_id=second")
-    second = get_session(conn, :connect_handoff)
-    user_token = get_session(conn, :user_token)
-
-    assert conn
-           |> recycle()
-           |> post("/auth/mcp/workos/pending", ref: first["ref"])
-           |> response(400) == "Invalid or expired request"
-
-    for pending <- [
-          %{second | "started_at" => System.system_time(:second) - 901},
-          %{second | "user_id" => user_fixture().id}
-        ] do
-      assert conn
-             |> recycle()
-             |> init_test_session(%{user_token: user_token, connect_handoff: pending})
-             |> post("/auth/mcp/workos/pending", ref: second["ref"])
-             |> response(400) == "Invalid or expired request"
-    end
   end
 end

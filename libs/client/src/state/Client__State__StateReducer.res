@@ -114,12 +114,12 @@ let clearConnectionState = (state: state) => {
     ...clearPendingQuestions(state),
     wordPressConnectionStatus: WordPressNotChecked,
     wordPressConnectionRequestId: state.wordPressConnectionRequestId + 1,
-    wordPressAssistantSetupSelected: false,
     billingStatus: Client__Billing.NotLoaded,
     billingFlow: Client__Billing.Idle,
     billingAbortController: None,
     billingStatusAbortController: None,
-    settingsModalTab: None,
+    // UI intent survives authentication recovery; it never grants account access.
+    settingsModalTab: state.wordPressAssistantSetupSelected && state.wordPressAssistantArrival != Some(true) ? Some(General) : None,
   }->StateReducer.update(
     ~sideEffects=[
       AbortBillingRequest(state.billingAbortController),
@@ -597,6 +597,14 @@ let rec next = (state: state, action) => {
     }
 
   | SetSettingsModalTab({tab}) => {...state, settingsModalTab: tab}->StateReducer.update
+  | StartWordPressAssistantArrival =>
+    switch state.wordPressAssistantArrival {
+    | None =>
+      {...state, wordPressAssistantArrival: Some(true), wordPressAssistantSetupSelected: true, settingsModalTab: None}->StateReducer.update
+    | Some(_) => state->StateReducer.update
+    }
+  | ExitWordPressAssistantArrival =>
+    {...state, wordPressAssistantArrival: Some(false), wordPressAssistantSetupSelected: false}->StateReducer.update
   | OpenWordPressAssistantSetup =>
     {
       ...state,

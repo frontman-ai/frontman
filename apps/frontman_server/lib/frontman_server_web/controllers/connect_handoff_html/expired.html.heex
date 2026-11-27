@@ -1,0 +1,12 @@
+<Layouts.app flash={@flash} current_scope={@current_scope} focused>
+  <Layouts.connection title="Resume your connection" assistant={false}>
+    <:intro>Your connection request is missing, expired, or belongs to another account.</:intro>
+    <div id="connect-expired" class="space-y-4">
+      <h2 class="text-2xl font-medium">Your setup is saved</h2>
+      <p class="text-sm leading-6 text-zinc-400">
+        Return to your original AI assistant and start the Frontman connection again. Connected sites and your subscription do not need to be set up again.
+      </p>
+      <a href={~p"/wordpress/connect"} class={Layouts.connection_button_class()}>View saved site setup</a>
+    </div>
+  </Layouts.connection>
+</Layouts.app>

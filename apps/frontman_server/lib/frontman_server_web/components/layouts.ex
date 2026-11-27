@@ -72,7 +72,7 @@ defmodule FrontmanServerWeb.Layouts do
       <main class="relative z-10 flex-1">
         <div class={[
           "mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8",
-          if(@focused, do: "py-8 md:py-24", else: "py-10 sm:py-14 lg:py-16")
+          if(@focused, do: "py-6 sm:py-12", else: "py-10 sm:py-14 lg:py-16")
         ]}>
           {render_slot(@inner_block)}
         </div>
@@ -101,36 +101,23 @@ defmodule FrontmanServerWeb.Layouts do
     ~H"""
     <section
       aria-labelledby="connect-heading"
-      class="grid items-start gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] md:gap-20"
+      class="mx-auto w-full max-w-[35rem] rounded-3xl bg-zinc-900 p-6 sm:p-8"
+      data-connection-card
     >
-      <div class="min-w-0 motion-safe:animate-connection-enter md:pt-6">
-        <p class="inline-flex items-center gap-6 rounded-full bg-white/4 px-3.5 py-2 text-[10px] font-medium uppercase tracking-[0.18em] text-primary-200">
-          {if @assistant, do: "AI assistant setup", else: "Your Frontman account"}
-          <span :if={@assistant} class="text-zinc-400">0{@step} / 03</span>
-        </p>
+      <div class="min-w-0">
+        <.connection_progress :if={@assistant} step={@step} />
         <h1
           id="connect-heading"
-          class="mt-8 text-4xl font-medium leading-[1.08] tracking-tight md:text-6xl"
+          class="mt-6 text-3xl font-medium leading-tight tracking-tight"
         >
           {@title}
         </h1>
-        <div class="mt-6 max-w-sm space-y-3 text-base leading-7 text-base-content/60">
+        <div class="mt-3 text-sm leading-6 text-zinc-400">
           {render_slot(@intro)}
         </div>
-        <.connection_progress :if={@assistant} step={@step} />
-        <.link
-          href={~p"/"}
-          id="connect-back"
-          class="mt-8 inline-block text-sm text-primary-200 underline-offset-4 hover:underline md:mt-10"
-        >
-          Back to Frontman
-        </.link>
       </div>
-      <div class="min-w-0 motion-safe:animate-connection-enter motion-safe:[animation-delay:100ms]">
-        <div
-          data-connection-card
-          class="space-y-6 rounded-[2rem] bg-zinc-900 bg-none p-6 shadow-none sm:p-8 md:p-10"
-        >
+      <div class="mt-6 min-w-0">
+        <div class="space-y-6">
           {render_slot(@inner_block)}
         </div>
         <div :if={@footer != []} class="mt-6 px-3 text-xs leading-5 text-zinc-400">
@@ -148,21 +135,21 @@ defmodule FrontmanServerWeb.Layouts do
     <ol
       id="assistant-setup-steps"
       aria-label="Connection progress"
-      class="mt-6 flex flex-wrap gap-4 text-xs text-zinc-400 md:mt-12 md:flex-col md:gap-5 md:text-sm"
+      class="flex flex-wrap gap-4 text-xs text-zinc-400"
     >
       <li
         :for={
           {label, index} <- [
-            {"Sign in to Frontman", 1},
-            {"Confirm your account", 2},
-            {"Return to your assistant", 3}
+            {"Sign in", 1},
+            {"Connect site", 2},
+            {"Continue", 3}
           ]
         }
         aria-current={if @step == index, do: "step"}
-        class={["flex items-center gap-2 md:gap-3.5", @step == index && "text-[#e4dbff]"]}
+        class={["flex items-center gap-2", @step == index && "text-[#e4dbff]"]}
       >
         <span class={[
-          "flex size-7 shrink-0 items-center justify-center rounded-full text-xs",
+          "flex size-5 shrink-0 items-center justify-center rounded-full text-[10px]",
           if(@step == index, do: "bg-[#e4dbff] text-[#201532]", else: "bg-white/4")
         ]}>
           {if index < @step, do: "✓", else: index}

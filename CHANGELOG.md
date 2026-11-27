@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Simplify onboarding into compact, focused cards. Offer Google and GitHub on the sign-in page and keep assistant connections out of the editor's Settings interface.
+- Unify assistant onboarding around WordPress site connection, conditional trial or plan checkout, and return to the original assistant. Preserve assistant intent through WordPress login and skip editor provider setup for assistant arrivals.
 - Remove the nonstandard robots.txt Schemamap directive; keep schema-map discovery in llms-full.txt.
 - Update Phoenix to 1.8.17 to fix shared-topic and Presence denial-of-service vulnerabilities (CVE-2026-129344 and CVE-2026-128361).
 - Update Phoenix LiveView to 1.2.14 to fix a `live_session` authorization-hook bypass (CVE-2026-126334).

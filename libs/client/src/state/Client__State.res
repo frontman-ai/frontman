@@ -181,6 +181,8 @@ module Actions = {
   let openSettingsModalOnProviders = () => setSettingsModalTab(Some(Client__State__Types.Providers))
   let openSettingsModalOnBilling = () => setSettingsModalTab(Some(Client__State__Types.Billing))
   let openWordPressAssistantSetup = () => Client__State__Store.dispatch(OpenWordPressAssistantSetup)
+  let startWordPressAssistantArrival = () => Client__State__Store.dispatch(StartWordPressAssistantArrival)
+  let exitWordPressAssistantArrival = () => Client__State__Store.dispatch(ExitWordPressAssistantArrival)
   let dismissBillingCheckout = () => Client__State__Store.dispatch(BillingCheckoutDismissed)
   let requestBilling = request => Client__State__Store.dispatch(RequestBilling(request))
   let closeSettingsModal = () => setSettingsModalTab(None)

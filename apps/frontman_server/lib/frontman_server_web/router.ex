@@ -47,11 +47,11 @@ defmodule FrontmanServerWeb.Router do
   scope "/auth/mcp/workos", FrontmanServerWeb do
     pipe_through([:connect_handoff, :browser])
     get("/", ConnectHandoffController, :create, log: false)
-    get("/pending", ConnectHandoffController, :show, log: false)
   end
 
   scope "/auth/mcp/workos", FrontmanServerWeb do
     pipe_through([:connect_handoff, :browser, :require_authenticated_user])
+    get("/pending", ConnectHandoffController, :show, log: false)
     post("/pending", ConnectHandoffController, :complete, log: false)
     post("/switch-account", ConnectHandoffController, :switch_account, log: false)
   end
@@ -111,8 +111,12 @@ defmodule FrontmanServerWeb.Router do
   scope "/", FrontmanServerWeb do
     pipe_through([:browser, :require_authenticated_user])
 
-    get("/wordpress/connect", WordPressOnboardingController, :show)
-    post("/wordpress/connect", WordPressOnboardingController, :verify)
+    get("/wordpress/connect", ConnectHandoffController, :setup)
+    post("/wordpress/connect", ConnectHandoffController, :finish_setup)
+    post("/wordpress/connect/site", ConnectHandoffController, :select_site, log: false)
+    get("/wordpress/connect/status", ConnectHandoffController, :status, log: false)
+    post("/wordpress/connect/checkout", ConnectHandoffController, :checkout, log: false)
+    post("/wordpress/connect/portal", ConnectHandoffController, :portal, log: false)
     get("/users/settings", UserSettingsController, :edit)
     put("/users/settings", UserSettingsController, :update)
     get("/users/settings/confirm-email/:token", UserSettingsController, :confirm_email)

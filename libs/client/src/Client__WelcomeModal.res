@@ -3,6 +3,10 @@ module Button = Client__UI__Button
 
 @react.component
 let make = (~loginUrl: string, ~onSignIn: unit => unit) => {
+  let assistantSetupSelected = Client__State.useSelector(state =>
+    state.wordPressAssistantSetupSelected
+  )
+  let assistantArrival = Client__State.useSelector(state => state.wordPressAssistantArrival == Some(true))
   let (waiting, setWaiting) = React.useState(() => false)
   let authorizationRef = React.useRef(None)
 
@@ -44,7 +48,13 @@ let make = (~loginUrl: string, ~onSignIn: unit => unit) => {
         </div>
         <Dialog.Title> {React.string("Welcome to Frontman!")} </Dialog.Title>
         <Dialog.Description>
-          {React.string("Sign in to Frontman to start editing your website.")}
+          {React.string(
+            assistantArrival
+              ? "Sign in to connect your WordPress site to your AI assistant."
+              : assistantSetupSelected
+              ? "Sign in to connect this site to your AI assistant. No AI provider key is needed."
+              : "Sign in to edit your website with AI.",
+          )}
         </Dialog.Description>
       </Dialog.Header>
       <div className="space-y-4">

@@ -68,14 +68,14 @@ config :paper_tiger,
         product: "prod_frontman_monthly",
         unit_amount: 2_000,
         currency: "usd",
-        recurring: %{interval: "month", interval_count: 1}
+        recurring: %{interval: "month", interval_count: 1, usage_type: "licensed"}
       },
       %{
         id: "price_yearly_test",
         product: "prod_frontman_yearly",
         unit_amount: 20_000,
         currency: "usd",
-        recurring: %{interval: "year", interval_count: 1}
+        recurring: %{interval: "year", interval_count: 1, usage_type: "licensed"}
       }
     ]
   }

@@ -157,7 +157,7 @@ class Frontman_Auth {
 			return;
 		}
 
-		$redirect_url = Frontman_UI::url( '/frontman' );
+		$redirect_url = Frontman_UI::launch_url();
 		wp_safe_redirect( wp_login_url( $redirect_url ) );
 		exit;
 	}
