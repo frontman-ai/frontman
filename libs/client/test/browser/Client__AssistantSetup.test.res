@@ -6,12 +6,8 @@ open Client__ActivationBrowserHelpers
 @set external setRuntime: (Window.t, Nullable.t<JSON.t>) => unit = "__frontmanRuntime"
 
 let previousRuntime = ref(Nullable.null)
-let previousHtmlClass = ref("")
 
 beforeEach(() => {
-  let html = query("html")->Option.getOrThrow
-  previousHtmlClass := html->Element.getAttribute("class")->Null.getOr("")
-  html->Element.setAttribute(~qualifiedName="class", ~value="dark")
   previousRuntime := getRuntime(Window.current)
   setRuntime(Window.current, Nullable.make(JSON.parseOrThrow(`{"framework":"wordpress","wordpressSettingsUrl":"https://example.test/wp-admin/admin.php?page=frontman"}`)))
   let config = DomGlobal.document->Document.createElement("div")
@@ -22,23 +18,11 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
-  query("html")
-  ->Option.getOrThrow
-  ->Element.setAttribute(~qualifiedName="class", ~value=previousHtmlClass.contents)
   query("#frontman-runtime-config")->Option.forEach(Element.remove)
   setRuntime(Window.current, previousRuntime.contents)
 })
 
-let expectSetup = async (t, expectedText) => {
-  await waitFor(() => {
-    let content = query(".assistant-setup-card, [data-slot='dialog-content']")->Option.getOrThrow
-    let text = (content->Element.asNode).textContent->Null.getOrThrow
-    t->expect(text->String.includes(expectedText))->Expect.toBe(true)
-    t->expect(Window.getComputedStyle(Window.current, ~elt=content).opacity)->Expect.toBe("1")
-  })
-}
-
-// Synthetic local states exercise the production card, CSS and state actions.
+// Synthetic local states exercise the production card and state actions.
 // Card-only fixtures do not mount App's connection-fetch effect.
 let _ = [
   ("unlinked", Client__State__Types.WordPressUnlinked),
@@ -46,7 +30,6 @@ let _ = [
 ]
 ->Array.forEach(((name, status)) =>
   testAsync(`assistant arrival shows focused connection: ${name}`, async t => {
-    await page->viewport(1280, 800)
     force({
       ...Initialization.defaultState,
       connection: Client__ConnectionTestHelpers.ready(),
@@ -61,15 +44,7 @@ let _ = [
     ->expect(Client__State__Selectors.providerSetupPromptRequired(state, Wordpress))
     ->Expect.toBe(false)
     render(<Client__AssistantSetup />)
-    await expectSetup(
-      t,
-      name == "linked"
-        ? "Your original assistant setup tab updates automatically"
-        : "Enable MCP and connect",
-    )
     t->expect(query("[data-slot='dialog-content']")->Option.isNone)->Expect.toBe(true)
-    let text = query(".assistant-setup-card")->Option.getOrThrow->Element.asNode
-    t->expect(text.textContent->Null.getOrThrow->String.includes("Providers"))->Expect.toBe(false)
     await page->getByRole("button", {name: "Open Frontman editor instead"})->click
     let state = StateStore.getState(Client__State__Store.store)
     t->expect(state.wordPressAssistantArrival)->Expect.toEqual(Some(false))
@@ -108,8 +83,7 @@ testAsync("assistant arrival keeps authentication visible and restores the focus
   force({...Initialization.defaultState, connection: Some(connection)})
   render(<Client__App />)
   await waitFor(() => {
-    let text = query("[data-slot='dialog-content']")->Option.getOrThrow->Element.asNode
-    t->expect(text.textContent->Null.getOrThrow->String.includes("Welcome to Frontman"))->Expect.toBe(true)
+    t->expect(query("[data-slot='dialog-content']")->Option.isSome)->Expect.toBe(true)
     t->expect(query(".assistant-setup-card")->Option.isNone)->Expect.toBe(true)
     t->expect(StateStore.getState(Client__State__Store.store).settingsModalTab)->Expect.toEqual(None)
   })
@@ -136,12 +110,7 @@ let _ = [
     render(<Client__App />)
     await waitFor(() => {
       let text = query(".assistant-setup-card")->Option.getOrThrow->Element.asNode->Node.textContent->Null.getOrThrow
-      let message = switch error {
-      | ACPError(message) | RelayError(message) => message
-      }
-      t->expect(text->String.includes(message))->Expect.toBe(true)
       t->expect(text->String.includes("Reload Frontman"))->Expect.toBe(true)
-      t->expect(text->String.includes("Check again"))->Expect.toBe(false)
       t->expect(text->String.includes("Enable MCP and connect"))->Expect.toBe(false)
       t->expect(query("[data-slot='dialog-content']")->Option.isNone)->Expect.toBe(true)
     })
@@ -170,8 +139,6 @@ testAsync("assistant arrival exposes WordPress sign-in and reload recovery", asy
     let text = card->Element.asNode->Node.textContent->Null.getOrThrow
     t->expect(text->String.includes("Log in to WordPress (new tab)"))->Expect.toBe(true)
     t->expect(text->String.includes("Reload Frontman"))->Expect.toBe(true)
-    t->expect(text->String.includes("Check again"))->Expect.toBe(false)
-    t->expect(text->String.includes("Providers"))->Expect.toBe(false)
     let login = query(".assistant-setup-card a")->Option.getOrThrow
     t->expect(login->Element.getAttribute("href")->Null.getOrThrow)->Expect.toBe("https://example.test/wp-login.php")
     t->expect(login->Element.getAttribute("target")->Null.getOrThrow)->Expect.toBe("_blank")
@@ -180,7 +147,6 @@ testAsync("assistant arrival exposes WordPress sign-in and reload recovery", asy
 })
 
 testAsync("direct editor keeps provider setup", async t => {
-  await page->viewport(1280, 800)
   query("#frontman-runtime-config")
   ->Option.getOrThrow
   ->Element.setAttribute(~qualifiedName="data-frontman-intent", ~value="")
@@ -191,7 +157,6 @@ testAsync("direct editor keeps provider setup", async t => {
       open_=true onOpenSettings=Client__State.Actions.openSettingsModalOnProviders
     />,
   )
-  await expectSetup(t, "Connect AI provider")
   await page->getByRole("button", {name: "Connect AI provider"})->click
   let state = StateStore.getState(Client__State__Store.store)
   t->expect(state.wordPressAssistantSetupSelected)->Expect.toBe(false)

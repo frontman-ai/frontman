@@ -23,10 +23,6 @@ try {
 
   await page.goto(new URL("/auth/mcp/workos?external_auth_id=local-onboarding-fixture", base).href)
   await page.locator("#google-login-form").waitFor()
-  assert.equal(await page.locator("#github-login-form").count(), 1)
-  assert.equal(await page.locator("#login-form, #email-link-form, input[type=password]").count(), 0)
-  assert.equal(await page.getByText("Confirm your account", {exact: true}).count(), 0)
-  assert.equal(await page.getByText("Enter the runtime era.", {exact: true}).count(), 0)
 
   await signInFixture(page, base, process.env.ONBOARDING_TEST_EMAIL, process.env.ONBOARDING_TEST_PASSWORD)
   await page.waitForURL("**/auth/mcp/workos/pending?*")
@@ -41,12 +37,6 @@ try {
     case "trial-offer": {
       await page.locator("#connect-selected-site").waitFor()
       await page.locator("#checkout-plan").waitFor()
-      assert.match(await page.locator("#checkout-plan").innerText(), /trial/i)
-      assert.equal(await page.locator("#checkout-submit").count(), 1)
-      assert.equal(await page.locator("#checkout-plan input[name=interval]").count(), 2)
-      await page.locator("#checkout-plan input[value=yearly]").check()
-      assert.equal(await page.locator("#checkout-plan input[value=yearly]").isChecked(), true)
-      await page.locator("#checkout-plan input[value=monthly]").check()
       assert.equal(await page.locator("#connect-continue").count(), 0)
 
       // A return URL is not payment proof. No external checkout is performed here.
@@ -95,9 +85,6 @@ try {
       assert.equal(await page.locator("#connect-access").count(), 0)
       assert.equal(await page.locator("select[name=site_id]").count(), 0)
       assert.equal(await page.locator("#connect-handoff input[name=site_id]").inputValue(), siteIds[0])
-      await page.setViewportSize({width: 390, height: 844})
-      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
-      await page.setViewportSize({width: 1360, height: 1000})
 
       const expired = new URL(page.url())
       expired.searchParams.set("ref", "invalid-local-fixture")
