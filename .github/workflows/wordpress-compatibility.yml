@@ -45,10 +45,34 @@ on:
 permissions:
   contents: read
 
+env:
+  FRONTMAN_WP_PLUGIN_DIR: dist/frontman-wordpress-package/github/frontman-agentic-ai-editor
+
 jobs:
+  package:
+    name: Build WordPress runtime plugin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24.4.1'
+      - run: corepack enable && corepack install && yarn install --immutable
+      - run: |
+          make package-wordpress-plugin
+          tar -czf wordpress-runtime.tar.gz "$FRONTMAN_WP_PLUGIN_DIR" dist/wordpress-dependencies-source/vendor
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: wordpress-runtime
+          path: wordpress-runtime.tar.gz
+          if-no-files-found: error
+
   wordpress-runtime:
+    needs: package
     name: WordPress ${{ matrix.wordpress }} / PHP ${{ matrix.php }} / Yoast ${{ matrix.yoast }} / WooCommerce ${{ matrix.woocommerce || 'auto' }}
     runs-on: ubuntu-latest
+    env:
+      FRONTMAN_REQUIRE_WP_SDK: ${{ matrix.wordpress == '7.0.2' && matrix.php == '8.4' && !matrix.yoast && '1' || '0' }}
     strategy:
       fail-fast: false
       matrix:
@@ -78,22 +102,41 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: wordpress-runtime
+      - run: tar -xzf wordpress-runtime.tar.gz
+
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        if: env.FRONTMAN_REQUIRE_WP_SDK == '1'
         with:
           node-version: '24.4.1'
 
-      - name: Install bridge build dependencies
+      - name: Install SDK browser test dependencies
+        if: env.FRONTMAN_REQUIRE_WP_SDK == '1'
         run: corepack enable && corepack install && yarn install --immutable
 
       - name: Set up SDK integration toolchain
-        if: matrix.wordpress == '7.0.2' && matrix.php == '8.4' && !matrix.yoast
+        if: env.FRONTMAN_REQUIRE_WP_SDK == '1'
         uses: jdx/mise-action@82a612c5ab8bcda7cc5db6b7e81a8e7584c3dc6e
         with:
           install: true
           cache: true
 
+      - name: Cache SDK test dependencies
+        if: env.FRONTMAN_REQUIRE_WP_SDK == '1'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            apps/frontman_server/deps
+            apps/frontman_server/_build/test/lib/*
+            !apps/frontman_server/_build/test/lib/frontman_server
+            !apps/frontman_server/_build/test/lib/swarm_ai
+            !apps/frontman_server/_build/test/lib/frontman_notifier
+          key: wp-sdk-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.toml', 'apps/frontman_server/mix.exs', 'apps/frontman_server/mix.lock', 'apps/frontman_server/config/**', 'apps/swarm_ai/mix.exs', 'apps/frontman_notifier/mix.exs') }}
+
       - name: Prepare SDK integration dependencies
-        if: matrix.wordpress == '7.0.2' && matrix.php == '8.4' && !matrix.yoast
+        if: env.FRONTMAN_REQUIRE_WP_SDK == '1'
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
           docker run -d --rm --name wp-sdk-postgres -p 127.0.0.1:5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16
@@ -102,18 +145,18 @@ jobs:
           make -C libs/frontman-preview-bridge install-browser
           cd apps/frontman_server && mix deps.get
 
-      - name: Package plugin and run WordPress runtime tests
+      - name: Run WordPress runtime tests
         env:
           WORDPRESS_VERSION: ${{ matrix.wordpress }}
           PHP_VERSION: ${{ matrix.php }}
           YOAST_VERSION: ${{ matrix.yoast }}
           WOOCOMMERCE_OVERRIDE: ${{ matrix.woocommerce }}
-          FRONTMAN_REQUIRE_WP_SDK: ${{ matrix.wordpress == '7.0.2' && matrix.php == '8.4' && !matrix.yoast && '1' || '0' }}
           FRONTMAN_WP_DIAGNOSTICS: "1"
         run: make test-wordpress-runtime
 
       - name: Run isolated PHP tests
         run: |
+          cp -a "$FRONTMAN_WP_PLUGIN_DIR/." libs/frontman-wordpress/
           docker run --rm \
             -v "$PWD:/workspace:ro" \
             -w /workspace \

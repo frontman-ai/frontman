@@ -544,19 +544,15 @@ jobs:
       - name: Install Hex/Rebar
         run: make setup-elixir-tools
 
-      - name: Cache deps
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      - name: Restore Mix dependencies
+        id: mix-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          path: apps/swarm_ai/deps
-          key: ${{ runner.os }}-swarm-mix-${{ hashFiles('apps/swarm_ai/mix.lock') }}
-          restore-keys: ${{ runner.os }}-swarm-mix-
-
-      - name: Cache _build
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-        with:
-          path: apps/swarm_ai/_build
-          key: ${{ runner.os }}-swarm-build-test-${{ hashFiles('apps/swarm_ai/mix.lock') }}
-          restore-keys: ${{ runner.os }}-swarm-build-test-
+          path: &swarm-mix-paths |
+            apps/swarm_ai/deps
+            apps/swarm_ai/_build/*/lib/*
+            !apps/swarm_ai/_build/*/lib/swarm_ai
+          key: mix-v3-${{ runner.os }}-${{ runner.arch }}-swarm-dev-test-${{ hashFiles('mise.toml', 'apps/swarm_ai/mix.exs', 'apps/swarm_ai/mix.lock') }}
 
       - name: Install dependencies
         working-directory: apps/swarm_ai
@@ -569,6 +565,13 @@ jobs:
       - name: Compile test with warnings as errors
         working-directory: apps/swarm_ai
         run: MIX_ENV=test mix compile --warnings-as-errors --all-warnings
+
+      - name: Save Mix dependencies
+        if: steps.mix-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: *swarm-mix-paths
+          key: ${{ steps.mix-cache.outputs.cache-primary-key }}
 
       - name: Run tests
         working-directory: apps/swarm_ai
@@ -632,23 +635,17 @@ jobs:
       - name: Install Hex/Rebar
         run: make setup-elixir-tools
 
-      - name: Cache deps
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      - name: Restore Mix dependencies
+        id: mix-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          path: apps/frontman_server/deps
-          key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
-          restore-keys: ${{ runner.os }}-mix-
-
-
-
-
-
-      - name: Cache _build
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-        with:
-          path: apps/frontman_server/_build
-          key: ${{ runner.os }}-build-test-v2-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/mix.lock', 'apps/swarm_ai/lib/**') }}
-          restore-keys: ${{ runner.os }}-build-test-v2-
+          path: &server-mix-paths |
+            apps/frontman_server/deps
+            apps/frontman_server/_build/*/lib/*
+            !apps/frontman_server/_build/*/lib/frontman_server
+            !apps/frontman_server/_build/*/lib/swarm_ai
+            !apps/frontman_server/_build/*/lib/frontman_notifier
+          key: mix-v3-${{ runner.os }}-${{ runner.arch }}-server-test-${{ hashFiles('mise.toml', 'apps/frontman_server/mix.exs', 'apps/frontman_server/mix.lock', 'apps/frontman_server/config/**', 'apps/swarm_ai/mix.exs', 'apps/frontman_notifier/mix.exs') }}
 
       - name: Install dependencies
         working-directory: apps/frontman_server
@@ -667,6 +664,13 @@ jobs:
           CLOAK_KEY: "dGVzdC1rZXktZm9yLWNpLXRoaXMtaXMtMzJieXRlc3M="
           MIX_TEST_DB_SUFFIX: "_run_${{ github.run_id }}"
         run: MIX_ENV=test mix compile --warnings-as-errors --all-warnings
+
+      - name: Save Mix dependencies
+        if: steps.mix-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: *server-mix-paths
+          key: ${{ steps.mix-cache.outputs.cache-primary-key }}
 
       - name: Run tests with coverage
         run: make -C apps/frontman_server test-coverage
@@ -729,20 +733,12 @@ jobs:
       - name: Install Hex/Rebar
         run: make setup-elixir-tools
 
-      - name: Cache deps
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      - name: Restore Mix dependencies
+        id: mix-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          path: apps/frontman_server/deps
-          key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
-          restore-keys: ${{ runner.os }}-mix-
-
-
-      - name: Cache _build
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-        with:
-          path: apps/frontman_server/_build
-          key: ${{ runner.os }}-build-dev-v2-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/mix.lock', 'apps/swarm_ai/lib/**') }}
-          restore-keys: ${{ runner.os }}-build-dev-v2-
+          path: *server-mix-paths
+          key: mix-v3-${{ runner.os }}-${{ runner.arch }}-server-dev-${{ hashFiles('mise.toml', 'apps/frontman_server/mix.exs', 'apps/frontman_server/mix.lock', 'apps/frontman_server/config/**', 'apps/swarm_ai/mix.exs') }}
 
       - name: Check dependencies and security
         run: make -C apps/frontman_server security
@@ -750,6 +746,13 @@ jobs:
       - name: Compile dev with warnings as errors
         working-directory: apps/frontman_server
         run: mix compile --warnings-as-errors --all-warnings
+
+      - name: Save Mix dependencies
+        if: steps.mix-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: *server-mix-paths
+          key: ${{ steps.mix-cache.outputs.cache-primary-key }}
 
       - name: Run lint
         run: make -C apps/frontman_server lint
