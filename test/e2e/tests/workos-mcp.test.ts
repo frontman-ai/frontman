@@ -273,7 +273,8 @@ describe("WorkOS MCP OAuth", () => {
           [] -> :ok
           [identity] -> true = provider.id == identity.provider_id
         end
-        {1, _} = FrontmanServer.WordPress.Connection.owned(user.id) |> Repo.delete_all()
+        {1, _} = FrontmanServer.WordPress.Connection.owned(user.id)
+          |> Ecto.Query.exclude(:order_by) |> Repo.delete_all()
         IO.write(user.id <> " " <> provider.id)
       `, email, password).split(" ");
       console.info(`Retained WorkOS E2E user: ${providerId}`);
