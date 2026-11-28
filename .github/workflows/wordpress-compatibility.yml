@@ -57,7 +57,8 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: '24.4.1'
-      - run: corepack enable && corepack install && yarn install --immutable
+      - name: Install plugin build dependencies
+        run: corepack enable && corepack install && yarn workspaces focus @frontman-ai/frontman-preview-bridge
       - run: |
           make package-wordpress-plugin
           tar -czf wordpress-runtime.tar.gz "$FRONTMAN_WP_PLUGIN_DIR" dist/wordpress-dependencies-source/vendor
@@ -114,7 +115,7 @@ jobs:
 
       - name: Install SDK browser test dependencies
         if: env.FRONTMAN_REQUIRE_WP_SDK == '1'
-        run: corepack enable && corepack install && yarn install --immutable
+        run: corepack enable && corepack install && yarn workspaces focus @frontman-ai/client @frontman-ai/frontman-preview-bridge
 
       - name: Set up SDK integration toolchain
         if: env.FRONTMAN_REQUIRE_WP_SDK == '1'
