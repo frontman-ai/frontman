@@ -89,8 +89,22 @@ class Frontman_UI {
 	public function plugin_action_links( array $links ): array {
 		if ( current_user_can( 'manage_options' ) ) {
 			array_unshift( $links, '<a href="' . esc_url( self::url( '/frontman' ) ) . '">' . esc_html__( 'Open Frontman', 'frontman-agentic-ai-editor' ) . '</a>' );
+			$links[] = '<a href="' . esc_url( add_query_arg( 'frontman_intent', 'assistant', self::url( '/frontman' ) ) ) . '">' . esc_html__( 'Connect AI assistant', 'frontman-agentic-ai-editor' ) . '</a>';
 		}
 		return $links;
+	}
+
+	/**
+	 * Navigation only: never use this marker to authorize a connection or tool call.
+	 * Ignore all other values, including array-shaped query parameters.
+	 */
+	private static function assistant_setup_requested(): bool {
+		return isset( $_GET['frontman_intent'] ) && 'assistant' === $_GET['frontman_intent'];
+	}
+
+	public static function launch_url(): string {
+		$url = self::url( '/frontman' );
+		return self::assistant_setup_requested() ? add_query_arg( 'frontman_intent', 'assistant', $url ) : $url;
 	}
 
 	public function enqueue_preview_bridge(): void {
@@ -148,7 +162,7 @@ class Frontman_UI {
 
 		add_action( 'load-toplevel_page_frontman', function (): void {
 			Frontman_Sentry::boundary( 'load-toplevel_page_frontman', static function (): void {
-				wp_safe_redirect( self::url( '/frontman' ) );
+				wp_safe_redirect( self::launch_url() );
 				exit;
 			} );
 		} );
@@ -198,7 +212,7 @@ class Frontman_UI {
 			'wpNonce'      => Frontman_Auth::create_nonce(),
 			'wordpressPluginsUrl' => network_admin_url( 'plugins.php' ),
 			'wordpressSettingsUrl' => admin_url( 'options-general.php?page=frontman-diagnostics' ),
-			'wordpressLoginUrl' => wp_login_url( self::url( '/frontman' ) ),
+			'wordpressLoginUrl' => wp_login_url( self::launch_url() ),
 		];
 
 		$entrypoint_url = null;
@@ -233,6 +247,7 @@ class Frontman_UI {
 		data-wordpress-plugins-url="<?php echo esc_url( $runtime['wordpressPluginsUrl'] ); ?>"
 		data-wordpress-settings-url="<?php echo esc_url( $runtime['wordpressSettingsUrl'] ); ?>"
 		data-wordpress-login-url="<?php echo esc_url( $runtime['wordpressLoginUrl'] ); ?>"
+		data-frontman-intent="<?php echo self::assistant_setup_requested() ? 'assistant' : ''; ?>"
 	></div>
 	<?php if ( $entrypoint_url ) : ?>
 	<span id="frontman-entrypoint-url" hidden><?php echo esc_url( $entrypoint_url ); ?></span>

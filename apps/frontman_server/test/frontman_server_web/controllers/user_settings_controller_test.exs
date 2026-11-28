@@ -34,7 +34,8 @@ defmodule FrontmanServerWeb.UserSettingsControllerTest do
       assert redirected_to(conn) == ~p"/users/log-in"
 
       conn = get(conn, ~p"/users/log-in")
-      assert html_response(conn, 200) =~ ~s(id="email-link-form")
+      assert html_response(conn, 200) =~ ~s(id="google-login-form")
+      refute conn.resp_body =~ ~s(id="email-link-form")
 
       conn = post(conn, ~p"/users/log-in", %{"user" => %{"email" => user.email}})
       assert_receive {:email, %{subject: "Log in instructions"} = email}

@@ -8,8 +8,8 @@ defmodule FrontmanServerWeb.UserRegistrationControllerTest do
       conn = get(conn, ~p"/users/register")
       response = html_response(conn, 200)
       assert response =~ "Sign in to Frontman"
-      assert response =~ "Login with GitHub"
-      assert response =~ "Login with Google"
+      assert response =~ "Continue with GitHub"
+      assert response =~ "Continue with Google"
     end
 
     test "redirects if already logged in", %{conn: conn} do

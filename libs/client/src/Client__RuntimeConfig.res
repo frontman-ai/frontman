@@ -50,6 +50,7 @@ type parsed = {
 type t = {
   framework: frameworkId,
   previewBridge: option<previewBridge>,
+  assistantSetupRequested: bool,
   basePath: string,
   relayBaseUrl: option<string>,
   wpNonce: option<string>,
@@ -70,7 +71,7 @@ let read = (): t => {
   let json = getRuntime()->Nullable.toOption->Option.getOrThrow
   let config = S.parseOrThrow(json, ~to=parsedSchema)
   let framework = frameworkIdFromString(config.framework)
-  let (previewBridge, wordpressLoginUrl, wordpressSettingsUrl) = switch framework {
+  let (previewBridge, wordpressLoginUrl, wordpressSettingsUrl, assistantSetupRequested) = switch framework {
   | Wordpress =>
     let element =
       WebAPI.DomGlobal.document
@@ -90,12 +91,14 @@ let read = (): t => {
       },
       url(config.wordpressLoginUrl, "data-wordpress-login-url"),
       url(config.wordpressSettingsUrl, "data-wordpress-settings-url"),
+      attribute("data-frontman-intent") == Some("assistant"),
     )
-  | Nextjs | Vite | Astro => (None, config.wordpressLoginUrl, None)
+  | Nextjs | Vite | Astro => (None, config.wordpressLoginUrl, None, false)
   }
   {
     framework,
     previewBridge,
+    assistantSetupRequested,
     basePath: switch config.basePath {
     | Some("") | None => "frontman"
     | Some(bp) => bp

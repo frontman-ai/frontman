@@ -49,6 +49,104 @@ if (embeddedClientAuthCompletion && window.opener) {
 
 window.liveSocket = liveSocket
 
+const setup = document.getElementById("hosted-setup")
+let setupSubmitting = false
+if (setup) {
+  let timer
+  let request
+  let disposed = false
+  const deadline = Date.now() + 10 * 60 * 1000
+  const message = document.getElementById("setup-observation")
+  const poll = async () => {
+    clearTimeout(timer)
+    if (disposed || document.hidden || request) return
+    if (Date.now() >= deadline) {
+      message.textContent = "Automatic checks paused. Refresh setup status when you are ready."
+      return
+    }
+    request = new AbortController()
+    const timeout = setTimeout(() => request?.abort(), 5000)
+    try {
+      const response = await fetch(setup.dataset.setupStatusUrl, {
+        credentials: "same-origin", headers: {accept: "text/html"},
+        signal: request.signal, cache: "no-store",
+      })
+      if (!response.ok || response.redirected) throw new Error("Session unavailable")
+      const status = await response.json()
+      if (disposed || setupSubmitting) return
+      if (status.expired || status.revision !== setup.dataset.setupRevision) {
+        disposed = true
+        window.location.assign(setup.dataset.setupPageUrl)
+      }
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        message.textContent = "Could not check setup. We will retry; you can also refresh setup status."
+      }
+    } finally {
+      clearTimeout(timeout)
+      request = null
+      if (!disposed && !document.hidden) timer = setTimeout(poll, 5000)
+    }
+  }
+  document.addEventListener("visibilitychange", () => {
+    clearTimeout(timer)
+    if (document.hidden) request?.abort()
+    else poll()
+  })
+  window.addEventListener("pagehide", () => {
+    disposed = true
+    clearTimeout(timer)
+    request?.abort()
+  })
+  window.addEventListener("pageshow", event => {
+    if (event.persisted) { disposed = false; poll() }
+  })
+  document.addEventListener("submit", event => {
+    if (!event.target.matches("form[data-once-submit], #connect-switch-account")) return
+    disposed = true
+    clearTimeout(timer)
+    request?.abort()
+  })
+  timer = setTimeout(poll, 5000)
+}
+
+document.querySelectorAll("form[data-once-submit]").forEach(form => {
+  form.addEventListener("submit", event => {
+    if (setupSubmitting) { event.preventDefault(); return }
+    setupSubmitting = true
+    document.querySelectorAll("form[data-once-submit] button").forEach(button => { button.disabled = true })
+  })
+})
+window.addEventListener("pageshow", () => {
+  setupSubmitting = false
+  document.querySelectorAll("form[data-once-submit] button").forEach(button => { button.disabled = false })
+})
+
+document.querySelector("form[data-site-launch]")?.addEventListener("submit", event => {
+  event.preventDefault()
+  const form = event.currentTarget
+  const error = form.querySelector("[data-site-launch-error]")
+  try {
+    const site = new URL(new FormData(form).get("site_url"))
+    if (site.protocol !== "https:" || !site.hostname || site.username ||
+        site.password || site.search || site.hash) throw new Error("Invalid site URL")
+    const basePath = site.pathname.replace(/\/(?:wp-admin(?:\/.*)?|frontman)\/?$/, "").replace(/\/$/, "").replace(/\/index\.php$/, "")
+    if (event.submitter?.value === "open") {
+      site.pathname = basePath + "/wp-admin/admin.php"
+      site.searchParams.set("page", "frontman")
+      site.searchParams.set("frontman_intent", "assistant")
+    } else {
+      site.pathname = basePath + "/wp-admin/plugin-install.php"
+      site.searchParams.set("tab", "plugin-information")
+      site.searchParams.set("plugin", "frontman-agentic-ai-editor")
+    }
+    error.hidden = true
+    window.open(site.href, "_blank", "noopener,noreferrer")
+  } catch {
+    error.hidden = false
+  }
+})
+
 if (process.env.NODE_ENV === "development") {
   window.addEventListener("phx:live_reload:attached", ({detail: reloader}) => {
     reloader.enableServerLogs()

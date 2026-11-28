@@ -41,6 +41,7 @@ defmodule FrontmanServer.DataCase do
   def setup_sandbox(tags) do
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: not tags[:async])
     on_exit(fn -> Sandbox.stop_owner(pid) end)
+    %{sandbox_owner: pid}
   end
 
   @doc """

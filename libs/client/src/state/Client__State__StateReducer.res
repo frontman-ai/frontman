@@ -114,12 +114,11 @@ let clearConnectionState = (state: state) => {
     ...clearPendingQuestions(state),
     wordPressConnectionStatus: WordPressNotChecked,
     wordPressConnectionRequestId: state.wordPressConnectionRequestId + 1,
-    wordPressAssistantSetupSelected: false,
     billingStatus: Client__Billing.NotLoaded,
     billingFlow: Client__Billing.Idle,
     billingAbortController: None,
     billingStatusAbortController: None,
-    settingsModalTab: None,
+    settingsModalTab: state.wordPressAssistantSetupSelected && !state.wordPressAssistantArrival ? Some(General) : None,
   }->StateReducer.update(
     ~sideEffects=[
       AbortBillingRequest(state.billingAbortController),
@@ -597,6 +596,12 @@ let rec next = (state: state, action) => {
     }
 
   | SetSettingsModalTab({tab}) => {...state, settingsModalTab: tab}->StateReducer.update
+  | StartWordPressAssistantArrival =>
+    {...state, wordPressAssistantArrival: true, wordPressAssistantSetupSelected: true, settingsModalTab: None}->StateReducer.update
+  | OpenFrontmanEditor(href) =>
+    let url = WebAPI.URL.make(~url=href)
+    url.searchParams->WebAPI.URLSearchParams.delete(~name="frontman_intent")
+    state->StateReducer.update(~sideEffects=[NavigateFrontman(url.href)])
   | OpenWordPressAssistantSetup =>
     {
       ...state,

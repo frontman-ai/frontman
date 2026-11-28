@@ -31,6 +31,8 @@ type rec action =
   | ReloadAfterWordPressLogin
   | WordPressWarningCleared(WebAPI.EventTypes.abortSignal)
   | OpenWordPressAssistantSetup
+  | StartWordPressAssistantArrival
+  | OpenFrontmanEditor(string)
   | ConnectWordPress
   | FetchWordPressConnection
   | SetWordPressAccess(bool)
@@ -141,6 +143,7 @@ type customProviderMutationRequest =
 
 type effect =
   | ReloadFrontman
+  | NavigateFrontman(string)
   | ObserveWordPressWarning
   | PersistSelectedModel(option<string>)
   | ConnectionEffect(Connection.effect)

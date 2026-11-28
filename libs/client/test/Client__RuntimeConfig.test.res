@@ -37,6 +37,28 @@ let setOldBootstrapRuntime = framework =>
   )
 
 describe("Client__RuntimeConfig", _t => {
+  test("assistant intent is WordPress-only UI configuration, not ACP metadata", t => {
+    setNativeRuntimeAttribute(~name="data-frontman-intent", ~value="assistant")
+    setOldBootstrapRuntime("wordpress")
+    let config = Client__RuntimeConfig.read()
+    t->expect(config.assistantSetupRequested)->Expect.toBe(true)
+    t
+    ->expect(Client__RuntimeConfig.toMeta(config))
+    ->Expect.toEqual(JSON.Encode.object(dict{"framework": JSON.Encode.string("wordpress")}))
+    ["nextjs", "vite", "astro"]->Array.forEach(framework => {
+      setOldBootstrapRuntime(framework)
+      t->expect(Client__RuntimeConfig.read().assistantSetupRequested)->Expect.toBe(false)
+    })
+  })
+
+  ["", "editor", "Assistant", "unknown"]->Array.forEach(intent =>
+    test(`does not select assistant setup for "${intent}"`, t => {
+      setOldBootstrapRuntime("wordpress")
+      setNativeRuntimeAttribute(~name="data-frontman-intent", ~value=intent)
+      t->expect(Client__RuntimeConfig.read().assistantSetupRequested)->Expect.toBe(false)
+    })
+  )
+
   test("reads the WordPress page-context-v1 capability without adding it to ACP metadata", t => {
     setOldBootstrapRuntime("wordpress")
     setNativeRuntimeAttribute(~name="data-preview-bridge", ~value="page-context-v1")

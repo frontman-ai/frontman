@@ -43,6 +43,24 @@ try {
 		$admin_nonce = $nonce_match[1];
 		$links = apply_filters( 'plugin_action_links_' . $welcome_plugin, [] );
 		frontman_runtime_assert( false !== strpos( $links[0], esc_url( home_url( $path ) ) ) && false !== strpos( $links[0], 'Open Frontman' ), 'Plugin action uses the active permalink mode.' );
+		$assistant_url = add_query_arg( 'frontman_intent', 'assistant', home_url( $path ) );
+		frontman_runtime_assert( false !== strpos( implode( '', $links ), esc_url( $assistant_url ) ), 'Assistant launch action uses the active permalink mode.' );
+		foreach ( [ '' => '', '&frontman_intent=assistant' => 'assistant', '&frontman_intent=editor' => '', '&frontman_intent[]=assistant' => '' ] as $query => $intent ) {
+			$response = frontman_runtime_http( 'GET', '/wp-admin/admin.php?page=frontman' . $query . '&ref=private-reference', $admin_cookie, null, null, '', '', AUTH_COOKIE, false );
+			$expected_url = 'assistant' === $intent ? $assistant_url : home_url( $path );
+			frontman_runtime_same( 302, $response['status'], 'Admin launch redirects.' );
+			frontman_runtime_assert( in_array( 'Location: ' . $expected_url, $response['headers'], true ), 'Admin launch forwards only the recognized UI intent.' );
+		}
+	}
+	update_option( 'permalink_structure', '' );
+	foreach ( [ '' => '', '?frontman_intent=assistant' => 'assistant', '?frontman_intent=unknown' => '', '?frontman_intent[]=assistant' => '' ] as $query => $intent ) {
+		$response = frontman_runtime_http( 'GET', '/index.php/frontman' . $query, $admin_cookie, null, null, '', '', AUTH_COOKIE );
+		frontman_runtime_same( 200, $response['status'], 'Frontman page loads for an administrator.' );
+		frontman_runtime_assert( false !== strpos( $response['body'], 'data-frontman-intent="' . $intent . '"' ), 'Client config carries only recognized assistant intent.' );
+		$denied = frontman_runtime_http( 'GET', '/index.php/frontman' . $query, $subscriber_cookie, null, null, '', '', AUTH_COOKIE, false );
+		frontman_runtime_same( 302, $denied['status'], 'UI intent does not bypass WordPress authentication.' );
+		$login_return = 'assistant' === $intent ? add_query_arg( 'frontman_intent', 'assistant', Frontman_UI::url( '/frontman' ) ) : Frontman_UI::url( '/frontman' );
+		frontman_runtime_assert( in_array( 'Location: ' . wp_login_url( $login_return ), $denied['headers'], true ), 'WordPress login preserves only recognized UI intent.' );
 	}
 	frontman_runtime_assert( false === strpos( $welcome_page( $subscriber_cookie ), 'Frontman is active. Start here.' ), 'Subscribers must not see the welcome.' );
 	$fields = [ 'action' => 'frontman_dismiss_welcome', '_wpnonce' => $admin_nonce ];

@@ -14,6 +14,20 @@ defmodule FrontmanServer.Billing.StripeClient do
   alias FrontmanServer.Billing.{Customer, StripeWebhookSignature}
 
   @impl true
+  def checkout_offers(opts) do
+    trial_days =
+      case Keyword.fetch!(opts, :trial_eligible) do
+        true -> stripe_config!(:trial_days)
+        false -> 0
+      end
+
+    with {:ok, monthly} <- checkout_offer(:monthly, "month", trial_days),
+         {:ok, yearly} <- checkout_offer(:yearly, "year", trial_days) do
+      {:ok, [monthly, yearly]}
+    end
+  end
+
+  @impl true
   def start_checkout(user, customer, interval, return_urls, opts) do
     params = checkout_session_params(user, customer, interval, return_urls, opts)
 
@@ -64,6 +78,69 @@ defmodule FrontmanServer.Billing.StripeClient do
       Jason.decode(raw_body)
     end
   end
+
+  defp checkout_offer(interval, period, trial_days)
+       when is_integer(trial_days) and trial_days >= 0 do
+    price_id = stripe_config!(price_id_key(interval))
+
+    case Req.get(new(),
+           url: "/prices/#{URI.encode_www_form(price_id)}",
+           receive_timeout: 5_000,
+           retry: false
+         ) do
+      {:ok, %{status: status, body: body}} when status in 200..299 ->
+        with {:ok, label} <- price_label(body, period) do
+          {:ok, %{interval: interval, label: label, trial_days: trial_days}}
+        end
+
+      {:ok, %Req.Response{status: status, body: body} = response} ->
+        {:error, {:stripe_error, status, body, Req.Response.get_header(response, "request-id")}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp price_label(
+         %{
+           "active" => true,
+           "billing_scheme" => "per_unit",
+           "unit_amount" => amount,
+           "currency" => currency,
+           "recurring" => %{
+             "interval" => period,
+             "interval_count" => 1,
+             "usage_type" => "licensed"
+           }
+         } = price,
+         period
+       )
+       when is_integer(amount) and amount >= 0 and is_binary(currency) do
+    with nil <- Map.get(price, "transform_quantity"),
+         {:ok, digits} <- currency_digits(currency) do
+      divisor = Integer.pow(10, digits)
+      whole = Integer.to_string(div(amount, divisor))
+      fraction = amount |> rem(divisor) |> Integer.to_string() |> String.pad_leading(digits, "0")
+      formatted = if digits == 0, do: whole, else: whole <> "." <> fraction
+      {:ok, "#{String.upcase(currency)} #{formatted} / #{period}"}
+    else
+      {:error, reason} -> {:error, reason}
+      _transform -> {:error, :unsupported_checkout_price}
+    end
+  end
+
+  defp price_label(_price, _period), do: {:error, :unsupported_checkout_price}
+
+  defp currency_digits(currency)
+       when currency in ~w(usd eur gbp cad aud nzd chf sek nok dkk pln czk inr brl mxn sgd hkd),
+       do: {:ok, 2}
+
+  defp currency_digits(currency)
+       when currency in ~w(bif clp djf gnf jpy kmf krw mga pyg rwf ugx vnd vuv xaf xof xpf),
+       do: {:ok, 0}
+
+  defp currency_digits(currency) when currency in ~w(bhd jod kwd omr tnd), do: {:ok, 3}
+  defp currency_digits(_currency), do: {:error, :unsupported_checkout_currency}
 
   defp new do
     Req.new(

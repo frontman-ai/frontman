@@ -37,15 +37,21 @@ defmodule FrontmanServer.Billing.Subscriptions do
     |> Kernel.not()
   end
 
-  def start_checkout(%Scope{} = scope, interval, return_urls) when is_map(return_urls) do
+  def checkout_eligible?(%Scope{} = scope) do
     case current(scope) do
       %Subscription{status: status} when status in ["trialing", "active", "past_due"] ->
-        {:error, :subscription_already_active}
+        false
 
       _subscription ->
-        Billing.start_checkout(scope, interval, return_urls,
-          trial_eligible: trial_eligible?(scope)
-        )
+        true
+    end
+  end
+
+  def start_checkout(%Scope{} = scope, interval, return_urls) when is_map(return_urls) do
+    if checkout_eligible?(scope) do
+      Billing.start_checkout(scope, interval, return_urls, trial_eligible: trial_eligible?(scope))
+    else
+      {:error, :subscription_already_active}
     end
   end
 

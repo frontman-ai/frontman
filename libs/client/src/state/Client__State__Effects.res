@@ -358,6 +358,7 @@ let targetIsCurrent = (state: state, target: taskTarget): bool =>
 let handleEffect = (effect, state: state, dispatch: action => unit) => {
   switch effect {
   | ReloadFrontman => WebAPI.Window.current->WebAPI.Window.location->WebAPI.Location.reload
+  | NavigateFrontman(url) => WebAPI.Window.current->WebAPI.Window.location->WebAPI.Location.assign(url)
   | ObserveWordPressWarning =>
     switch state.connection {
     | Some({connection: Ok(Some({lifetimeAbortController}))}) =>

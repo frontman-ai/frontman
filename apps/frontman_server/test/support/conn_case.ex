@@ -38,8 +38,8 @@ defmodule FrontmanServerWeb.ConnCase do
   end
 
   setup tags do
-    FrontmanServer.DataCase.setup_sandbox(tags)
-    {:ok, conn: Phoenix.ConnTest.build_conn()}
+    %{sandbox_owner: owner} = FrontmanServer.DataCase.setup_sandbox(tags)
+    {:ok, conn: Phoenix.ConnTest.build_conn(), sandbox_owner: owner}
   end
 
   @doc """

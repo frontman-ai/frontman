@@ -1,12 +1,13 @@
 .DEFAULT_GOAL := help
-.PHONY: help install test test-screenshots test-browser-forms test-coverage lint format dev dev-hot build build-lib clean serve preview check
+.PHONY: help install install-browser test test-screenshots test-browser-forms test-coverage lint format dev dev-hot build build-lib clean serve preview check
 
 SHELL := /bin/bash
 PATH := ./node_modules/.bin:$(PATH)
 
-HELP_TARGETS := help install test test-screenshots test-browser-forms test-coverage lint format dev-build-watch dev-hot build build-lib build-standalone clean serve preview check
+HELP_TARGETS := help install install-browser test test-screenshots test-browser-forms test-coverage lint format dev-build-watch dev-hot build build-lib build-standalone clean serve preview check
 HELP_help := Display this help message
 HELP_install := Install project dependencies
+HELP_install-browser := Install the pinned Chromium browser (set PLAYWRIGHT_BROWSERS_PATH for a local cache)
 HELP_test := Run test suite
 HELP_test-screenshots := Run Chromium regressions (optional BROWSER_TEST_FILTER)
 HELP_test-browser-forms := Run Chromium form discovery and fill acceptance tests
@@ -28,6 +29,9 @@ help:
 
 install:
 	npm install
+
+install-browser:
+	yarn playwright install chromium
 
 test: build
 	yarn vitest run $(TEST_FILTER)

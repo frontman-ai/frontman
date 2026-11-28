@@ -261,6 +261,7 @@ type state = {
   wordPressPendingMutation: option<int>,
   wordPressCredentialWarning: bool,
   wordPressAssistantSetupSelected: bool,
+  wordPressAssistantArrival: bool,
   wordPressWarningReady: bool,
   userProfile: option<userProfile>,
   settingsModalTab: option<settingsTab>,
