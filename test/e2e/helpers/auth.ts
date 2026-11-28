@@ -1,9 +1,3 @@
-/**
- * Playwright helpers for authentication.
- *
- * Uses the dev-only email+password form on /users/log-in.
- */
-
 import { randomUUID } from "node:crypto";
 import type { Page } from "playwright";
 
@@ -13,15 +7,6 @@ const E2E_PASSWORD = "e2epassword123!";
 const PHOENIX_ORIGIN = "https://localhost:4002";
 const EMBEDDED_TOKEN_STORAGE_KEY = "frontman:embeddedClientToken";
 
-/**
- * Log in the e2e test user via the dev email/password form.
- *
- * Navigates to the Phoenix login page, fills the form, and submits.
- * After success, the server redirects back to `returnTo`.
- *
- * Retries once on failure — CI runners can be slow and the first
- * attempt sometimes times out waiting for the redirect.
- */
 export async function login(
   page: Page,
   opts?: { returnTo?: string },
@@ -92,14 +77,47 @@ async function loginOnce(
     return;
   }
 
-  await page.locator("#login-form").waitFor({ state: "visible", timeout: 30_000 });
-  await page.fill('#login-form input[type="email"]', E2E_EMAIL);
-  await page.fill('#login-form input[type="password"]', E2E_PASSWORD);
-  await page.click("#login-submit");
+  await loginSeededAccount(page, E2E_EMAIL, E2E_PASSWORD);
 
   await page.waitForURL((url) => !url.pathname.includes("/users/log-in"), {
     timeout: 30_000,
   });
+}
+
+export async function submitSignIn(
+  page: Page,
+  user: { email: string; password?: string },
+): Promise<string> {
+  const csrf = await page.locator('meta[name="csrf-token"]').getAttribute("content");
+  if (!csrf) throw new Error("Sign-in page has no CSRF token");
+  const form: Record<string, string> = {
+    _csrf_token: csrf,
+    "user[email]": user.email,
+  };
+  if (user.password !== undefined) form["user[password]"] = user.password;
+  const url = new URL(page.url());
+  for (const name of ["embedded_origin", "embedded_state"]) {
+    const value = url.searchParams.get(name);
+    if (value !== null) form[name] = value;
+  }
+  const response = await page.request.post(`${PHOENIX_ORIGIN}/users/log-in`, {
+    form,
+    maxRedirects: 0,
+  });
+  if (response.status() !== 302) {
+    throw new Error(`Seeded sign-in request failed with HTTP ${response.status()}`);
+  }
+  const location = response.headers()["location"];
+  if (!location) throw new Error("Sign-in response has no redirect");
+  return new URL(location, PHOENIX_ORIGIN).toString();
+}
+
+export async function loginSeededAccount(
+  page: Page,
+  email: string,
+  password: string,
+): Promise<void> {
+  await page.goto(await submitSignIn(page, { email, password }));
 }
 
 /**

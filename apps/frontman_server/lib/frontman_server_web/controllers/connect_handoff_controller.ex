@@ -64,7 +64,7 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
          %{id: id} <- selected_site(conn, params["site_id"]) do
       conn
       |> put_session(:setup_site_id, id)
-      |> redirect(to: journey_path(params["ref"]))
+      |> redirect(to: checkpoint_path(conn))
     else
       false ->
         expired(conn)
@@ -72,7 +72,7 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
       nil ->
         conn
         |> put_flash(:error, "Choose a site connected to this account.")
-        |> redirect(to: journey_path(params["ref"]))
+        |> redirect(to: checkpoint_path(conn))
     end
   end
 
@@ -256,6 +256,14 @@ defmodule FrontmanServerWeb.ConnectHandoffController do
   defp valid_journey?(conn, ref), do: match?({:ok, _}, pending(conn, ref))
   defp journey_path(ref) when ref in [nil, ""], do: ~p"/wordpress/connect"
   defp journey_path(ref), do: ~p"/auth/mcp/workos/pending?#{%{ref: ref}}"
+
+  defp checkpoint_path(conn) do
+    checkpoint_path(
+      conn.params["ref"],
+      Billing.subscription_access(conn.assigns.current_scope),
+      conn.params["checkout"]
+    )
+  end
 
   defp checkpoint_path(ref, {:allowed, _}, _checkout), do: journey_path(ref)
 

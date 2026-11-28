@@ -4,6 +4,7 @@ import { createServer, type Server } from "node:http";
 import { resolve } from "node:path";
 import { chromium, errors } from "playwright";
 import { describe, expect, it } from "vitest";
+import { loginSeededAccount } from "../helpers/auth.js";
 
 const origin = "https://localhost:4002";
 const resource = `${origin}/mcp`;
@@ -105,6 +106,11 @@ describe("WorkOS MCP OAuth", () => {
         %Subscription{billing_customer_id: customer.id}
           |> Subscription.changeset(%{stripe_customer_id: customer.stripe_customer_id,
             stripe_subscription_id: "sub_e2e_" <> user.id, status: "active"}) |> Repo.insert!()
+        {:ok, _} = FrontmanServer.Vault.start_link()
+        alias FrontmanServer.WordPress.Connection
+        %Connection{user_id: user.id} |> Connection.changeset(%{
+          catalog_url: "https://owned.example/tools", call_url: "https://owned.example/tools/call",
+          username: "private-user", password: "private-password"}) |> Repo.insert!()
       `, email, password);
       userCreated = true;
 
@@ -156,10 +162,10 @@ describe("WorkOS MCP OAuth", () => {
 
       phase = "authorization navigation";
       await page.goto(authorize.toString());
-      phase = "Frontman password login";
-      await page.locator("#login-form input[type=email]").fill(email);
-      await page.locator("#login-form input[type=password]").fill(password);
-      await page.locator("#login-submit").click();
+      phase = "Frontman seeded account login";
+      await loginSeededAccount(page, email, password);
+      expect(await page.locator("#connect-selected-site").textContent()).toContain("owned.example");
+      expect(await page.locator("#connect-continue").isVisible()).toBe(true);
       if (linked) {
         phase = "shared provider handoff";
         const shared = page.waitForResponse((response) =>
@@ -256,9 +262,9 @@ describe("WorkOS MCP OAuth", () => {
       expect(typeof claims.exp).toBe("number");
       expect(claims.exp).toBeGreaterThan(Date.now() / 1000);
 
-      phase = "local synthetic user lookup";
+      phase = "local synthetic user lookup and empty-catalog setup";
       const [localId, providerId] = fixture(`
-        alias FrontmanServer.Accounts
+        alias FrontmanServer.{Accounts, Repo}
         {:ok, _} = Application.ensure_all_started(:workos)
         user = Accounts.get_user_by_email(System.fetch_env!("E2E_MCP_EMAIL")) || raise "Missing local user"
         {:ok, provider} = WorkOS.UserManagement.get_user_by_external_id(WorkOS.client(), user.id)
@@ -267,6 +273,7 @@ describe("WorkOS MCP OAuth", () => {
           [] -> :ok
           [identity] -> true = provider.id == identity.provider_id
         end
+        {1, _} = FrontmanServer.WordPress.Connection.owned(user.id) |> Repo.delete_all()
         IO.write(user.id <> " " <> provider.id)
       `, email, password).split(" ");
       console.info(`Retained WorkOS E2E user: ${providerId}`);

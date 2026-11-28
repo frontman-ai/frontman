@@ -30,6 +30,11 @@ async function screen(label, scenario, suffix = "") {
   if (scenario) {
     await signInFixture(page, base, scenario.email, process.env.ONBOARDING_TEST_PASSWORD)
     await page.locator("#hosted-setup").waitFor()
+    if (scenario.name === "trial-offer") {
+      await page.locator("#connect-select-site select").selectOption(scenario.site_ids[0])
+      await page.locator("#connect-select-site button").click()
+      await page.locator("#checkout-plan").waitFor()
+    }
   }
   if (suffix) {
     const url = new URL(page.url())

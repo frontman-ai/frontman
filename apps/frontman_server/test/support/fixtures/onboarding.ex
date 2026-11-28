@@ -14,7 +14,7 @@ defmodule FrontmanServer.Test.Fixtures.Onboarding do
   def cases(password) do
     [
       create("new-site", password, 0, :none),
-      create("trial-offer", password, 1, :none),
+      create("trial-offer", password, 2, :none),
       create("ready", password, 1, :active),
       create("choose-site", password, 2, :active),
       create("returning", password, 1, :canceled)

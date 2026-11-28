@@ -78,6 +78,12 @@
         data-once-submit
       >
         <input type="hidden" name="ref" value={@ref} />
+        <input
+          :if={@conn.params["checkout"] == "success"}
+          type="hidden"
+          name="checkout"
+          value="success"
+        />
         <.input
           field={@form[:site_id]}
           type="select"
@@ -223,6 +229,12 @@
           data-once-submit
         >
           <input type="hidden" name="ref" value={@ref} />
+          <input
+            :if={@conn.params["checkout"] == "success"}
+            type="hidden"
+            name="checkout"
+            value="success"
+          />
           <.input
             field={@form[:site_id]}
             type="select"

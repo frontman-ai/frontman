@@ -57,16 +57,27 @@ try {
       break
     }
     case "trial-offer": {
-      await page.locator("#connect-selected-site").waitFor()
-      await page.locator("#checkout-plan").waitFor()
+      await page.locator("#connect-select-site").waitFor()
       assert.equal(await page.locator("#connect-continue").count(), 0)
 
       const returned = new URL(page.url())
       returned.searchParams.set("checkout", "success")
       await page.goto(returned.href)
+      await page.locator("#connect-select-site select").selectOption(siteIds[0])
+      await page.locator("#connect-select-site button").click()
       await page.locator("#checkout-pending").waitFor()
+      assert.equal(new URL(page.url()).searchParams.get("checkout"), "success")
       assert.equal(await page.locator("#connect-continue").count(), 0)
       assert.equal(await page.locator("#checkout-plan").count(), 0)
+
+      await page.locator("#hosted-setup > details > summary").click()
+      await page.locator("#connect-change-site select").selectOption(siteIds[1])
+      await page.locator("#connect-change-site button").click()
+      await page.locator("#checkout-pending").waitFor()
+      assert.equal(new URL(page.url()).searchParams.get("checkout"), "success")
+      assert.equal(await page.locator("#connect-change-site select").inputValue(), siteIds[1])
+      assert.equal(await page.locator("#checkout-plan").count(), 0)
+      assert.equal(await page.locator("#connect-continue").count(), 0)
 
       await page.locator("#hosted-setup > details > summary").click()
       await page.getByRole("link", {name: "Refresh setup status"}).click()

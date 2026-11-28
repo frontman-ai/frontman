@@ -218,6 +218,95 @@ defmodule FrontmanServerWeb.WordPressOnboardingControllerTest do
     assert get_session(refreshed, :setup_site_id) == second.id
   end
 
+  test "site selection preserves pending confirmation until persisted access allows it", %{
+    conn: conn
+  } do
+    for journey <- [:generic, :handoff] do
+      user = Accounts.user_fixture()
+      scope = Scope.for_user(user)
+      first = insert_site(user, "https://first.example/wp-json/frontman/v1/tools")
+      second = insert_site(user, "https://second.example/wp-json/frontman/v1/tools")
+
+      foreign =
+        insert_site(Accounts.user_fixture(), "https://foreign.example/wp-json/frontman/v1/tools")
+
+      started = conn |> recycle() |> log_in_user(user)
+
+      {started, path} =
+        case journey do
+          :generic ->
+            {get(started, "/wordpress/connect"), "/wordpress/connect"}
+
+          :handoff ->
+            started = get(started, "/auth/mcp/workos?external_auth_id=original")
+            {started, redirected_to(started)}
+        end
+
+      separator = if journey == :generic, do: "?", else: "&"
+      waiting = path <> separator <> "checkout=success"
+
+      for {saved, form_id} <- [{nil, "connect-select-site"}, {first.id, "connect-change-site"}],
+          chosen <- [second.id, foreign.id] do
+        shown =
+          started
+          |> recycle()
+          |> init_test_session(setup_site_id: saved)
+          |> get(waiting)
+
+        form =
+          shown |> html_response(200) |> LazyHTML.from_document() |> LazyHTML.query("##{form_id}")
+
+        params =
+          form
+          |> LazyHTML.query("input[type=hidden]")
+          |> Enum.into(%{}, fn input ->
+            [name] = LazyHTML.attribute(input, "name")
+            {name, input |> LazyHTML.attribute("value") |> List.first("")}
+          end)
+          |> Map.put("site_id", chosen)
+
+        assert params["checkout"] == "success"
+        [action] = LazyHTML.attribute(form, "action")
+
+        result =
+          shown
+          |> recycle()
+          |> put_private(:plug_skip_csrf_protection, false)
+          |> post(action, params)
+
+        assert redirected_to(result) == waiting
+
+        assert get_session(result, :setup_site_id) ==
+                 if(chosen == foreign.id, do: saved, else: chosen)
+
+        assert get_session(result, :connect_handoff) == get_session(started, :connect_handoff)
+        refreshed = result |> recycle() |> get(redirected_to(result))
+        page = html_response(refreshed, 200)
+        refute page =~ ~s(id="checkout-plan")
+        refute page =~ ~s(id="connect-continue")
+        refute page =~ ~s(id="connect-finished")
+        if chosen == foreign.id, do: assert(page =~ "Choose a site connected to this account.")
+        if get_session(result, :setup_site_id), do: assert(page =~ ~s(id="checkout-pending"))
+        assert FrontmanServer.Billing.subscription_access(scope) == :none
+      end
+
+      BillingFixtures.subscription_for_scope_fixture(scope)
+
+      for chosen <- [second.id, foreign.id] do
+        confirmed =
+          started
+          |> recycle()
+          |> post("/wordpress/connect/site", %{
+            ref: URI.decode_query(URI.parse(path).query || "")["ref"],
+            site_id: chosen,
+            checkout: "success"
+          })
+
+        assert redirected_to(confirmed) == path
+      end
+    end
+  end
+
   test "selection, checkout and portal require CSRF", %{conn: conn} do
     user = Accounts.user_fixture()
     site = insert_site(user, "https://owned.example/wp-json/frontman/v1/tools")

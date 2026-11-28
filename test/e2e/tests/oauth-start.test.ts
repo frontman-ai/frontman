@@ -5,6 +5,7 @@ import {
   type Page,
 } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { submitSignIn } from "../helpers/auth.js";
 
 const PHOENIX_ORIGIN = "https://localhost:4002";
 
@@ -16,7 +17,6 @@ describe("OAuth start E2E", () => {
   beforeAll(async () => {
     browser = await chromium.launch({ headless: true });
     context = await browser.newContext({ ignoreHTTPSErrors: true });
-    await context.route("https://api.workos.com/**", (route) => route.abort());
     page = await context.newPage();
   });
 
@@ -27,27 +27,43 @@ describe("OAuth start E2E", () => {
   });
 
   it.each([
-    { provider: "google", workosProvider: "GoogleOAuth", label: "Login with Google" },
-    { provider: "github", workosProvider: "GitHubOAuth", label: "Login with GitHub" },
+    { provider: "google", workosProvider: "GoogleOAuth", label: "Continue with Google" },
+    { provider: "github", workosProvider: "GitHubOAuth", label: "Continue with GitHub" },
   ])("redirects $provider sign-in to WorkOS", async ({ provider, workosProvider, label }) => {
     await page.goto(`${PHOENIX_ORIGIN}/users/log-in?framework=nextjs`);
 
-    const responsePromise = page.waitForResponse(
-      (response) =>
-        response.url() === `${PHOENIX_ORIGIN}/auth/${provider}` &&
-        response.status() === 302,
-    );
-
-    await page.getByRole("button", { name: label }).click();
-    const response = await responsePromise;
-    const location = response.headers()["location"];
-
-    expect(location).toContain("https://api.workos.com/user_management/authorize");
-    expect(location).toContain(`provider=${workosProvider}`);
-    expect(location).toContain("redirect_uri=https%3A%2F%2Flocalhost%3A4002%2Fauth%2Fcallback");
+    expect(await page.locator('#login-form, #email-link-form, input[type="password"]').count()).toBe(0);
+    const form = page.locator(`#${provider}-login-form`);
+    expect(await form.getAttribute("method")).toBe("post");
+    expect(await form.getAttribute("action")).toBe(`/auth/${provider}`);
+    expect(await form.getByRole("button", { name: label, exact: true }).isVisible()).toBe(true);
+    const csrf = await form.locator('input[name="_csrf_token"]').inputValue();
+    expect(csrf).not.toBe("");
+    const denied = await page.request.post(`${PHOENIX_ORIGIN}/auth/${provider}`, {
+      form: {},
+      maxRedirects: 0,
+    });
+    expect(denied.status()).toBe(403);
+    const states = new Set<string>();
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const response = await page.request.post(`${PHOENIX_ORIGIN}/auth/${provider}`, {
+        form: { _csrf_token: csrf },
+        maxRedirects: 0,
+      });
+      expect(response.status()).toBe(302);
+      const location = new URL(response.headers()["location"]);
+      expect(location.origin).toBe("https://api.workos.com");
+      expect(location.pathname).toBe("/user_management/authorize");
+      expect(location.searchParams.get("provider")).toBe(workosProvider);
+      expect(location.searchParams.get("redirect_uri")).toBe(`${PHOENIX_ORIGIN}/auth/callback`);
+      const state = location.searchParams.get("state");
+      expect(state).toMatch(/^[A-Za-z0-9_-]{22}$/);
+      states.add(state!);
+    }
+    expect(states.size).toBe(2);
   });
 
-  it("completes email authorization from the original popup after sign-in in another tab", async () => {
+  it("completes backend email authorization when the original popup resumes after sign-in in another tab", async () => {
     const emailContext = await browser.newContext({ ignoreHTTPSErrors: true });
     try {
       const assets = await emailContext.request.get(`${PHOENIX_ORIGIN}/assets/js/app.js`);
@@ -75,9 +91,11 @@ describe("OAuth start E2E", () => {
       const authorizationUrl = new URL(popup.url());
       const state = authorizationUrl.searchParams.get("embedded_state");
       expect(state).toBeTruthy();
-      await popup.locator('#email-link-form input[type="email"]').fill("e2e@frontman.local");
-      await popup.locator('#email-link-form button[type="submit"]').click();
-      await popup.locator("#embedded-email-continue").waitFor({ state: "visible" });
+      await popup.goto(await submitSignIn(popup, { email: "e2e@frontman.local" }));
+      expect(new URL(popup.url()).searchParams.get("embedded_state")).toBe(state);
+      expect(new URL(popup.url()).searchParams.get("embedded_origin")).toBe(
+        authorizationUrl.searchParams.get("embedded_origin"),
+      );
 
       const mailbox = await emailContext.request.get(`${PHOENIX_ORIGIN}/dev/mailbox/json`);
       expect(mailbox.ok()).toBe(true);
@@ -103,7 +121,7 @@ describe("OAuth start E2E", () => {
       expect(await client.locator("#start-email-authorization").getAttribute("title")).toBe("pending");
       expect(await client.evaluate(() => localStorage.getItem("frontman:embeddedClientToken"))).toBeNull();
 
-      await popup.locator("#embedded-email-continue").click();
+      await popup.goto(authorizationUrl.toString());
       expect(await popup.opener()).toBe(client);
       expect(new URL(popup.url()).searchParams.get("embedded_state")).toBe(state);
       await popup.locator('#embedded-connect-form button[type="submit"]').click();
